@@ -77,11 +77,27 @@ curl http://localhost:5000/health
 
 ### 1. Railway 배포 (권장)
 
-1. [Railway](https://railway.app) 계정 생성
-2. GitHub에 이 코드를 push
-3. Railway에서 GitHub 연결하여 배포
-4. 환경변수 설정: `CLAUDE_API_KEY=your-api-key-here`
-5. 자동으로 HTTPS URL 생성됨
+**단계별 가이드:**
+
+1. **[Railway](https://railway.app) 계정 생성**
+   - GitHub 계정으로 로그인
+
+2. **새 프로젝트 생성**
+   - "New Project" → "Deploy from GitHub repo" 클릭
+   - `kakao-skill-webhook` 저장소 선택
+
+3. **환경변수 설정**
+   - 배포된 프로젝트 → "Variables" 탭 클릭
+   - 새 변수 추가:
+     - **Name**: `CLAUDE_API_KEY`
+     - **Value**: `your-claude-api-key-here`
+
+4. **배포 완료**
+   - 자동으로 HTTPS URL 생성 (예: `https://kakao-skill-webhook-production.up.railway.app`)
+   - `/health` 엔드포인트로 상태 확인
+
+5. **웹훅 URL 확인**
+   - 카카오 스킬 URL: `https://your-app.railway.app/kakao-skill-webhook`
 
 ### 2. Heroku 배포
 
@@ -125,6 +141,21 @@ git push heroku main
 - HTTPS URL 사용 확인
 - 응답 형식이 카카오 규격에 맞는지 확인
 
-### 3. 서버 오류
-- 로그 확인: `print(f"Error occurred: {e}")`
+### 3. Railway 배포 오류
+
+**"requirements.txt not found" 에러:**
+- 프로젝트 루트에 `requirements.txt` 파일이 있는지 확인
+- GitHub에 파일이 정상적으로 업로드되었는지 확인
+
+**빌드 실패:**
+- `railway.toml` 파일 확인
+- Python 버전 호환성 확인 (`runtime.txt`)
+
+**서버 시작 실패:**
+- Railway 로그에서 오류 메시지 확인
+- 환경변수가 올바르게 설정되었는지 확인
+
+### 4. 서버 오류
+- Railway 대시보드에서 로그 확인
+- `/health` 엔드포인트로 서버 상태 확인
 - 의존성 패키지 설치 확인
