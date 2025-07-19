@@ -96,8 +96,9 @@ curl http://localhost:5000/health
    - 자동으로 HTTPS URL 생성 (예: `https://kakao-skill-webhook-production.up.railway.app`)
    - `/health` 엔드포인트로 상태 확인
 
-5. **웹훅 URL 확인**
-   - 카카오 스킬 URL: `https://your-app.railway.app/kakao-skill-webhook`
+5. **웹훅 URL 설정**
+   - **방법 1 (권장)**: `https://your-app.railway.app/kakao-skill-webhook`
+   - **방법 2**: `https://your-app.railway.app` (루트 경로도 지원)
 
 ### 2. Heroku 배포
 
@@ -119,10 +120,28 @@ git push heroku main
 
 ## 카카오 챗봇 관리자센터 설정
 
-1. **스킬 URL**: 배포된 서버의 HTTPS URL + `/kakao-skill-webhook`
-   - 예: `https://your-domain.com/kakao-skill-webhook`
+### 스킬 URL 설정
 
-2. **테스트**: 관리자센터에서 스킬 테스트 기능으로 동작 확인
+**올바른 URL 형식:**
+- ✅ `https://kakao-skill-webhook-production.up.railway.app/kakao-skill-webhook`
+- ✅ `https://kakao-skill-webhook-production.up.railway.app` (루트 경로)
+
+**주의사항:**
+- 반드시 **HTTPS**를 사용해야 합니다
+- URL 끝에 `/`는 붙이지 마세요
+
+### 테스트 방법
+
+1. **관리자센터에서 테스트**
+   - 스킬 편집 페이지에서 "테스트" 탭 클릭
+   - 메시지 입력 후 응답 확인
+
+2. **직접 테스트**
+   ```bash
+   curl -X POST https://your-app.railway.app/kakao-skill-webhook \
+     -H "Content-Type: application/json" \
+     -d '{"userRequest": {"utterance": "안녕하세요"}}'
+   ```
 
 ## 주의사항
 
@@ -138,8 +157,15 @@ git push heroku main
 - API 호출 한도 확인
 
 ### 2. 카카오 웹훅 오류
+
+**405 METHOD_NOT_ALLOWED 에러:**
+- 잘못된 URL: `https://your-app.railway.app` → 올바른 URL: `https://your-app.railway.app/kakao-skill-webhook`
+- 또는 루트 경로 사용: `https://your-app.railway.app` (이제 지원됨)
+
+**기타 웹훅 오류:**
 - HTTPS URL 사용 확인
 - 응답 형식이 카카오 규격에 맞는지 확인
+- JSON Content-Type 헤더 확인
 
 ### 3. Railway 배포 오류
 
