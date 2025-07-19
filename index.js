@@ -289,7 +289,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                         }
                     }));
                     
-                    res.json({
+                    const response = {
                         version: "2.0",
                         template: {
                             outputs: [{
@@ -306,10 +306,12 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                                 }
                             }]
                         }
-                    });
+                    };
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                    res.status(200).json(response);
                 } else {
                     // 짧은 텍스트는 그대로 텍스트로 제공
-                    res.json({
+                    const response = {
                         version: "2.0",
                         template: {
                             outputs: [{
@@ -318,7 +320,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                                 }
                             }]
                         }
-                    });
+                    };
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                    res.status(200).json(response);
                 }
                 return;
             } else {
@@ -485,8 +489,16 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             };
         }
         
+        // Kakao Skills 응답 검증
+        if (!kakaoResponse.template || !kakaoResponse.template.outputs || !Array.isArray(kakaoResponse.template.outputs)) {
+            throw new Error('Invalid Kakao response format');
+        }
+        
         console.log(`📤 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2).substring(0, 300)}...`);
-        res.json(kakaoResponse);
+        
+        // 응답 헤더 명시적 설정 (Kakao Skills 호환성)
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.status(200).json(kakaoResponse);
         console.log('✅ 카카오 웹훅 응답 전송 완료');
         
     } catch (error) {
@@ -503,7 +515,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             errorMsg = "응답 시간이 초과되었습니다. 다시 시도해주세요.";
         }
         
-        res.json({
+        const errorResponse = {
             version: "2.0",
             template: {
                 outputs: [{
@@ -512,7 +524,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     }
                 }]
             }
-        });
+        };
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.status(200).json(errorResponse);
     }
 });
 
@@ -586,7 +600,7 @@ app.post('/', async (req, res) => {
                         }
                     }));
                     
-                    res.json({
+                    const response = {
                         version: "2.0",
                         template: {
                             outputs: [{
@@ -603,10 +617,12 @@ app.post('/', async (req, res) => {
                                 }
                             }]
                         }
-                    });
+                    };
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                    res.status(200).json(response);
                 } else {
                     // 짧은 텍스트는 그대로 텍스트로 제공
-                    res.json({
+                    const response = {
                         version: "2.0",
                         template: {
                             outputs: [{
@@ -615,7 +631,9 @@ app.post('/', async (req, res) => {
                                 }
                             }]
                         }
-                    });
+                    };
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                    res.status(200).json(response);
                 }
                 return;
             } else {
@@ -778,8 +796,16 @@ app.post('/', async (req, res) => {
             };
         }
         
+        // Kakao Skills 응답 검증
+        if (!kakaoResponse.template || !kakaoResponse.template.outputs || !Array.isArray(kakaoResponse.template.outputs)) {
+            throw new Error('Invalid Kakao response format');
+        }
+        
         console.log(`📤 루트 웹훅 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2).substring(0, 300)}...`);
-        res.json(kakaoResponse);
+        
+        // 응답 헤더 명시적 설정 (Kakao Skills 호환성)
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.status(200).json(kakaoResponse);
         console.log('✅ 루트 웹훅 응답 전송 완료');
         
     } catch (error) {
@@ -796,7 +822,7 @@ app.post('/', async (req, res) => {
             errorMsg = "응답 시간이 초과되었습니다. 다시 시도해주세요.";
         }
         
-        res.json({
+        const errorResponse = {
             version: "2.0",
             template: {
                 outputs: [{
@@ -805,7 +831,9 @@ app.post('/', async (req, res) => {
                     }
                 }]
             }
-        });
+        };
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.status(200).json(errorResponse);
     }
 });
 
