@@ -410,51 +410,57 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         console.log('✅ Claude API 호출 시작...');
         
-        // Claude에게 현재 시간 정보와 함께 메시지 전달
-        let enhancedMessage = userMessage;
-        
-        // 시간 관련 질문이면 현재 시간 정보 추가
-        if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
-            enhancedMessage = `현재 한국 시간: ${koreanTime.formatted}\n사용자 질문: ${userMessage}\n\n답변시 길이 제한 없이 상세하고 완전한 답변을 제공해주세요.`;
-        }
-        
-        // 뉴스 관련 질문이면 최신 정보 안내
-        if (isNewsRequest(userMessage)) {
-            enhancedMessage = `현재 시간: ${koreanTime.formatted}\n사용자가 최신 뉴스를 요청했지만 네이버 검색 API가 사용 불가능합니다. 네이버 API 연동이 필요하다고 안내해주세요.\n사용자 질문: ${userMessage}\n\n답변시 길이 제한 없이 상세한 설명을 제공해주세요.`;
-        }
-        
-        // 검색이나 설명 요청시 더 상세한 답변 유도
-        if (userMessage.includes('검색') || userMessage.includes('설명') || userMessage.includes('알려줘') || userMessage.includes('가르쳐') || userMessage.includes('방법')) {
-            enhancedMessage = `${enhancedMessage}\n\n[중요] 길이 제한 없이 가능한 한 상세하고 완전한 답변을 제공해주세요. 단계별 설명, 예시, 추가 정보를 모두 포함해주세요.`;
-        }
-        
-        // Claude API 호출 (4초 타임아웃으로 단축)
+        // 2.5초 타임아웃으로 즉시 응답 보장
         console.log('🔄 Claude API 호출 중...');
         const startTime = Date.now();
         
-        const claudeResponse = await axios.post(
-            'https://api.anthropic.com/v1/messages',
-            {
-                model: "claude-3-haiku-20240307",
-                messages: [{
-                    role: "user",
-                    content: enhancedMessage
-                }],
-                max_tokens: 2000  // 토큰 수 줄여서 응답 속도 향상: 4000 → 2000
-            },
-            {
-                headers: {
-                    'x-api-key': process.env.CLAUDE_API_KEY,
-                    'anthropic-version': '2023-06-01',
-                    'content-type': 'application/json'
-                },
-                timeout: 4000  // 4초로 단축하여 카카오 5초 제한 준수
+        let responseText;
+        try {
+            const claudeResponse = await Promise.race([
+                axios.post(
+                    'https://api.anthropic.com/v1/messages',
+                    {
+                        model: "claude-3-haiku-20240307",
+                        messages: [{
+                            role: "user",
+                            content: userMessage
+                        }],
+                        max_tokens: 300  // 더 줄임: 500 → 300
+                    },
+                    {
+                        headers: {
+                            'x-api-key': process.env.CLAUDE_API_KEY,
+                            'anthropic-version': '2023-06-01',
+                            'content-type': 'application/json'
+                        },
+                        timeout: 2500  // 2.5초로 더 단축
+                    }
+                ),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('QUICK_TIMEOUT')), 2500)
+                )
+            ]);
+            
+            const responseTime = Date.now() - startTime;
+            responseText = claudeResponse.data.content[0].text;
+            console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
+        } catch (error) {
+            const responseTime = Date.now() - startTime;
+            console.log(`⚠️ Claude 타임아웃 (${responseTime}ms) - 간단 응답으로 폴백`);
+            
+            // 시간 관련 질문 처리
+            if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
+                responseText = `현재 한국 시간: ${koreanTime.formatted}입니다.`;
             }
-        );
-        
-        const responseTime = Date.now() - startTime;
-        let responseText = claudeResponse.data.content[0].text;
-        console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
+            // 간단한 인사 응답
+            else if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
+                responseText = `안녕하세요! 현재 시간은 ${koreanTime.formatted}입니다. 무엇을 도와드릴까요?`;
+            }
+            // 기본 응답
+            else {
+                responseText = `죄송합니다. 응답 처리 중 지연이 발생했습니다. 다시 질문해주시면 더 빠르게 답변드리겠습니다. (현재 시간: ${koreanTime.formatted})`;
+            }
+        }
         console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
         
         // 카카오 스킬 응답 길이 제한 처리 (1000자 제한)
@@ -723,50 +729,56 @@ app.post('/', async (req, res) => {
         
         console.log('✅ Claude API 호출 시작...');
         
-        // Claude에게 현재 시간 정보와 함께 메시지 전달
-        let enhancedMessage = userMessage;
-        
-        // 시간 관련 질문이면 현재 시간 정보 추가
-        if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
-            enhancedMessage = `현재 한국 시간: ${koreanTime.formatted}\n사용자 질문: ${userMessage}\n\n답변시 길이 제한 없이 상세하고 완전한 답변을 제공해주세요.`;
-        }
-        
-        // 뉴스 관련 질문이면 최신 정보 안내
-        if (isNewsRequest(userMessage)) {
-            enhancedMessage = `현재 시간: ${koreanTime.formatted}\n사용자가 최신 뉴스를 요청했지만 네이버 검색 API가 사용 불가능합니다. 네이버 API 연동이 필요하다고 안내해주세요.\n사용자 질문: ${userMessage}\n\n답변시 길이 제한 없이 상세한 설명을 제공해주세요.`;
-        }
-        
-        // 검색이나 설명 요청시 더 상세한 답변 유도
-        if (userMessage.includes('검색') || userMessage.includes('설명') || userMessage.includes('알려줘') || userMessage.includes('가르쳐') || userMessage.includes('방법')) {
-            enhancedMessage = `${enhancedMessage}\n\n[중요] 길이 제한 없이 가능한 한 상세하고 완전한 답변을 제공해주세요. 단계별 설명, 예시, 추가 정보를 모두 포함해주세요.`;
-        }
-        
-        // Claude API 호출 (4초 타임아웃으로 단축)
+        // 2.5초 타임아웃으로 즉시 응답 보장
         const startTime = Date.now();
         
-        const claudeResponse = await axios.post(
-            'https://api.anthropic.com/v1/messages',
-            {
-                model: "claude-3-haiku-20240307",
-                messages: [{
-                    role: "user",
-                    content: enhancedMessage
-                }],
-                max_tokens: 2000  // 토큰 수 줄여서 응답 속도 향상: 4000 → 2000
-            },
-            {
-                headers: {
-                    'x-api-key': process.env.CLAUDE_API_KEY,
-                    'anthropic-version': '2023-06-01',
-                    'content-type': 'application/json'
-                },
-                timeout: 4000  // 4초로 단축하여 카카오 5초 제한 준수
+        let responseText;
+        try {
+            const claudeResponse = await Promise.race([
+                axios.post(
+                    'https://api.anthropic.com/v1/messages',
+                    {
+                        model: "claude-3-haiku-20240307",
+                        messages: [{
+                            role: "user",
+                            content: userMessage
+                        }],
+                        max_tokens: 300  // 더 줄임: 500 → 300
+                    },
+                    {
+                        headers: {
+                            'x-api-key': process.env.CLAUDE_API_KEY,
+                            'anthropic-version': '2023-06-01',
+                            'content-type': 'application/json'
+                        },
+                        timeout: 2500  // 2.5초로 더 단축
+                    }
+                ),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('QUICK_TIMEOUT')), 2500)
+                )
+            ]);
+            
+            const responseTime = Date.now() - startTime;
+            responseText = claudeResponse.data.content[0].text;
+            console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
+        } catch (error) {
+            const responseTime = Date.now() - startTime;
+            console.log(`⚠️ Claude 타임아웃 (${responseTime}ms) - 간단 응답으로 폴백`);
+            
+            // 시간 관련 질문 처리
+            if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
+                responseText = `현재 한국 시간: ${koreanTime.formatted}입니다.`;
             }
-        );
-        
-        const responseTime = Date.now() - startTime;
-        let responseText = claudeResponse.data.content[0].text;
-        console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
+            // 간단한 인사 응답
+            else if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
+                responseText = `안녕하세요! 현재 시간은 ${koreanTime.formatted}입니다. 무엇을 도와드릴까요?`;
+            }
+            // 기본 응답
+            else {
+                responseText = `죄송합니다. 응답 처리 중 지연이 발생했습니다. 다시 질문해주시면 더 빠르게 답변드리겠습니다. (현재 시간: ${koreanTime.formatted})`;
+            }
+        }
         console.log(`📝 응답 미리보기: ${responseText.substring(0, 100)}...`);
         
         // 카카오 스킬 응답 길이 제한 처리 (1000자 제한)
