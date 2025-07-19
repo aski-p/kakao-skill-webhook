@@ -2,48 +2,56 @@ const express = require('express');
 const axios = require('axios');
 const app = express();
 
-// 뉴스 API 설정
-const NEWS_API_KEY = process.env.NEWS_API_KEY; // newsapi.org에서 발급받은 키
-const NEWS_API_BASE_URL = 'https://newsapi.org/v2/top-headlines';
+// 네이버 검색 API 설정
+const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
+const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
+const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
 
 app.use(express.json());
 
-// 뉴스 가져오기 함수
-async function getLatestNews(query = '', country = 'kr') {
+// 네이버 검색 API로 뉴스 가져오기 함수
+async function getLatestNews(query = '오늘 뉴스') {
     try {
-        if (!NEWS_API_KEY) {
+        if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
+            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
             return null;
         }
         
         const params = {
-            apiKey: NEWS_API_KEY,
-            country: country,
-            pageSize: 5
+            query: query,
+            display: 5,
+            start: 1,
+            sort: 'date'  // 최신순 정렬
         };
         
-        if (query) {
-            params.q = query;
-        }
+        console.log(`📡 네이버 뉴스 검색: "${query}"`);
         
-        const response = await axios.get(NEWS_API_BASE_URL, {
+        const response = await axios.get(NAVER_NEWS_API_URL, {
             params: params,
-            timeout: 3000
+            headers: {
+                'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+            },
+            timeout: 5000
         });
         
-        const articles = response.data.articles;
-        if (!articles || articles.length === 0) {
+        const items = response.data.items;
+        if (!items || items.length === 0) {
+            console.log('📰 검색된 뉴스가 없습니다.');
             return null;
         }
         
-        return articles.slice(0, 3).map(article => ({
-            title: article.title,
-            description: article.description,
-            publishedAt: article.publishedAt,
-            source: article.source.name
+        console.log(`✅ ${items.length}개의 뉴스를 찾았습니다.`);
+        
+        return items.slice(0, 3).map(item => ({
+            title: item.title.replace(/<[^>]*>/g, ''), // HTML 태그 제거
+            description: item.description.replace(/<[^>]*>/g, ''), // HTML 태그 제거
+            link: item.link,
+            pubDate: item.pubDate
         }));
         
     } catch (error) {
-        console.error('뉴스 API 오류:', error.message);
+        console.error('❌ 네이버 뉴스 API 오류:', error.response?.data || error.message);
         return null;
     }
 }
@@ -74,9 +82,10 @@ app.get('/', (req, res) => {
 // 상태 페이지
 app.get('/status', (req, res) => {
     const hasClaudeApiKey = !!process.env.CLAUDE_API_KEY;
-    const hasNewsApiKey = !!process.env.NEWS_API_KEY;
+    const hasNaverClientId = !!process.env.NAVER_CLIENT_ID;
+    const hasNaverClientSecret = !!process.env.NAVER_CLIENT_SECRET;
     const claudeStatus = hasClaudeApiKey ? '✅ Claude API 설정됨' : '❌ Claude API 미설정';
-    const newsStatus = hasNewsApiKey ? '✅ News API 설정됨' : '❌ News API 미설정';
+    const naverStatus = (hasNaverClientId && hasNaverClientSecret) ? '✅ 네이버 API 설정됨' : '❌ 네이버 API 미설정';
     const koreanTime = getKoreanDateTime();
     
     res.send(`
@@ -84,12 +93,18 @@ app.get('/status', (req, res) => {
         <p><strong>상태:</strong> 정상 실행 중</p>
         <p><strong>현재 시간:</strong> ${koreanTime.formatted}</p>
         <p><strong>Claude API:</strong> ${claudeStatus}</p>
-        <p><strong>News API:</strong> ${newsStatus}</p>
+        <p><strong>네이버 검색 API:</strong> ${naverStatus}</p>
         <hr>
         <p><strong>카카오 스킬 URL:</strong> https://kakao-skill-webhook-production.up.railway.app/kakao-skill-webhook</p>
         <p><strong>루트 웹훅:</strong> https://kakao-skill-webhook-production.up.railway.app</p>
         <hr>
-        <p><strong>기능:</strong> 뉴스 요청시 실시간 뉴스 제공 (예: "오늘 뉴스", "최신 뉴스")</p>
+        <p><strong>기능:</strong> 네이버 검색으로 실시간 뉴스 제공 (예: "오늘 뉴스", "최신 뉴스")</p>
+        <hr>
+        <p><strong>환경변수 설정:</strong></p>
+        <ul>
+            <li>NAVER_CLIENT_ID: ${hasNaverClientId ? '설정됨' : '미설정'}</li>
+            <li>NAVER_CLIENT_SECRET: ${hasNaverClientSecret ? '설정됨' : '미설정'}</li>
+        </ul>
     `);
 });
 
@@ -113,11 +128,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         if (isNewsRequest(userMessage)) {
             console.log('📰 뉴스 요청 감지됨');
             
-            const news = await getLatestNews();
+            const news = await getLatestNews('최신 뉴스');
             if (news && news.length > 0) {
-                const newsText = `📰 ${koreanTime.formatted} 최신 뉴스\n\n` +
+                const newsText = `📰 ${koreanTime.formatted} 네이버 최신 뉴스\n\n` +
                     news.map((article, index) => 
-                        `${index + 1}. ${article.title}\n${article.description || ''}\n📅 ${new Date(article.publishedAt).toLocaleString('ko-KR')}\n📺 ${article.source}\n`
+                        `${index + 1}. ${article.title}\n${article.description || ''}\n📅 ${new Date(article.pubDate).toLocaleString('ko-KR')}\n🔗 ${article.link}\n`
                     ).join('\n');
                 
                 console.log('✅ 뉴스 데이터 제공 완료');
@@ -156,7 +171,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         // 뉴스 관련 질문이면 최신 정보 안내
         if (isNewsRequest(userMessage)) {
-            enhancedMessage = `현재 시간: ${koreanTime.formatted}\n사용자가 최신 뉴스를 요청했지만 실시간 뉴스 API가 사용 불가능합니다. 뉴스 API 연동이 필요하다고 안내해주세요.\n사용자 질문: ${userMessage}`;
+            enhancedMessage = `현재 시간: ${koreanTime.formatted}\n사용자가 최신 뉴스를 요청했지만 네이버 검색 API가 사용 불가능합니다. 네이버 API 연동이 필요하다고 안내해주세요.\n사용자 질문: ${userMessage}`;
         }
         
         // Claude API 호출
@@ -236,6 +251,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`💡 상태 페이지: http://0.0.0.0:${PORT}/status`);
     console.log(`🔗 웹훅 URL: http://0.0.0.0:${PORT}/kakao-skill-webhook`);
     console.log(`🔑 Claude API 키 설정: ${process.env.CLAUDE_API_KEY ? '✅' : '❌'}`);
-    console.log(`📰 News API 키 설정: ${process.env.NEWS_API_KEY ? '✅' : '❌'}`);
-    console.log(`📋 기능: 실시간 뉴스 제공, 한국 시간 인식`);
+    console.log(`📰 네이버 Client ID 설정: ${process.env.NAVER_CLIENT_ID ? '✅' : '❌'}`);
+    console.log(`🔐 네이버 Client Secret 설정: ${process.env.NAVER_CLIENT_SECRET ? '✅' : '❌'}`);
+    console.log(`📋 기능: 네이버 검색 뉴스 제공, 한국 시간 인식`);
 });
