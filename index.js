@@ -457,55 +457,58 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         console.log('✅ Claude API 호출 시작...');
         
-        // 2.5초 타임아웃으로 즉시 응답 보장
+        // Claude API 호출 (더 관대한 타임아웃)
         console.log('🔄 Claude API 호출 중...');
         const startTime = Date.now();
         
         let responseText;
         try {
-            const claudeResponse = await Promise.race([
-                axios.post(
-                    'https://api.anthropic.com/v1/messages',
-                    {
-                        model: "claude-3-haiku-20240307",
-                        messages: [{
-                            role: "user",
-                            content: userMessage
-                        }],
-                        max_tokens: 300  // 더 줄임: 500 → 300
+            const claudeResponse = await axios.post(
+                'https://api.anthropic.com/v1/messages',
+                {
+                    model: "claude-3-haiku-20240307",
+                    messages: [{
+                        role: "user",
+                        content: userMessage
+                    }],
+                    max_tokens: 800  // 토큰 수 늘림: 300 → 800 (더 나은 답변)
+                },
+                {
+                    headers: {
+                        'x-api-key': process.env.CLAUDE_API_KEY,
+                        'anthropic-version': '2023-06-01',
+                        'content-type': 'application/json'
                     },
-                    {
-                        headers: {
-                            'x-api-key': process.env.CLAUDE_API_KEY,
-                            'anthropic-version': '2023-06-01',
-                            'content-type': 'application/json'
-                        },
-                        timeout: 2500  // 2.5초로 더 단축
-                    }
-                ),
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('QUICK_TIMEOUT')), 2500)
-                )
-            ]);
+                    timeout: 4500  // 4.5초로 늘림 (카카오 5초 제한 내)
+                }
+            );
             
             const responseTime = Date.now() - startTime;
             responseText = claudeResponse.data.content[0].text;
             console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
         } catch (error) {
             const responseTime = Date.now() - startTime;
-            console.log(`⚠️ Claude 타임아웃 (${responseTime}ms) - 간단 응답으로 폴백`);
+            console.log(`⚠️ Claude API 에러 (${responseTime}ms): ${error.message}`);
             
-            // 시간 관련 질문 처리
-            if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
+            // API 키 문제인지 확인
+            if (error.response?.status === 401) {
+                responseText = `Claude API 인증에 문제가 있습니다. 서버 관리자에게 문의해주세요.`;
+            }
+            // 네트워크 문제
+            else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+                responseText = `네트워크 연결이 불안정합니다. 잠시 후 다시 시도해주세요.`;
+            }
+            // 시간 관련 질문 특별 처리
+            else if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
                 responseText = `현재 한국 시간: ${koreanTime.formatted}입니다.`;
             }
             // 간단한 인사 응답
             else if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
                 responseText = `안녕하세요! 현재 시간은 ${koreanTime.formatted}입니다. 무엇을 도와드릴까요?`;
             }
-            // 기본 응답
+            // 일반적인 질문에 대한 기본 안내
             else {
-                responseText = `죄송합니다. 응답 처리 중 지연이 발생했습니다. 다시 질문해주시면 더 빠르게 답변드리겠습니다. (현재 시간: ${koreanTime.formatted})`;
+                responseText = `현재 AI 서비스가 일시적으로 불안정합니다. 간단한 질문이나 뉴스/쇼핑 검색은 가능합니다. (현재 시간: ${koreanTime.formatted})`;
             }
         }
         console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
@@ -805,60 +808,63 @@ app.post('/', async (req, res) => {
         
         console.log('✅ Claude API 호출 시작...');
         
-        // 2.5초 타임아웃으로 즉시 응답 보장
+        // Claude API 호출 (더 관대한 타임아웃)
         const startTime = Date.now();
         
         let responseText;
         try {
-            const claudeResponse = await Promise.race([
-                axios.post(
-                    'https://api.anthropic.com/v1/messages',
-                    {
-                        model: "claude-3-haiku-20240307",
-                        messages: [{
-                            role: "user",
-                            content: userMessage
-                        }],
-                        max_tokens: 300  // 더 줄임: 500 → 300
+            const claudeResponse = await axios.post(
+                'https://api.anthropic.com/v1/messages',
+                {
+                    model: "claude-3-haiku-20240307",
+                    messages: [{
+                        role: "user",
+                        content: userMessage
+                    }],
+                    max_tokens: 800  // 토큰 수 늘림: 300 → 800 (더 나은 답변)
+                },
+                {
+                    headers: {
+                        'x-api-key': process.env.CLAUDE_API_KEY,
+                        'anthropic-version': '2023-06-01',
+                        'content-type': 'application/json'
                     },
-                    {
-                        headers: {
-                            'x-api-key': process.env.CLAUDE_API_KEY,
-                            'anthropic-version': '2023-06-01',
-                            'content-type': 'application/json'
-                        },
-                        timeout: 2500  // 2.5초로 더 단축
-                    }
-                ),
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('QUICK_TIMEOUT')), 2500)
-                )
-            ]);
+                    timeout: 4500  // 4.5초로 늘림 (카카오 5초 제한 내)
+                }
+            );
             
             const responseTime = Date.now() - startTime;
             responseText = claudeResponse.data.content[0].text;
             console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
         } catch (error) {
             const responseTime = Date.now() - startTime;
-            console.log(`⚠️ Claude 타임아웃 (${responseTime}ms) - 간단 응답으로 폴백`);
+            console.log(`⚠️ Claude API 에러 (${responseTime}ms): ${error.message}`);
             
-            // 시간 관련 질문 처리
-            if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
+            // API 키 문제인지 확인
+            if (error.response?.status === 401) {
+                responseText = `Claude API 인증에 문제가 있습니다. 서버 관리자에게 문의해주세요.`;
+            }
+            // 네트워크 문제
+            else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+                responseText = `네트워크 연결이 불안정합니다. 잠시 후 다시 시도해주세요.`;
+            }
+            // 시간 관련 질문 특별 처리
+            else if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
                 responseText = `현재 한국 시간: ${koreanTime.formatted}입니다.`;
             }
             // 간단한 인사 응답
             else if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
                 responseText = `안녕하세요! 현재 시간은 ${koreanTime.formatted}입니다. 무엇을 도와드릴까요?`;
             }
-            // 기본 응답
+            // 일반적인 질문에 대한 기본 안내
             else {
-                responseText = `죄송합니다. 응답 처리 중 지연이 발생했습니다. 다시 질문해주시면 더 빠르게 답변드리겠습니다. (현재 시간: ${koreanTime.formatted})`;
+                responseText = `현재 AI 서비스가 일시적으로 불안정합니다. 간단한 질문이나 뉴스/쇼핑 검색은 가능합니다. (현재 시간: ${koreanTime.formatted})`;
             }
         }
         console.log(`📝 응답 미리보기: ${responseText.substring(0, 100)}...`);
         
-        // 카카오 스킬 응답 길이 제한 처리 (1000자 제한)
-        const maxLength = 1000;
+        // 카카오 스킬 응답 길이 제한 처리 (800자 제한)
+        const maxLength = 800;
         let kakaoResponse;
         
         if (responseText.length <= maxLength) {
