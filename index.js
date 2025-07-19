@@ -309,6 +309,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     };
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
+                    console.log('✅ 응답 전송 완료');
                 } else {
                     // 짧은 텍스트는 그대로 텍스트로 제공
                     const response = {
@@ -323,6 +324,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     };
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
+                    console.log('✅ 응답 전송 완료');
                 }
                 return;
             } else {
@@ -426,7 +428,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             enhancedMessage = `${enhancedMessage}\n\n[중요] 길이 제한 없이 가능한 한 상세하고 완전한 답변을 제공해주세요. 단계별 설명, 예시, 추가 정보를 모두 포함해주세요.`;
         }
         
-        // Claude API 호출
+        // Claude API 호출 (4초 타임아웃으로 단축)
         console.log('🔄 Claude API 호출 중...');
         const startTime = Date.now();
         
@@ -438,7 +440,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     role: "user",
                     content: enhancedMessage
                 }],
-                max_tokens: 4000  // 10배 증가: 400 → 4000
+                max_tokens: 2000  // 토큰 수 줄여서 응답 속도 향상: 4000 → 2000
             },
             {
                 headers: {
@@ -446,7 +448,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     'anthropic-version': '2023-06-01',
                     'content-type': 'application/json'
                 },
-                timeout: 20000  // Claude API 응답 대기 시간
+                timeout: 4000  // 4초로 단축하여 카카오 5초 제한 준수
             }
         );
         
@@ -620,6 +622,7 @@ app.post('/', async (req, res) => {
                     };
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
+                    console.log('✅ 응답 전송 완료');
                 } else {
                     // 짧은 텍스트는 그대로 텍스트로 제공
                     const response = {
@@ -634,6 +637,7 @@ app.post('/', async (req, res) => {
                     };
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
+                    console.log('✅ 응답 전송 완료');
                 }
                 return;
             } else {
@@ -737,7 +741,9 @@ app.post('/', async (req, res) => {
             enhancedMessage = `${enhancedMessage}\n\n[중요] 길이 제한 없이 가능한 한 상세하고 완전한 답변을 제공해주세요. 단계별 설명, 예시, 추가 정보를 모두 포함해주세요.`;
         }
         
-        // Claude API 호출
+        // Claude API 호출 (4초 타임아웃으로 단축)
+        const startTime = Date.now();
+        
         const claudeResponse = await axios.post(
             'https://api.anthropic.com/v1/messages',
             {
@@ -746,7 +752,7 @@ app.post('/', async (req, res) => {
                     role: "user",
                     content: enhancedMessage
                 }],
-                max_tokens: 4000  // 10배 증가: 400 → 4000
+                max_tokens: 2000  // 토큰 수 줄여서 응답 속도 향상: 4000 → 2000
             },
             {
                 headers: {
@@ -754,12 +760,13 @@ app.post('/', async (req, res) => {
                     'anthropic-version': '2023-06-01',
                     'content-type': 'application/json'
                 },
-                timeout: 20000  // Claude API 응답 대기 시간
+                timeout: 4000  // 4초로 단축하여 카카오 5초 제한 준수
             }
         );
         
+        const responseTime = Date.now() - startTime;
         let responseText = claudeResponse.data.content[0].text;
-        console.log(`✅ Claude 응답 받음 (${responseText.length}자)`);
+        console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
         console.log(`📝 응답 미리보기: ${responseText.substring(0, 100)}...`);
         
         // 카카오 스킬 응답 길이 제한 처리 (1000자 제한)
