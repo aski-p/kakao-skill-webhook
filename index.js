@@ -398,6 +398,47 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             }
         }
         
+        // 시간/날짜 질문을 먼저 확인하여 직접 처리
+        const timeKeywords = ['시간', '날짜', '오늘', '지금', '현재', '몇시', '며칠', '몇일', '몇월', '무슨요일', '요일'];
+        const isTimeQuestion = timeKeywords.some(keyword => userMessage.includes(keyword));
+        
+        if (isTimeQuestion) {
+            console.log('🕐 시간/날짜 질문 감지됨 - 직접 처리');
+            
+            const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+            const now = new Date();
+            const koreaDate = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Seoul'}));
+            const dayOfWeek = dayNames[koreaDate.getDay()];
+            
+            let timeResponse = '';
+            if (userMessage.includes('날짜') || userMessage.includes('며칠') || userMessage.includes('몇일') || userMessage.includes('몇월') || userMessage.includes('오늘')) {
+                const dateOnly = koreanTime.formatted.replace(/\s\d{2}:\d{2}:\d{2}/, ''); // 시간 부분 제거
+                timeResponse = `오늘은 ${dateOnly} ${dayOfWeek}입니다.`;
+            } else if (userMessage.includes('시간') || userMessage.includes('몇시') || userMessage.includes('지금')) {
+                timeResponse = `현재 시간은 ${koreanTime.formatted}입니다.`;
+            } else if (userMessage.includes('요일')) {
+                timeResponse = `오늘은 ${dayOfWeek}입니다.`;
+            } else {
+                timeResponse = `현재 시간은 ${koreanTime.formatted} ${dayOfWeek}입니다.`;
+            }
+            
+            const response = {
+                version: "2.0",
+                template: {
+                    outputs: [{
+                        simpleText: {
+                            text: timeResponse
+                        }
+                    }]
+                }
+            };
+            
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.status(200).json(response);
+            console.log('✅ 시간/날짜 응답 전송 완료');
+            return;
+        }
+
         // 뉴스 요청인지 확인
         if (isNewsRequest(userMessage)) {
             console.log('📰 뉴스 요청 감지됨');
@@ -520,7 +561,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             }
             // 시간 관련 질문 특별 처리
             else if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
-                responseText = `현재 한국 시간: ${koreanTime.formatted}입니다.`;
+                const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+                const now = new Date();
+                const koreaDate = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Seoul'}));
+                const dayOfWeek = dayNames[koreaDate.getDay()];
+                responseText = `현재 한국 시간: ${koreanTime.formatted} ${dayOfWeek}입니다.`;
             }
             // 간단한 인사 응답
             else if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
@@ -750,6 +795,47 @@ app.post('/', async (req, res) => {
             }
         }
         
+        // 시간/날짜 질문을 먼저 확인하여 직접 처리
+        const timeKeywords = ['시간', '날짜', '오늘', '지금', '현재', '몇시', '며칠', '몇일', '몇월', '무슨요일', '요일'];
+        const isTimeQuestion = timeKeywords.some(keyword => userMessage.includes(keyword));
+        
+        if (isTimeQuestion) {
+            console.log('🕐 시간/날짜 질문 감지됨 - 직접 처리');
+            
+            const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+            const now = new Date();
+            const koreaDate = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Seoul'}));
+            const dayOfWeek = dayNames[koreaDate.getDay()];
+            
+            let timeResponse = '';
+            if (userMessage.includes('날짜') || userMessage.includes('며칠') || userMessage.includes('몇일') || userMessage.includes('몇월') || userMessage.includes('오늘')) {
+                const dateOnly = koreanTime.formatted.replace(/\s\d{2}:\d{2}:\d{2}/, ''); // 시간 부분 제거
+                timeResponse = `오늘은 ${dateOnly} ${dayOfWeek}입니다.`;
+            } else if (userMessage.includes('시간') || userMessage.includes('몇시') || userMessage.includes('지금')) {
+                timeResponse = `현재 시간은 ${koreanTime.formatted}입니다.`;
+            } else if (userMessage.includes('요일')) {
+                timeResponse = `오늘은 ${dayOfWeek}입니다.`;
+            } else {
+                timeResponse = `현재 시간은 ${koreanTime.formatted} ${dayOfWeek}입니다.`;
+            }
+            
+            const response = {
+                version: "2.0",
+                template: {
+                    outputs: [{
+                        simpleText: {
+                            text: timeResponse
+                        }
+                    }]
+                }
+            };
+            
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.status(200).json(response);
+            console.log('✅ 시간/날짜 응답 전송 완료');
+            return;
+        }
+
         // 뉴스 요청인지 확인
         if (isNewsRequest(userMessage)) {
             console.log('📰 뉴스 요청 감지됨');
@@ -871,7 +957,11 @@ app.post('/', async (req, res) => {
             }
             // 시간 관련 질문 특별 처리
             else if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
-                responseText = `현재 한국 시간: ${koreanTime.formatted}입니다.`;
+                const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+                const now = new Date();
+                const koreaDate = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Seoul'}));
+                const dayOfWeek = dayNames[koreaDate.getDay()];
+                responseText = `현재 한국 시간: ${koreanTime.formatted} ${dayOfWeek}입니다.`;
             }
             // 간단한 인사 응답
             else if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
