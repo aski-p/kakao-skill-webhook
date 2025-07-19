@@ -451,24 +451,53 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
         console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
         
-        // 카카오톡 길이 제한 (1000자)으로 자르기
-        if (responseText.length > 1000) {
-            responseText = responseText.substring(0, 950) + '\n\n... (더 자세한 내용은 다시 질문해주세요)';
-            console.log(`⚠️ 응답이 길어서 1000자로 제한 (${responseText.length}자)`);
+        // 950자씩 나누어서 여러 응답으로 분할
+        const maxLength = 950;
+        let outputs = [];
+        
+        if (responseText.length <= maxLength) {
+            // 짧은 응답은 그대로
+            outputs.push({
+                simpleText: {
+                    text: responseText
+                }
+            });
+        } else {
+            // 긴 응답은 950자씩 분할
+            const chunks = [];
+            for (let i = 0; i < responseText.length; i += maxLength) {
+                let chunk = responseText.substring(i, i + maxLength);
+                
+                // 마지막 덩어리가 아니면 "(계속...)" 추가
+                if (i + maxLength < responseText.length) {
+                    chunk += '\n\n(계속...)';
+                    chunks.push(chunk);
+                } else {
+                    // 마지막 덩어리
+                    chunks.push(chunk);
+                }
+            }
+            
+            console.log(`📝 긴 응답을 ${chunks.length}개 부분으로 분할`);
+            
+            // 각 덩어리를 별도 출력으로 추가
+            chunks.forEach((chunk, index) => {
+                outputs.push({
+                    simpleText: {
+                        text: chunk
+                    }
+                });
+            });
         }
         
         const kakaoResponse = {
             version: "2.0",
             template: {
-                outputs: [{
-                    simpleText: {
-                        text: responseText
-                    }
-                }]
+                outputs: outputs
             }
         };
         
-        console.log(`📤 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2).substring(0, 200)}...`);
+        console.log(`📤 카카오 응답 전송 (${outputs.length}개 출력): ${JSON.stringify(kakaoResponse, null, 2).substring(0, 300)}...`);
         res.json(kakaoResponse);
         console.log('✅ 카카오 웹훅 응답 전송 완료');
         
@@ -727,24 +756,53 @@ app.post('/', async (req, res) => {
         console.log(`✅ Claude 응답 받음 (${responseText.length}자)`);
         console.log(`📝 응답 미리보기: ${responseText.substring(0, 100)}...`);
         
-        // 카카오톡 길이 제한 (1000자)으로 자르기
-        if (responseText.length > 1000) {
-            responseText = responseText.substring(0, 950) + '\n\n... (더 자세한 내용은 다시 질문해주세요)';
-            console.log(`⚠️ 응답이 길어서 1000자로 제한 (${responseText.length}자)`);
+        // 950자씩 나누어서 여러 응답으로 분할
+        const maxLength = 950;
+        let outputs = [];
+        
+        if (responseText.length <= maxLength) {
+            // 짧은 응답은 그대로
+            outputs.push({
+                simpleText: {
+                    text: responseText
+                }
+            });
+        } else {
+            // 긴 응답은 950자씩 분할
+            const chunks = [];
+            for (let i = 0; i < responseText.length; i += maxLength) {
+                let chunk = responseText.substring(i, i + maxLength);
+                
+                // 마지막 덩어리가 아니면 "(계속...)" 추가
+                if (i + maxLength < responseText.length) {
+                    chunk += '\n\n(계속...)';
+                    chunks.push(chunk);
+                } else {
+                    // 마지막 덩어리
+                    chunks.push(chunk);
+                }
+            }
+            
+            console.log(`📝 긴 응답을 ${chunks.length}개 부분으로 분할`);
+            
+            // 각 덩어리를 별도 출력으로 추가
+            chunks.forEach((chunk, index) => {
+                outputs.push({
+                    simpleText: {
+                        text: chunk
+                    }
+                });
+            });
         }
         
         const kakaoResponse = {
             version: "2.0",
             template: {
-                outputs: [{
-                    simpleText: {
-                        text: responseText
-                    }
-                }]
+                outputs: outputs
             }
         };
         
-        console.log(`📤 루트 웹훅 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2).substring(0, 200)}...`);
+        console.log(`📤 루트 웹훅 카카오 응답 전송 (${outputs.length}개 출력): ${JSON.stringify(kakaoResponse, null, 2).substring(0, 300)}...`);
         res.json(kakaoResponse);
         console.log('✅ 루트 웹훅 응답 전송 완료');
         
