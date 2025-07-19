@@ -218,6 +218,281 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 searchQuery = foundProducts.join(' ');
             } else {
                 // 3. 핵심 상품명이 없으면 불필요한 단어만 제거
+                const removeWords = ['추천', '해주세요', '알려주세요', '찾아주세요', '드리겠습니다', '함께', '가장', '현재', '지금', '스마트', '스토어', '링크', '해줘'];
+                removeWords.forEach(word => {
+                    searchQuery = searchQuery.replace(new RegExp(word, 'gi'), '').trim();
+                });
+                
+                // 숫자 제거 (5개, 10개 등)
+                searchQuery = searchQuery.replace(/\d+개?/g, '').trim();
+                
+                // 연속된 공백 제거
+                searchQuery = searchQuery.replace(/\s+/g, ' ').trim();
+            }
+            
+            const shopping = await getShoppingResults(searchQuery);
+            if (shopping && shopping.length > 0) {
+                const shoppingText = `🛒 ${koreanTime.formatted} "${searchQuery}" 검색 결과\n\n` +
+                    shopping.map((product) => {
+                        return `${product.rank}. ${product.title}\n💰 ${product.price}\n🏪 ${product.mallName}\n🔗 ${product.link}\n\n${'='.repeat(50)}\n`;
+                    }).join('');
+                
+                console.log('✅ 쇼핑 데이터 제공 완료');
+                console.log(`📊 응답 길이: ${shoppingText.length}자`);
+                
+                // 카카오 스킬 텍스트 길이 제한 확인
+                if (shoppingText.length > 1000) {
+                    console.log('⚠️ 응답이 길어서 리스트 카드로 변환');
+                    
+                    // 리스트 카드 형태로 제공
+                    const listItems = shopping.map((product) => ({
+                        title: `${product.rank}. ${product.title}`,
+                        description: `💰 ${product.price} | 🏪 ${product.mallName}`,
+                        imageUrl: product.image || null,
+                        link: {
+                            web: product.link
+                        }
+                    }));
+                    
+                    res.json({
+                        version: "2.0",
+                        template: {
+                            outputs: [{
+                                listCard: {
+                                    header: {
+                                        title: `🛒 "${searchQuery}" 쇼핑 검색 결과`
+                                    },
+                                    items: listItems.slice(0, 5),
+                                    buttons: [{
+                                        label: "네이버쇼핑에서 더보기",
+                                        action: "webLink",
+                                        webLinkUrl: `https://search.shopping.naver.com/search/all?query=${encodeURIComponent(searchQuery)}`
+                                    }]
+                                }
+                            }]
+                        }
+                    });
+                } else {
+                    // 짧은 텍스트는 그대로 텍스트로 제공
+                    res.json({
+                        version: "2.0",
+                        template: {
+                            outputs: [{
+                                simpleText: {
+                                    text: shoppingText
+                                }
+                            }]
+                        }
+                    });
+                }
+                return;
+            } else {
+                console.log('⚠️ 쇼핑 API 사용 불가 - Claude로 폴백');
+            }
+        }
+        
+        // 뉴스 요청인지 확인
+        if (isNewsRequest(userMessage)) {
+            console.log('📰 뉴스 요청 감지됨');
+            
+            const news = await getLatestNews('최신 뉴스');
+            if (news && news.length > 0) {
+                const newsText = `📰 ${koreanTime.formatted} 네이버 최신 뉴스\n\n` +
+                    news.map((article, index) => {
+                        const date = new Date(article.pubDate).toLocaleString('ko-KR');
+                        const description = article.description || '내용이 없습니다.';
+                        
+                        return `📌 ${index + 1}. ${article.title}\n\n${description}\n\n📅 ${date}\n🔗 ${article.link}\n\n${'='.repeat(50)}\n`;
+                    }).join('');
+                
+                console.log('✅ 뉴스 데이터 제공 완료');
+                console.log(`📊 응답 길이: ${newsText.length}자`);
+                
+                // 카카오 스킬 텍스트 길이 제한 (일반적으로 1000자) 확인
+                if (newsText.length > 1000) {
+                    console.log('⚠️ 응답이 길어서 리스트 카드로 변환');
+                    
+                    // 리스트 카드 형태로 제공
+                    const listItems = news.map((article, index) => ({
+                        title: `${index + 1}. ${article.title}`,
+                        description: article.description.length > 100 ? 
+                            article.description.substring(0, 100) + '...' : 
+                            article.description,
+                        imageUrl: null,
+                        link: {
+                            web: article.link
+                        }
+                    }));
+                    
+                    res.json({
+                        version: "2.0",
+                        template: {
+                            outputs: [{
+                                listCard: {
+                                    header: {
+                                        title: `📰 ${koreanTime.formatted} 최신 뉴스`
+                                    },
+                                    items: listItems.slice(0, 5),
+                                    buttons: [{
+                                        label: "더보기",
+                                        action: "webLink",
+                                        webLinkUrl: "https://news.naver.com/"
+                                    }]
+                                }
+                            }]
+                        }
+                    });
+                } else {
+                    // 짧은 텍스트는 그대로 텍스트로 제공
+                    res.json({
+                        version: "2.0",
+                        template: {
+                            outputs: [{
+                                simpleText: {
+                                    text: newsText
+                                }
+                            }]
+                        }
+                    });
+                }
+                return;
+            } else {
+                console.log('⚠️ 뉴스 API 사용 불가 - Claude로 폴백');
+            }
+        }
+        
+        // Claude API 키 확인
+        if (!process.env.CLAUDE_API_KEY) {
+            console.log('⚠️ Claude API 키가 설정되지 않았습니다.');
+            throw new Error('API 키가 설정되지 않았습니다');
+        }
+        
+        console.log('✅ Claude API 호출 시작...');
+        
+        // Claude에게 현재 시간 정보와 함께 메시지 전달
+        let enhancedMessage = userMessage;
+        
+        // 시간 관련 질문이면 현재 시간 정보 추가
+        if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
+            enhancedMessage = `현재 한국 시간: ${koreanTime.formatted}\n사용자 질문: ${userMessage}\n\n답변시 길이 제한 없이 상세하고 완전한 답변을 제공해주세요.`;
+        }
+        
+        // 뉴스 관련 질문이면 최신 정보 안내
+        if (isNewsRequest(userMessage)) {
+            enhancedMessage = `현재 시간: ${koreanTime.formatted}\n사용자가 최신 뉴스를 요청했지만 네이버 검색 API가 사용 불가능합니다. 네이버 API 연동이 필요하다고 안내해주세요.\n사용자 질문: ${userMessage}\n\n답변시 길이 제한 없이 상세한 설명을 제공해주세요.`;
+        }
+        
+        // 검색이나 설명 요청시 더 상세한 답변 유도
+        if (userMessage.includes('검색') || userMessage.includes('설명') || userMessage.includes('알려줘') || userMessage.includes('가르쳐') || userMessage.includes('방법')) {
+            enhancedMessage = `${enhancedMessage}\n\n[중요] 길이 제한 없이 가능한 한 상세하고 완전한 답변을 제공해주세요. 단계별 설명, 예시, 추가 정보를 모두 포함해주세요.`;
+        }
+        
+        // Claude API 호출
+        console.log('🔄 Claude API 호출 중...');
+        const startTime = Date.now();
+        
+        const claudeResponse = await axios.post(
+            'https://api.anthropic.com/v1/messages',
+            {
+                model: "claude-3-haiku-20240307",
+                messages: [{
+                    role: "user",
+                    content: enhancedMessage
+                }],
+                max_tokens: 4000  // 10배 증가: 400 → 4000
+            },
+            {
+                headers: {
+                    'x-api-key': process.env.CLAUDE_API_KEY,
+                    'anthropic-version': '2023-06-01',
+                    'content-type': 'application/json'
+                },
+                timeout: 15000  // 4.5초 → 15초로 증가 (긴 응답 대기)
+            }
+        );
+        
+        const responseTime = Date.now() - startTime;
+        const responseText = claudeResponse.data.content[0].text;
+        console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
+        console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
+        
+        // 카카오 응답
+        res.json({
+            version: "2.0",
+            template: {
+                outputs: [{
+                    simpleText: {
+                        text: responseText
+                    }
+                }]
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ 에러 발생:', error.response?.data || error.message);
+        
+        // 에러별 메시지
+        let errorMsg = "죄송합니다. 잠시 후 다시 시도해주세요.";
+        
+        if (error.message.includes('API 키')) {
+            errorMsg = `안녕하세요! 서버가 정상 작동 중입니다.\n현재 시간: ${getKoreanDateTime().formatted}\n받은 메시지: '${req.body.userRequest?.utterance || '메시지 없음'}'`;
+        } else if (error.response?.status === 401) {
+            errorMsg = "Claude API 인증 오류가 발생했습니다.";
+        } else if (error.code === 'ECONNABORTED') {
+            errorMsg = "응답 시간이 초과되었습니다. 다시 시도해주세요.";
+        }
+        
+        res.json({
+            version: "2.0",
+            template: {
+                outputs: [{
+                    simpleText: {
+                        text: errorMsg
+                    }
+                }]
+            }
+        });
+    }
+});
+
+// 루트 웹훅 (POST /)
+app.post('/', async (req, res) => {
+    console.log('🔔 루트 웹훅 호출 - /kakao-skill-webhook으로 리다이렉트');
+    console.log('요청 데이터:', JSON.stringify(req.body, null, 2));
+    
+    try {
+        const userMessage = req.body.userRequest?.utterance;
+        console.log(`💬 사용자 메시지: '${userMessage}'`);
+        
+        if (!userMessage) {
+            throw new Error('메시지가 없습니다');
+        }
+        
+        const koreanTime = getKoreanDateTime();
+        console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
+        
+        // 쇼핑 요청인지 먼저 확인
+        if (isShoppingRequest(userMessage)) {
+            console.log('🛒 쇼핑 요청 감지됨');
+            
+            // 상품명 추출 (개선된 방법)
+            let searchQuery = userMessage;
+            
+            // 1. 먼저 핵심 상품 키워드 찾기
+            const productKeywords = ['젖병', '세척기', '기저귀', '유모차', '카시트', '노트북', '휴대폰', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기', '마우스', '키보드', '모니터', '스피커'];
+            let foundProducts = [];
+            
+            productKeywords.forEach(keyword => {
+                if (userMessage.includes(keyword)) {
+                    foundProducts.push(keyword);
+                }
+            });
+            
+            // 2. 핵심 상품명이 있으면 그것을 중심으로 검색어 구성
+            if (foundProducts.length > 0) {
+                searchQuery = foundProducts.join(' ');
+            } else {
+                // 3. 핵심 상품명이 없으면 불필요한 단어만 제거
                 const removeWords = ['추천', '해주세요', '알려주세요', '찾아주세요', '드리겠습니다', '함께', '가장', '현재', '지금', '스마트', '스토어', '링크'];
                 removeWords.forEach(word => {
                     searchQuery = searchQuery.replace(new RegExp(word, 'g'), '');
@@ -407,6 +682,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         const responseText = claudeResponse.data.content[0].text;
         console.log(`✅ Claude 응답 받음 (${responseText.length}자)`);
+        console.log(`📝 응답 미리보기: ${responseText.substring(0, 100)}...`);
         
         // 카카오 응답
         res.json({
@@ -421,7 +697,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ 에러 발생:', error.response?.data || error.message);
+        console.error('❌ 루트 웹훅 에러 발생:', error.response?.data || error.message);
         
         // 에러별 메시지
         let errorMsg = "죄송합니다. 잠시 후 다시 시도해주세요.";
@@ -445,12 +721,6 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             }
         });
     }
-});
-
-// 루트 웹훅 (POST /)
-app.post('/', async (req, res) => {
-    console.log('루트 웹훅 호출');
-    return app.post('/kakao-skill-webhook')(req, res);
 });
 
 const PORT = process.env.PORT || 3000;
