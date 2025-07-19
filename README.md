@@ -86,11 +86,13 @@ curl http://localhost:5000/health
    - "New Project" → "Deploy from GitHub repo" 클릭
    - `kakao-skill-webhook` 저장소 선택
 
-3. **환경변수 설정**
-   - 배포된 프로젝트 → "Variables" 탭 클릭
-   - 새 변수 추가:
+3. **환경변수 설정 (중요!)**
+   - 배포된 프로젝트 클릭 → **"Variables"** 탭 클릭
+   - **"New Variable"** 버튼 클릭
+   - 다음 정보 입력:
      - **Name**: `CLAUDE_API_KEY`
      - **Value**: `your-claude-api-key-here`
+   - **"Add"** 클릭 후 자동 재배포 대기 (1-2분)
 
 4. **배포 완료**
    - 자동으로 HTTPS URL 생성 (예: `https://kakao-skill-webhook-production.up.railway.app`)
@@ -180,6 +182,17 @@ git push heroku main
 **서버 시작 실패:**
 - Railway 로그에서 오류 메시지 확인
 - 환경변수가 올바르게 설정되었는지 확인
+
+**환경변수 설정 안됨 에러:**
+```
+⚠️ CLAUDE_API_KEY 환경변수가 설정되지 않았습니다.
+Error occurred: Claude API 키가 설정되지 않았습니다.
+```
+해결방법:
+1. Railway 대시보드 → 프로젝트 클릭
+2. "Variables" 탭 → "New Variable"
+3. Name: `CLAUDE_API_KEY`, Value: API 키 입력
+4. 1-2분 대기 후 자동 재배포 완료
 
 ### 4. 서버 오류
 - Railway 대시보드에서 로그 확인
