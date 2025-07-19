@@ -19,7 +19,7 @@ async function getLatestNews(query = '오늘 뉴스') {
         
         const params = {
             query: query,
-            display: 5,
+            display: 10,  // 5 → 10개로 증가
             start: 1,
             sort: 'date'  // 최신순 정렬
         };
@@ -43,9 +43,9 @@ async function getLatestNews(query = '오늘 뉴스') {
         
         console.log(`✅ ${items.length}개의 뉴스를 찾았습니다.`);
         
-        return items.slice(0, 3).map(item => ({
+        return items.slice(0, 5).map(item => ({  // 3 → 5개로 증가
             title: item.title.replace(/<[^>]*>/g, ''), // HTML 태그 제거
-            description: item.description.replace(/<[^>]*>/g, ''), // HTML 태그 제거
+            description: item.description.replace(/<[^>]*>/g, ''), // HTML 태그 제거 (전체 설명 표시)
             link: item.link,
             pubDate: item.pubDate
         }));
@@ -131,22 +131,63 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             const news = await getLatestNews('최신 뉴스');
             if (news && news.length > 0) {
                 const newsText = `📰 ${koreanTime.formatted} 네이버 최신 뉴스\n\n` +
-                    news.map((article, index) => 
-                        `${index + 1}. ${article.title}\n${article.description || ''}\n📅 ${new Date(article.pubDate).toLocaleString('ko-KR')}\n🔗 ${article.link}\n`
-                    ).join('\n');
+                    news.map((article, index) => {
+                        const date = new Date(article.pubDate).toLocaleString('ko-KR');
+                        const description = article.description || '내용이 없습니다.';
+                        
+                        return `📌 ${index + 1}. ${article.title}\n\n${description}\n\n📅 ${date}\n🔗 ${article.link}\n\n${'='.repeat(50)}\n`;
+                    }).join('');
                 
                 console.log('✅ 뉴스 데이터 제공 완료');
+                console.log(`📊 응답 길이: ${newsText.length}자`);
                 
-                res.json({
-                    version: "2.0",
-                    template: {
-                        outputs: [{
-                            simpleText: {
-                                text: newsText
-                            }
-                        }]
-                    }
-                });
+                // 카카오 스킬 텍스트 길이 제한 (일반적으로 1000자) 확인
+                if (newsText.length > 1000) {
+                    console.log('⚠️ 응답이 길어서 리스트 카드로 변환');
+                    
+                    // 리스트 카드 형태로 제공
+                    const listItems = news.map((article, index) => ({
+                        title: `${index + 1}. ${article.title}`,
+                        description: article.description.length > 100 ? 
+                            article.description.substring(0, 100) + '...' : 
+                            article.description,
+                        imageUrl: null,
+                        link: {
+                            web: article.link
+                        }
+                    }));
+                    
+                    res.json({
+                        version: "2.0",
+                        template: {
+                            outputs: [{
+                                listCard: {
+                                    header: {
+                                        title: `📰 ${koreanTime.formatted} 최신 뉴스`
+                                    },
+                                    items: listItems.slice(0, 5),
+                                    buttons: [{
+                                        label: "더보기",
+                                        action: "webLink",
+                                        webLinkUrl: "https://news.naver.com/"
+                                    }]
+                                }
+                            }]
+                        }
+                    });
+                } else {
+                    // 짧은 텍스트는 그대로 텍스트로 제공
+                    res.json({
+                        version: "2.0",
+                        template: {
+                            outputs: [{
+                                simpleText: {
+                                    text: newsText
+                                }
+                            }]
+                        }
+                    });
+                }
                 return;
             } else {
                 console.log('⚠️ 뉴스 API 사용 불가 - Claude로 폴백');
@@ -166,12 +207,17 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         // 시간 관련 질문이면 현재 시간 정보 추가
         if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
-            enhancedMessage = `현재 한국 시간: ${koreanTime.formatted}\n사용자 질문: ${userMessage}`;
+            enhancedMessage = `현재 한국 시간: ${koreanTime.formatted}\n사용자 질문: ${userMessage}\n\n답변시 길이 제한 없이 상세하고 완전한 답변을 제공해주세요.`;
         }
         
         // 뉴스 관련 질문이면 최신 정보 안내
         if (isNewsRequest(userMessage)) {
-            enhancedMessage = `현재 시간: ${koreanTime.formatted}\n사용자가 최신 뉴스를 요청했지만 네이버 검색 API가 사용 불가능합니다. 네이버 API 연동이 필요하다고 안내해주세요.\n사용자 질문: ${userMessage}`;
+            enhancedMessage = `현재 시간: ${koreanTime.formatted}\n사용자가 최신 뉴스를 요청했지만 네이버 검색 API가 사용 불가능합니다. 네이버 API 연동이 필요하다고 안내해주세요.\n사용자 질문: ${userMessage}\n\n답변시 길이 제한 없이 상세한 설명을 제공해주세요.`;
+        }
+        
+        // 검색이나 설명 요청시 더 상세한 답변 유도
+        if (userMessage.includes('검색') || userMessage.includes('설명') || userMessage.includes('알려줘') || userMessage.includes('가르쳐') || userMessage.includes('방법')) {
+            enhancedMessage = `${enhancedMessage}\n\n[중요] 길이 제한 없이 가능한 한 상세하고 완전한 답변을 제공해주세요. 단계별 설명, 예시, 추가 정보를 모두 포함해주세요.`;
         }
         
         // Claude API 호출
@@ -183,7 +229,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     role: "user",
                     content: enhancedMessage
                 }],
-                max_tokens: 400
+                max_tokens: 4000  // 10배 증가: 400 → 4000
             },
             {
                 headers: {
@@ -191,7 +237,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     'anthropic-version': '2023-06-01',
                     'content-type': 'application/json'
                 },
-                timeout: 4500
+                timeout: 15000  // 4.5초 → 15초로 증가 (긴 응답 대기)
             }
         );
         
