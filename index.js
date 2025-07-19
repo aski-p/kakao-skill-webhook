@@ -6,6 +6,7 @@ const app = express();
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
+const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
 
 app.use(express.json());
 
@@ -56,6 +57,59 @@ async function getLatestNews(query = '오늘 뉴스') {
     }
 }
 
+// 네이버 쇼핑 검색 함수
+async function getShoppingResults(query) {
+    try {
+        if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
+            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            return null;
+        }
+        
+        const params = {
+            query: query,
+            display: 10,
+            start: 1,
+            sort: 'sim'  // 정확도순 정렬 (sim: 정확도, date: 날짜, asc: 가격낮은순, dsc: 가격높은순)
+        };
+        
+        console.log(`🛒 네이버 쇼핑 검색: "${query}"`);
+        
+        const response = await axios.get(NAVER_SHOPPING_API_URL, {
+            params: params,
+            headers: {
+                'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+            },
+            timeout: 5000
+        });
+        
+        const items = response.data.items;
+        if (!items || items.length === 0) {
+            console.log('🛒 검색된 상품이 없습니다.');
+            return null;
+        }
+        
+        console.log(`✅ ${items.length}개의 상품을 찾았습니다.`);
+        
+        return items.slice(0, 5).map((item, index) => ({
+            rank: index + 1,
+            title: item.title.replace(/<[^>]*>/g, ''), // HTML 태그 제거
+            price: item.lprice ? `${parseInt(item.lprice).toLocaleString()}원` : '가격정보없음',
+            mallName: item.mallName || '쇼핑몰정보없음',
+            brand: item.brand || '',
+            link: item.link,
+            image: item.image,
+            productId: item.productId,
+            category1: item.category1,
+            category2: item.category2
+        }));
+        
+    } catch (error) {
+        console.error('❌ 네이버 쇼핑 API 오류:', error.response?.data || error.message);
+        return null;
+    }
+}
+
 // 한국 시간 가져오기 함수
 function getKoreanDateTime() {
     const now = new Date();
@@ -71,6 +125,18 @@ function getKoreanDateTime() {
 function isNewsRequest(message) {
     const newsKeywords = ['뉴스', '최신뉴스', '오늘뉴스', '새로운소식', '헤드라인', '속보', '시사'];
     return newsKeywords.some(keyword => message.includes(keyword));
+}
+
+// 쇼핑 요청인지 확인하는 함수
+function isShoppingRequest(message) {
+    const shoppingKeywords = ['추천', '상품', '제품', '구매', '쇼핑', '판매', '가격', '베스트', '인기', '랭킹', '순위', '리뷰', '후기'];
+    const hasShoppingKeyword = shoppingKeywords.some(keyword => message.includes(keyword));
+    
+    // 쇼핑 관련 키워드가 있거나, 구체적인 상품명이 있는 경우
+    const productKeywords = ['젖병', '세척기', '기저귀', '유모차', '카시트', '노트북', '휴대폰', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기'];
+    const hasProductKeyword = productKeywords.some(keyword => message.includes(keyword));
+    
+    return hasShoppingKeyword || hasProductKeyword;
 }
 
 // 헬스체크 엔드포인트
@@ -98,7 +164,13 @@ app.get('/status', (req, res) => {
         <p><strong>카카오 스킬 URL:</strong> https://kakao-skill-webhook-production.up.railway.app/kakao-skill-webhook</p>
         <p><strong>루트 웹훅:</strong> https://kakao-skill-webhook-production.up.railway.app</p>
         <hr>
-        <p><strong>기능:</strong> 네이버 검색으로 실시간 뉴스 제공 (예: "오늘 뉴스", "최신 뉴스")</p>
+        <p><strong>기능:</strong></p>
+        <ul>
+            <li>📰 실시간 뉴스 제공 (예: "오늘 뉴스", "최신 뉴스")</li>
+            <li>🛒 쇼핑 상품 검색 (예: "젖병 세척기 추천", "노트북 베스트")</li>
+            <li>🕐 한국 시간 인식 및 제공</li>
+            <li>💬 무제한 길이 상세 답변</li>
+        </ul>
         <hr>
         <p><strong>환경변수 설정:</strong></p>
         <ul>
@@ -123,6 +195,98 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         const koreanTime = getKoreanDateTime();
         console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
+        
+        // 쇼핑 요청인지 먼저 확인
+        if (isShoppingRequest(userMessage)) {
+            console.log('🛒 쇼핑 요청 감지됨');
+            
+            // 상품명 추출 (개선된 방법)
+            let searchQuery = userMessage;
+            
+            // 1. 먼저 핵심 상품 키워드 찾기
+            const productKeywords = ['젖병', '세척기', '기저귀', '유모차', '카시트', '노트북', '휴대폰', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기', '마우스', '키보드', '모니터', '스피커'];
+            let foundProducts = [];
+            
+            productKeywords.forEach(keyword => {
+                if (userMessage.includes(keyword)) {
+                    foundProducts.push(keyword);
+                }
+            });
+            
+            // 2. 핵심 상품명이 있으면 그것을 중심으로 검색어 구성
+            if (foundProducts.length > 0) {
+                searchQuery = foundProducts.join(' ');
+            } else {
+                // 3. 핵심 상품명이 없으면 불필요한 단어만 제거
+                const removeWords = ['추천', '해주세요', '알려주세요', '찾아주세요', '드리겠습니다', '함께', '가장', '현재', '지금', '스마트', '스토어', '링크'];
+                removeWords.forEach(word => {
+                    searchQuery = searchQuery.replace(new RegExp(word, 'g'), '');
+                });
+                
+                // 숫자 제거 (5개, 10개 등)
+                searchQuery = searchQuery.replace(/\d+개?/g, '').trim();
+            }
+            
+            const shopping = await getShoppingResults(searchQuery);
+            if (shopping && shopping.length > 0) {
+                const shoppingText = `🛒 ${koreanTime.formatted} "${searchQuery}" 검색 결과\n\n` +
+                    shopping.map((product) => {
+                        return `${product.rank}. ${product.title}\n💰 ${product.price}\n🏪 ${product.mallName}\n🔗 ${product.link}\n\n${'='.repeat(50)}\n`;
+                    }).join('');
+                
+                console.log('✅ 쇼핑 데이터 제공 완료');
+                console.log(`📊 응답 길이: ${shoppingText.length}자`);
+                
+                // 카카오 스킬 텍스트 길이 제한 확인
+                if (shoppingText.length > 1000) {
+                    console.log('⚠️ 응답이 길어서 리스트 카드로 변환');
+                    
+                    // 리스트 카드 형태로 제공
+                    const listItems = shopping.map((product) => ({
+                        title: `${product.rank}. ${product.title}`,
+                        description: `💰 ${product.price} | 🏪 ${product.mallName}`,
+                        imageUrl: product.image || null,
+                        link: {
+                            web: product.link
+                        }
+                    }));
+                    
+                    res.json({
+                        version: "2.0",
+                        template: {
+                            outputs: [{
+                                listCard: {
+                                    header: {
+                                        title: `🛒 "${searchQuery}" 쇼핑 검색 결과`
+                                    },
+                                    items: listItems.slice(0, 5),
+                                    buttons: [{
+                                        label: "네이버쇼핑에서 더보기",
+                                        action: "webLink",
+                                        webLinkUrl: `https://search.shopping.naver.com/search/all?query=${encodeURIComponent(searchQuery)}`
+                                    }]
+                                }
+                            }]
+                        }
+                    });
+                } else {
+                    // 짧은 텍스트는 그대로 텍스트로 제공
+                    res.json({
+                        version: "2.0",
+                        template: {
+                            outputs: [{
+                                simpleText: {
+                                    text: shoppingText
+                                }
+                            }]
+                        }
+                    });
+                }
+                return;
+            } else {
+                console.log('⚠️ 쇼핑 API 사용 불가 - Claude로 폴백');
+            }
+        }
         
         // 뉴스 요청인지 확인
         if (isNewsRequest(userMessage)) {
