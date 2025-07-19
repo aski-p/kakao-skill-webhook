@@ -137,12 +137,31 @@ async function getShoppingResults(query) {
 
 // 한국 시간 가져오기 함수
 function getKoreanDateTime() {
+    // 한국 표준시(KST/JST) UTC+9로 정확한 시간 계산
     const now = new Date();
-    const koreanTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+    
+    // 한국 시간으로 포맷팅
+    const formatted = now.toLocaleDateString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }) + ' ' + now.toLocaleTimeString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+    
+    // 날짜와 시간을 별도로 추출
+    const koreanTimeStr = now.toLocaleDateString('en-CA', {timeZone: 'Asia/Seoul'});
+    const koreanTimeOnly = now.toLocaleTimeString('en-GB', {timeZone: 'Asia/Seoul'});
+    
     return {
-        date: koreanTime.toISOString().split('T')[0],
-        time: koreanTime.toTimeString().split(' ')[0],
-        formatted: koreanTime.toLocaleDateString('ko-KR') + ' ' + koreanTime.toLocaleTimeString('ko-KR')
+        date: koreanTimeStr,
+        time: koreanTimeOnly,
+        formatted: formatted
     };
 }
 
@@ -467,6 +486,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 'https://api.anthropic.com/v1/messages',
                 {
                     model: "claude-3-haiku-20240307",
+                    system: `현재 정확한 한국 시간은 ${koreanTime.formatted}입니다. 사용자가 시간이나 날짜를 물어보면 이 정보를 사용해주세요.`,
                     messages: [{
                         role: "user",
                         content: userMessage
@@ -817,6 +837,7 @@ app.post('/', async (req, res) => {
                 'https://api.anthropic.com/v1/messages',
                 {
                     model: "claude-3-haiku-20240307",
+                    system: `현재 정확한 한국 시간은 ${koreanTime.formatted}입니다. 사용자가 시간이나 날짜를 물어보면 이 정보를 사용해주세요.`,
                     messages: [{
                         role: "user",
                         content: userMessage
