@@ -447,12 +447,17 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         );
         
         const responseTime = Date.now() - startTime;
-        const responseText = claudeResponse.data.content[0].text;
+        let responseText = claudeResponse.data.content[0].text;
         console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
         console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
         
-        // 카카오 응답
-        res.json({
+        // 카카오톡 길이 제한 (1000자)으로 자르기
+        if (responseText.length > 1000) {
+            responseText = responseText.substring(0, 950) + '\n\n... (더 자세한 내용은 다시 질문해주세요)';
+            console.log(`⚠️ 응답이 길어서 1000자로 제한 (${responseText.length}자)`);
+        }
+        
+        const kakaoResponse = {
             version: "2.0",
             template: {
                 outputs: [{
@@ -461,7 +466,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     }
                 }]
             }
-        });
+        };
+        
+        console.log(`📤 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2).substring(0, 200)}...`);
+        res.json(kakaoResponse);
+        console.log('✅ 카카오 웹훅 응답 전송 완료');
         
     } catch (error) {
         console.error('❌ 에러 발생:', error.response?.data || error.message);
@@ -714,12 +723,17 @@ app.post('/', async (req, res) => {
             }
         );
         
-        const responseText = claudeResponse.data.content[0].text;
+        let responseText = claudeResponse.data.content[0].text;
         console.log(`✅ Claude 응답 받음 (${responseText.length}자)`);
         console.log(`📝 응답 미리보기: ${responseText.substring(0, 100)}...`);
         
-        // 카카오 응답
-        res.json({
+        // 카카오톡 길이 제한 (1000자)으로 자르기
+        if (responseText.length > 1000) {
+            responseText = responseText.substring(0, 950) + '\n\n... (더 자세한 내용은 다시 질문해주세요)';
+            console.log(`⚠️ 응답이 길어서 1000자로 제한 (${responseText.length}자)`);
+        }
+        
+        const kakaoResponse = {
             version: "2.0",
             template: {
                 outputs: [{
@@ -728,7 +742,11 @@ app.post('/', async (req, res) => {
                     }
                 }]
             }
-        });
+        };
+        
+        console.log(`📤 루트 웹훅 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2).substring(0, 200)}...`);
+        res.json(kakaoResponse);
+        console.log('✅ 루트 웹훅 응답 전송 완료');
         
     } catch (error) {
         console.error('❌ 루트 웹훅 에러 발생:', error.response?.data || error.message);
