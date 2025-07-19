@@ -30,6 +30,9 @@ const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
 const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
 
+// 분할된 메시지 임시 저장 (메모리 기반 - 단순한 구현)
+const pendingMessages = new Map();
+
 // Express 미들웨어는 이미 위에서 설정됨
 
 // 네이버 검색 API로 뉴스 가져오기 함수
@@ -222,7 +225,8 @@ app.post('/kakao-skill-webhook', async (req, res) => {
     
     try {
         const userMessage = req.body.userRequest?.utterance;
-        console.log(`💬 사용자 메시지: '${userMessage}'`);
+        const userId = req.body.userRequest?.user?.id || 'anonymous';
+        console.log(`💬 사용자 메시지: '${userMessage}' (ID: ${userId})`);
         
         if (!userMessage) {
             throw new Error('메시지가 없습니다');
@@ -230,6 +234,49 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         const koreanTime = getKoreanDateTime();
         console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
+        
+        // "계속" 요청 처리
+        if (userMessage.includes('계속') || userMessage.includes('이어서') || userMessage.includes('더보기')) {
+            console.log('📄 계속 요청 감지됨');
+            const pendingMessage = pendingMessages.get(userId);
+            if (pendingMessage) {
+                console.log('✅ 저장된 나머지 내용 전송');
+                pendingMessages.delete(userId); // 사용 후 삭제
+                
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: pendingMessage
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 나머지 내용 전송 완료');
+                return;
+            } else {
+                console.log('⚠️ 저장된 내용이 없음');
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: '전송할 나머지 내용이 없습니다. 새로운 질문을 해주세요!'
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 안내 메시지 전송 완료');
+                return;
+            }
+        }
         
         // 쇼핑 요청인지 먼저 확인
         if (isShoppingRequest(userMessage)) {
@@ -463,8 +510,8 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         }
         console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
         
-        // 카카오 스킬 응답 길이 제한 처리 (1000자 제한)
-        const maxLength = 1000;
+        // 카카오 스킬 응답 스마트 분할 처리
+        const maxLength = 800;  // 안전한 길이로 설정
         let kakaoResponse;
         
         if (responseText.length <= maxLength) {
@@ -480,17 +527,46 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 }
             };
         } else {
-            // 긴 응답은 1000자로 자르고 "... (더 보기)" 추가
-            const truncatedText = responseText.substring(0, maxLength - 50) + '\n\n...(답변이 길어 일부만 표시됩니다)';
+            // 긴 응답을 자연스럽게 분할
+            const sentences = responseText.split(/[.!?]\s+/);
+            let firstPart = '';
+            let secondPart = '';
+            let charCount = 0;
+            let splitIndex = 0;
             
-            console.log(`⚠️ 응답이 길어서 ${maxLength}자로 제한: ${responseText.length}자 → ${truncatedText.length}자`);
+            // 문장 단위로 나누어 적절한 분할점 찾기
+            for (let i = 0; i < sentences.length; i++) {
+                const sentence = sentences[i] + (i < sentences.length - 1 ? '. ' : '');
+                if (charCount + sentence.length < maxLength - 50) {
+                    charCount += sentence.length;
+                    splitIndex = i + 1;
+                } else {
+                    break;
+                }
+            }
             
+            if (splitIndex === 0) {
+                // 문장이 너무 길면 강제로 나누기
+                firstPart = responseText.substring(0, maxLength - 50) + '\n\n...(계속)';
+                secondPart = '(이어서)\n\n' + responseText.substring(maxLength - 50);
+            } else {
+                firstPart = sentences.slice(0, splitIndex).join('. ') + '\n\n...(계속)';
+                secondPart = '(이어서)\n\n' + sentences.slice(splitIndex).join('. ');
+            }
+            
+            console.log(`📝 스마트 분할: ${responseText.length}자 → ${firstPart.length}자 + ${secondPart.length}자`);
+            
+            // 두 번째 부분을 임시 저장
+            pendingMessages.set(userId, secondPart);
+            console.log(`💾 나머지 내용 저장: ${secondPart.length}자`);
+            
+            // 첫 번째 부분만 전송
             kakaoResponse = {
                 version: "2.0",
                 template: {
                     outputs: [{
                         simpleText: {
-                            text: truncatedText
+                            text: firstPart + '\n\n💬 "계속"이라고 말씀하시면 나머지 내용을 보여드릴게요!'
                         }
                     }]
                 }
