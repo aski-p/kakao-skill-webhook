@@ -1,13 +1,14 @@
 # 카카오 챗봇 Claude AI 스킬 서버
 
-카카오 챗봇과 Claude AI (claude-3-haiku-20240307)를 연동하는 Flask 서버입니다.
+카카오 챗봇과 Claude AI (claude-3-haiku-20240307)를 연동하는 Node.js Express 서버입니다.
 
 ## 파일 구조
 
 ```
 .
-├── app.py              # Flask 메인 애플리케이션
-├── requirements.txt    # Python 의존성 패키지
+├── index.js            # Node.js Express 메인 애플리케이션
+├── package.json        # Node.js 의존성 패키지
+├── python-backup/      # 이전 Python 파일들 백업
 └── README.md          # 이 파일
 ```
 
@@ -16,7 +17,7 @@
 ### 1. 의존성 설치
 
 ```bash
-pip install -r requirements.txt
+npm install
 ```
 
 ### 2. 환경변수 설정
@@ -42,7 +43,7 @@ cp .env.example .env
 ### 3. 서버 실행
 
 ```bash
-python app.py
+npm start
 ```
 
 서버가 실행되면 `http://localhost:5000`에서 접근할 수 있습니다.

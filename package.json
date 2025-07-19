@@ -1,0 +1,19 @@
+{
+  "name": "kakao-chatbot",
+  "version": "1.0.0",
+  "description": "카카오 챗봇 Claude AI 스킬 서버",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "author": "aski-p",
+  "license": "MIT"
+}
