@@ -1,8 +1,17 @@
 from flask import Flask, request, jsonify
 import os
+import json
 from anthropic import Anthropic
 
 app = Flask(__name__)
+
+# CORS 설정 (카카오 요청 허용)
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 # Claude API 키 설정 (환경변수에서 로드)
 CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY")
@@ -20,27 +29,49 @@ else:
 def handle_kakao_webhook():
     """카카오 챗봇 웹훅 처리 로직"""
     try:
-        # Claude API 키가 설정되지 않은 경우
-        if not client:
-            raise Exception("Claude API 키가 설정되지 않았습니다.")
+        # 요청 로깅
+        print("🔔 카카오 웹훅 요청 받음!")
+        print(f"📍 Request Method: {request.method}")
+        print(f"📍 Request Path: {request.path}")
+        print(f"📍 Content-Type: {request.headers.get('Content-Type', 'N/A')}")
         
-        # 카카오 챗봇에서 전송된 요청 데이터 파싱
+        # 요청 데이터 로깅
         req = request.get_json()
+        if req:
+            print(f"📦 요청 데이터: {req}")
+            
+            # 사용자 메시지 추출 시도
+            if 'userRequest' in req and 'utterance' in req['userRequest']:
+                user_utterance = req['userRequest']['utterance']
+                print(f"💬 사용자 메시지: '{user_utterance}'")
+            else:
+                print("❌ userRequest.utterance가 없습니다!")
+                user_utterance = "안녕하세요"  # 기본값
+        else:
+            print("❌ JSON 데이터가 없습니다!")
+            user_utterance = "안녕하세요"  # 기본값
         
-        # 사용자 메시지 추출
-        user_utterance = req['userRequest']['utterance']
-        
-        # Claude API 호출
-        response = client.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=1000,
-            messages=[
-                {"role": "user", "content": user_utterance}
-            ]
-        )
-        
-        # Claude의 응답 텍스트 추출
-        claude_response = response.content[0].text
+        # 간단한 테스트 응답 (Claude API 없이도 작동)
+        if not client:
+            print("⚠️ Claude API 클라이언트가 없어서 테스트 응답을 보냅니다.")
+            test_response = f"🔧 서버 설정 중입니다.\n받은 메시지: '{user_utterance}'\nClaude API 키를 설정해주세요."
+        else:
+            print("✅ Claude API 호출 시작...")
+            try:
+                # Claude API 호출 (타임아웃 방지를 위해 max_tokens 줄임)
+                response = client.messages.create(
+                    model="claude-3-haiku-20240307",
+                    max_tokens=300,  # 더 빠른 응답을 위해 줄임
+                    messages=[
+                        {"role": "user", "content": user_utterance}
+                    ]
+                )
+                
+                test_response = response.content[0].text
+                print(f"✅ Claude 응답 받음: {test_response[:100]}...")
+            except Exception as claude_error:
+                print(f"❌ Claude API 오류: {claude_error}")
+                test_response = f"죄송합니다. AI 서비스에 일시적인 문제가 있습니다.\n받은 메시지: '{user_utterance}'"
         
         # 카카오 챗봇 응답 형식으로 변환
         kakao_response = {
@@ -49,13 +80,15 @@ def handle_kakao_webhook():
                 "outputs": [
                     {
                         "simpleText": {
-                            "text": claude_response
+                            "text": test_response
                         }
                     }
                 ]
             }
         }
         
+        print("📤 카카오 응답 전송 중...")
+        print(f"📦 응답 데이터: {kakao_response}")
         return jsonify(kakao_response)
     
     except Exception as e:
@@ -90,6 +123,31 @@ def handle_kakao_webhook():
 def kakao_skill_webhook():
     """카카오 챗봇 스킬 웹훅 엔드포인트"""
     return handle_kakao_webhook()
+
+@app.route('/test', methods=['GET', 'POST'])
+def test_endpoint():
+    """간단한 테스트 엔드포인트"""
+    if request.method == 'GET':
+        return jsonify({
+            "message": "Test endpoint is working",
+            "method": "GET",
+            "timestamp": "2025-07-19",
+            "status": "OK"
+        })
+    elif request.method == 'POST':
+        # 카카오 형식으로 간단한 응답
+        return jsonify({
+            "version": "2.0",
+            "template": {
+                "outputs": [
+                    {
+                        "simpleText": {
+                            "text": "✅ 테스트 성공! 서버가 정상 작동합니다."
+                        }
+                    }
+                ]
+            }
+        })
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -126,7 +184,8 @@ def home():
         <ul>
             <li><strong>POST /kakao-skill-webhook</strong> - 카카오 스킬 웹훅 (권장)</li>
             <li><strong>POST /</strong> - 루트 웹훅 (현재 경로)</li>
-            <li><strong>GET /health</strong> - 서버 상태 확인</li>
+            <li><strong>GET /health</strong> - <a href="/health">서버 상태 확인</a></li>
+            <li><strong>GET/POST /test</strong> - <a href="/test">간단한 테스트</a></li>
         </ul>
         <hr>
         <p>💡 카카오 챗봇 관리자센터에서 이 URL을 스킬 서버로 등록하세요.</p>

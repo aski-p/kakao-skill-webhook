@@ -140,10 +140,56 @@ git push heroku main
 
 2. **직접 테스트**
    ```bash
-   curl -X POST https://your-app.railway.app/kakao-skill-webhook \
+   # 카카오 형식 테스트
+   curl -X POST https://kakao-skill-webhook-production.up.railway.app/kakao-skill-webhook \
      -H "Content-Type: application/json" \
      -d '{"userRequest": {"utterance": "안녕하세요"}}'
+   
+   # 간단한 테스트
+   curl -X POST https://kakao-skill-webhook-production.up.railway.app/test
    ```
+
+3. **상태 확인**
+   - 서버 상태: `https://kakao-skill-webhook-production.up.railway.app/health`
+   - 테스트 페이지: `https://kakao-skill-webhook-production.up.railway.app/test`
+
+## 🔍 디버깅 가이드
+
+### 카카오 봇이 응답하지 않는 경우
+
+1. **Railway 로그 확인**
+   - Railway 대시보드 → 프로젝트 → "Logs" 탭
+   - 다음 메시지가 나타나는지 확인:
+     ```
+     🔔 카카오 웹훅 요청 받음!
+     💬 사용자 메시지: '안녕하세요'
+     📤 카카오 응답 전송 중...
+     ```
+
+2. **스킬 설정 확인**
+   - 카카오 관리자센터에서 스킬이 "사용" 상태인지 확인
+   - URL이 정확한지 확인 (HTTPS 필수)
+   - 발화 예시가 등록되어 있는지 확인
+
+3. **단계별 테스트**
+   ```bash
+   # 1단계: 서버 상태 확인
+   curl https://kakao-skill-webhook-production.up.railway.app/health
+   
+   # 2단계: 간단한 테스트
+   curl -X POST https://kakao-skill-webhook-production.up.railway.app/test
+   
+   # 3단계: 카카오 형식 테스트
+   curl -X POST https://kakao-skill-webhook-production.up.railway.app/kakao-skill-webhook \
+     -H "Content-Type: application/json" \
+     -d '{"userRequest": {"utterance": "테스트"}}'
+   ```
+
+4. **자주 발생하는 문제들**
+   - **5초 타임아웃**: Claude API 응답이 느릴 때 → max_tokens을 300으로 줄임
+   - **환경변수 미설정**: API 키가 없을 때도 테스트 응답 제공
+   - **CORS 문제**: 헤더 설정으로 해결
+   - **JSON 파싱 오류**: 요청 데이터 로깅으로 디버깅
 
 ## 주의사항
 
