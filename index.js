@@ -2,13 +2,35 @@ const express = require('express');
 const axios = require('axios');
 const app = express();
 
+// Railway 최적화 설정
+app.set('trust proxy', 1);
+app.use(express.json({ limit: '10mb' }));
+
+// 응답 타임아웃 설정
+app.use((req, res, next) => {
+    res.setTimeout(25000, () => {
+        console.log('⏰ 요청 타임아웃');
+        res.status(408).json({
+            version: "2.0",
+            template: {
+                outputs: [{
+                    simpleText: {
+                        text: "응답 시간이 초과되었습니다. 다시 시도해주세요."
+                    }
+                }]
+            }
+        });
+    });
+    next();
+});
+
 // 네이버 검색 API 설정
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
 const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
 
-app.use(express.json());
+// Express 미들웨어는 이미 위에서 설정됨
 
 // 네이버 검색 API로 뉴스 가져오기 함수
 async function getLatestNews(query = '오늘 뉴스') {
@@ -33,7 +55,7 @@ async function getLatestNews(query = '오늘 뉴스') {
                 'X-Naver-Client-Id': NAVER_CLIENT_ID,
                 'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
             },
-            timeout: 5000
+            timeout: 8000
         });
         
         const items = response.data.items;
@@ -80,7 +102,7 @@ async function getShoppingResults(query) {
                 'X-Naver-Client-Id': NAVER_CLIENT_ID,
                 'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
             },
-            timeout: 5000
+            timeout: 8000
         });
         
         const items = response.data.items;
@@ -139,10 +161,24 @@ function isShoppingRequest(message) {
     return hasShoppingKeyword || hasProductKeyword;
 }
 
-// 헬스체크 엔드포인트
+// 헬스체크 엔드포인트 (Railway 최적화)
 app.get('/', (req, res) => {
-    console.log('헬스체크 요청');
-    res.send('OK');
+    res.status(200).send('OK');
+});
+
+// Railway 헬스체크 (메모리 사용량 포함)
+app.get('/health', (req, res) => {
+    const memUsage = process.memoryUsage();
+    res.status(200).json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        memory: {
+            rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`,
+            heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+            heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`
+        },
+        uptime: `${Math.round(process.uptime())}s`
+    });
 });
 
 // 상태 페이지
@@ -183,7 +219,6 @@ app.get('/status', (req, res) => {
 // 카카오 스킬 웹훅
 app.post('/kakao-skill-webhook', async (req, res) => {
     console.log('🔔 카카오 웹훅 요청 받음!');
-    console.log('요청 데이터:', JSON.stringify(req.body, null, 2));
     
     try {
         const userMessage = req.body.userRequest?.utterance;
@@ -407,7 +442,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     'anthropic-version': '2023-06-01',
                     'content-type': 'application/json'
                 },
-                timeout: 15000  // 4.5초 → 15초로 증가 (긴 응답 대기)
+                timeout: 20000  // Claude API 응답 대기 시간
             }
         );
         
@@ -457,8 +492,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 
 // 루트 웹훅 (POST /)
 app.post('/', async (req, res) => {
-    console.log('🔔 루트 웹훅 호출 - /kakao-skill-webhook으로 리다이렉트');
-    console.log('요청 데이터:', JSON.stringify(req.body, null, 2));
+    console.log('🔔 루트 웹훅 호출');
     
     try {
         const userMessage = req.body.userRequest?.utterance;
@@ -676,7 +710,7 @@ app.post('/', async (req, res) => {
                     'anthropic-version': '2023-06-01',
                     'content-type': 'application/json'
                 },
-                timeout: 15000  // 4.5초 → 15초로 증가 (긴 응답 대기)
+                timeout: 20000  // Claude API 응답 대기 시간
             }
         );
         
@@ -724,7 +758,7 @@ app.post('/', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
     const koreanTime = getKoreanDateTime();
     console.log(`🚀 Node.js 서버 시작: 포트 ${PORT}`);
     console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
@@ -735,3 +769,34 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🔐 네이버 Client Secret 설정: ${process.env.NAVER_CLIENT_SECRET ? '✅' : '❌'}`);
     console.log(`📋 기능: 네이버 검색 뉴스 제공, 한국 시간 인식`);
 });
+
+// Railway 배포를 위한 Graceful shutdown
+const gracefulShutdown = (signal) => {
+    console.log(`🛑 ${signal} 신호 받음. 서버 종료 중...`);
+    server.close(() => {
+        console.log('✅ 서버가 정상적으로 종료되었습니다.');
+        process.exit(0);
+    });
+    
+    // 10초 후 강제 종료
+    setTimeout(() => {
+        console.log('⚠️ 강제 종료됩니다.');
+        process.exit(1);
+    }, 10000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// 메모리 사용량 모니터링 (Railway 최적화)
+setInterval(() => {
+    const memUsage = process.memoryUsage();
+    const memUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+    if (memUsedMB > 450) { // 450MB 이상시 경고
+        console.log(`⚠️ 높은 메모리 사용량: ${memUsedMB}MB`);
+        if (global.gc) {
+            global.gc();
+            console.log('🧹 가비지 컬렉션 실행');
+        }
+    }
+}, 60000); // 1분마다 체크
