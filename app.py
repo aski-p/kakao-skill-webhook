@@ -50,22 +50,22 @@ def handle_kakao_webhook():
         
         if not api_key:
             print("⚠️ Claude API 키가 설정되지 않았습니다.")
-            test_response = f"안녕하세요! 현재 Claude AI 설정 중입니다.\n받은 메시지: '{user_utterance}'"
+            test_response = f"안녕하세요! 서버가 정상 작동 중입니다.\n받은 메시지: '{user_utterance}'"
         else:
             print("✅ Claude API 호출 시작...")
             try:
                 client = Anthropic(api_key=api_key)
                 response = client.messages.create(
                     model="claude-3-haiku-20240307",
-                    max_tokens=400,
+                    max_tokens=300,  # 응답 속도 향상
                     messages=[{"role": "user", "content": user_utterance}]
                 )
                 
                 test_response = response.content[0].text
-                print(f"✅ Claude 응답 받음: {test_response[:100]}...")
+                print(f"✅ Claude 응답 받음 ({len(test_response)}자)")
             except Exception as e:
-                print(f"❌ Claude API 오류: {e}")
-                test_response = f"죄송합니다. 잠시 후 다시 시도해주세요.\n요청: '{user_utterance}'"
+                print(f"❌ Claude API 오류: {str(e)[:100]}")
+                test_response = f"죄송합니다. 잠시 후 다시 시도해주세요."
         
         # 카카오 챗봇 응답 형식으로 변환
         kakao_response = {
@@ -124,21 +124,30 @@ def kakao_skill_webhook():
 def home():
     """홈 페이지 및 루트 웹훅 엔드포인트"""
     if request.method == 'GET':
-        current_api_key = os.environ.get("CLAUDE_API_KEY")
-        status = "✅ Claude API 설정됨" if current_api_key else "❌ Claude API 미설정"
-        
-        return f"""
-        <h1>🤖 카카오 챗봇 Claude AI 서버</h1>
-        <p><strong>상태:</strong> 정상 실행 중</p>
-        <p><strong>Claude API:</strong> {status}</p>
-        <hr>
-        <p><strong>카카오 스킬 URL:</strong> https://kakao-skill-webhook-production.up.railway.app/kakao-skill-webhook</p>
-        <p><strong>루트 웹훅:</strong> https://kakao-skill-webhook-production.up.railway.app</p>
-        """
+        # Railway 헬스체크를 위한 간단한 응답
+        return "OK"
     elif request.method == 'POST':
         return handle_kakao_webhook()
+
+@app.route('/status', methods=['GET'])
+def status():
+    """상세한 상태 페이지"""
+    current_api_key = os.environ.get("CLAUDE_API_KEY")
+    status = "✅ Claude API 설정됨" if current_api_key else "❌ Claude API 미설정"
+    
+    return f"""
+    <h1>🤖 카카오 챗봇 Claude AI 서버</h1>
+    <p><strong>상태:</strong> 정상 실행 중</p>
+    <p><strong>Claude API:</strong> {status}</p>
+    <hr>
+    <p><strong>카카오 스킬 URL:</strong> https://kakao-skill-webhook-production.up.railway.app/kakao-skill-webhook</p>
+    <p><strong>루트 웹훅:</strong> https://kakao-skill-webhook-production.up.railway.app</p>
+    """
 
 if __name__ == '__main__':
     # Railway에서는 PORT 환경변수를 사용
     port = int(os.environ.get('PORT', 5000))
+    print(f"🚀 서버 시작: 포트 {port}")
+    print(f"💡 상태 페이지: http://0.0.0.0:{port}/status")
+    print(f"🔗 웹훅 URL: http://0.0.0.0:{port}/kakao-skill-webhook")
     app.run(host='0.0.0.0', port=port, debug=False)
