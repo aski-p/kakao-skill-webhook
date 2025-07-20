@@ -651,10 +651,118 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         const processMessage = finalMessage;
         console.log(`📝 최종 처리할 메시지 길이: ${processMessage.length}자`);
         
-        // 이미지 요청 처리 (최우선 처리)
+        // 이미지 분석 요청 처리 (최우선 처리)
         console.log(`🔍 이미지 감지 테스트: 메시지='${userMessage.substring(0, 100)}'`);
         console.log(`🔍 이미지 감지 함수 결과: ${isImageRequest(req.body)}`);
+        console.log(`🔍 이미지 분석 요청 확인: ${isImageAnalysisRequest(processMessage)}`);
         
+        // 이미지 분석 요청이면 바로 분석 처리
+        if (isImageAnalysisRequest(processMessage)) {
+            console.log('🔍 이미지 분석 요청 감지됨 - 우선 처리');
+            
+            // 현재 요청에서 이미지 URL을 먼저 찾아보기
+            let imageUrl = extractImageUrl(req.body);
+            
+            // 현재 요청에 이미지가 없으면 저장된 이미지 URL 사용
+            if (!imageUrl) {
+                imageUrl = userImageUrls.get(userId);
+                console.log(`📷 저장된 이미지 URL 사용: ${imageUrl}`);
+            } else {
+                // 새로운 이미지가 있으면 저장
+                userImageUrls.set(userId, imageUrl);
+                console.log(`📷 새로운 이미지 URL 저장: ${imageUrl}`);
+            }
+            
+            if (imageUrl) {
+                console.log(`📷 이미지 분석 시작: ${imageUrl}`);
+                
+                try {
+                    const analysisResult = await analyzeImageWithClaude(imageUrl, 'analysis', processMessage);
+                    let responseText = `🖼️ 이미지 분석 결과:\n\n${analysisResult}`;
+                    
+                    // 이미지 분석 결과도 분할 전송 처리
+                    const maxLength = 800;
+                    if (responseText.length > maxLength) {
+                        const firstPart = responseText.substring(0, maxLength - 100);
+                        const remainingPart = responseText.substring(maxLength - 100);
+                        
+                        // 나머지 부분을 사용자별로 저장
+                        pendingMessages.set(userId, remainingPart);
+                        
+                        responseText = firstPart + '\n\n📄 "계속"이라고 입력하시면 나머지 내용을 보실 수 있습니다.';
+                        console.log(`📄 이미지 분석 결과가 길어서 분할됨: 첫 부분 ${firstPart.length}자, 나머지 ${remainingPart.length}자`);
+                    }
+                    
+                    const response = {
+                        version: "2.0",
+                        template: {
+                            outputs: [{
+                                simpleText: {
+                                    text: responseText
+                                }
+                            }]
+                        }
+                    };
+                    
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                    res.status(200).json(response);
+                    console.log('✅ 이미지 분석 결과 전송 완료');
+                    return;
+                } catch (error) {
+                    console.error('❌ 이미지 분석 중 오류:', error);
+                    
+                    const errorText = `🖼️ 이미지 분석 중 오류가 발생했습니다.
+
+오류 내용: ${error.message || '알 수 없는 오류'}
+
+다른 이미지로 다시 시도해주세요.`;
+
+                    const response = {
+                        version: "2.0",
+                        template: {
+                            outputs: [{
+                                simpleText: {
+                                    text: errorText
+                                }
+                            }]
+                        }
+                    };
+                    
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                    res.status(200).json(response);
+                    console.log('✅ 이미지 분석 오류 안내 전송 완료');
+                    return;
+                }
+            } else {
+                const noStoredImageText = `🖼️ 분석할 이미지가 없습니다.
+
+이미지를 먼저 업로드하거나 이미지와 함께 분석 요청을 보내주세요.
+
+📝 사용법:
+1️⃣ 이미지를 먼저 전송 → "이미지 분석해줘"
+2️⃣ 이미지와 함께 "이미지 분석해줘" 메시지 전송
+
+지원 형식: JPG, PNG, GIF, BMP, WebP`;
+
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: noStoredImageText
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 이미지 없음 안내 전송 완료');
+                return;
+            }
+        }
+        
+        // 이미지가 있지만 분석 요청이 아닌 경우만 옵션 메뉴 표시
         if (isImageRequest(req.body)) {
             console.log('🖼️ 이미지 요청 감지됨');
             
@@ -763,111 +871,6 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             }
         }
         
-        // 이미지 분석 요청 처리 (기존 이미지 URL로)
-        if (isImageAnalysisRequest(processMessage)) {
-            console.log('🔍 이미지 분석 요청 감지됨');
-            
-            // 현재 요청에서 이미지 URL을 먼저 찾아보기
-            let imageUrl = extractImageUrl(req.body);
-            
-            // 현재 요청에 이미지가 없으면 저장된 이미지 URL 사용
-            if (!imageUrl) {
-                imageUrl = userImageUrls.get(userId);
-                console.log(`📷 저장된 이미지 URL 사용: ${imageUrl}`);
-            } else {
-                // 새로운 이미지가 있으면 저장
-                userImageUrls.set(userId, imageUrl);
-                console.log(`📷 새로운 이미지 URL 저장: ${imageUrl}`);
-            }
-            
-            if (imageUrl) {
-                console.log(`📷 이미지 분석 시작: ${imageUrl}`);
-                
-                try {
-                    const analysisResult = await analyzeImageWithClaude(imageUrl, 'analysis', processMessage);
-                    let responseText = `🖼️ 이미지 분석 결과:\n\n${analysisResult}`;
-                    
-                    // 이미지 분석 결과도 분할 전송 처리
-                    const maxLength = 800;
-                    if (responseText.length > maxLength) {
-                        const firstPart = responseText.substring(0, maxLength - 100);
-                        const remainingPart = responseText.substring(maxLength - 100);
-                        
-                        // 나머지 부분을 사용자별로 저장
-                        pendingMessages.set(userId, remainingPart);
-                        
-                        responseText = firstPart + '\n\n📄 "계속"이라고 입력하시면 나머지 내용을 보실 수 있습니다.';
-                        console.log(`📄 이미지 분석 결과가 길어서 분할됨: 첫 부분 ${firstPart.length}자, 나머지 ${remainingPart.length}자`);
-                    }
-                    
-                    const response = {
-                        version: "2.0",
-                        template: {
-                            outputs: [{
-                                simpleText: {
-                                    text: responseText
-                                }
-                            }]
-                        }
-                    };
-                    
-                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                    res.status(200).json(response);
-                    console.log('✅ 이미지 분석 결과 전송 완료');
-                    return;
-                } catch (error) {
-                    console.error('❌ 이미지 분석 중 오류:', error);
-                    
-                    const errorText = `🖼️ 이미지 분석 중 오류가 발생했습니다.
-
-오류 내용: ${error.message || '알 수 없는 오류'}
-
-다른 이미지로 다시 시도해주세요.`;
-
-                    const response = {
-                        version: "2.0",
-                        template: {
-                            outputs: [{
-                                simpleText: {
-                                    text: errorText
-                                }
-                            }]
-                        }
-                    };
-                    
-                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                    res.status(200).json(response);
-                    console.log('✅ 이미지 분석 오류 안내 전송 완료');
-                    return;
-                }
-            } else {
-                const noStoredImageText = `🖼️ 분석할 이미지가 없습니다.
-
-이미지를 먼저 업로드하거나 이미지와 함께 분석 요청을 보내주세요.
-
-📝 사용법:
-1️⃣ 이미지를 먼저 전송 → "이미지 분석해줘"
-2️⃣ 이미지와 함께 "이미지 분석해줘" 메시지 전송
-
-지원 형식: JPG, PNG, GIF, BMP, WebP`;
-
-                const response = {
-                    version: "2.0",
-                    template: {
-                        outputs: [{
-                            simpleText: {
-                                text: noStoredImageText
-                            }
-                        }]
-                    }
-                };
-                
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.status(200).json(response);
-                console.log('✅ 이미지 없음 안내 전송 완료');
-                return;
-            }
-        }
         
         // 이미지 수정/개선 예시 요청 처리
         if (processMessage.includes('이미지 수정') || processMessage.includes('이미지 개선') || processMessage.includes('사진 편집') || processMessage.includes('이미지 예시')) {
@@ -1003,7 +1006,34 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
                 console.log('✅ 맛집 응답 전송 완료');
                 return;
             } else {
-                console.log('⚠️ 맛집 API 사용 불가 - Claude로 폴백');
+                console.log('⚠️ 맛집 API 사용 불가 - 직접 안내 메시지 제공');
+                
+                const noRestaurantText = `🍽️ 죄송합니다. "${searchQuery}" 지역의 맛집 정보를 찾을 수 없습니다.
+
+📍 정확한 지역명으로 다시 검색해보세요:
+• 예: "강남역 맛집", "홍대 카페", "명동 한식"
+
+🔍 검색 팁:
+• 구체적인 지역명 + 맛집 키워드 사용
+• "○○역", "○○동", "○○구" 등 명확한 위치 정보 포함
+
+현재 네이버 지역검색 API를 통해 실제 운영 중인 맛집만 추천드립니다.`;
+
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: noRestaurantText
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 맛집 검색 실패 안내 전송 완료');
+                return;
             }
         }
         
@@ -1261,7 +1291,12 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
 1. 명확하고 도움이 되는 답변을 제공하세요.
 2. 핵심 내용을 간결하게 설명하세요.
 3. 답변 길이는 반드시 950자 이내로 작성하세요.
-4. 카카오톡 메시지 형태에 적합하도록 간결하게 작성하세요.`,
+4. 카카오톡 메시지 형태에 적합하도록 간결하게 작성하세요.
+
+중요 제한사항:
+- 맛집, 식당, 카페 등 실제 장소 추천을 요청받으면 "실제 운영 중인 맛집 정보는 네이버 지역검색을 통해 확인해주세요. 예: '강남역 맛집', '홍대 카페' 등으로 검색해주세요."라고 안내하세요.
+- 구체적인 가게 이름이나 주소는 절대 임의로 만들어서 제공하지 마세요.
+- 존재하지 않는 상호명이나 위치 정보를 제공하지 마세요.`,
                     messages: [{
                         role: "user",
                         content: processMessage
@@ -1645,7 +1680,12 @@ app.post('/', async (req, res) => {
 1. 명확하고 도움이 되는 답변을 제공하세요.
 2. 핵심 내용을 간결하게 설명하세요.
 3. 답변 길이는 반드시 950자 이내로 작성하세요.
-4. 카카오톡 메시지 형태에 적합하도록 간결하게 작성하세요.`,
+4. 카카오톡 메시지 형태에 적합하도록 간결하게 작성하세요.
+
+중요 제한사항:
+- 맛집, 식당, 카페 등 실제 장소 추천을 요청받으면 "실제 운영 중인 맛집 정보는 네이버 지역검색을 통해 확인해주세요. 예: '강남역 맛집', '홍대 카페' 등으로 검색해주세요."라고 안내하세요.
+- 구체적인 가게 이름이나 주소는 절대 임의로 만들어서 제공하지 마세요.
+- 존재하지 않는 상호명이나 위치 정보를 제공하지 마세요.`,
                     messages: [{
                         role: "user",
                         content: processMessage
