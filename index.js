@@ -36,6 +36,9 @@ const pendingMessages = new Map();
 // 사용자별 이미지 URL 저장 (메모리 기반 - 단순한 구현)
 const userImageUrls = new Map();
 
+// 사용자별 대화 컨텍스트 저장 (이전 메시지 기억용)
+const userContexts = new Map();
+
 // Express 미들웨어는 이미 위에서 설정됨
 
 // 네이버 검색 API로 뉴스 가져오기 함수
@@ -431,7 +434,13 @@ app.post('/kakao-skill-webhook', async (req, res) => {
     try {
         const userMessage = req.body.userRequest?.utterance;
         const userId = req.body.userRequest?.user?.id || 'anonymous';
+        console.log(`💬 사용자 메시지 길이: ${userMessage.length}자`);
         console.log(`💬 사용자 메시지: '${userMessage}' (ID: ${userId})`);
+        
+        // 전체 요청 바디를 로그로 출력 (디버깅용)
+        if (userMessage.length > 500) {
+            console.log(`📊 긴 메시지 감지됨. 전체 요청 바디:`, JSON.stringify(req.body, null, 2));
+        }
         
         if (!userMessage) {
             throw new Error('메시지가 없습니다');
@@ -439,6 +448,37 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         const koreanTime = getKoreanDateTime();
         console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
+        
+        // 긴 메시지 감지 및 컨텍스트 병합 처리
+        let finalMessage = userMessage;
+        const previousContext = userContexts.get(userId);
+        
+        // 메시지가 이전 메시지의 연속으로 보이면 합치기
+        if (previousContext && 
+            userMessage.length > 200 && 
+            (userMessage.includes('1.') || userMessage.includes('2.') || userMessage.includes('3.') ||
+             userMessage.startsWith('안녕하세요') || 
+             (previousContext.timestamp && Date.now() - previousContext.timestamp < 30000))) {
+            
+            finalMessage = previousContext.message + '\n\n' + userMessage;
+            console.log(`🔗 이전 컨텍스트와 병합됨. 총 길이: ${finalMessage.length}자`);
+            
+            // 컨텍스트 업데이트
+            userContexts.set(userId, {
+                message: finalMessage,
+                timestamp: Date.now()
+            });
+        } else {
+            // 새로운 컨텍스트 저장
+            userContexts.set(userId, {
+                message: userMessage,
+                timestamp: Date.now()
+            });
+        }
+        
+        // 최종 메시지로 처리 계속
+        const processMessage = finalMessage;
+        console.log(`📝 최종 처리할 메시지 길이: ${processMessage.length}자`);
         
         // 이미지 요청 처리 (최우선 처리)
         console.log(`🔍 이미지 감지 테스트: 메시지='${userMessage.substring(0, 100)}'`);
@@ -553,14 +593,14 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         }
         
         // 이미지 분석 요청 처리 (기존 이미지 URL로)
-        if (isImageAnalysisRequest(userMessage)) {
+        if (isImageAnalysisRequest(processMessage)) {
             console.log('🔍 이미지 분석 요청 감지됨');
             
             const storedImageUrl = userImageUrls.get(userId);
             if (storedImageUrl) {
                 console.log(`📷 저장된 이미지 URL로 분석: ${storedImageUrl}`);
                 
-                const analysisResult = await analyzeImageWithClaude(storedImageUrl, 'analysis', userMessage);
+                const analysisResult = await analyzeImageWithClaude(storedImageUrl, 'analysis', processMessage);
                 let responseText = `🖼️ 이미지 분석 결과:\n\n${analysisResult}`;
                 
                 // 이미지 분석 결과도 분할 전송 처리
@@ -617,7 +657,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         }
         
         // 이미지 수정/개선 예시 요청 처리
-        if (userMessage.includes('이미지 수정') || userMessage.includes('이미지 개선') || userMessage.includes('사진 편집') || userMessage.includes('이미지 예시')) {
+        if (processMessage.includes('이미지 수정') || processMessage.includes('이미지 개선') || processMessage.includes('사진 편집') || processMessage.includes('이미지 예시')) {
             console.log('🎨 이미지 수정/개선 예시 요청 감지됨');
             
             const imageEditExamples = `🎨 이미지 수정/개선 예시
@@ -664,18 +704,18 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
         }
         
         // 쇼핑 요청인지 먼저 확인
-        if (isShoppingRequest(userMessage)) {
+        if (isShoppingRequest(processMessage)) {
             console.log('🛒 쇼핑 요청 감지됨');
             
             // 상품명 추출 (개선된 방법)
-            let searchQuery = userMessage;
+            let searchQuery = processMessage;
             
             // 1. 먼저 핵심 상품 키워드 찾기
             const productKeywords = ['젖병', '세척기', '기저귀', '유모차', '카시트', '노트북', '휴대폰', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기', '마우스', '키보드', '모니터', '스피커'];
             let foundProducts = [];
             
             productKeywords.forEach(keyword => {
-                if (userMessage.includes(keyword)) {
+                if (processMessage.includes(keyword)) {
                     foundProducts.push(keyword);
                 }
             });
@@ -783,7 +823,7 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
             /^오늘$/,
             /^지금$/
         ];
-        const isTimeQuestion = timeQuestionPatterns.some(pattern => pattern.test(userMessage));
+        const isTimeQuestion = timeQuestionPatterns.some(pattern => pattern.test(processMessage));
         
         if (isTimeQuestion) {
             console.log('🕐 시간/날짜 질문 감지됨 - 직접 처리');
@@ -794,12 +834,12 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
             const dayOfWeek = dayNames[koreaDate.getDay()];
             
             let timeResponse = '';
-            if (userMessage.includes('날짜') || userMessage.includes('며칠') || userMessage.includes('몇일') || userMessage.includes('몇월') || userMessage.includes('오늘')) {
+            if (processMessage.includes('날짜') || processMessage.includes('며칠') || processMessage.includes('몇일') || processMessage.includes('몇월') || processMessage.includes('오늘')) {
                 const dateOnly = koreanTime.formatted.replace(/\s\d{2}:\d{2}:\d{2}/, ''); // 시간 부분 제거
                 timeResponse = `오늘은 ${dateOnly} ${dayOfWeek}입니다.`;
-            } else if (userMessage.includes('시간') || userMessage.includes('몇시') || userMessage.includes('지금')) {
+            } else if (processMessage.includes('시간') || processMessage.includes('몇시') || processMessage.includes('지금')) {
                 timeResponse = `현재 시간은 ${koreanTime.formatted}입니다.`;
-            } else if (userMessage.includes('요일')) {
+            } else if (processMessage.includes('요일')) {
                 timeResponse = `오늘은 ${dayOfWeek}입니다.`;
             } else {
                 timeResponse = `현재 시간은 ${koreanTime.formatted} ${dayOfWeek}입니다.`;
@@ -823,7 +863,7 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
         }
 
         // 뉴스 요청인지 확인
-        if (isNewsRequest(userMessage)) {
+        if (isNewsRequest(processMessage)) {
             console.log('📰 뉴스 요청 감지됨');
             
             const news = await getLatestNews('최신 뉴스');
@@ -920,7 +960,7 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
 4. 카카오톡 메시지 형태에 적합하도록 간결하게 작성하세요.`,
                     messages: [{
                         role: "user",
-                        content: userMessage
+                        content: processMessage
                     }],
                     max_tokens: 800  // 토큰 수 조정: 분할 전송으로 더 긴 응답 가능
                 },
@@ -950,7 +990,7 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
                 responseText = `네트워크 연결이 불안정합니다. 잠시 후 다시 시도해주세요.`;
             }
             // 시간 관련 질문 특별 처리
-            else if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
+            else if (processMessage.includes('시간') || processMessage.includes('날짜') || processMessage.includes('오늘') || processMessage.includes('지금')) {
                 const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
                 const now = new Date();
                 const koreaDate = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Seoul'}));
@@ -958,7 +998,7 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
                 responseText = `현재 한국 시간: ${koreanTime.formatted} ${dayOfWeek}입니다.`;
             }
             // 간단한 인사 응답
-            else if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
+            else if (processMessage.includes('안녕') || processMessage.includes('hi') || processMessage.includes('hello')) {
                 responseText = `안녕하세요! 현재 시간은 ${koreanTime.formatted}입니다. 무엇을 도와드릴까요?`;
             }
             // 일반적인 질문에 대한 기본 안내
@@ -1052,18 +1092,18 @@ app.post('/', async (req, res) => {
         console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
         
         // 쇼핑 요청인지 먼저 확인
-        if (isShoppingRequest(userMessage)) {
+        if (isShoppingRequest(processMessage)) {
             console.log('🛒 쇼핑 요청 감지됨');
             
             // 상품명 추출 (개선된 방법)
-            let searchQuery = userMessage;
+            let searchQuery = processMessage;
             
             // 1. 먼저 핵심 상품 키워드 찾기
             const productKeywords = ['젖병', '세척기', '기저귀', '유모차', '카시트', '노트북', '휴대폰', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기', '마우스', '키보드', '모니터', '스피커'];
             let foundProducts = [];
             
             productKeywords.forEach(keyword => {
-                if (userMessage.includes(keyword)) {
+                if (processMessage.includes(keyword)) {
                     foundProducts.push(keyword);
                 }
             });
@@ -1168,7 +1208,7 @@ app.post('/', async (req, res) => {
             /^오늘$/,
             /^지금$/
         ];
-        const isTimeQuestion = timeQuestionPatterns.some(pattern => pattern.test(userMessage));
+        const isTimeQuestion = timeQuestionPatterns.some(pattern => pattern.test(processMessage));
         
         if (isTimeQuestion) {
             console.log('🕐 시간/날짜 질문 감지됨 - 직접 처리');
@@ -1179,12 +1219,12 @@ app.post('/', async (req, res) => {
             const dayOfWeek = dayNames[koreaDate.getDay()];
             
             let timeResponse = '';
-            if (userMessage.includes('날짜') || userMessage.includes('며칠') || userMessage.includes('몇일') || userMessage.includes('몇월') || userMessage.includes('오늘')) {
+            if (processMessage.includes('날짜') || processMessage.includes('며칠') || processMessage.includes('몇일') || processMessage.includes('몇월') || processMessage.includes('오늘')) {
                 const dateOnly = koreanTime.formatted.replace(/\s\d{2}:\d{2}:\d{2}/, ''); // 시간 부분 제거
                 timeResponse = `오늘은 ${dateOnly} ${dayOfWeek}입니다.`;
-            } else if (userMessage.includes('시간') || userMessage.includes('몇시') || userMessage.includes('지금')) {
+            } else if (processMessage.includes('시간') || processMessage.includes('몇시') || processMessage.includes('지금')) {
                 timeResponse = `현재 시간은 ${koreanTime.formatted}입니다.`;
-            } else if (userMessage.includes('요일')) {
+            } else if (processMessage.includes('요일')) {
                 timeResponse = `오늘은 ${dayOfWeek}입니다.`;
             } else {
                 timeResponse = `현재 시간은 ${koreanTime.formatted} ${dayOfWeek}입니다.`;
@@ -1208,7 +1248,7 @@ app.post('/', async (req, res) => {
         }
 
         // 뉴스 요청인지 확인
-        if (isNewsRequest(userMessage)) {
+        if (isNewsRequest(processMessage)) {
             console.log('📰 뉴스 요청 감지됨');
             
             const news = await getLatestNews('최신 뉴스');
@@ -1304,7 +1344,7 @@ app.post('/', async (req, res) => {
 4. 카카오톡 메시지 형태에 적합하도록 간결하게 작성하세요.`,
                     messages: [{
                         role: "user",
-                        content: userMessage
+                        content: processMessage
                     }],
                     max_tokens: 800  // 토큰 수 조정: 분할 전송으로 더 긴 응답 가능
                 },
@@ -1334,7 +1374,7 @@ app.post('/', async (req, res) => {
                 responseText = `네트워크 연결이 불안정합니다. 잠시 후 다시 시도해주세요.`;
             }
             // 시간 관련 질문 특별 처리
-            else if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
+            else if (processMessage.includes('시간') || processMessage.includes('날짜') || processMessage.includes('오늘') || processMessage.includes('지금')) {
                 const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
                 const now = new Date();
                 const koreaDate = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Seoul'}));
@@ -1342,7 +1382,7 @@ app.post('/', async (req, res) => {
                 responseText = `현재 한국 시간: ${koreanTime.formatted} ${dayOfWeek}입니다.`;
             }
             // 간단한 인사 응답
-            else if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
+            else if (processMessage.includes('안녕') || processMessage.includes('hi') || processMessage.includes('hello')) {
                 responseText = `안녕하세요! 현재 시간은 ${koreanTime.formatted}입니다. 무엇을 도와드릴까요?`;
             }
             // 일반적인 질문에 대한 기본 안내
