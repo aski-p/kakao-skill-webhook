@@ -427,6 +427,72 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         const koreanTime = getKoreanDateTime();
         console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
         
+        // 이미지 요청 처리 (최우선 처리)
+        if (isImageRequest(req.body)) {
+            console.log('🖼️ 이미지 요청 감지됨');
+            
+            const imageUrl = extractImageUrl(req.body);
+            if (imageUrl) {
+                console.log(`📷 이미지 URL 발견: ${imageUrl}`);
+                
+                // 사용자별로 이미지 URL 저장
+                userImageUrls.set(userId, imageUrl);
+                console.log(`💾 사용자 ${userId}의 이미지 URL 저장됨`);
+                
+                // 이미지가 있을 때 처리 옵션 제공
+                const imageOptionsText = `🖼️ 이미지를 받았습니다!
+
+어떤 작업을 도와드릴까요?
+
+1️⃣ 이미지 분석 - 이미지 내용 설명
+2️⃣ 텍스트 추출 - 이미지 속 텍스트 읽기  
+3️⃣ 개선 제안 - 사진/디자인 개선 아이디어
+4️⃣ 설명 생성 - 상품/장면 설명 작성
+5️⃣ 스타일 분석 - 색상, 구성, 스타일 분석
+
+예: "이미지 분석해줘" 또는 "텍스트 추출해줘"`;
+
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: imageOptionsText
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 이미지 처리 옵션 전송 완료');
+                return;
+            } else {
+                // 이미지 키워드는 있지만 실제 이미지 URL이 없는 경우
+                const noImageText = `🖼️ 이미지 처리를 도와드리고 싶지만, 이미지를 찾을 수 없습니다.
+
+이미지를 다시 전송하거나 이미지 URL을 포함해서 보내주세요.
+
+지원 형식: JPG, PNG, GIF, BMP, WebP`;
+
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: noImageText
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 이미지 없음 안내 전송 완료');
+                return;
+            }
+        }
+        
         // "계속" 요청 처리
         if (userMessage.includes('계속') || userMessage.includes('이어서') || userMessage.includes('더보기')) {
             console.log('📄 계속 요청 감지됨');
@@ -516,72 +582,6 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
                 res.status(200).json(response);
                 console.log('✅ 저장된 이미지 없음 안내 전송 완료');
-                return;
-            }
-        }
-        
-        // 이미지 요청 처리
-        if (isImageRequest(req.body)) {
-            console.log('🖼️ 이미지 요청 감지됨');
-            
-            const imageUrl = extractImageUrl(req.body);
-            if (imageUrl) {
-                console.log(`📷 이미지 URL 발견: ${imageUrl}`);
-                
-                // 사용자별로 이미지 URL 저장
-                userImageUrls.set(userId, imageUrl);
-                console.log(`💾 사용자 ${userId}의 이미지 URL 저장됨`);
-                
-                // 이미지가 있을 때 처리 옵션 제공
-                const imageOptionsText = `🖼️ 이미지를 받았습니다!
-
-어떤 작업을 도와드릴까요?
-
-1️⃣ 이미지 분석 - 이미지 내용 설명
-2️⃣ 텍스트 추출 - 이미지 속 텍스트 읽기  
-3️⃣ 개선 제안 - 사진/디자인 개선 아이디어
-4️⃣ 설명 생성 - 상품/장면 설명 작성
-5️⃣ 스타일 분석 - 색상, 구성, 스타일 분석
-
-예: "이미지 분석해줘" 또는 "텍스트 추출해줘"`;
-
-                const response = {
-                    version: "2.0",
-                    template: {
-                        outputs: [{
-                            simpleText: {
-                                text: imageOptionsText
-                            }
-                        }]
-                    }
-                };
-                
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.status(200).json(response);
-                console.log('✅ 이미지 처리 옵션 전송 완료');
-                return;
-            } else {
-                // 이미지 키워드는 있지만 실제 이미지 URL이 없는 경우
-                const noImageText = `🖼️ 이미지 처리를 도와드리고 싶지만, 이미지를 찾을 수 없습니다.
-
-이미지를 다시 전송하거나 이미지 URL을 포함해서 보내주세요.
-
-지원 형식: JPG, PNG, GIF, BMP, WebP`;
-
-                const response = {
-                    version: "2.0",
-                    template: {
-                        outputs: [{
-                            simpleText: {
-                                text: noImageText
-                            }
-                        }]
-                    }
-                };
-                
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.status(200).json(response);
-                console.log('✅ 이미지 없음 안내 전송 완료');
                 return;
             }
         }
