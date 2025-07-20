@@ -233,31 +233,53 @@ async function getLocalRestaurants(query) {
 // 맛집 요청인지 확인하는 함수
 function isRestaurantRequest(message) {
     const restaurantKeywords = [
-        '맛집', '음식점', '식당', '배달', '맛있는', '추천', '먹을곳', '밥집',
+        '맛집', '음식점', '식당', '배달', '맛있는', '먹을곳', '밥집',
         '카페', '커피', '디저트', '떡볶이', '치킨', '피자', '한식', '중식', '일식', '양식',
-        '분식', '술집', '주점', '고기', '회', '초밥'
+        '분식', '술집', '주점', '고기', '회', '초밥', '레스토랑'
     ];
     
     const locationKeywords = [
         '역', '동', '구', '시', '군', '면', '근처', '주변', '앞', '사거리', '거리'
     ];
     
+    // 쇼핑 관련 키워드는 제외 (맛집과 구분) - 더 강화된 필터링
+    const excludeKeywords = [
+        '상품', '제품', '구매', '쇼핑', '판매', '가격', '베스트', '인기', '랭킹', '순위',
+        '온라인', '쿠팡', '11번가', '지마켓', '옥션', '티몬', 'G마켓', '네이버쇼핑',
+        '할인', '세일', '특가', '리뷰', '후기', '배송', '무료배송', '당일배송'
+    ];
+    const hasExcludeKeyword = excludeKeywords.some(keyword => message.includes(keyword));
+    
     const hasRestaurantKeyword = restaurantKeywords.some(keyword => message.includes(keyword));
     const hasLocationKeyword = locationKeywords.some(keyword => message.includes(keyword));
     
-    return hasRestaurantKeyword && hasLocationKeyword;
+    // 맛집 키워드와 위치 키워드가 모두 있고, 쇼핑 키워드가 없어야 함
+    return hasRestaurantKeyword && hasLocationKeyword && !hasExcludeKeyword;
 }
 
 // 쇼핑 요청인지 확인하는 함수
 function isShoppingRequest(message) {
-    const shoppingKeywords = ['추천', '상품', '제품', '구매', '쇼핑', '판매', '가격', '베스트', '인기', '랭킹', '순위', '리뷰', '후기'];
+    const shoppingKeywords = ['상품', '제품', '구매', '쇼핑', '판매', '가격', '베스트', '인기', '랭킹', '순위', '리뷰', '후기'];
     const hasShoppingKeyword = shoppingKeywords.some(keyword => message.includes(keyword));
     
-    // 쇼핑 관련 키워드가 있거나, 구체적인 상품명이 있는 경우
+    // 구체적인 상품명이 있는 경우
     const productKeywords = ['젖병', '세척기', '기저귀', '유모차', '카시트', '노트북', '휴대폰', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기'];
     const hasProductKeyword = productKeywords.some(keyword => message.includes(keyword));
     
-    return hasShoppingKeyword || hasProductKeyword;
+    // 맛집 관련 키워드는 제외 ("추천"이 있어도 맛집 요청이면 쇼핑으로 분류하지 않음)
+    const restaurantKeywords = ['맛집', '음식점', '식당', '배달', '맛있는', '먹을곳', '밥집', '카페', '커피', '치킨', '피자'];
+    const locationKeywords = ['역', '동', '구', '시', '군', '면', '근처', '주변'];
+    
+    const hasRestaurantKeyword = restaurantKeywords.some(keyword => message.includes(keyword));
+    const hasLocationKeyword = locationKeywords.some(keyword => message.includes(keyword));
+    
+    // 맛집 + 위치 조합이면 쇼핑 요청이 아님
+    const isRestaurantContext = hasRestaurantKeyword && hasLocationKeyword;
+    
+    // "추천" 키워드 처리: 맛집 문맥이 아닐 때만 쇼핑으로 간주
+    const hasRecommendKeyword = message.includes('추천') && !isRestaurantContext;
+    
+    return (hasShoppingKeyword || hasProductKeyword || hasRecommendKeyword) && !isRestaurantContext;
 }
 
 // 이미지 요청인지 확인하는 함수
@@ -265,30 +287,50 @@ function isImageRequest(requestBody) {
     // 카카오 스킬에서 이미지 URL이 포함된 경우 확인
     const userMessage = requestBody.userRequest?.utterance || '';
     const blocks = requestBody.userRequest?.blocks || [];
+    const action = requestBody.action || {};
     
     console.log(`🔍 이미지 감지 - 메시지: '${userMessage}'`);
     console.log(`🔍 이미지 감지 - 블록 수: ${blocks.length}`);
+    console.log(`🔍 이미지 감지 - Action:`, JSON.stringify(action, null, 2));
     
     // 1. 메시지에 이미지 URL이 있는지 확인 (카카오 이미지 URL 포함)
     const hasImageUrl = /https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i.test(userMessage) ||
-                       /https?:\/\/talk\.kakaocdn\.net.*\.(jpg|jpeg|png|gif|bmp|webp)/i.test(userMessage) ||
-                       userMessage.includes('talk.kakaocdn.net');
+                       /https?:\/\/talk\.kakaocdn\.net/i.test(userMessage) ||
+                       /https?:\/\/[^\/]*kakao[^\/]*\.(com|net|co\.kr)/i.test(userMessage) ||
+                       userMessage.includes('talk.kakaocdn.net') ||
+                       userMessage.includes('kakaocdn');
     console.log(`🔍 이미지 URL 감지: ${hasImageUrl}`);
     
     // 2. 카카오 스킬 블록에 이미지가 있는지 확인
     const hasImageBlock = blocks.some(block => 
         block.listCard?.items?.some(item => item.imageUrl) ||
         block.basicCard?.thumbnail?.imageUrl ||
-        block.commerceCard?.thumbnails?.length > 0
+        block.commerceCard?.thumbnails?.length > 0 ||
+        block.carousel?.items?.some(item => item.imageUrl || item.thumbnail?.imageUrl)
     );
     console.log(`🔍 이미지 블록 감지: ${hasImageBlock}`);
     
-    // 3. 이미지 관련 키워드 확인
-    const imageKeywords = ['이미지', '사진', '그림', '이미지분석', '사진분석', '이미지처리', '사진처리'];
+    // 3. action에서 이미지 정보 확인
+    const hasImageAction = action.params && Object.values(action.params).some(param => 
+        typeof param === 'string' && (
+            /https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i.test(param) ||
+            /https?:\/\/talk\.kakaocdn\.net/i.test(param)
+        )
+    );
+    console.log(`🔍 이미지 액션 감지: ${hasImageAction}`);
+    
+    // 4. 이미지 관련 키워드 확인
+    const imageKeywords = ['이미지', '사진', '그림', '이미지분석', '사진분석', '이미지처리', '사진처리', '사진봐', '그림봐'];
     const hasImageKeyword = imageKeywords.some(keyword => userMessage.includes(keyword));
     console.log(`🔍 이미지 키워드 감지: ${hasImageKeyword}`);
     
-    const result = hasImageUrl || hasImageBlock || hasImageKeyword;
+    // 5. 전체 요청 바디에서 이미지 URL 검색
+    const bodyString = JSON.stringify(requestBody);
+    const hasImageInBody = /https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i.test(bodyString) ||
+                          /https?:\/\/talk\.kakaocdn\.net/i.test(bodyString);
+    console.log(`🔍 바디 내 이미지 URL 감지: ${hasImageInBody}`);
+    
+    const result = hasImageUrl || hasImageBlock || hasImageAction || hasImageKeyword || hasImageInBody;
     console.log(`🔍 최종 이미지 감지 결과: ${result}`);
     
     return result;
@@ -298,30 +340,83 @@ function isImageRequest(requestBody) {
 function extractImageUrl(requestBody) {
     const userMessage = requestBody.userRequest?.utterance || '';
     const blocks = requestBody.userRequest?.blocks || [];
+    const action = requestBody.action || {};
     
-    // 메시지에서 이미지 URL 추출 (카카오 이미지 URL 포함)
-    const urlMatch = userMessage.match(/https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i) ||
-                    userMessage.match(/https?:\/\/talk\.kakaocdn\.net[^\s;]*/i);
-    if (urlMatch) {
-        console.log(`📷 URL 추출 성공: ${urlMatch[0]}`);
-        return urlMatch[0];
+    console.log(`📷 이미지 URL 추출 시작...`);
+    
+    // 1. 메시지에서 이미지 URL 추출 (카카오 이미지 URL 포함)
+    const urlPatterns = [
+        /https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)(\?[^\s]*)?/i,
+        /https?:\/\/talk\.kakaocdn\.net[^\s\])"';]*/i,
+        /https?:\/\/[^\/]*kakao[^\/]*\.(com|net|co\.kr)[^\s\])"';]*/i
+    ];
+    
+    for (const pattern of urlPatterns) {
+        const urlMatch = userMessage.match(pattern);
+        if (urlMatch) {
+            console.log(`📷 메시지에서 URL 추출 성공: ${urlMatch[0]}`);
+            return urlMatch[0];
+        }
     }
     
-    // 블록에서 이미지 URL 추출
+    // 2. action에서 이미지 URL 추출
+    if (action.params) {
+        for (const [key, value] of Object.entries(action.params)) {
+            if (typeof value === 'string') {
+                for (const pattern of urlPatterns) {
+                    const urlMatch = value.match(pattern);
+                    if (urlMatch) {
+                        console.log(`📷 액션 파라미터에서 URL 추출 성공: ${urlMatch[0]}`);
+                        return urlMatch[0];
+                    }
+                }
+            }
+        }
+    }
+    
+    // 3. 블록에서 이미지 URL 추출
     for (const block of blocks) {
         if (block.listCard?.items) {
             for (const item of block.listCard.items) {
-                if (item.imageUrl) return item.imageUrl;
+                if (item.imageUrl) {
+                    console.log(`📷 리스트 카드에서 URL 추출 성공: ${item.imageUrl}`);
+                    return item.imageUrl;
+                }
             }
         }
         if (block.basicCard?.thumbnail?.imageUrl) {
+            console.log(`📷 베이직 카드에서 URL 추출 성공: ${block.basicCard.thumbnail.imageUrl}`);
             return block.basicCard.thumbnail.imageUrl;
         }
         if (block.commerceCard?.thumbnails?.length > 0) {
+            console.log(`📷 커머스 카드에서 URL 추출 성공: ${block.commerceCard.thumbnails[0].imageUrl}`);
             return block.commerceCard.thumbnails[0].imageUrl;
+        }
+        if (block.carousel?.items?.length > 0) {
+            for (const item of block.carousel.items) {
+                if (item.imageUrl) {
+                    console.log(`📷 캐러셀에서 URL 추출 성공: ${item.imageUrl}`);
+                    return item.imageUrl;
+                }
+                if (item.thumbnail?.imageUrl) {
+                    console.log(`📷 캐러셀 썸네일에서 URL 추출 성공: ${item.thumbnail.imageUrl}`);
+                    return item.thumbnail.imageUrl;
+                }
+            }
         }
     }
     
+    // 4. 전체 요청 바디에서 이미지 URL 검색 (마지막 수단)
+    const bodyString = JSON.stringify(requestBody);
+    for (const pattern of urlPatterns) {
+        const urlMatch = bodyString.match(pattern);
+        if (urlMatch) {
+            console.log(`📷 전체 바디에서 URL 추출 성공: ${urlMatch[0]}`);
+            return urlMatch[0];
+        }
+    }
+    
+    console.log(`📷 이미지 URL을 찾을 수 없습니다.`);
     return null;
 }
 
@@ -508,6 +603,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         console.log(`💬 사용자 메시지 길이: ${userMessage.length}자`);
         console.log(`💬 사용자 메시지: '${userMessage}' (ID: ${userId})`);
         
+        // 이미지 분석 관련 요청인 경우 전체 요청 바디 로깅
+        if (userMessage.includes('분석') || userMessage.includes('이미지') || userMessage.includes('사진')) {
+            console.log(`🖼️ 이미지 관련 요청 감지. 전체 요청 바디:`, JSON.stringify(req.body, null, 2));
+        }
+        
         // 전체 요청 바디를 로그로 출력 (디버깅용)
         if (userMessage.length > 500) {
             console.log(`📊 긴 메시지 감지됨. 전체 요청 바디:`, JSON.stringify(req.body, null, 2));
@@ -667,45 +767,87 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         if (isImageAnalysisRequest(processMessage)) {
             console.log('🔍 이미지 분석 요청 감지됨');
             
-            const storedImageUrl = userImageUrls.get(userId);
-            if (storedImageUrl) {
-                console.log(`📷 저장된 이미지 URL로 분석: ${storedImageUrl}`);
+            // 현재 요청에서 이미지 URL을 먼저 찾아보기
+            let imageUrl = extractImageUrl(req.body);
+            
+            // 현재 요청에 이미지가 없으면 저장된 이미지 URL 사용
+            if (!imageUrl) {
+                imageUrl = userImageUrls.get(userId);
+                console.log(`📷 저장된 이미지 URL 사용: ${imageUrl}`);
+            } else {
+                // 새로운 이미지가 있으면 저장
+                userImageUrls.set(userId, imageUrl);
+                console.log(`📷 새로운 이미지 URL 저장: ${imageUrl}`);
+            }
+            
+            if (imageUrl) {
+                console.log(`📷 이미지 분석 시작: ${imageUrl}`);
                 
-                const analysisResult = await analyzeImageWithClaude(storedImageUrl, 'analysis', processMessage);
-                let responseText = `🖼️ 이미지 분석 결과:\n\n${analysisResult}`;
-                
-                // 이미지 분석 결과도 분할 전송 처리
-                const maxLength = 800;
-                if (responseText.length > maxLength) {
-                    const firstPart = responseText.substring(0, maxLength - 100);
-                    const remainingPart = responseText.substring(maxLength - 100);
+                try {
+                    const analysisResult = await analyzeImageWithClaude(imageUrl, 'analysis', processMessage);
+                    let responseText = `🖼️ 이미지 분석 결과:\n\n${analysisResult}`;
                     
-                    // 나머지 부분을 사용자별로 저장
-                    pendingMessages.set(userId, remainingPart);
-                    
-                    responseText = firstPart + '\n\n📄 "계속"이라고 입력하시면 나머지 내용을 보실 수 있습니다.';
-                    console.log(`📄 이미지 분석 결과가 길어서 분할됨: 첫 부분 ${firstPart.length}자, 나머지 ${remainingPart.length}자`);
-                }
-                
-                const response = {
-                    version: "2.0",
-                    template: {
-                        outputs: [{
-                            simpleText: {
-                                text: responseText
-                            }
-                        }]
+                    // 이미지 분석 결과도 분할 전송 처리
+                    const maxLength = 800;
+                    if (responseText.length > maxLength) {
+                        const firstPart = responseText.substring(0, maxLength - 100);
+                        const remainingPart = responseText.substring(maxLength - 100);
+                        
+                        // 나머지 부분을 사용자별로 저장
+                        pendingMessages.set(userId, remainingPart);
+                        
+                        responseText = firstPart + '\n\n📄 "계속"이라고 입력하시면 나머지 내용을 보실 수 있습니다.';
+                        console.log(`📄 이미지 분석 결과가 길어서 분할됨: 첫 부분 ${firstPart.length}자, 나머지 ${remainingPart.length}자`);
                     }
-                };
-                
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.status(200).json(response);
-                console.log('✅ 이미지 분석 결과 전송 완료');
-                return;
+                    
+                    const response = {
+                        version: "2.0",
+                        template: {
+                            outputs: [{
+                                simpleText: {
+                                    text: responseText
+                                }
+                            }]
+                        }
+                    };
+                    
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                    res.status(200).json(response);
+                    console.log('✅ 이미지 분석 결과 전송 완료');
+                    return;
+                } catch (error) {
+                    console.error('❌ 이미지 분석 중 오류:', error);
+                    
+                    const errorText = `🖼️ 이미지 분석 중 오류가 발생했습니다.
+
+오류 내용: ${error.message || '알 수 없는 오류'}
+
+다른 이미지로 다시 시도해주세요.`;
+
+                    const response = {
+                        version: "2.0",
+                        template: {
+                            outputs: [{
+                                simpleText: {
+                                    text: errorText
+                                }
+                            }]
+                        }
+                    };
+                    
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                    res.status(200).json(response);
+                    console.log('✅ 이미지 분석 오류 안내 전송 완료');
+                    return;
+                }
             } else {
                 const noStoredImageText = `🖼️ 분석할 이미지가 없습니다.
 
-먼저 이미지를 전송한 후에 분석을 요청해주세요.
+이미지를 먼저 업로드하거나 이미지와 함께 분석 요청을 보내주세요.
+
+📝 사용법:
+1️⃣ 이미지를 먼저 전송 → "이미지 분석해줘"
+2️⃣ 이미지와 함께 "이미지 분석해줘" 메시지 전송
 
 지원 형식: JPG, PNG, GIF, BMP, WebP`;
 
@@ -722,7 +864,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
                 res.status(200).json(response);
-                console.log('✅ 저장된 이미지 없음 안내 전송 완료');
+                console.log('✅ 이미지 없음 안내 전송 완료');
                 return;
             }
         }
@@ -778,28 +920,41 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
         if (isRestaurantRequest(processMessage)) {
             console.log('🍽️ 맛집 요청 감지됨');
             
+            // 쇼핑과 중복 감지되지 않았는지 확인 로깅
+            if (isShoppingRequest(processMessage)) {
+                console.log('⚠️ 쇼핑과 중복 감지됨 - 맛집 우선 처리');
+            }
+            
             // 지역명 추출 (간단한 방법)
             let searchQuery = processMessage;
             
             // 불필요한 단어 제거하고 핵심 지역 + 맛집 키워드로 검색어 구성
-            const removeWords = ['추천', '해주세요', '알려주세요', '찾아주세요', '맛있는', '근처', '주변', '맛집'];
+            const removeWords = ['추천', '해주세요', '해줘', '알려주세요', '찾아주세요', '맛있는', '근처', '주변', '맛집', '좀', '어디', '있나요', '있어요', '보여주세요', '보여줘'];
             removeWords.forEach(word => {
                 searchQuery = searchQuery.replace(new RegExp(word, 'gi'), '').trim();
             });
             
-            // 연속된 공백 제거
+            // 지역명 패턴 매칭 (더 정확한 추출)
+            const locationMatch = processMessage.match(/([\w가-힣]+역|[\w가-힣]+동|[\w가-힣]+구|[\w가-힣]+시|[\w가-힣]+군|[\w가-힣]+면)/);
+            
+            // 연속된 공백 제거 및 정리
             searchQuery = searchQuery.replace(/\s+/g, ' ').trim();
             
-            // 만약 검색어가 너무 짧으면 원본 메시지에서 지역명 추출
-            if (searchQuery.length < 3) {
-                const locationMatch = processMessage.match(/([\w]+역|[\w]+동|[\w]+구|[\w]+시|[\w]+군)/);
-                if (locationMatch) {
-                    searchQuery = locationMatch[1] + ' 맛집';
-                } else {
-                    searchQuery = processMessage.substring(0, 10) + ' 맛집';
-                }
+            // 지역명이 명확하게 추출된 경우 그것을 우선 사용
+            if (locationMatch && locationMatch[1]) {
+                searchQuery = locationMatch[1] + ' 맛집';
+                console.log(`📍 지역명 추출됨: ${locationMatch[1]} → 검색어: "${searchQuery}"`);
+            } else if (searchQuery.length < 2) {
+                // 검색어가 너무 짧으면 원본에서 핵심 부분만 추출
+                const cleanMessage = processMessage.replace(/[추천해주세요알려주세요해줘]/gi, '').trim();
+                searchQuery = cleanMessage.substring(0, 10) + ' 맛집';
+                console.log(`📝 짧은 검색어 처리: "${cleanMessage}" → "${searchQuery}"`);
             } else {
-                searchQuery += ' 맛집';
+                // 맛집 키워드가 없으면 추가
+                if (!searchQuery.includes('맛집')) {
+                    searchQuery += ' 맛집';
+                }
+                console.log(`🔍 최종 검색어: "${searchQuery}"`);
             }
             
             const restaurants = await getLocalRestaurants(searchQuery);
