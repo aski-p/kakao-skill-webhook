@@ -605,7 +605,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
         
         // 카카오 스킬 응답 스마트 분할 처리
-        const maxLength = 1500;  // 더 긴 응답을 위해 길이 증가
+        const maxLength = 950;  // 카카오톡 호환성을 위해 950자로 제한
         let kakaoResponse;
         
         if (responseText.length <= maxLength) {
@@ -646,6 +646,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             } else {
                 firstPart = sentences.slice(0, splitIndex).join('. ') + '\n\n...(계속)';
                 secondPart = '(이어서)\n\n' + sentences.slice(splitIndex).join('. ');
+            }
+            
+            // 두 번째 부분도 950자를 초과하면 추가로 자르기
+            if (secondPart.length > maxLength) {
+                secondPart = secondPart.substring(0, maxLength - 50) + '\n\n...(더 자세한 내용은 구체적으로 물어보세요)';
             }
             
             console.log(`📝 스마트 분할: ${responseText.length}자 → ${firstPart.length}자 + ${secondPart.length}자`);
@@ -1026,8 +1031,8 @@ app.post('/', async (req, res) => {
         }
         console.log(`📝 응답 미리보기: ${responseText.substring(0, 100)}...`);
         
-        // 카카오 스킬 응답 길이 제한 처리 (1500자로 증가)
-        const maxLength = 1500;
+        // 카카오 스킬 응답 길이 제한 처리 (950자로 제한)
+        const maxLength = 950;
         let kakaoResponse;
         
         if (responseText.length <= maxLength) {
@@ -1043,17 +1048,38 @@ app.post('/', async (req, res) => {
                 }
             };
         } else {
-            // 긴 응답은 1000자로 자르고 "... (더 보기)" 추가
-            const truncatedText = responseText.substring(0, maxLength - 50) + '\n\n...(답변이 길어 일부만 표시됩니다)';
+            // 긴 응답을 자연스럽게 분할 (메인 웹훅과 동일한 로직)
+            const sentences = responseText.split(/[.!?]\s+/);
+            let firstPart = '';
+            let charCount = 0;
+            let splitIndex = 0;
             
-            console.log(`⚠️ 응답이 길어서 ${maxLength}자로 제한: ${responseText.length}자 → ${truncatedText.length}자`);
+            // 문장 단위로 나누어 적절한 분할점 찾기
+            for (let i = 0; i < sentences.length; i++) {
+                const sentence = sentences[i] + (i < sentences.length - 1 ? '. ' : '');
+                if (charCount + sentence.length < maxLength - 50) {
+                    charCount += sentence.length;
+                    splitIndex = i + 1;
+                } else {
+                    break;
+                }
+            }
+            
+            if (splitIndex === 0) {
+                // 문장이 너무 길면 강제로 나누기
+                firstPart = responseText.substring(0, maxLength - 50) + '\n\n...(답변이 길어 일부만 표시됩니다)';
+            } else {
+                firstPart = sentences.slice(0, splitIndex).join('. ') + '\n\n...(답변이 길어 일부만 표시됩니다)';
+            }
+            
+            console.log(`⚠️ 응답이 길어서 ${maxLength}자로 제한: ${responseText.length}자 → ${firstPart.length}자`);
             
             kakaoResponse = {
                 version: "2.0",
                 template: {
                     outputs: [{
                         simpleText: {
-                            text: truncatedText
+                            text: firstPart
                         }
                     }]
                 }
