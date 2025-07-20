@@ -33,6 +33,9 @@ const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
 // 분할된 메시지 임시 저장 (메모리 기반 - 단순한 구현)
 const pendingMessages = new Map();
 
+// 사용자별 이미지 URL 저장 (메모리 기반 - 단순한 구현)
+const userImageUrls = new Map();
+
 // Express 미들웨어는 이미 위에서 설정됨
 
 // 네이버 검색 API로 뉴스 가져오기 함수
@@ -183,6 +186,176 @@ function isShoppingRequest(message) {
     return hasShoppingKeyword || hasProductKeyword;
 }
 
+// 이미지 요청인지 확인하는 함수
+function isImageRequest(requestBody) {
+    // 카카오 스킬에서 이미지 URL이 포함된 경우 확인
+    const userMessage = requestBody.userRequest?.utterance || '';
+    const blocks = requestBody.userRequest?.blocks || [];
+    
+    // 1. 메시지에 이미지 URL이 있는지 확인
+    const hasImageUrl = /https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i.test(userMessage);
+    
+    // 2. 카카오 스킬 블록에 이미지가 있는지 확인
+    const hasImageBlock = blocks.some(block => 
+        block.listCard?.items?.some(item => item.imageUrl) ||
+        block.basicCard?.thumbnail?.imageUrl ||
+        block.commerceCard?.thumbnails?.length > 0
+    );
+    
+    // 3. 이미지 관련 키워드 확인
+    const imageKeywords = ['이미지', '사진', '그림', '이미지분석', '사진분석', '이미지처리', '사진처리'];
+    const hasImageKeyword = imageKeywords.some(keyword => userMessage.includes(keyword));
+    
+    return hasImageUrl || hasImageBlock || hasImageKeyword;
+}
+
+// 이미지 URL 추출 함수
+function extractImageUrl(requestBody) {
+    const userMessage = requestBody.userRequest?.utterance || '';
+    const blocks = requestBody.userRequest?.blocks || [];
+    
+    // 메시지에서 이미지 URL 추출
+    const urlMatch = userMessage.match(/https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i);
+    if (urlMatch) {
+        return urlMatch[0];
+    }
+    
+    // 블록에서 이미지 URL 추출
+    for (const block of blocks) {
+        if (block.listCard?.items) {
+            for (const item of block.listCard.items) {
+                if (item.imageUrl) return item.imageUrl;
+            }
+        }
+        if (block.basicCard?.thumbnail?.imageUrl) {
+            return block.basicCard.thumbnail.imageUrl;
+        }
+        if (block.commerceCard?.thumbnails?.length > 0) {
+            return block.commerceCard.thumbnails[0].imageUrl;
+        }
+    }
+    
+    return null;
+}
+
+// 이미지 분석 요청인지 확인하는 함수
+function isImageAnalysisRequest(message) {
+    const analysisKeywords = [
+        '이미지 분석', '분석해줘', '분석하기', '내용 설명', '무엇인지',
+        '텍스트 추출', '글자 읽기', '텍스트 읽기', 'OCR',
+        '개선 제안', '개선해줘', '아이디어', '제안해줘',
+        '설명 생성', '설명해줘', '묘사해줘', '상세히',
+        '스타일 분석', '색상', '구성', '디자인'
+    ];
+    
+    return analysisKeywords.some(keyword => message.includes(keyword));
+}
+
+// Claude Vision API를 사용한 이미지 분석 함수
+async function analyzeImageWithClaude(imageUrl, analysisType, userMessage) {
+    console.log(`🔍 이미지 분석 시작: ${analysisType}, URL: ${imageUrl}`);
+    
+    try {
+        // 이미지를 base64로 변환
+        const imageResponse = await axios.get(imageUrl, {
+            responseType: 'arraybuffer',
+            timeout: 10000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; KakaoSkill/1.0)'
+            }
+        });
+        
+        const imageBuffer = Buffer.from(imageResponse.data);
+        const base64Image = imageBuffer.toString('base64');
+        
+        // 파일 확장자에서 MIME 타입 추출
+        const extension = imageUrl.split('.').pop().toLowerCase();
+        const mimeTypeMap = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'bmp': 'image/bmp',
+            'webp': 'image/webp'
+        };
+        const mimeType = mimeTypeMap[extension] || 'image/jpeg';
+        
+        // 분석 타입에 따른 프롬프트 설정
+        let systemPrompt = '';
+        let userPrompt = '';
+        
+        if (userMessage.includes('분석') || userMessage.includes('내용') || userMessage.includes('설명')) {
+            systemPrompt = '이미지를 자세히 분석하여 한국어로 설명해주세요. 950자 이내로 작성하세요.';
+            userPrompt = '이 이미지에 무엇이 있는지 상세히 분석하고 설명해주세요. 주요 객체, 색상, 구성, 분위기 등을 포함해서 설명해주세요.';
+        } else if (userMessage.includes('텍스트') || userMessage.includes('글자') || userMessage.includes('읽기') || userMessage.includes('OCR')) {
+            systemPrompt = '이미지에서 텍스트를 추출하여 한국어로 정리해주세요. 950자 이내로 작성하세요.';
+            userPrompt = '이 이미지에 있는 모든 텍스트를 읽어서 정확히 추출해주세요. 텍스트가 없다면 "텍스트가 발견되지 않았습니다"라고 알려주세요.';
+        } else if (userMessage.includes('개선') || userMessage.includes('제안') || userMessage.includes('아이디어')) {
+            systemPrompt = '이미지를 분석하여 개선 방안을 한국어로 제안해주세요. 950자 이내로 작성하세요.';
+            userPrompt = '이 이미지를 분석하고 사진이나 디자인 개선을 위한 구체적인 제안사항을 알려주세요. 구도, 색상, 조명, 배치 등의 관점에서 조언해주세요.';
+        } else if (userMessage.includes('스타일') || userMessage.includes('색상') || userMessage.includes('구성')) {
+            systemPrompt = '이미지의 스타일과 디자인 요소를 한국어로 분석해주세요. 950자 이내로 작성하세요.';
+            userPrompt = '이 이미지의 스타일, 색상 구성, 디자인 요소, 전체적인 분위기를 전문적으로 분석해주세요.';
+        } else {
+            systemPrompt = '이미지를 종합적으로 분석하여 한국어로 설명해주세요. 950자 이내로 작성하세요.';
+            userPrompt = '이 이미지를 종합적으로 분석하고 설명해주세요.';
+        }
+        
+        // Claude Vision API 호출
+        const claudeResponse = await axios.post(
+            'https://api.anthropic.com/v1/messages',
+            {
+                model: "claude-3-haiku-20240307",
+                system: systemPrompt,
+                messages: [{
+                    role: "user",
+                    content: [
+                        {
+                            type: "text",
+                            text: userPrompt
+                        },
+                        {
+                            type: "image",
+                            source: {
+                                type: "base64",
+                                media_type: mimeType,
+                                data: base64Image
+                            }
+                        }
+                    ]
+                }],
+                max_tokens: 800
+            },
+            {
+                headers: {
+                    'x-api-key': process.env.CLAUDE_API_KEY,
+                    'anthropic-version': '2023-06-01',
+                    'content-type': 'application/json'
+                },
+                timeout: 15000
+            }
+        );
+        
+        const analysisResult = claudeResponse.data.content[0].text;
+        console.log(`✅ 이미지 분석 완료: ${analysisResult.length}자`);
+        
+        return analysisResult;
+        
+    } catch (error) {
+        console.error('❌ 이미지 분석 에러:', error.response?.data || error.message);
+        
+        if (error.response?.status === 401) {
+            return '이미지 분석 서비스 인증에 문제가 있습니다. 관리자에게 문의해주세요.';
+        } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+            return '이미지 분석 시간이 초과되었습니다. 이미지 크기가 클 수 있습니다. 다른 이미지로 시도해주세요.';
+        } else if (error.message.includes('Invalid image')) {
+            return '이미지 형식이 지원되지 않습니다. JPG, PNG, GIF, BMP, WebP 형식을 사용해주세요.';
+        } else {
+            return '이미지 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+        }
+    }
+}
+
 // 헬스체크 엔드포인트 (Railway 최적화)
 app.get('/', (req, res) => {
     res.status(200).send('OK');
@@ -295,6 +468,169 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 console.log('✅ 안내 메시지 전송 완료');
                 return;
             }
+        }
+        
+        // 이미지 분석 요청 처리 (기존 이미지 URL로)
+        if (isImageAnalysisRequest(userMessage)) {
+            console.log('🔍 이미지 분석 요청 감지됨');
+            
+            const storedImageUrl = userImageUrls.get(userId);
+            if (storedImageUrl) {
+                console.log(`📷 저장된 이미지 URL로 분석: ${storedImageUrl}`);
+                
+                const analysisResult = await analyzeImageWithClaude(storedImageUrl, 'analysis', userMessage);
+                
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: `🖼️ 이미지 분석 결과:\n\n${analysisResult}`
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 이미지 분석 결과 전송 완료');
+                return;
+            } else {
+                const noStoredImageText = `🖼️ 분석할 이미지가 없습니다.
+
+먼저 이미지를 전송한 후에 분석을 요청해주세요.
+
+지원 형식: JPG, PNG, GIF, BMP, WebP`;
+
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: noStoredImageText
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 저장된 이미지 없음 안내 전송 완료');
+                return;
+            }
+        }
+        
+        // 이미지 요청 처리
+        if (isImageRequest(req.body)) {
+            console.log('🖼️ 이미지 요청 감지됨');
+            
+            const imageUrl = extractImageUrl(req.body);
+            if (imageUrl) {
+                console.log(`📷 이미지 URL 발견: ${imageUrl}`);
+                
+                // 사용자별로 이미지 URL 저장
+                userImageUrls.set(userId, imageUrl);
+                console.log(`💾 사용자 ${userId}의 이미지 URL 저장됨`);
+                
+                // 이미지가 있을 때 처리 옵션 제공
+                const imageOptionsText = `🖼️ 이미지를 받았습니다!
+
+어떤 작업을 도와드릴까요?
+
+1️⃣ 이미지 분석 - 이미지 내용 설명
+2️⃣ 텍스트 추출 - 이미지 속 텍스트 읽기  
+3️⃣ 개선 제안 - 사진/디자인 개선 아이디어
+4️⃣ 설명 생성 - 상품/장면 설명 작성
+5️⃣ 스타일 분석 - 색상, 구성, 스타일 분석
+
+예: "이미지 분석해줘" 또는 "텍스트 추출해줘"`;
+
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: imageOptionsText
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 이미지 처리 옵션 전송 완료');
+                return;
+            } else {
+                // 이미지 키워드는 있지만 실제 이미지 URL이 없는 경우
+                const noImageText = `🖼️ 이미지 처리를 도와드리고 싶지만, 이미지를 찾을 수 없습니다.
+
+이미지를 다시 전송하거나 이미지 URL을 포함해서 보내주세요.
+
+지원 형식: JPG, PNG, GIF, BMP, WebP`;
+
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: noImageText
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 이미지 없음 안내 전송 완료');
+                return;
+            }
+        }
+        
+        // 이미지 수정/개선 예시 요청 처리
+        if (userMessage.includes('이미지 수정') || userMessage.includes('이미지 개선') || userMessage.includes('사진 편집') || userMessage.includes('이미지 예시')) {
+            console.log('🎨 이미지 수정/개선 예시 요청 감지됨');
+            
+            const imageEditExamples = `🎨 이미지 수정/개선 예시
+
+AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 있습니다:
+
+📸 사진 개선:
+• 밝기/대비 조정 제안
+• 색상 보정 방향 안내
+• 구도 개선 아이디어
+
+🖼️ 디자인 개선:
+• 레이아웃 최적화 제안
+• 색상 조합 추천
+• 시각적 균형 조언
+
+📝 텍스트 추출:
+• 이미지 속 글자 읽기
+• 문서 내용 정리
+• 번역 도움
+
+🔍 상세 분석:
+• 객체 식별 및 설명
+• 스타일 분석
+• 품질 평가
+
+이미지를 업로드하고 "이미지 분석해줘" 또는 "개선 제안해줘"라고 말씀해보세요!`;
+
+            const response = {
+                version: "2.0",
+                template: {
+                    outputs: [{
+                        simpleText: {
+                            text: imageEditExamples
+                        }
+                    }]
+                }
+            };
+            
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.status(200).json(response);
+            console.log('✅ 이미지 수정/개선 예시 전송 완료');
+            return;
         }
         
         // 쇼핑 요청인지 먼저 확인
