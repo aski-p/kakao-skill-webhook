@@ -545,20 +545,18 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 {
                     model: "claude-3-haiku-20240307",
                     system: `현재 정확한 한국 시간은 ${koreanTime.formatted}입니다. 
-                    
 사용자가 시간이나 날짜를 물어보면 이 정보를 사용해주세요.
 
 답변 가이드라인:
-1. 가능한 한 상세하고 도움이 되는 답변을 제공하세요.
-2. 구체적인 예시와 설명을 포함하세요.
-3. 질문에 대해 단계별로 설명하거나 여러 관점에서 답변하세요.
-4. 추가적인 유용한 정보나 팁을 포함하세요.
-5. 답변 길이는 1000-1500자 정도로 충분히 작성하세요.`,
+1. 명확하고 도움이 되는 답변을 제공하세요.
+2. 핵심 내용을 간결하게 설명하세요.
+3. 답변 길이는 반드시 950자 이내로 작성하세요.
+4. 카카오톡 메시지 형태에 적합하도록 간결하게 작성하세요.`,
                     messages: [{
                         role: "user",
                         content: userMessage
                     }],
-                    max_tokens: 2000  // 토큰 수 늘림: 800 → 2000 (더 상세한 답변)
+                    max_tokens: 800  // 토큰 수 조정: 카카오톡 호환성을 위해 800토큰으로 제한
                 },
                 {
                     headers: {
@@ -604,73 +602,26 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         }
         console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
         
-        // 카카오 스킬 응답 스마트 분할 처리
-        const maxLength = 950;  // 카카오톡 호환성을 위해 950자로 제한
+        // 카카오 스킬 응답 처리 - 950자로 제한
+        const maxLength = 950;
         let kakaoResponse;
         
-        if (responseText.length <= maxLength) {
-            // 짧은 응답은 그대로 simpleText로
-            kakaoResponse = {
-                version: "2.0",
-                template: {
-                    outputs: [{
-                        simpleText: {
-                            text: responseText
-                        }
-                    }]
-                }
-            };
-        } else {
-            // 긴 응답을 자연스럽게 분할
-            const sentences = responseText.split(/[.!?]\s+/);
-            let firstPart = '';
-            let secondPart = '';
-            let charCount = 0;
-            let splitIndex = 0;
-            
-            // 문장 단위로 나누어 적절한 분할점 찾기
-            for (let i = 0; i < sentences.length; i++) {
-                const sentence = sentences[i] + (i < sentences.length - 1 ? '. ' : '');
-                if (charCount + sentence.length < maxLength - 50) {
-                    charCount += sentence.length;
-                    splitIndex = i + 1;
-                } else {
-                    break;
-                }
-            }
-            
-            if (splitIndex === 0) {
-                // 문장이 너무 길면 강제로 나누기
-                firstPart = responseText.substring(0, maxLength - 50) + '\n\n...(계속)';
-                secondPart = '(이어서)\n\n' + responseText.substring(maxLength - 50);
-            } else {
-                firstPart = sentences.slice(0, splitIndex).join('. ') + '\n\n...(계속)';
-                secondPart = '(이어서)\n\n' + sentences.slice(splitIndex).join('. ');
-            }
-            
-            // 두 번째 부분도 950자를 초과하면 추가로 자르기
-            if (secondPart.length > maxLength) {
-                secondPart = secondPart.substring(0, maxLength - 50) + '\n\n...(더 자세한 내용은 구체적으로 물어보세요)';
-            }
-            
-            console.log(`📝 스마트 분할: ${responseText.length}자 → ${firstPart.length}자 + ${secondPart.length}자`);
-            
-            // 두 번째 부분을 임시 저장
-            pendingMessages.set(userId, secondPart);
-            console.log(`💾 나머지 내용 저장: ${secondPart.length}자`);
-            
-            // 첫 번째 부분만 전송
-            kakaoResponse = {
-                version: "2.0",
-                template: {
-                    outputs: [{
-                        simpleText: {
-                            text: firstPart + '\n\n💬 "계속"이라고 말씀하시면 나머지 내용을 보여드릴게요!'
-                        }
-                    }]
-                }
-            };
+        // 응답이 950자를 초과하면 자르기
+        if (responseText.length > maxLength) {
+            responseText = responseText.substring(0, maxLength - 50) + '\n\n...(답변이 길어 일부만 표시됩니다)';
+            console.log(`⚠️ 응답이 길어서 ${maxLength}자로 제한됨`);
         }
+        
+        kakaoResponse = {
+            version: "2.0",
+            template: {
+                outputs: [{
+                    simpleText: {
+                        text: responseText
+                    }
+                }]
+            }
+        };
         
         // Kakao Skills 응답 검증
         if (!kakaoResponse.template || !kakaoResponse.template.outputs || !Array.isArray(kakaoResponse.template.outputs)) {
@@ -972,20 +923,18 @@ app.post('/', async (req, res) => {
                 {
                     model: "claude-3-haiku-20240307",
                     system: `현재 정확한 한국 시간은 ${koreanTime.formatted}입니다. 
-                    
 사용자가 시간이나 날짜를 물어보면 이 정보를 사용해주세요.
 
 답변 가이드라인:
-1. 가능한 한 상세하고 도움이 되는 답변을 제공하세요.
-2. 구체적인 예시와 설명을 포함하세요.
-3. 질문에 대해 단계별로 설명하거나 여러 관점에서 답변하세요.
-4. 추가적인 유용한 정보나 팁을 포함하세요.
-5. 답변 길이는 1000-1500자 정도로 충분히 작성하세요.`,
+1. 명확하고 도움이 되는 답변을 제공하세요.
+2. 핵심 내용을 간결하게 설명하세요.
+3. 답변 길이는 반드시 950자 이내로 작성하세요.
+4. 카카오톡 메시지 형태에 적합하도록 간결하게 작성하세요.`,
                     messages: [{
                         role: "user",
                         content: userMessage
                     }],
-                    max_tokens: 2000  // 토큰 수 늘림: 800 → 2000 (더 상세한 답변)
+                    max_tokens: 800  // 토큰 수 조정: 카카오톡 호환성을 위해 800토큰으로 제한
                 },
                 {
                     headers: {
@@ -1031,60 +980,26 @@ app.post('/', async (req, res) => {
         }
         console.log(`📝 응답 미리보기: ${responseText.substring(0, 100)}...`);
         
-        // 카카오 스킬 응답 길이 제한 처리 (950자로 제한)
+        // 카카오 스킬 응답 처리 - 950자로 제한
         const maxLength = 950;
         let kakaoResponse;
         
-        if (responseText.length <= maxLength) {
-            // 짧은 응답은 그대로 simpleText로
-            kakaoResponse = {
-                version: "2.0",
-                template: {
-                    outputs: [{
-                        simpleText: {
-                            text: responseText
-                        }
-                    }]
-                }
-            };
-        } else {
-            // 긴 응답을 자연스럽게 분할 (메인 웹훅과 동일한 로직)
-            const sentences = responseText.split(/[.!?]\s+/);
-            let firstPart = '';
-            let charCount = 0;
-            let splitIndex = 0;
-            
-            // 문장 단위로 나누어 적절한 분할점 찾기
-            for (let i = 0; i < sentences.length; i++) {
-                const sentence = sentences[i] + (i < sentences.length - 1 ? '. ' : '');
-                if (charCount + sentence.length < maxLength - 50) {
-                    charCount += sentence.length;
-                    splitIndex = i + 1;
-                } else {
-                    break;
-                }
-            }
-            
-            if (splitIndex === 0) {
-                // 문장이 너무 길면 강제로 나누기
-                firstPart = responseText.substring(0, maxLength - 50) + '\n\n...(답변이 길어 일부만 표시됩니다)';
-            } else {
-                firstPart = sentences.slice(0, splitIndex).join('. ') + '\n\n...(답변이 길어 일부만 표시됩니다)';
-            }
-            
-            console.log(`⚠️ 응답이 길어서 ${maxLength}자로 제한: ${responseText.length}자 → ${firstPart.length}자`);
-            
-            kakaoResponse = {
-                version: "2.0",
-                template: {
-                    outputs: [{
-                        simpleText: {
-                            text: firstPart
-                        }
-                    }]
-                }
-            };
+        // 응답이 950자를 초과하면 자르기
+        if (responseText.length > maxLength) {
+            responseText = responseText.substring(0, maxLength - 50) + '\n\n...(답변이 길어 일부만 표시됩니다)';
+            console.log(`⚠️ 응답이 길어서 ${maxLength}자로 제한됨`);
         }
+        
+        kakaoResponse = {
+            version: "2.0",
+            template: {
+                outputs: [{
+                    simpleText: {
+                        text: responseText
+                    }
+                }]
+            }
+        };
         
         // Kakao Skills 응답 검증
         if (!kakaoResponse.template || !kakaoResponse.template.outputs || !Array.isArray(kakaoResponse.template.outputs)) {
