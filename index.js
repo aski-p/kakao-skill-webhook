@@ -29,6 +29,7 @@ const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
 const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
+const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
 
 // 분할된 메시지 임시 저장 (메모리 기반 - 단순한 구현)
 const pendingMessages = new Map();
@@ -175,6 +176,76 @@ function getKoreanDateTime() {
 function isNewsRequest(message) {
     const newsKeywords = ['뉴스', '최신뉴스', '오늘뉴스', '새로운소식', '헤드라인', '속보', '시사'];
     return newsKeywords.some(keyword => message.includes(keyword));
+}
+
+// 네이버 지역검색 API로 맛집 가져오기 함수
+async function getLocalRestaurants(query) {
+    try {
+        if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
+            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            return null;
+        }
+        
+        const params = {
+            query: query,
+            display: 10,
+            start: 1,
+            sort: 'comment'  // 댓글순 정렬 (random, comment, rating, distance)
+        };
+        
+        console.log(`🍽️ 네이버 지역검색: "${query}"`);
+        
+        const response = await axios.get(NAVER_LOCAL_API_URL, {
+            params: params,
+            headers: {
+                'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+            },
+            timeout: 8000
+        });
+        
+        const items = response.data.items;
+        if (!items || items.length === 0) {
+            console.log('🍽️ 검색된 맛집이 없습니다.');
+            return null;
+        }
+        
+        console.log(`✅ ${items.length}개의 맛집을 찾았습니다.`);
+        
+        return items.slice(0, 5).map(item => ({
+            title: item.title.replace(/<[^>]*>/g, ''), // HTML 태그 제거
+            category: item.category,
+            description: item.description ? item.description.replace(/<[^>]*>/g, '') : '',
+            telephone: item.telephone || '전화번호 없음',
+            address: item.address,
+            roadAddress: item.roadAddress,
+            mapx: item.mapx,
+            mapy: item.mapy,
+            link: item.link
+        }));
+        
+    } catch (error) {
+        console.error('❌ 네이버 지역검색 API 오류:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 맛집 요청인지 확인하는 함수
+function isRestaurantRequest(message) {
+    const restaurantKeywords = [
+        '맛집', '음식점', '식당', '배달', '맛있는', '추천', '먹을곳', '밥집',
+        '카페', '커피', '디저트', '떡볶이', '치킨', '피자', '한식', '중식', '일식', '양식',
+        '분식', '술집', '주점', '고기', '회', '초밥'
+    ];
+    
+    const locationKeywords = [
+        '역', '동', '구', '시', '군', '면', '근처', '주변', '앞', '사거리', '거리'
+    ];
+    
+    const hasRestaurantKeyword = restaurantKeywords.some(keyword => message.includes(keyword));
+    const hasLocationKeyword = locationKeywords.some(keyword => message.includes(keyword));
+    
+    return hasRestaurantKeyword && hasLocationKeyword;
 }
 
 // 쇼핑 요청인지 확인하는 함수
@@ -701,6 +772,84 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
             res.status(200).json(response);
             console.log('✅ 이미지 수정/개선 예시 전송 완료');
             return;
+        }
+        
+        // 맛집 요청 처리
+        if (isRestaurantRequest(processMessage)) {
+            console.log('🍽️ 맛집 요청 감지됨');
+            
+            // 지역명 추출 (간단한 방법)
+            let searchQuery = processMessage;
+            
+            // 불필요한 단어 제거하고 핵심 지역 + 맛집 키워드로 검색어 구성
+            const removeWords = ['추천', '해주세요', '알려주세요', '찾아주세요', '맛있는', '근처', '주변', '맛집'];
+            removeWords.forEach(word => {
+                searchQuery = searchQuery.replace(new RegExp(word, 'gi'), '').trim();
+            });
+            
+            // 연속된 공백 제거
+            searchQuery = searchQuery.replace(/\s+/g, ' ').trim();
+            
+            // 만약 검색어가 너무 짧으면 원본 메시지에서 지역명 추출
+            if (searchQuery.length < 3) {
+                const locationMatch = processMessage.match(/([\w]+역|[\w]+동|[\w]+구|[\w]+시|[\w]+군)/);
+                if (locationMatch) {
+                    searchQuery = locationMatch[1] + ' 맛집';
+                } else {
+                    searchQuery = processMessage.substring(0, 10) + ' 맛집';
+                }
+            } else {
+                searchQuery += ' 맛집';
+            }
+            
+            const restaurants = await getLocalRestaurants(searchQuery);
+            if (restaurants && restaurants.length > 0) {
+                let restaurantText = `🍽️ ${koreanTime.formatted} "${searchQuery}" 검색 결과\n\n` +
+                    restaurants.map((restaurant, index) => {
+                        let result = `${index + 1}. ${restaurant.title}\n`;
+                        result += `📍 ${restaurant.roadAddress || restaurant.address}\n`;
+                        result += `📞 ${restaurant.telephone}\n`;
+                        if (restaurant.category) {
+                            result += `🏷️ ${restaurant.category}\n`;
+                        }
+                        result += `🔗 ${restaurant.link}\n`;
+                        return result + '\n' + '='.repeat(50) + '\n';
+                    }).join('');
+                
+                console.log('✅ 맛집 데이터 제공 완료');
+                console.log(`📊 응답 길이: ${restaurantText.length}자`);
+                
+                // 응답이 길면 분할 전송
+                const maxLength = 800;
+                if (restaurantText.length > maxLength) {
+                    const firstPart = restaurantText.substring(0, maxLength - 100);
+                    const remainingPart = restaurantText.substring(maxLength - 100);
+                    
+                    // 나머지 부분을 사용자별로 저장
+                    pendingMessages.set(userId, remainingPart);
+                    
+                    restaurantText = firstPart + '\n\n📄 "계속"이라고 입력하시면 나머지 맛집을 보실 수 있습니다.';
+                    console.log(`📄 맛집 정보가 길어서 분할됨: 첫 부분 ${firstPart.length}자, 나머지 ${remainingPart.length}자`);
+                }
+                
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: restaurantText
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 맛집 응답 전송 완료');
+                return;
+            } else {
+                console.log('⚠️ 맛집 API 사용 불가 - Claude로 폴백');
+            }
         }
         
         // 쇼핑 요청인지 먼저 확인
