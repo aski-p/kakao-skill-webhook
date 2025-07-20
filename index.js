@@ -287,20 +287,20 @@ async function analyzeImageWithClaude(imageUrl, analysisType, userMessage) {
         let userPrompt = '';
         
         if (userMessage.includes('분석') || userMessage.includes('내용') || userMessage.includes('설명')) {
-            systemPrompt = '이미지를 간결하게 분석하여 한국어로 설명해주세요. 500자 이내로 작성하세요.';
-            userPrompt = '이 이미지에 무엇이 있는지 간결하게 분석하고 설명해주세요. 주요 객체, 색상, 구성을 포함해서 500자 이내로 설명해주세요.';
+            systemPrompt = '이미지를 자세히 분석하여 한국어로 설명해주세요. 길게 작성해도 괜찮습니다.';
+            userPrompt = '이 이미지에 무엇이 있는지 상세히 분석하고 설명해주세요. 주요 객체, 색상, 구성, 분위기 등을 포함해서 자세히 설명해주세요.';
         } else if (userMessage.includes('텍스트') || userMessage.includes('글자') || userMessage.includes('읽기') || userMessage.includes('OCR')) {
-            systemPrompt = '이미지에서 텍스트를 추출하여 한국어로 정리해주세요. 500자 이내로 작성하세요.';
+            systemPrompt = '이미지에서 텍스트를 추출하여 한국어로 정리해주세요.';
             userPrompt = '이 이미지에 있는 모든 텍스트를 읽어서 정확히 추출해주세요. 텍스트가 없다면 "텍스트가 발견되지 않았습니다"라고 알려주세요.';
         } else if (userMessage.includes('개선') || userMessage.includes('제안') || userMessage.includes('아이디어')) {
-            systemPrompt = '이미지를 분석하여 개선 방안을 한국어로 제안해주세요. 500자 이내로 작성하세요.';
-            userPrompt = '이 이미지를 분석하고 사진이나 디자인 개선을 위한 구체적인 제안사항을 간결하게 알려주세요.';
+            systemPrompt = '이미지를 분석하여 개선 방안을 한국어로 제안해주세요. 자세히 작성해주세요.';
+            userPrompt = '이 이미지를 분석하고 사진이나 디자인 개선을 위한 구체적인 제안사항을 알려주세요. 구도, 색상, 조명, 배치 등의 관점에서 자세히 조언해주세요.';
         } else if (userMessage.includes('스타일') || userMessage.includes('색상') || userMessage.includes('구성')) {
-            systemPrompt = '이미지의 스타일과 디자인 요소를 한국어로 분석해주세요. 500자 이내로 작성하세요.';
-            userPrompt = '이 이미지의 스타일, 색상 구성, 디자인 요소를 간결하게 분석해주세요.';
+            systemPrompt = '이미지의 스타일과 디자인 요소를 한국어로 분석해주세요. 자세히 작성해주세요.';
+            userPrompt = '이 이미지의 스타일, 색상 구성, 디자인 요소, 전체적인 분위기를 전문적으로 분석해주세요.';
         } else {
-            systemPrompt = '이미지를 간결하게 분석하여 한국어로 설명해주세요. 500자 이내로 작성하세요.';
-            userPrompt = '이 이미지를 간결하게 분석하고 설명해주세요.';
+            systemPrompt = '이미지를 종합적으로 분석하여 한국어로 설명해주세요.';
+            userPrompt = '이 이미지를 종합적으로 분석하고 설명해주세요.';
         }
         
         // Claude Vision API 호출
@@ -326,7 +326,7 @@ async function analyzeImageWithClaude(imageUrl, analysisType, userMessage) {
                         }
                     ]
                 }],
-                max_tokens: 400
+                max_tokens: 800
             },
             {
                 headers: {
@@ -547,13 +547,27 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 console.log(`📷 저장된 이미지 URL로 분석: ${storedImageUrl}`);
                 
                 const analysisResult = await analyzeImageWithClaude(storedImageUrl, 'analysis', userMessage);
+                let responseText = `🖼️ 이미지 분석 결과:\n\n${analysisResult}`;
+                
+                // 이미지 분석 결과도 분할 전송 처리
+                const maxLength = 800;
+                if (responseText.length > maxLength) {
+                    const firstPart = responseText.substring(0, maxLength - 100);
+                    const remainingPart = responseText.substring(maxLength - 100);
+                    
+                    // 나머지 부분을 사용자별로 저장
+                    pendingMessages.set(userId, remainingPart);
+                    
+                    responseText = firstPart + '\n\n📄 "계속"이라고 입력하시면 나머지 내용을 보실 수 있습니다.';
+                    console.log(`📄 이미지 분석 결과가 길어서 분할됨: 첫 부분 ${firstPart.length}자, 나머지 ${remainingPart.length}자`);
+                }
                 
                 const response = {
                     version: "2.0",
                     template: {
                         outputs: [{
                             simpleText: {
-                                text: `🖼️ 이미지 분석 결과:\n\n${analysisResult}`
+                                text: responseText
                             }
                         }]
                     }
@@ -894,7 +908,7 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
                         role: "user",
                         content: userMessage
                     }],
-                    max_tokens: 500  // 토큰 수 조정: 카카오톡 호환성을 위해 500토큰으로 제한
+                    max_tokens: 800  // 토큰 수 조정: 분할 전송으로 더 긴 응답 가능
                 },
                 {
                     headers: {
@@ -940,14 +954,20 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
         }
         console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
         
-        // 카카오 스킬 응답 처리 - 600자로 제한 (안전한 길이)
-        const maxLength = 600;
+        // 카카오 스킬 응답 처리 - 800자로 분할 전송
+        const maxLength = 800;
         let kakaoResponse;
         
-        // 응답이 600자를 초과하면 자르기
+        // 응답이 800자를 초과하면 분할
         if (responseText.length > maxLength) {
-            responseText = responseText.substring(0, maxLength - 30) + '\n\n...(계속)';
-            console.log(`⚠️ 응답이 길어서 ${maxLength}자로 제한됨`);
+            const firstPart = responseText.substring(0, maxLength - 100);
+            const remainingPart = responseText.substring(maxLength - 100);
+            
+            // 나머지 부분을 사용자별로 저장
+            pendingMessages.set(userId, remainingPart);
+            
+            responseText = firstPart + '\n\n📄 "계속"이라고 입력하시면 나머지 내용을 보실 수 있습니다.';
+            console.log(`📄 응답이 길어서 분할됨: 첫 부분 ${firstPart.length}자, 나머지 ${remainingPart.length}자`);
         }
         
         kakaoResponse = {
@@ -1272,7 +1292,7 @@ app.post('/', async (req, res) => {
                         role: "user",
                         content: userMessage
                     }],
-                    max_tokens: 500  // 토큰 수 조정: 카카오톡 호환성을 위해 500토큰으로 제한
+                    max_tokens: 800  // 토큰 수 조정: 분할 전송으로 더 긴 응답 가능
                 },
                 {
                     headers: {
@@ -1318,14 +1338,20 @@ app.post('/', async (req, res) => {
         }
         console.log(`📝 응답 미리보기: ${responseText.substring(0, 100)}...`);
         
-        // 카카오 스킬 응답 처리 - 600자로 제한 (안전한 길이)
-        const maxLength = 600;
+        // 카카오 스킬 응답 처리 - 800자로 분할 전송
+        const maxLength = 800;
         let kakaoResponse;
         
-        // 응답이 600자를 초과하면 자르기
+        // 응답이 800자를 초과하면 분할
         if (responseText.length > maxLength) {
-            responseText = responseText.substring(0, maxLength - 30) + '\n\n...(계속)';
-            console.log(`⚠️ 응답이 길어서 ${maxLength}자로 제한됨`);
+            const firstPart = responseText.substring(0, maxLength - 100);
+            const remainingPart = responseText.substring(maxLength - 100);
+            
+            // 나머지 부분을 사용자별로 저장
+            pendingMessages.set(userId, remainingPart);
+            
+            responseText = firstPart + '\n\n📄 "계속"이라고 입력하시면 나머지 내용을 보실 수 있습니다.';
+            console.log(`📄 응답이 길어서 분할됨: 첫 부분 ${firstPart.length}자, 나머지 ${remainingPart.length}자`);
         }
         
         kakaoResponse = {
