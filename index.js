@@ -566,7 +566,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                         'anthropic-version': '2023-06-01',
                         'content-type': 'application/json'
                     },
-                    timeout: 4500  // 4.5초로 늘림 (카카오 5초 제한 내)
+                    timeout: 12000  // 12초로 늘림 (긴 응답을 위해 충분한 시간 확보)
                 }
             );
             
@@ -988,7 +988,7 @@ app.post('/', async (req, res) => {
                         'anthropic-version': '2023-06-01',
                         'content-type': 'application/json'
                     },
-                    timeout: 4500  // 4.5초로 늘림 (카카오 5초 제한 내)
+                    timeout: 12000  // 12초로 늘림 (긴 응답을 위해 충분한 시간 확보)
                 }
             );
             
