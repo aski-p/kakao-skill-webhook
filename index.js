@@ -192,8 +192,9 @@ function isImageRequest(requestBody) {
     const userMessage = requestBody.userRequest?.utterance || '';
     const blocks = requestBody.userRequest?.blocks || [];
     
-    // 1. 메시지에 이미지 URL이 있는지 확인
-    const hasImageUrl = /https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i.test(userMessage);
+    // 1. 메시지에 이미지 URL이 있는지 확인 (카카오 이미지 URL 포함)
+    const hasImageUrl = /https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i.test(userMessage) ||
+                       /https?:\/\/talk\.kakaocdn\.net/i.test(userMessage);
     
     // 2. 카카오 스킬 블록에 이미지가 있는지 확인
     const hasImageBlock = blocks.some(block => 
@@ -214,8 +215,9 @@ function extractImageUrl(requestBody) {
     const userMessage = requestBody.userRequest?.utterance || '';
     const blocks = requestBody.userRequest?.blocks || [];
     
-    // 메시지에서 이미지 URL 추출
-    const urlMatch = userMessage.match(/https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i);
+    // 메시지에서 이미지 URL 추출 (카카오 이미지 URL 포함)
+    const urlMatch = userMessage.match(/https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i) ||
+                    userMessage.match(/https?:\/\/talk\.kakaocdn\.net[^\s]*/i);
     if (urlMatch) {
         return urlMatch[0];
     }
@@ -285,20 +287,20 @@ async function analyzeImageWithClaude(imageUrl, analysisType, userMessage) {
         let userPrompt = '';
         
         if (userMessage.includes('분석') || userMessage.includes('내용') || userMessage.includes('설명')) {
-            systemPrompt = '이미지를 자세히 분석하여 한국어로 설명해주세요. 950자 이내로 작성하세요.';
-            userPrompt = '이 이미지에 무엇이 있는지 상세히 분석하고 설명해주세요. 주요 객체, 색상, 구성, 분위기 등을 포함해서 설명해주세요.';
+            systemPrompt = '이미지를 간결하게 분석하여 한국어로 설명해주세요. 500자 이내로 작성하세요.';
+            userPrompt = '이 이미지에 무엇이 있는지 간결하게 분석하고 설명해주세요. 주요 객체, 색상, 구성을 포함해서 500자 이내로 설명해주세요.';
         } else if (userMessage.includes('텍스트') || userMessage.includes('글자') || userMessage.includes('읽기') || userMessage.includes('OCR')) {
-            systemPrompt = '이미지에서 텍스트를 추출하여 한국어로 정리해주세요. 950자 이내로 작성하세요.';
+            systemPrompt = '이미지에서 텍스트를 추출하여 한국어로 정리해주세요. 500자 이내로 작성하세요.';
             userPrompt = '이 이미지에 있는 모든 텍스트를 읽어서 정확히 추출해주세요. 텍스트가 없다면 "텍스트가 발견되지 않았습니다"라고 알려주세요.';
         } else if (userMessage.includes('개선') || userMessage.includes('제안') || userMessage.includes('아이디어')) {
-            systemPrompt = '이미지를 분석하여 개선 방안을 한국어로 제안해주세요. 950자 이내로 작성하세요.';
-            userPrompt = '이 이미지를 분석하고 사진이나 디자인 개선을 위한 구체적인 제안사항을 알려주세요. 구도, 색상, 조명, 배치 등의 관점에서 조언해주세요.';
+            systemPrompt = '이미지를 분석하여 개선 방안을 한국어로 제안해주세요. 500자 이내로 작성하세요.';
+            userPrompt = '이 이미지를 분석하고 사진이나 디자인 개선을 위한 구체적인 제안사항을 간결하게 알려주세요.';
         } else if (userMessage.includes('스타일') || userMessage.includes('색상') || userMessage.includes('구성')) {
-            systemPrompt = '이미지의 스타일과 디자인 요소를 한국어로 분석해주세요. 950자 이내로 작성하세요.';
-            userPrompt = '이 이미지의 스타일, 색상 구성, 디자인 요소, 전체적인 분위기를 전문적으로 분석해주세요.';
+            systemPrompt = '이미지의 스타일과 디자인 요소를 한국어로 분석해주세요. 500자 이내로 작성하세요.';
+            userPrompt = '이 이미지의 스타일, 색상 구성, 디자인 요소를 간결하게 분석해주세요.';
         } else {
-            systemPrompt = '이미지를 종합적으로 분석하여 한국어로 설명해주세요. 950자 이내로 작성하세요.';
-            userPrompt = '이 이미지를 종합적으로 분석하고 설명해주세요.';
+            systemPrompt = '이미지를 간결하게 분석하여 한국어로 설명해주세요. 500자 이내로 작성하세요.';
+            userPrompt = '이 이미지를 간결하게 분석하고 설명해주세요.';
         }
         
         // Claude Vision API 호출
@@ -324,7 +326,7 @@ async function analyzeImageWithClaude(imageUrl, analysisType, userMessage) {
                         }
                     ]
                 }],
-                max_tokens: 800
+                max_tokens: 400
             },
             {
                 headers: {
@@ -892,7 +894,7 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
                         role: "user",
                         content: userMessage
                     }],
-                    max_tokens: 800  // 토큰 수 조정: 카카오톡 호환성을 위해 800토큰으로 제한
+                    max_tokens: 500  // 토큰 수 조정: 카카오톡 호환성을 위해 500토큰으로 제한
                 },
                 {
                     headers: {
@@ -938,13 +940,13 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
         }
         console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
         
-        // 카카오 스킬 응답 처리 - 950자로 제한
-        const maxLength = 950;
+        // 카카오 스킬 응답 처리 - 600자로 제한 (안전한 길이)
+        const maxLength = 600;
         let kakaoResponse;
         
-        // 응답이 950자를 초과하면 자르기
+        // 응답이 600자를 초과하면 자르기
         if (responseText.length > maxLength) {
-            responseText = responseText.substring(0, maxLength - 50) + '\n\n...(답변이 길어 일부만 표시됩니다)';
+            responseText = responseText.substring(0, maxLength - 30) + '\n\n...(계속)';
             console.log(`⚠️ 응답이 길어서 ${maxLength}자로 제한됨`);
         }
         
@@ -1270,7 +1272,7 @@ app.post('/', async (req, res) => {
                         role: "user",
                         content: userMessage
                     }],
-                    max_tokens: 800  // 토큰 수 조정: 카카오톡 호환성을 위해 800토큰으로 제한
+                    max_tokens: 500  // 토큰 수 조정: 카카오톡 호환성을 위해 500토큰으로 제한
                 },
                 {
                     headers: {
@@ -1316,13 +1318,13 @@ app.post('/', async (req, res) => {
         }
         console.log(`📝 응답 미리보기: ${responseText.substring(0, 100)}...`);
         
-        // 카카오 스킬 응답 처리 - 950자로 제한
-        const maxLength = 950;
+        // 카카오 스킬 응답 처리 - 600자로 제한 (안전한 길이)
+        const maxLength = 600;
         let kakaoResponse;
         
-        // 응답이 950자를 초과하면 자르기
+        // 응답이 600자를 초과하면 자르기
         if (responseText.length > maxLength) {
-            responseText = responseText.substring(0, maxLength - 50) + '\n\n...(답변이 길어 일부만 표시됩니다)';
+            responseText = responseText.substring(0, maxLength - 30) + '\n\n...(계속)';
             console.log(`⚠️ 응답이 길어서 ${maxLength}자로 제한됨`);
         }
         
