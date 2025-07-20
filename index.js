@@ -192,9 +192,14 @@ function isImageRequest(requestBody) {
     const userMessage = requestBody.userRequest?.utterance || '';
     const blocks = requestBody.userRequest?.blocks || [];
     
+    console.log(`🔍 이미지 감지 - 메시지: '${userMessage}'`);
+    console.log(`🔍 이미지 감지 - 블록 수: ${blocks.length}`);
+    
     // 1. 메시지에 이미지 URL이 있는지 확인 (카카오 이미지 URL 포함)
     const hasImageUrl = /https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i.test(userMessage) ||
-                       /https?:\/\/talk\.kakaocdn\.net/i.test(userMessage);
+                       /https?:\/\/talk\.kakaocdn\.net.*\.(jpg|jpeg|png|gif|bmp|webp)/i.test(userMessage) ||
+                       userMessage.includes('talk.kakaocdn.net');
+    console.log(`🔍 이미지 URL 감지: ${hasImageUrl}`);
     
     // 2. 카카오 스킬 블록에 이미지가 있는지 확인
     const hasImageBlock = blocks.some(block => 
@@ -202,12 +207,17 @@ function isImageRequest(requestBody) {
         block.basicCard?.thumbnail?.imageUrl ||
         block.commerceCard?.thumbnails?.length > 0
     );
+    console.log(`🔍 이미지 블록 감지: ${hasImageBlock}`);
     
     // 3. 이미지 관련 키워드 확인
     const imageKeywords = ['이미지', '사진', '그림', '이미지분석', '사진분석', '이미지처리', '사진처리'];
     const hasImageKeyword = imageKeywords.some(keyword => userMessage.includes(keyword));
+    console.log(`🔍 이미지 키워드 감지: ${hasImageKeyword}`);
     
-    return hasImageUrl || hasImageBlock || hasImageKeyword;
+    const result = hasImageUrl || hasImageBlock || hasImageKeyword;
+    console.log(`🔍 최종 이미지 감지 결과: ${result}`);
+    
+    return result;
 }
 
 // 이미지 URL 추출 함수
@@ -217,8 +227,9 @@ function extractImageUrl(requestBody) {
     
     // 메시지에서 이미지 URL 추출 (카카오 이미지 URL 포함)
     const urlMatch = userMessage.match(/https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i) ||
-                    userMessage.match(/https?:\/\/talk\.kakaocdn\.net[^\s]*/i);
+                    userMessage.match(/https?:\/\/talk\.kakaocdn\.net[^\s;]*/i);
     if (urlMatch) {
+        console.log(`📷 URL 추출 성공: ${urlMatch[0]}`);
         return urlMatch[0];
     }
     
@@ -430,6 +441,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
         
         // 이미지 요청 처리 (최우선 처리)
+        console.log(`🔍 이미지 감지 테스트: 메시지='${userMessage.substring(0, 100)}'`);
+        console.log(`🔍 이미지 감지 함수 결과: ${isImageRequest(req.body)}`);
+        
         if (isImageRequest(req.body)) {
             console.log('🖼️ 이미지 요청 감지됨');
             
