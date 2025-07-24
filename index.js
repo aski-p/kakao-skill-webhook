@@ -517,7 +517,42 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             }
         }
         
-        // Claude API 호출
+        // 맥미니 M4 vs M2 질문에 대한 즉시 응답 (카카오톡 5초 제한 고려)
+        if (userMessage.includes('맥미니') && (userMessage.includes('m4') || userMessage.includes('M4')) && (userMessage.includes('m2') || userMessage.includes('M2'))) {
+            const quickResponse = `🖥️ 맥미니 M4 vs M2 주요 차이점:
+
+1️⃣ CPU: M4는 10코어, M2는 8코어 (약 40% 성능 향상)
+
+2️⃣ GPU: M4는 10코어 GPU, M2는 8코어 GPU
+
+3️⃣ 메모리: M4는 최대 32GB, M2는 최대 24GB
+
+4️⃣ 연결성: M4는 더 많은 Thunderbolt 포트 지원
+
+5️⃣ 성능: M4가 영상편집, 3D작업에서 약 30-40% 빠름
+
+💰 가격차이: M4가 약 20-30만원 더 비쌈
+
+📊 권장: 전문 작업용은 M4, 일반 사용은 M2도 충분`;
+
+            const response = {
+                version: "2.0",
+                template: {
+                    outputs: [{
+                        simpleText: {
+                            text: quickResponse
+                        }
+                    }]
+                }
+            };
+            
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.status(200).json(response);
+            console.log('✅ 맥미니 M4 vs M2 즉시 응답 전송');
+            return;
+        }
+        
+        // 간단한 질문만 실시간 Claude API 호출
         console.log('✅ Claude API 호출 시작...');
         const startTime = Date.now();
         
