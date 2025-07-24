@@ -312,10 +312,10 @@ function isNewsRequest(message) {
 }
 
 function isShoppingRequest(message) {
-    const shoppingKeywords = ['상품', '제품', '구매', '쇼핑', '판매', '가격', '베스트', '인기', '랭킹', '순위', '리뷰', '후기'];
+    const shoppingKeywords = ['상품', '제품', '구매', '쇼핑', '판매', '가격', '베스트', '인기', '랭킹', '순위', '리뷰', '후기', '추천'];
     const hasShoppingKeyword = shoppingKeywords.some(keyword => message.includes(keyword));
     
-    const productKeywords = ['젖병', '세척기', '기저귀', '유모차', '카시트', '노트북', '휴대폰', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기'];
+    const productKeywords = ['노트북', '휴대폰', '스마트폰', '아이폰', '갤럭시', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기', '마우스', '키보드', '모니터', '스피커', '헤드폰', '태블릿', '컴퓨터'];
     const hasProductKeyword = productKeywords.some(keyword => message.includes(keyword));
     
     const restaurantKeywords = ['맛집', '음식점', '식당', '배달', '맛있는', '먹을곳', '밥집', '카페', '커피', '치킨', '피자'];
@@ -325,9 +325,9 @@ function isShoppingRequest(message) {
     const hasLocationKeyword = locationKeywords.some(keyword => message.includes(keyword));
     
     const isRestaurantContext = hasRestaurantKeyword && hasLocationKeyword;
-    const hasRecommendKeyword = message.includes('추천') && !isRestaurantContext;
     
-    return (hasShoppingKeyword || hasProductKeyword || hasRecommendKeyword) && !isRestaurantContext;
+    // 쇼핑 관련 키워드가 있거나 제품명이 있으면서 맛집 검색이 아닌 경우
+    return (hasShoppingKeyword || hasProductKeyword) && !isRestaurantContext;
 }
 
 function isRestaurantRequest(message) {
@@ -365,8 +365,10 @@ app.get('/', (req, res) => {
         <h1>🤖 카카오 챗봇 Claude AI 서버</h1>
         <p><strong>상태:</strong> 정상 실행 중</p>
         <p><strong>현재 시간:</strong> ${koreanTime.formatted}</p>
-        <p><strong>Claude API:</strong> ${hasClaudeApiKey ? '✅ 설정됨' : '❌ 미설정'}</p>
+        <p><strong>Claude AI API:</strong> ${hasClaudeApiKey ? '✅ 설정됨' : '❌ 미설정'}</p>
         <p><strong>네이버 검색 API:</strong> ${(hasNaverClientId && hasNaverClientSecret) ? '✅ 설정됨' : '❌ 미설정'}</p>
+        <p><strong>Client ID:</strong> ${hasNaverClientId ? '✅ 설정됨' : '❌ 미설정'}</p>
+        <p><strong>Client Secret:</strong> ${hasNaverClientSecret ? '✅ 설정됨' : '❌ 미설정'}</p>
         <hr>
         <p><strong>카카오 스킬 URL:</strong> /kakao-skill-webhook</p>
         <hr>
@@ -424,7 +426,84 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             const dayOfWeek = dayNames[koreaDate.getDay()];
             responseText = `현재 한국 시간: ${koreanTime.formatted} ${dayOfWeek}입니다.`;
         }
-        // 핵심 비교 질문만 특별 처리 (나머지는 Claude API에서 처리)
+        // 네이버 뉴스 검색
+        else if (isNewsRequest(userMessage)) {
+            console.log('📰 뉴스 요청 감지됨');
+            const newsResults = await getLatestNews(userMessage);
+            
+            if (newsResults && newsResults.length > 0) {
+                let newsText = `📰 최신 뉴스 (${newsResults.length}개)\n\n`;
+                newsResults.forEach((news, index) => {
+                    newsText += `${index + 1}. ${news.title}\n${news.description}\n🔗 ${news.link}\n\n`;
+                });
+                
+                if (newsText.length > 900) {
+                    newsText = newsText.substring(0, 850) + '...\n\n더 많은 뉴스는 네이버에서 확인하세요.';
+                }
+                
+                responseText = newsText;
+            } else {
+                responseText = '죄송합니다. 현재 뉴스를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.';
+            }
+        }
+        // 네이버 쇼핑 검색
+        else if (isShoppingRequest(userMessage)) {
+            console.log('🛒 쇼핑 요청 감지됨');
+            
+            let searchQuery = userMessage;
+            const productKeywords = ['노트북', '휴대폰', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기', '마우스', '키보드', '모니터', '스피커'];
+            let foundProducts = [];
+            
+            productKeywords.forEach(keyword => {
+                if (userMessage.includes(keyword)) {
+                    foundProducts.push(keyword);
+                }
+            });
+            
+            if (foundProducts.length > 0) {
+                searchQuery = foundProducts.join(' ');
+            } else {
+                searchQuery = userMessage.replace(/추천|상품|제품|쇼핑|구매|베스트|인기|랭킹|순위|어떤|좋은/g, '').trim();
+            }
+            
+            const shoppingResults = await getShoppingResults(searchQuery);
+            
+            if (shoppingResults && shoppingResults.length > 0) {
+                let shoppingText = `🛒 "${searchQuery}" 쇼핑 검색 결과\n\n`;
+                shoppingResults.slice(0, 5).forEach((product, index) => {
+                    shoppingText += `${index + 1}. ${product.title}\n💰 ${product.price}\n🏪 ${product.mallName}\n🔗 ${product.link}\n\n`;
+                });
+                
+                if (shoppingText.length > 900) {
+                    shoppingText = shoppingText.substring(0, 850) + '...\n\n더 많은 상품은 네이버쇼핑에서 확인하세요.';
+                }
+                
+                responseText = shoppingText;
+            } else {
+                responseText = `"${searchQuery}" 관련 상품을 찾을 수 없습니다. 다른 키워드로 다시 검색해보세요.`;
+            }
+        }
+        // 네이버 지역검색 (맛집)
+        else if (isRestaurantRequest(userMessage)) {
+            console.log('🍽️ 맛집 요청 감지됨');
+            const restaurantResults = await getLocalRestaurants(userMessage);
+            
+            if (restaurantResults && restaurantResults.length > 0) {
+                let restaurantText = `🍽️ "${userMessage}" 맛집 검색 결과\n\n`;
+                restaurantResults.slice(0, 5).forEach((restaurant, index) => {
+                    restaurantText += `${index + 1}. ${restaurant.title}\n📍 ${restaurant.address}\n📞 ${restaurant.telephone}\n🏷️ ${restaurant.category}\n🔗 ${restaurant.link}\n\n`;
+                });
+                
+                if (restaurantText.length > 900) {
+                    restaurantText = restaurantText.substring(0, 850) + '...\n\n더 많은 맛집은 네이버에서 확인하세요.';
+                }
+                
+                responseText = restaurantText;
+            } else {
+                responseText = `"${userMessage}" 관련 맛집을 찾을 수 없습니다. 지역명과 음식 종류를 함께 검색해보세요.`;
+            }
+        }
+        // 맥미니 M4 vs M2 비교 질문 특별 처리
         else if (userMessage.includes('맥미니') && (userMessage.includes('M4') || userMessage.includes('m4')) && (userMessage.includes('M2') || userMessage.includes('m2'))) {
             responseText = `🖥️ 맥미니 M4 vs M2 성능 비교
 
