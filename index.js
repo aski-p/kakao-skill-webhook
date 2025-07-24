@@ -4,6 +4,13 @@ const axios = require('axios');
 const app = express();
 app.use(express.json());
 
+// 네이버 검색 API 설정
+const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
+const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
+const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
+const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
+const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
+
 // 카카오톡 5초 제한에 맞춘 최적화된 타임아웃 설정
 const TIMEOUT_CONFIG = {
     naver_api: 3000,
@@ -108,16 +115,231 @@ function handleLongResponse(text, userId, responseType = 'general') {
     };
 }
 
+// 네이버 뉴스 검색 함수
+async function getLatestNews(query = '오늘 뉴스') {
+    try {
+        if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
+            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            return null;
+        }
+        
+        const params = {
+            query: query,
+            display: 10,
+            start: 1,
+            sort: 'date'
+        };
+        
+        console.log(`📡 네이버 뉴스 검색: "${query}"`);
+        
+        const response = await axios.get(NAVER_NEWS_API_URL, {
+            params: params,
+            headers: {
+                'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+            },
+            timeout: TIMEOUT_CONFIG.naver_api
+        });
+        
+        const items = response.data.items;
+        if (!items || items.length === 0) {
+            console.log('📰 검색된 뉴스가 없습니다.');
+            return null;
+        }
+        
+        console.log(`✅ ${items.length}개의 뉴스를 찾았습니다.`);
+        
+        return items.slice(0, 5).map(item => ({
+            title: item.title.replace(/<[^>]*>/g, ''),
+            description: item.description.replace(/<[^>]*>/g, ''),
+            link: item.link,
+            pubDate: item.pubDate
+        }));
+        
+    } catch (error) {
+        console.error('❌ 네이버 뉴스 API 오류:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 네이버 쇼핑 검색 함수
+async function getShoppingResults(query) {
+    try {
+        if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
+            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            return null;
+        }
+        
+        const params = {
+            query: query,
+            display: 10,
+            start: 1,
+            sort: 'sim'
+        };
+        
+        console.log(`🛒 네이버 쇼핑 검색: "${query}"`);
+        
+        const response = await axios.get(NAVER_SHOPPING_API_URL, {
+            params: params,
+            headers: {
+                'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+            },
+            timeout: TIMEOUT_CONFIG.naver_api
+        });
+        
+        const items = response.data.items;
+        if (!items || items.length === 0) {
+            console.log('🛒 검색된 상품이 없습니다.');
+            return null;
+        }
+        
+        console.log(`✅ ${items.length}개의 상품을 찾았습니다.`);
+        
+        return items.slice(0, 5).map((item, index) => ({
+            rank: index + 1,
+            title: item.title.replace(/<[^>]*>/g, ''),
+            price: item.lprice ? `${parseInt(item.lprice).toLocaleString()}원` : '가격정보없음',
+            mallName: item.mallName || '쇼핑몰정보없음',
+            brand: item.brand || '',
+            link: item.link,
+            image: item.image,
+            productId: item.productId,
+            category1: item.category1,
+            category2: item.category2
+        }));
+        
+    } catch (error) {
+        console.error('❌ 네이버 쇼핑 API 오류:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 네이버 지역검색 API로 맛집 가져오기 함수
+async function getLocalRestaurants(query) {
+    try {
+        if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
+            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            return null;
+        }
+        
+        const params = {
+            query: query,
+            display: 10,
+            start: 1,
+            sort: 'comment'
+        };
+        
+        console.log(`🍽️ 네이버 지역검색: "${query}"`);
+        
+        const response = await axios.get(NAVER_LOCAL_API_URL, {
+            params: params,
+            headers: {
+                'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+            },
+            timeout: TIMEOUT_CONFIG.naver_api
+        });
+        
+        const items = response.data.items;
+        if (!items || items.length === 0) {
+            console.log('🍽️ 검색된 맛집이 없습니다.');
+            return null;
+        }
+        
+        console.log(`✅ ${items.length}개의 맛집을 찾았습니다.`);
+        
+        return items.slice(0, 5).map(item => ({
+            title: item.title.replace(/<[^>]*>/g, ''),
+            category: item.category,
+            description: item.description ? item.description.replace(/<[^>]*>/g, '') : '',
+            telephone: item.telephone || '전화번호 없음',
+            address: item.address,
+            roadAddress: item.roadAddress,
+            mapx: item.mapx,
+            mapy: item.mapy,
+            link: item.link
+        }));
+        
+    } catch (error) {
+        console.error('❌ 네이버 지역검색 API 오류:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 요청 분석 함수들
+function isNewsRequest(message) {
+    const newsKeywords = ['뉴스', '최신뉴스', '오늘뉴스', '새로운소식', '헤드라인', '속보', '시사'];
+    return newsKeywords.some(keyword => message.includes(keyword));
+}
+
+function isShoppingRequest(message) {
+    const shoppingKeywords = ['상품', '제품', '구매', '쇼핑', '판매', '가격', '베스트', '인기', '랭킹', '순위', '리뷰', '후기'];
+    const hasShoppingKeyword = shoppingKeywords.some(keyword => message.includes(keyword));
+    
+    const productKeywords = ['젖병', '세척기', '기저귀', '유모차', '카시트', '노트북', '휴대폰', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기'];
+    const hasProductKeyword = productKeywords.some(keyword => message.includes(keyword));
+    
+    const restaurantKeywords = ['맛집', '음식점', '식당', '배달', '맛있는', '먹을곳', '밥집', '카페', '커피', '치킨', '피자'];
+    const locationKeywords = ['역', '동', '구', '시', '군', '면', '근처', '주변'];
+    
+    const hasRestaurantKeyword = restaurantKeywords.some(keyword => message.includes(keyword));
+    const hasLocationKeyword = locationKeywords.some(keyword => message.includes(keyword));
+    
+    const isRestaurantContext = hasRestaurantKeyword && hasLocationKeyword;
+    const hasRecommendKeyword = message.includes('추천') && !isRestaurantContext;
+    
+    return (hasShoppingKeyword || hasProductKeyword || hasRecommendKeyword) && !isRestaurantContext;
+}
+
+function isRestaurantRequest(message) {
+    const restaurantKeywords = [
+        '맛집', '음식점', '식당', '배달', '맛있는', '먹을곳', '밥집',
+        '카페', '커피', '디저트', '떡볶이', '치킨', '피자', '한식', '중식', '일식', '양식',
+        '분식', '술집', '주점', '고기', '회', '초밥', '레스토랑'
+    ];
+    
+    const locationKeywords = [
+        '역', '동', '구', '시', '군', '면', '근처', '주변', '앞', '사거리', '거리'
+    ];
+    
+    const excludeKeywords = [
+        '상품', '제품', '구매', '쇼핑', '판매', '가격', '베스트', '인기', '랭킹', '순위',
+        '온라인', '쿠팡', '11번가', '지마켓', '옥션', '티몬', 'G마켓', '네이버쇼핑',
+        '할인', '세일', '특가', '리뷰', '후기', '배송', '무료배송', '당일배송'
+    ];
+    const hasExcludeKeyword = excludeKeywords.some(keyword => message.includes(keyword));
+    
+    const hasRestaurantKeyword = restaurantKeywords.some(keyword => message.includes(keyword));
+    const hasLocationKeyword = locationKeywords.some(keyword => message.includes(keyword));
+    
+    return hasRestaurantKeyword && hasLocationKeyword && !hasExcludeKeyword;
+}
+
 // Basic health check
 app.get('/', (req, res) => {
     const koreanTime = getKoreanDateTime();
+    const hasClaudeApiKey = !!process.env.CLAUDE_API_KEY;
+    const hasNaverClientId = !!process.env.NAVER_CLIENT_ID;
+    const hasNaverClientSecret = !!process.env.NAVER_CLIENT_SECRET;
+    
     res.send(`
         <h1>🤖 카카오 챗봇 Claude AI 서버</h1>
         <p><strong>상태:</strong> 정상 실행 중</p>
         <p><strong>현재 시간:</strong> ${koreanTime.formatted}</p>
-        <p><strong>Claude API:</strong> ${process.env.CLAUDE_API_KEY ? '✅ 설정됨' : '❌ 미설정'}</p>
+        <p><strong>Claude API:</strong> ${hasClaudeApiKey ? '✅ 설정됨' : '❌ 미설정'}</p>
+        <p><strong>네이버 검색 API:</strong> ${(hasNaverClientId && hasNaverClientSecret) ? '✅ 설정됨' : '❌ 미설정'}</p>
         <hr>
         <p><strong>카카오 스킬 URL:</strong> /kakao-skill-webhook</p>
+        <hr>
+        <p><strong>기능:</strong></p>
+        <ul>
+            <li>🤖 Claude AI 답변 (M4 vs M2 성능비교 등)</li>
+            <li>📰 실시간 뉴스 제공 (예: "오늘 뉴스", "최신 뉴스")</li>
+            <li>🛒 쇼핑 상품 검색 (예: "노트북 추천", "휴대폰 베스트")</li>
+            <li>🍽️ 맛집 검색 (예: "강남역 맛집", "홍대 카페")</li>
+            <li>💬 긴 답변 자동 분할 및 "계속" 기능</li>
+        </ul>
     `);
 });
 
@@ -136,6 +358,113 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         const koreanTime = getKoreanDateTime();
         console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
+        
+        // 뉴스 요청 처리
+        if (isNewsRequest(userMessage)) {
+            console.log('📰 뉴스 요청 감지됨');
+            const newsResults = await getLatestNews(userMessage);
+            
+            if (newsResults && newsResults.length > 0) {
+                let newsText = `📰 최신 뉴스 (${newsResults.length}개)\n\n`;
+                newsResults.forEach((news, index) => {
+                    newsText += `${index + 1}. ${news.title}\n${news.description}\n\n`;
+                });
+                
+                const processedResponse = handleLongResponse(newsText, userId, 'news');
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: processedResponse.text
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 뉴스 응답 전송 완료');
+                return;
+            }
+        }
+        
+        // 쇼핑 요청 처리
+        if (isShoppingRequest(userMessage)) {
+            console.log('🛒 쇼핑 요청 감지됨');
+            
+            let searchQuery = userMessage;
+            const productKeywords = ['젖병', '세척기', '기저귀', '유모차', '카시트', '노트북', '휴대폰', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기', '마우스', '키보드', '모니터', '스피커'];
+            let foundProducts = [];
+            
+            productKeywords.forEach(keyword => {
+                if (userMessage.includes(keyword)) {
+                    foundProducts.push(keyword);
+                }
+            });
+            
+            if (foundProducts.length > 0) {
+                searchQuery = foundProducts.join(' ');
+            } else {
+                searchQuery = userMessage.replace(/추천|상품|제품|쇼핑|구매|베스트|인기|랭킹|순위/g, '').trim();
+            }
+            
+            const shoppingResults = await getShoppingResults(searchQuery);
+            
+            if (shoppingResults && shoppingResults.length > 0) {
+                let shoppingText = `🛒 "${searchQuery}" 쇼핑 검색 결과 (${shoppingResults.length}개)\n\n`;
+                shoppingResults.forEach((product, index) => {
+                    shoppingText += `${index + 1}. ${product.title}\n💰 가격: ${product.price}\n🏪 ${product.mallName}\n\n`;
+                });
+                
+                const processedResponse = handleLongResponse(shoppingText, userId, 'shopping');
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: processedResponse.text
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 쇼핑 응답 전송 완료');
+                return;
+            }
+        }
+        
+        // 맛집 요청 처리
+        if (isRestaurantRequest(userMessage)) {
+            console.log('🍽️ 맛집 요청 감지됨');
+            const restaurantResults = await getLocalRestaurants(userMessage);
+            
+            if (restaurantResults && restaurantResults.length > 0) {
+                let restaurantText = `🍽️ "${userMessage}" 맛집 검색 결과 (${restaurantResults.length}개)\n\n`;
+                restaurantResults.forEach((restaurant, index) => {
+                    restaurantText += `${index + 1}. ${restaurant.title}\n📍 ${restaurant.address}\n📞 ${restaurant.telephone}\n🏷️ ${restaurant.category}\n\n`;
+                });
+                
+                const processedResponse = handleLongResponse(restaurantText, userId, 'restaurant');
+                const response = {
+                    version: "2.0",
+                    template: {
+                        outputs: [{
+                            simpleText: {
+                                text: processedResponse.text
+                            }
+                        }]
+                    }
+                };
+                
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+                console.log('✅ 맛집 응답 전송 완료');
+                return;
+            }
+        }
         
         // "계속" 요청 처리
         if (userMessage.includes('계속') || userMessage.includes('이어서') || userMessage.includes('더보기')) {
