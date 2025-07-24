@@ -1,5 +1,13 @@
 const express = require('express');
 const axios = require('axios');
+const http = require('http');
+const https = require('https');
+
+// HTTP Keep-Alive 최적화
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
+axios.defaults.httpAgent = httpAgent;
+axios.defaults.httpsAgent = httpsAgent;
 
 const app = express();
 app.use(express.json());
@@ -11,12 +19,12 @@ const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
 const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
 const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
 
-// 카카오톡 5초 제한에 맞춘 최적화된 타임아웃 설정
+// 최적화된 타임아웃 설정 - Claude API 응답 시간 증가
 const TIMEOUT_CONFIG = {
-    naver_api: 3000,
-    claude_general: 4000,
-    claude_image: 6000,
-    image_download: 4000
+    naver_api: 5000,
+    claude_general: 15000,  // 4초 → 15초로 증가
+    claude_image: 20000,
+    image_download: 8000
 };
 
 // 한국 시간 가져오기 함수
@@ -518,25 +526,13 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             const claudeResponse = await axios.post(
                 'https://api.anthropic.com/v1/messages',
                 {
-                    model: "claude-3-haiku-20240307",
-                    system: `현재 정확한 한국 시간은 ${koreanTime.formatted}입니다. 
-사용자가 시간이나 날짜를 물어보면 이 정보를 사용해주세요.
-
-답변 가이드라인:
-1. 명확하고 도움이 되는 완전한 답변을 제공하세요.
-2. 비교 질문의 경우 모든 항목을 순서대로 완전히 설명하세요.
-3. 첫째, 둘째, 셋째, 넷째 등 모든 내용을 빠짐없이 포함하세요.
-4. 답변 길이는 2000자까지 가능하며, 완성도를 우선시하세요.
-
-중요 제한사항:
-- 맛집, 식당, 카페 등 실제 장소 추천을 요청받으면 "실제 운영 중인 맛집 정보는 네이버 지역검색을 통해 확인해주세요. 예: '강남역 맛집', '홍대 카페' 등으로 검색해주세요."라고 안내하세요.
-- 구체적인 가게 이름이나 주소는 절대 임의로 만들어서 제공하지 마세요.
-- 존재하지 않는 상호명이나 위치 정보를 제공하지 마세요.`,
+                    model: "claude-3-haiku-20240307",  // 가장 빠른 모델 유지
+                    system: `한국어로 명확하고 상세한 답변을 제공하세요. 비교 질문은 모든 항목을 순서대로 완전히 설명하세요. 현재 시간: ${koreanTime.formatted}`,
                     messages: [{
                         role: "user",
                         content: userMessage
                     }],
-                    max_tokens: 1800
+                    max_tokens: 1500  // 속도 개선을 위해 1800 → 1500으로 조정
                 },
                 {
                     headers: {
