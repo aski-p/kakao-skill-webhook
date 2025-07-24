@@ -424,7 +424,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             const dayOfWeek = dayNames[koreaDate.getDay()];
             responseText = `현재 한국 시간: ${koreanTime.formatted} ${dayOfWeek}입니다.`;
         }
-        // 맥미니 M4 vs M2 비교 질문 특별 처리
+        // 핵심 비교 질문만 특별 처리 (나머지는 Claude API에서 처리)
         else if (userMessage.includes('맥미니') && (userMessage.includes('M4') || userMessage.includes('m4')) && (userMessage.includes('M2') || userMessage.includes('m2'))) {
             responseText = `🖥️ 맥미니 M4 vs M2 성능 비교
 
@@ -454,196 +454,32 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 
 📈 종합 성능 향상: 약 20-25%`;
         }
-        // 자주 묻는 질문들에 대한 간단한 답변
-        else if (userMessage.includes('파이썬') && (userMessage.includes('뭐야') || userMessage.includes('무엇') || userMessage.includes('설명'))) {
-            responseText = `🐍 파이썬(Python)
-
-• 1991년 귀도 반 로섬이 개발한 프로그래밍 언어
-• 읽기 쉽고 간결한 문법
-• 웹 개발, 데이터 분석, AI/ML에 널리 사용
-• 라이브러리가 풍부하고 커뮤니티 활발
-• 초보자도 배우기 쉬운 언어
-
-주요 특징:
-- 인터프리터 언어
-- 객체지향 프로그래밍 지원
-- 무료 오픈소스
-- 크로스 플랫폼 지원`;
-        }
-        else if (userMessage.includes('자바스크립트') && (userMessage.includes('뭐야') || userMessage.includes('무엇') || userMessage.includes('설명'))) {
-            responseText = `⚡ 자바스크립트(JavaScript)
-
-• 웹 브라우저에서 실행되는 프로그래밍 언어
-• 웹페이지에 동적인 기능 추가
-• 현재는 서버(Node.js)에서도 사용
-• 프론트엔드와 백엔드 모두 개발 가능
-
-주요 특징:
-- 동적 타입 언어
-- 이벤트 기반 프로그래밍
-- 함수형 프로그래밍 지원
-- 비동기 처리 가능
-- 웹 개발의 필수 언어`;
-        }
-        else if (userMessage.includes('리액트') && (userMessage.includes('뭐야') || userMessage.includes('무엇') || userMessage.includes('설명'))) {
-            responseText = `⚛️ 리액트(React)
-
-• 페이스북이 개발한 자바스크립트 라이브러리
-• 사용자 인터페이스(UI) 구축용
-• 컴포넌트 기반 개발
-• 가상 DOM으로 성능 최적화
-
-주요 특징:
-- 재사용 가능한 컴포넌트
-- 단방향 데이터 흐름
-- JSX 문법 사용
-- 생태계가 매우 풍부
-- 모바일 앱(React Native) 개발도 가능`;
-        }
-        // 맥북 관련 질문들
-        else if (userMessage.includes('맥북') && (userMessage.includes('최고') || userMessage.includes('사양') || userMessage.includes('스펙'))) {
-            responseText = `💻 맥북 최고 사양 (2024년 기준)
-
-🔥 MacBook Pro 16인치 M4 Max
-• CPU: 16코어 (12P+4E)
-• GPU: 40코어
-• 메모리: 최대 128GB 통합 메모리
-• 저장소: 최대 8TB SSD
-• 디스플레이: 16.2인치 Liquid Retina XDR
-• 가격: 약 900만원 (최고사양)
-
-⚡ 주요 특징:
-- 3nm 공정 M4 Max 칩
-- ProRes 동영상 편집 최적화
-- 최대 4개 외부 디스플레이 지원
-- 22시간 배터리 지속시간
-- Thunderbolt 5 포트
-
-🎯 용도: 영상편집, 3D 렌더링, 개발 등`;
-        }
-        else if (userMessage.includes('맥북') && (userMessage.includes('추천') || userMessage.includes('어떤') || userMessage.includes('좋은'))) {
-            responseText = `💻 맥북 추천 (2024년)
-
-💰 가성비: MacBook Air M3
-• 13인치, 8코어 CPU, 10코어 GPU
-• 8GB 메모리, 256GB SSD
-• 약 169만원
-• 일반 사무, 웹서핑, 동영상 시청
-
-⚖️ 균형: MacBook Pro 14인치 M4
-• 10코어 CPU, 10코어 GPU  
-• 16GB 메모리, 512GB SSD
-• 약 269만원
-• 개발, 디자인, 가벼운 영상편집
-
-🔥 고성능: MacBook Pro 16인치 M4 Pro
-• 14코어 CPU, 20코어 GPU
-• 24GB 메모리, 512GB SSD  
-• 약 369만원
-• 전문 영상편집, 3D 작업`;
-        }
-        else if (userMessage.includes('아이폰') && (userMessage.includes('최신') || userMessage.includes('신형') || userMessage.includes('새로운'))) {
-            responseText = `📱 아이폰 최신 모델 (2024년)
-
-🔥 iPhone 16 Pro Max (최고급)
-• 6.9인치 Super Retina XDR
-• A18 Pro 칩, 8GB RAM
-• 카메라: 48MP 메인 + 48MP 울트라와이드
-• 저장용량: 256GB~1TB
-• 가격: 약 189만원~
-
-⚡ iPhone 16 Pro
-• 6.3인치, A18 Pro 칩
-• 프로급 카메라 시스템
-• 가격: 약 155만원~
-
-💰 iPhone 16 
-• 6.1인치, A18 칩
-• 듀얼 카메라
-• 가격: 약 125만원~
-
-새로운 기능: AI 기능, 액션 버튼, USB-C`;
-        }
-        // 프로그래밍 언어 추천
-        else if (userMessage.includes('프로그래밍') && (userMessage.includes('추천') || userMessage.includes('어떤') || userMessage.includes('시작'))) {
-            responseText = `💻 프로그래밍 언어 추천
-
-🥇 초보자 추천
-• Python: 쉬운 문법, AI/데이터 분석
-• JavaScript: 웹 개발 필수
-• Scratch: 어린이/청소년용 블록코딩
-
-🎯 목적별 추천
-• 웹 개발: JavaScript, Python, Java
-• 모바일 앱: Swift(iOS), Kotlin(안드로이드)
-• AI/머신러닝: Python, R
-• 게임 개발: C#, C++, JavaScript
-• 시스템 프로그래밍: C, C++, Rust
-
-💡 2024년 인기 언어
-1. Python 2. JavaScript 3. Java
-4. TypeScript 5. C# 6. C++`;
-        }
-        // AI 관련 질문
-        else if (userMessage.includes('인공지능') || userMessage.includes('AI') || userMessage.includes('챗GPT')) {
-            responseText = `🤖 AI(인공지능) 정보
-
-💡 주요 AI 서비스
-• ChatGPT (OpenAI): 대화형 AI
-• Claude (Anthropic): 안전한 AI 어시스턴트  
-• Gemini (Google): 구글의 AI 모델
-• Copilot (Microsoft): 업무용 AI
-
-🚀 AI 활용 분야
-- 텍스트 생성 및 요약
-- 코딩 도움 및 디버깅
-- 이미지/영상 생성
-- 번역 및 언어 학습
-- 데이터 분석 및 예측
-
-⚠️ 주의사항
-- 정보의 정확성 확인 필요
-- 개인정보 입력 주의
-- 창의적 참고 용도로 활용`;
-        }
-        // 컴퓨터 관련 일반 질문
-        else if (userMessage.includes('컴퓨터') && (userMessage.includes('추천') || userMessage.includes('사양') || userMessage.includes('좋은'))) {
-            responseText = `🖥️ 컴퓨터 추천 (2024년)
-
-💰 사무용 (50-80만원)
-• CPU: 인텔 i5 / AMD 라이젠 5
-• RAM: 16GB
-• 저장소: 512GB SSD
-• 용도: 문서작업, 웹서핑
-
-⚖️ 게임용 (150-250만원)
-• CPU: 인텔 i7 / AMD 라이젠 7  
-• GPU: RTX 4060 Ti 이상
-• RAM: 32GB
-• 저장소: 1TB SSD
-
-🔥 전문가용 (300만원 이상)
-• CPU: 인텔 i9 / AMD 라이젠 9
-• GPU: RTX 4080/4090
-• RAM: 64GB 이상
-• 용도: 영상편집, 3D 렌더링`;
-        }
-        // Claude API를 통한 일반 질문 처리 (최대 3초 제한)
+        // Claude API를 통한 일반 질문 처리 (카카오톡 최적화)
         else {
             console.log('✅ Claude API 호출 시작...');
             const startTime = Date.now();
             
             try {
+                // API 키 확인
+                if (!process.env.CLAUDE_API_KEY) {
+                    throw new Error('CLAUDE_API_KEY not found in environment variables');
+                }
+                
                 const claudeResponse = await axios.post(
                     'https://api.anthropic.com/v1/messages',
                     {
                         model: "claude-3-haiku-20240307",
-                        system: `한국어로 간결하게 답변하세요. 900자 이내로 작성하세요.`,
+                        system: `한국어로 답변하세요. 카카오톡 메시지에 적합하도록 다음 규칙을 따르세요:
+- 800자 이내로 간결하게 작성
+- 핵심 정보만 포함
+- 이모지 적절히 사용
+- 불필요한 설명 제거
+- 읽기 쉬운 구조로 작성`,
                         messages: [{
                             role: "user",
                             content: userMessage
                         }],
-                        max_tokens: 500
+                        max_tokens: 400  // 토큰 수 줄여서 더 간결한 답변
                     },
                     {
                         headers: {
@@ -651,13 +487,26 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                             'anthropic-version': '2023-06-01',
                             'content-type': 'application/json'
                         },
-                        timeout: 3000  // 3초 제한
+                        timeout: 4000  // 4초로 약간 늘림
                     }
                 );
                 
                 const responseTime = Date.now() - startTime;
                 responseText = claudeResponse.data.content[0].text;
                 console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
+                
+                // 응답 후처리: 카카오톡에 맞게 최적화
+                if (responseText.length > 900) {
+                    // 문장 단위로 자르기
+                    const sentences = responseText.split(/[.!?]\s+/);
+                    let truncated = '';
+                    for (const sentence of sentences) {
+                        if ((truncated + sentence).length > 850) break;
+                        truncated += sentence + '. ';
+                    }
+                    responseText = truncated.trim();
+                    console.log(`📝 응답 길이 조정: ${responseText.length}자로 단축`);
+                }
                 
             } catch (error) {
                 const responseTime = Date.now() - startTime;
@@ -668,17 +517,20 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     data: error.response?.data,
                     code: error.code,
                     hasApiKey: !!process.env.CLAUDE_API_KEY,
-                    apiKeyLength: process.env.CLAUDE_API_KEY?.length || 0
+                    apiKeyLength: process.env.CLAUDE_API_KEY?.length || 0,
+                    apiKeyStart: process.env.CLAUDE_API_KEY?.substring(0, 10) || 'none'
                 });
                 
                 if (error.response?.status === 401) {
-                    responseText = `🔑 AI 인증 오류가 발생했습니다.\n\n관리자가 API 키를 확인 중입니다.`;
+                    responseText = `🔑 AI 서비스 인증에 문제가 있습니다.\n\n관리자에게 문의해주세요.`;
                 } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
                     responseText = `⏰ AI 응답 시간이 초과되었습니다.\n\n더 간단한 질문으로 다시 시도해주세요.`;
                 } else if (error.response?.status === 429) {
                     responseText = `🚫 AI 사용량 한도에 도달했습니다.\n\n잠시 후 다시 시도해주세요.`;
+                } else if (error.message.includes('CLAUDE_API_KEY not found')) {
+                    responseText = `⚙️ AI 서비스 설정이 필요합니다.\n\n관리자가 설정을 확인 중입니다.`;
                 } else {
-                    responseText = `⚠️ AI 서비스가 일시 불안정합니다.\n\n• 간단한 질문으로 다시 시도해주세요\n• 또는 잠시 후 다시 물어보세요`;
+                    responseText = `⚠️ AI 서비스가 일시 불안정합니다.\n\n잠시 후 다시 시도해주세요.`;
                 }
             }
         }
@@ -728,4 +580,6 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`✅ 서버가 포트 ${PORT}에서 실행 중입니다.`);
+    console.log(`🔑 Claude API 키 상태: ${process.env.CLAUDE_API_KEY ? '설정됨 (' + process.env.CLAUDE_API_KEY.length + '자)' : '미설정'}`);
+    console.log(`📡 네이버 API 키 상태: ${(process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) ? '설정됨' : '미설정'}`);
 });
