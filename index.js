@@ -16,15 +16,15 @@ const httpsAgent = new https.Agent({
 });
 axios.defaults.httpAgent = httpAgent;
 axios.defaults.httpsAgent = httpsAgent;
-axios.defaults.timeout = 25000; // 전역 타임아웃 25초
+axios.defaults.timeout = 4000; // 전역 타임아웃 4초로 단축
 
 const app = express();
 app.use(express.json());
 
-// 안정적인 응답을 위한 타임아웃 설정
+// 카카오톡 5초 제한에 맞춘 응답 타임아웃 설정
 app.use((req, res, next) => {
-    res.setTimeout(20000, () => {  // 20초로 증가
-        console.log('⏰ 서버 타임아웃 - 안내 응답 전송');
+    res.setTimeout(4500, () => {  // 4.5초로 단축
+        console.log('⏰ 서버 타임아웃 (4.5초) - 카카오톡 호환성');
         
         if (!res.headersSent) {
             res.status(200).json({
@@ -32,7 +32,7 @@ app.use((req, res, next) => {
                 template: {
                     outputs: [{
                         simpleText: {
-                            text: "요청을 처리하는데 시간이 걸리고 있습니다. 잠시 후 다시 시도해주세요. 🔄"
+                            text: "⏰ 처리 시간이 길어지고 있습니다.\n\n간단한 질문으로 다시 시도해주세요."
                         }
                     }]
                 }
@@ -49,12 +49,12 @@ const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
 const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
 const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
 
-// 안정적인 API 호출을 위한 타임아웃 설정
+// 카카오톡 5초 제한에 맞춘 최적화된 타임아웃 설정
 const TIMEOUT_CONFIG = {
-    naver_api: 8000,
-    claude_general: 25000,  // 25초로 증가하여 안정성 확보
-    claude_image: 30000,
-    image_download: 10000
+    naver_api: 3000,        // 네이버 API: 3초
+    claude_general: 3000,   // Claude 일반: 3초
+    claude_image: 4000,     // Claude 이미지: 4초
+    image_download: 3000    // 이미지 다운로드: 3초
 };
 
 // 한국 시간 가져오기 함수
@@ -384,6 +384,7 @@ app.get('/', (req, res) => {
 // Main webhook endpoint with Claude AI integration
 app.post('/kakao-skill-webhook', async (req, res) => {
     console.log('🔔 카카오 웹훅 요청 받음!');
+    console.log('요청 본문:', JSON.stringify(req.body, null, 2));
     
     try {
         const userMessage = req.body.userRequest?.utterance || '';
@@ -391,228 +392,84 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         console.log(`💬 사용자 메시지: '${userMessage}' (ID: ${userId})`);
         
         if (!userMessage) {
-            throw new Error('메시지가 없습니다');
+            const response = {
+                version: "2.0",
+                template: {
+                    outputs: [{
+                        simpleText: {
+                            text: "메시지를 입력해주세요."
+                        }
+                    }]
+                }
+            };
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.status(200).json(response);
+            return;
         }
         
         const koreanTime = getKoreanDateTime();
         console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
         
-        // 뉴스 요청 처리
-        if (isNewsRequest(userMessage)) {
-            console.log('📰 뉴스 요청 감지됨');
-            const newsResults = await getLatestNews(userMessage);
-            
-            if (newsResults && newsResults.length > 0) {
-                let newsText = `📰 최신 뉴스 (${newsResults.length}개)\n\n`;
-                newsResults.forEach((news, index) => {
-                    newsText += `${index + 1}. ${news.title}\n${news.description}\n\n`;
-                });
-                
-                const processedResponse = handleLongResponse(newsText, userId, 'news');
-                const response = {
-                    version: "2.0",
-                    template: {
-                        outputs: [{
-                            simpleText: {
-                                text: processedResponse.text
-                            }
-                        }]
-                    }
-                };
-                
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.status(200).json(response);
-                console.log('✅ 뉴스 응답 전송 완료');
-                return;
-            }
-        }
-        
-        // 쇼핑 요청 처리
-        if (isShoppingRequest(userMessage)) {
-            console.log('🛒 쇼핑 요청 감지됨');
-            
-            let searchQuery = userMessage;
-            const productKeywords = ['젖병', '세척기', '기저귀', '유모차', '카시트', '노트북', '휴대폰', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기', '마우스', '키보드', '모니터', '스피커'];
-            let foundProducts = [];
-            
-            productKeywords.forEach(keyword => {
-                if (userMessage.includes(keyword)) {
-                    foundProducts.push(keyword);
-                }
-            });
-            
-            if (foundProducts.length > 0) {
-                searchQuery = foundProducts.join(' ');
-            } else {
-                searchQuery = userMessage.replace(/추천|상품|제품|쇼핑|구매|베스트|인기|랭킹|순위/g, '').trim();
-            }
-            
-            const shoppingResults = await getShoppingResults(searchQuery);
-            
-            if (shoppingResults && shoppingResults.length > 0) {
-                let shoppingText = `🛒 "${searchQuery}" 쇼핑 검색 결과 (${shoppingResults.length}개)\n\n`;
-                shoppingResults.forEach((product, index) => {
-                    shoppingText += `${index + 1}. ${product.title}\n💰 가격: ${product.price}\n🏪 ${product.mallName}\n\n`;
-                });
-                
-                const processedResponse = handleLongResponse(shoppingText, userId, 'shopping');
-                const response = {
-                    version: "2.0",
-                    template: {
-                        outputs: [{
-                            simpleText: {
-                                text: processedResponse.text
-                            }
-                        }]
-                    }
-                };
-                
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.status(200).json(response);
-                console.log('✅ 쇼핑 응답 전송 완료');
-                return;
-            }
-        }
-        
-        // 맛집 요청 처리
-        if (isRestaurantRequest(userMessage)) {
-            console.log('🍽️ 맛집 요청 감지됨');
-            const restaurantResults = await getLocalRestaurants(userMessage);
-            
-            if (restaurantResults && restaurantResults.length > 0) {
-                let restaurantText = `🍽️ "${userMessage}" 맛집 검색 결과 (${restaurantResults.length}개)\n\n`;
-                restaurantResults.forEach((restaurant, index) => {
-                    restaurantText += `${index + 1}. ${restaurant.title}\n📍 ${restaurant.address}\n📞 ${restaurant.telephone}\n🏷️ ${restaurant.category}\n\n`;
-                });
-                
-                const processedResponse = handleLongResponse(restaurantText, userId, 'restaurant');
-                const response = {
-                    version: "2.0",
-                    template: {
-                        outputs: [{
-                            simpleText: {
-                                text: processedResponse.text
-                            }
-                        }]
-                    }
-                };
-                
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.status(200).json(response);
-                console.log('✅ 맛집 응답 전송 완료');
-                return;
-            }
-        }
-        
-        // "계속" 요청 처리
-        if (userMessage.includes('계속') || userMessage.includes('이어서') || userMessage.includes('더보기')) {
-            console.log('📄 계속 요청 감지됨');
-            const pendingMessage = pendingMessages.get(userId);
-            if (pendingMessage) {
-                console.log('✅ 저장된 나머지 내용 전송');
-                pendingMessages.delete(userId);
-                
-                const response = {
-                    version: "2.0",
-                    template: {
-                        outputs: [{
-                            simpleText: {
-                                text: pendingMessage
-                            }
-                        }]
-                    }
-                };
-                
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.status(200).json(response);
-                console.log('✅ 나머지 내용 전송 완료');
-                return;
-            } else {
-                console.log('⚠️ 저장된 내용이 없음');
-                const response = {
-                    version: "2.0",
-                    template: {
-                        outputs: [{
-                            simpleText: {
-                                text: '전송할 나머지 내용이 없습니다. 새로운 질문을 해주세요!'
-                            }
-                        }]
-                    }
-                };
-                
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.status(200).json(response);
-                console.log('✅ 안내 메시지 전송 완료');
-                return;
-            }
-        }
-        
-        // 카카오톡 타임아웃 방지를 위한 Claude API 최적화
-        
-        // 간단한 질문만 실시간 Claude API 호출
-        console.log('✅ Claude API 호출 시작...');
-        const startTime = Date.now();
-        
         let responseText;
-        try {
-            const claudeResponse = await axios.post(
-                'https://api.anthropic.com/v1/messages',
-                {
-                    model: "claude-3-haiku-20240307",  // 가장 빠른 모델
-                    system: `한국어로 답변하세요. 비교 질문은 주요 항목을 나누어 구체적으로 설명하되, 900자 내외로 작성하세요.`,
-                    messages: [{
-                        role: "user",
-                        content: userMessage
-                    }],
-                    max_tokens: 700  // 상세한 답변을 위한 토큰 증가
-                },
-                {
-                    headers: {
-                        'x-api-key': process.env.CLAUDE_API_KEY,
-                        'anthropic-version': '2023-06-01',
-                        'content-type': 'application/json'
+        
+        // 간단한 인사나 기본 질문 처리
+        if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
+            responseText = `안녕하세요! 현재 시간은 ${koreanTime.formatted}입니다. 무엇을 도와드릴까요?`;
+        }
+        // 시간 관련 질문
+        else if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
+            const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+            const now = new Date();
+            const koreaDate = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Seoul'}));
+            const dayOfWeek = dayNames[koreaDate.getDay()];
+            responseText = `현재 한국 시간: ${koreanTime.formatted} ${dayOfWeek}입니다.`;
+        }
+        // Claude API를 통한 일반 질문 처리 (최대 3초 제한)
+        else {
+            console.log('✅ Claude API 호출 시작...');
+            const startTime = Date.now();
+            
+            try {
+                const claudeResponse = await axios.post(
+                    'https://api.anthropic.com/v1/messages',
+                    {
+                        model: "claude-3-haiku-20240307",
+                        system: `한국어로 간결하게 답변하세요. 900자 이내로 작성하세요.`,
+                        messages: [{
+                            role: "user",
+                            content: userMessage
+                        }],
+                        max_tokens: 500
                     },
-                    timeout: TIMEOUT_CONFIG.claude_general
+                    {
+                        headers: {
+                            'x-api-key': process.env.CLAUDE_API_KEY,
+                            'anthropic-version': '2023-06-01',
+                            'content-type': 'application/json'
+                        },
+                        timeout: 3000  // 3초 제한
+                    }
+                );
+                
+                const responseTime = Date.now() - startTime;
+                responseText = claudeResponse.data.content[0].text;
+                console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
+                
+            } catch (error) {
+                const responseTime = Date.now() - startTime;
+                console.log(`⚠️ Claude API 에러 (${responseTime}ms): ${error.message}`);
+                
+                if (error.response?.status === 401) {
+                    responseText = `AI 서비스 인증 문제가 있습니다. 관리자에게 문의해주세요.`;
+                } else {
+                    responseText = `죄송합니다. AI 서비스가 일시적으로 불안정합니다. 간단한 질문으로 다시 시도해주세요.`;
                 }
-            );
-            
-            const responseTime = Date.now() - startTime;
-            responseText = claudeResponse.data.content[0].text;
-            console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
-            
-        } catch (error) {
-            const responseTime = Date.now() - startTime;
-            console.log(`⚠️ Claude API 에러 (${responseTime}ms): ${error.message}`);
-            
-            // API 키 문제인지 확인
-            if (error.response?.status === 401) {
-                responseText = `Claude API 인증에 문제가 있습니다. 서버 관리자에게 문의해주세요.`;
-            }
-            // 네트워크 문제
-            else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-                responseText = `AI 서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요. ⏳`;
-            }
-            // 시간 관련 질문 특별 처리
-            else if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
-                const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-                const now = new Date();
-                const koreaDate = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Seoul'}));
-                const dayOfWeek = dayNames[koreaDate.getDay()];
-                responseText = `현재 한국 시간: ${koreanTime.formatted} ${dayOfWeek}입니다.`;
-            }
-            // 간단한 인사 응답
-            else if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
-                responseText = `안녕하세요! 현재 시간은 ${koreanTime.formatted}입니다. 무엇을 도와드릴까요?`;
-            }
-            // 일반적인 질문에 대한 기본 안내
-            else {
-                responseText = `현재 AI 서비스가 일시적으로 불안정합니다. 간단한 질문이나 뉴스/쇼핑 검색은 가능합니다. (현재 시간: ${koreanTime.formatted})`;
             }
         }
         
-        console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
+        console.log(`📝 응답 내용: ${responseText.substring(0, 100)}...`);
         
-        // 카카오톡 메시지 길이 제한 (약 950자)
+        // 메시지 길이 제한 (카카오톡 호환성)
         if (responseText.length > 950) {
             responseText = responseText.substring(0, 947) + '...';
             console.log(`⚠️ 메시지가 길어서 950자로 제한됨`);
@@ -629,14 +486,8 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             }
         };
         
-        // Kakao Skills 응답 검증
-        if (!kakaoResponse.template || !kakaoResponse.template.outputs || !Array.isArray(kakaoResponse.template.outputs)) {
-            throw new Error('Invalid Kakao response format');
-        }
+        console.log(`📤 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2)}`);
         
-        console.log(`📤 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2).substring(0, 300)}...`);
-        
-        // 응답 헤더 명시적 설정 (Kakao Skills 호환성)
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.status(200).json(kakaoResponse);
         console.log('✅ 카카오 웹훅 응답 전송 완료');
