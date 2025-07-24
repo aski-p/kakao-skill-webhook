@@ -550,12 +550,12 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 'https://api.anthropic.com/v1/messages',
                 {
                     model: "claude-3-haiku-20240307",  // 가장 빠른 모델
-                    system: `한국어로 답변. 매우 간결하게 핵심만. 400자 이내로 요약.`,
+                    system: `한국어로 답변하세요. 비교 질문은 주요 항목을 나누어 구체적으로 설명하되, 900자 내외로 작성하세요.`,
                     messages: [{
                         role: "user",
                         content: userMessage
                     }],
-                    max_tokens: 400  // 카카오톡 호환성 최적화
+                    max_tokens: 700  // 상세한 답변을 위한 토큰 증가
                 },
                 {
                     headers: {
@@ -603,10 +603,10 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
         
-        // 카카오톡 메시지 길이 제한 (약 500자)
-        if (responseText.length > 500) {
-            responseText = responseText.substring(0, 497) + '...';
-            console.log(`⚠️ 메시지가 길어서 500자로 제한됨`);
+        // 카카오톡 메시지 길이 제한 (약 950자)
+        if (responseText.length > 950) {
+            responseText = responseText.substring(0, 947) + '...';
+            console.log(`⚠️ 메시지가 길어서 950자로 제한됨`);
         }
         
         const kakaoResponse = {
