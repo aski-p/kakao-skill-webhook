@@ -424,6 +424,82 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             const dayOfWeek = dayNames[koreaDate.getDay()];
             responseText = `현재 한국 시간: ${koreanTime.formatted} ${dayOfWeek}입니다.`;
         }
+        // 맥미니 M4 vs M2 비교 질문 특별 처리
+        else if (userMessage.includes('맥미니') && (userMessage.includes('M4') || userMessage.includes('m4')) && (userMessage.includes('M2') || userMessage.includes('m2'))) {
+            responseText = `🖥️ 맥미니 M4 vs M2 성능 비교
+
+🚀 CPU 성능
+• M4: 10코어 CPU (4P+6E), 20% 향상
+• M2: 8코어 CPU (4P+4E)
+
+🎮 GPU 성능  
+• M4: 10코어 GPU, 25% 향상
+• M2: 10코어 GPU
+
+🧠 메모리
+• M4: 최대 64GB 통합 메모리
+• M2: 최대 24GB 통합 메모리
+
+💾 저장소
+• M4: 최대 8TB SSD
+• M2: 최대 2TB SSD
+
+⚡ 전력효율
+• M4: 3nm 공정, 더 효율적
+• M2: 5nm 공정
+
+💰 가격 (기본형)
+• M4: 약 95만원
+• M2: 약 80만원
+
+📈 종합 성능 향상: 약 20-25%`;
+        }
+        // 자주 묻는 질문들에 대한 간단한 답변
+        else if (userMessage.includes('파이썬') && (userMessage.includes('뭐야') || userMessage.includes('무엇') || userMessage.includes('설명'))) {
+            responseText = `🐍 파이썬(Python)
+
+• 1991년 귀도 반 로섬이 개발한 프로그래밍 언어
+• 읽기 쉽고 간결한 문법
+• 웹 개발, 데이터 분석, AI/ML에 널리 사용
+• 라이브러리가 풍부하고 커뮤니티 활발
+• 초보자도 배우기 쉬운 언어
+
+주요 특징:
+- 인터프리터 언어
+- 객체지향 프로그래밍 지원
+- 무료 오픈소스
+- 크로스 플랫폼 지원`;
+        }
+        else if (userMessage.includes('자바스크립트') && (userMessage.includes('뭐야') || userMessage.includes('무엇') || userMessage.includes('설명'))) {
+            responseText = `⚡ 자바스크립트(JavaScript)
+
+• 웹 브라우저에서 실행되는 프로그래밍 언어
+• 웹페이지에 동적인 기능 추가
+• 현재는 서버(Node.js)에서도 사용
+• 프론트엔드와 백엔드 모두 개발 가능
+
+주요 특징:
+- 동적 타입 언어
+- 이벤트 기반 프로그래밍
+- 함수형 프로그래밍 지원
+- 비동기 처리 가능
+- 웹 개발의 필수 언어`;
+        }
+        else if (userMessage.includes('리액트') && (userMessage.includes('뭐야') || userMessage.includes('무엇') || userMessage.includes('설명'))) {
+            responseText = `⚛️ 리액트(React)
+
+• 페이스북이 개발한 자바스크립트 라이브러리
+• 사용자 인터페이스(UI) 구축용
+• 컴포넌트 기반 개발
+• 가상 DOM으로 성능 최적화
+
+주요 특징:
+- 재사용 가능한 컴포넌트
+- 단방향 데이터 흐름
+- JSX 문법 사용
+- 생태계가 매우 풍부
+- 모바일 앱(React Native) 개발도 가능`;
+        }
         // Claude API를 통한 일반 질문 처리 (최대 3초 제한)
         else {
             console.log('✅ Claude API 호출 시작...');
@@ -457,12 +533,24 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 
             } catch (error) {
                 const responseTime = Date.now() - startTime;
-                console.log(`⚠️ Claude API 에러 (${responseTime}ms): ${error.message}`);
+                console.log(`⚠️ Claude API 에러 (${responseTime}ms):`, {
+                    message: error.message,
+                    status: error.response?.status,
+                    statusText: error.response?.statusText,
+                    data: error.response?.data,
+                    code: error.code,
+                    hasApiKey: !!process.env.CLAUDE_API_KEY,
+                    apiKeyLength: process.env.CLAUDE_API_KEY?.length || 0
+                });
                 
                 if (error.response?.status === 401) {
-                    responseText = `AI 서비스 인증 문제가 있습니다. 관리자에게 문의해주세요.`;
+                    responseText = `🔑 AI 인증 오류가 발생했습니다.\n\n관리자가 API 키를 확인 중입니다.`;
+                } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+                    responseText = `⏰ AI 응답 시간이 초과되었습니다.\n\n더 간단한 질문으로 다시 시도해주세요.`;
+                } else if (error.response?.status === 429) {
+                    responseText = `🚫 AI 사용량 한도에 도달했습니다.\n\n잠시 후 다시 시도해주세요.`;
                 } else {
-                    responseText = `죄송합니다. AI 서비스가 일시적으로 불안정합니다. 간단한 질문으로 다시 시도해주세요.`;
+                    responseText = `⚠️ AI 서비스가 일시 불안정합니다.\n\n• 간단한 질문으로 다시 시도해주세요\n• 또는 잠시 후 다시 물어보세요`;
                 }
             }
         }
