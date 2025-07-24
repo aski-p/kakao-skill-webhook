@@ -527,12 +527,12 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 'https://api.anthropic.com/v1/messages',
                 {
                     model: "claude-3-haiku-20240307",  // 가장 빠른 모델 유지
-                    system: `한국어로 명확하고 상세한 답변을 제공하세요. 비교 질문은 모든 항목을 순서대로 완전히 설명하세요. 현재 시간: ${koreanTime.formatted}`,
+                    system: `한국어로 답변하세요. 비교 질문은 핵심 차이점을 간결하게 설명하세요. 답변은 1000자 이내로 작성하여 카카오톡에서 정상 표시되도록 하세요. 현재 시간: ${koreanTime.formatted}`,
                     messages: [{
                         role: "user",
                         content: userMessage
                     }],
-                    max_tokens: 1500  // 속도 개선을 위해 1800 → 1500으로 조정
+                    max_tokens: 1000  // 카카오톡 메시지 길이 제한 고려
                 },
                 {
                     headers: {
@@ -580,9 +580,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
         
-        // 스마트 분할 시스템 비활성화 - 전체 답변을 한 번에 전송
-        // const processedResponse = handleLongResponse(responseText, userId, 'general');
-        // responseText = processedResponse.text;
+        // 카카오톡 메시지 길이 제한 (약 1000자)
+        if (responseText.length > 1000) {
+            responseText = responseText.substring(0, 997) + '...';
+            console.log(`⚠️ 메시지가 길어서 1000자로 제한됨`);
+        }
         
         const kakaoResponse = {
             version: "2.0",
