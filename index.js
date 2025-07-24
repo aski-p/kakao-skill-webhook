@@ -12,6 +12,27 @@ axios.defaults.httpsAgent = httpsAgent;
 const app = express();
 app.use(express.json());
 
+// 카카오톡 5초 제한에 맞춘 응답 타임아웃 설정
+app.use((req, res, next) => {
+    res.setTimeout(4800, () => {  // 4.8초로 설정 (여유 0.2초)
+        console.log('⏰ 카카오톡 타임아웃 방지 - 빠른 응답 전송');
+        
+        if (!res.headersSent) {
+            res.status(200).json({
+                version: "2.0",
+                template: {
+                    outputs: [{
+                        simpleText: {
+                            text: "처리가 조금 지연되고 있습니다. 간단한 질문으로 다시 시도해주세요! 😊"
+                        }
+                    }]
+                }
+            });
+        }
+    });
+    next();
+});
+
 // 네이버 검색 API 설정
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
@@ -19,12 +40,12 @@ const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
 const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
 const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
 
-// 최적화된 타임아웃 설정 - Claude API 응답 시간 증가
+// 카카오톡 5초 제한에 맞춘 최적화된 타임아웃 설정
 const TIMEOUT_CONFIG = {
-    naver_api: 5000,
-    claude_general: 15000,  // 4초 → 15초로 증가
-    claude_image: 20000,
-    image_download: 8000
+    naver_api: 3000,
+    claude_general: 4500,  // 카카오톡 5초 제한 고려
+    claude_image: 6000,
+    image_download: 4000
 };
 
 // 한국 시간 가져오기 함수
@@ -517,40 +538,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             }
         }
         
-        // 맥미니 M4 vs M2 질문에 대한 즉시 응답 (카카오톡 5초 제한 고려)
-        if (userMessage.includes('맥미니') && (userMessage.includes('m4') || userMessage.includes('M4')) && (userMessage.includes('m2') || userMessage.includes('M2'))) {
-            const quickResponse = `🖥️ 맥미니 M4 vs M2 주요 차이점:
-
-1️⃣ CPU: M4는 10코어, M2는 8코어 (약 40% 성능 향상)
-
-2️⃣ GPU: M4는 10코어 GPU, M2는 8코어 GPU
-
-3️⃣ 메모리: M4는 최대 32GB, M2는 최대 24GB
-
-4️⃣ 연결성: M4는 더 많은 Thunderbolt 포트 지원
-
-5️⃣ 성능: M4가 영상편집, 3D작업에서 약 30-40% 빠름
-
-💰 가격차이: M4가 약 20-30만원 더 비쌈
-
-📊 권장: 전문 작업용은 M4, 일반 사용은 M2도 충분`;
-
-            const response = {
-                version: "2.0",
-                template: {
-                    outputs: [{
-                        simpleText: {
-                            text: quickResponse
-                        }
-                    }]
-                }
-            };
-            
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.status(200).json(response);
-            console.log('✅ 맥미니 M4 vs M2 즉시 응답 전송');
-            return;
-        }
+        // 카카오톡 타임아웃 방지를 위한 Claude API 최적화
         
         // 간단한 질문만 실시간 Claude API 호출
         console.log('✅ Claude API 호출 시작...');
@@ -561,13 +549,13 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             const claudeResponse = await axios.post(
                 'https://api.anthropic.com/v1/messages',
                 {
-                    model: "claude-3-haiku-20240307",  // 가장 빠른 모델 유지
-                    system: `한국어로 답변하세요. 비교 질문은 핵심 차이점을 간결하게 설명하세요. 답변은 1000자 이내로 작성하여 카카오톡에서 정상 표시되도록 하세요. 현재 시간: ${koreanTime.formatted}`,
+                    model: "claude-3-haiku-20240307",  // 가장 빠른 모델
+                    system: `한국어로 답변. 간결하고 핵심만. 800자 이내.`,
                     messages: [{
                         role: "user",
                         content: userMessage
                     }],
-                    max_tokens: 1000  // 카카오톡 메시지 길이 제한 고려
+                    max_tokens: 600  // 속도 최적화
                 },
                 {
                     headers: {
@@ -615,10 +603,10 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
         
-        // 카카오톡 메시지 길이 제한 (약 1000자)
-        if (responseText.length > 1000) {
-            responseText = responseText.substring(0, 997) + '...';
-            console.log(`⚠️ 메시지가 길어서 1000자로 제한됨`);
+        // 카카오톡 메시지 길이 제한 (약 800자)
+        if (responseText.length > 800) {
+            responseText = responseText.substring(0, 797) + '...';
+            console.log(`⚠️ 메시지가 길어서 800자로 제한됨`);
         }
         
         const kakaoResponse = {
