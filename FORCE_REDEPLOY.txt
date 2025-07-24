@@ -1,19 +1,2 @@
-Railway 재배포 강제 트리거
-
-현재 시각: 2025-07-19 17:05 KST
-목적: Claude API 환경변수 설정 후 재배포 확인
-
-환경변수 설정 확인사항:
-- CLAUDE_API_KEY: [YOUR_API_KEY_PROVIDED_EARLIER]
-
-기대되는 로그 메시지:
-✅ Claude API 키가 정상적으로 설정되었습니다.
-✅ Claude API 키가 설정되어 있습니다.
-✅ Claude API 호출 시작...
-✅ Claude 응답 받음 (XXX자): ...
-
-만약 여전히 설정되지 않았다면:
-1. Railway 대시보드 → Variables 확인
-2. 환경변수 이름이 정확한지 확인 (CLAUDE_API_KEY)
-3. 값이 올바르게 입력되었는지 확인
-4. Manual Deploy 실행
+Railway 강제 재배포 트리거 - 헬스체크 비활성화
+Thu Jul 24 23:24:35 KST 2025
