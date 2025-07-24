@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const http = require('http');
 const https = require('https');
+const config = require('./config/keywords');
 
 // HTTP Keep-Alive 최적화 및 연결 안정성 향상
 const httpAgent = new http.Agent({ 
@@ -49,13 +50,8 @@ const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
 const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
 const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
 
-// 카카오톡 5초 제한에 맞춘 최적화된 타임아웃 설정
-const TIMEOUT_CONFIG = {
-    naver_api: 3000,        // 네이버 API: 3초
-    claude_general: 3000,   // Claude 일반: 3초
-    claude_image: 4000,     // Claude 이미지: 4초
-    image_download: 3000    // 이미지 다운로드: 3초
-};
+// 설정 파일에서 타임아웃 설정 가져오기
+const TIMEOUT_CONFIG = config.timeouts;
 
 // 한국 시간 가져오기 함수
 function getKoreanDateTime() {
@@ -307,19 +303,13 @@ async function getLocalRestaurants(query) {
 
 // 요청 분석 함수들
 function isNewsRequest(message) {
-    const newsKeywords = ['뉴스', '최신뉴스', '오늘뉴스', '새로운소식', '헤드라인', '속보', '시사'];
-    return newsKeywords.some(keyword => message.includes(keyword));
+    return config.news.some(keyword => message.includes(keyword));
 }
 
 function isShoppingRequest(message) {
-    const shoppingKeywords = ['상품', '제품', '구매', '쇼핑', '판매', '가격', '베스트', '인기', '랭킹', '순위', '리뷰', '후기'];
-    const hasShoppingKeyword = shoppingKeywords.some(keyword => message.includes(keyword));
-    
-    const productKeywords = ['노트북', '휴대폰', '스마트폰', '아이폰', '갤럭시', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기', '마우스', '키보드', '모니터', '스피커', '헤드폰', '태블릿', '컴퓨터'];
-    const hasProductKeyword = productKeywords.some(keyword => message.includes(keyword));
-    
-    const restaurantKeywords = ['맛집', '음식점', '식당', '배달', '맛있는', '먹을곳', '밥집', '카페', '커피', '치킨', '피자'];
-    const hasRestaurantKeyword = restaurantKeywords.some(keyword => message.includes(keyword));
+    const hasShoppingKeyword = config.shopping.general.some(keyword => message.includes(keyword));
+    const hasProductKeyword = config.shopping.products.some(keyword => message.includes(keyword));
+    const hasRestaurantKeyword = config.restaurant.food.some(keyword => message.includes(keyword));
     
     // 제품 추천의 경우: "제품명 + 추천" 형태
     const hasProductRecommend = hasProductKeyword && message.includes('추천');
@@ -329,35 +319,18 @@ function isShoppingRequest(message) {
 }
 
 function isRestaurantRequest(message) {
-    const restaurantKeywords = [
-        '맛집', '음식점', '식당', '배달', '맛있는', '먹을곳', '밥집',
-        '카페', '커피', '디저트', '떡볶이', '치킨', '피자', '한식', '중식', '일식', '양식',
-        '분식', '술집', '주점', '고기', '회', '초밥', '레스토랑'
-    ];
+    const hasRestaurantKeyword = config.restaurant.food.some(keyword => message.includes(keyword));
     
-    const locationKeywords = [
-        '역', '동', '구', '시', '군', '면', '근처', '주변', '앞', '사거리', '거리',
-        // 서울 주요 지역
-        '강남', '홍대', '신촌', '명동', '종로', '을지로', '성수', '건대', '신림', '사당', '노원', '수유', '도봉',
-        '서초', '송파', '강동', '중랑', '성북', '동대문', '마포', '용산', '영등포', '구로', '금천',
-        '서대문', '은평', '강서', '양천', '동작', '관악', '강북',
-        // 경기도 주요 지역  
-        '수원', '성남', '고양', '부천', '안산', '안양', '용인', '화성', '평택', '의정부', '시흥', '파주', '김포',
-        '광명', '광주', '군포', '오산', '이천', '양주', '동두천', '과천', '구리', '남양주', '하남',
-        '인덕원', '판교', '분당', '일산', '중동', '송도', '부평', '계양', '서현', '미금', '정자',
-        // 기타 주요 도시
-        '인천', '대전', '대구', '부산', '울산', '광주', '세종'
+    // 모든 지역 키워드 합치기
+    const allLocationKeywords = [
+        ...config.restaurant.locations.seoul,
+        ...config.restaurant.locations.gyeonggi,
+        ...config.restaurant.locations.major_cities,
+        ...config.restaurant.locations.general
     ];
+    const hasLocationKeyword = allLocationKeywords.some(keyword => message.includes(keyword));
     
-    const excludeKeywords = [
-        '상품', '제품', '구매', '쇼핑', '판매', '가격', '베스트', '인기', '랭킹', '순위',
-        '온라인', '쿠팡', '11번가', '지마켓', '옥션', '티몬', 'G마켓', '네이버쇼핑',
-        '할인', '세일', '특가', '리뷰', '후기', '배송', '무료배송', '당일배송'
-    ];
-    const hasExcludeKeyword = excludeKeywords.some(keyword => message.includes(keyword));
-    
-    const hasRestaurantKeyword = restaurantKeywords.some(keyword => message.includes(keyword));
-    const hasLocationKeyword = locationKeywords.some(keyword => message.includes(keyword));
+    const hasExcludeKeyword = config.exclude.shopping_from_restaurant.some(keyword => message.includes(keyword));
     
     return hasRestaurantKeyword && hasLocationKeyword && !hasExcludeKeyword;
 }
@@ -453,8 +426,8 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     newsText += `${index + 1}. ${news.title}\n${news.description}\n🔗 ${news.link}\n\n`;
                 });
                 
-                if (newsText.length > 900) {
-                    newsText = newsText.substring(0, 850) + '...\n\n더 많은 뉴스는 네이버에서 확인하세요.';
+                if (newsText.length > config.limits.message_max_length) {
+                    newsText = newsText.substring(0, config.limits.message_truncate_length) + '...\n\n더 많은 뉴스는 네이버에서 확인하세요.';
                 }
                 
                 responseText = newsText;
@@ -467,10 +440,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             console.log('🛒 쇼핑 요청 감지됨');
             
             let searchQuery = userMessage;
-            const productKeywords = ['노트북', '휴대폰', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기', '마우스', '키보드', '모니터', '스피커'];
             let foundProducts = [];
             
-            productKeywords.forEach(keyword => {
+            config.shopping.products.forEach(keyword => {
                 if (userMessage.includes(keyword)) {
                     foundProducts.push(keyword);
                 }
@@ -486,12 +458,12 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             
             if (shoppingResults && shoppingResults.length > 0) {
                 let shoppingText = `🛒 "${searchQuery}" 쇼핑 검색 결과\n\n`;
-                shoppingResults.slice(0, 5).forEach((product, index) => {
+                shoppingResults.slice(0, config.limits.search_results_count).forEach((product, index) => {
                     shoppingText += `${index + 1}. ${product.title}\n💰 ${product.price}\n🏪 ${product.mallName}\n🔗 ${product.link}\n\n`;
                 });
                 
-                if (shoppingText.length > 900) {
-                    shoppingText = shoppingText.substring(0, 850) + '...\n\n더 많은 상품은 네이버쇼핑에서 확인하세요.';
+                if (shoppingText.length > config.limits.message_max_length) {
+                    shoppingText = shoppingText.substring(0, config.limits.message_truncate_length) + '...\n\n더 많은 상품은 네이버쇼핑에서 확인하세요.';
                 }
                 
                 responseText = shoppingText;
@@ -506,12 +478,12 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             
             if (restaurantResults && restaurantResults.length > 0) {
                 let restaurantText = `🍽️ "${userMessage}" 맛집 검색 결과\n\n`;
-                restaurantResults.slice(0, 5).forEach((restaurant, index) => {
+                restaurantResults.slice(0, config.limits.search_results_count).forEach((restaurant, index) => {
                     restaurantText += `${index + 1}. ${restaurant.title}\n📍 ${restaurant.address}\n📞 ${restaurant.telephone}\n🏷️ ${restaurant.category}\n🔗 ${restaurant.link}\n\n`;
                 });
                 
-                if (restaurantText.length > 900) {
-                    restaurantText = restaurantText.substring(0, 850) + '...\n\n더 많은 맛집은 네이버에서 확인하세요.';
+                if (restaurantText.length > config.limits.message_max_length) {
+                    restaurantText = restaurantText.substring(0, config.limits.message_truncate_length) + '...\n\n더 많은 맛집은 네이버에서 확인하세요.';
                 }
                 
                 responseText = restaurantText;
@@ -574,7 +546,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                             role: "user",
                             content: userMessage
                         }],
-                        max_tokens: 400  // 토큰 수 줄여서 더 간결한 답변
+                        max_tokens: config.limits.claude_max_tokens
                     },
                     {
                         headers: {
@@ -591,12 +563,12 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
                 
                 // 응답 후처리: 카카오톡에 맞게 최적화
-                if (responseText.length > 900) {
+                if (responseText.length > config.limits.message_max_length) {
                     // 문장 단위로 자르기
                     const sentences = responseText.split(/[.!?]\s+/);
                     let truncated = '';
                     for (const sentence of sentences) {
-                        if ((truncated + sentence).length > 850) break;
+                        if ((truncated + sentence).length > config.limits.message_truncate_length) break;
                         truncated += sentence + '. ';
                     }
                     responseText = truncated.trim();
@@ -633,9 +605,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         console.log(`📝 응답 내용: ${responseText.substring(0, 100)}...`);
         
         // 메시지 길이 제한 (카카오톡 호환성)
-        if (responseText.length > 950) {
-            responseText = responseText.substring(0, 947) + '...';
-            console.log(`⚠️ 메시지가 길어서 950자로 제한됨`);
+        if (responseText.length > config.limits.message_max_length) {
+            responseText = responseText.substring(0, config.limits.message_max_length - 3) + '...';
+            console.log(`⚠️ 메시지가 길어서 ${config.limits.message_max_length}자로 제한됨`);
         }
         
         const kakaoResponse = {
