@@ -265,6 +265,7 @@ async function getLocalRestaurants(query) {
         };
         
         console.log(`🍽️ 네이버 지역검색: "${query}"`);
+        console.log(`📊 API 요청 파라미터:`, params);
         
         const response = await axios.get(NAVER_LOCAL_API_URL, {
             params: params,
@@ -275,13 +276,31 @@ async function getLocalRestaurants(query) {
             timeout: TIMEOUT_CONFIG.naver_api
         });
         
+        console.log(`📈 API 응답 상태: ${response.status}`);
+        console.log(`📊 API 응답 데이터:`, {
+            total: response.data.total || 0,
+            start: response.data.start || 0,
+            display: response.data.display || 0,
+            itemsCount: response.data.items?.length || 0
+        });
+        
         const items = response.data.items;
         if (!items || items.length === 0) {
             console.log('🍽️ 검색된 맛집이 없습니다.');
+            console.log(`🔍 API 응답 전체:`, JSON.stringify(response.data, null, 2));
             return null;
         }
         
         console.log(`✅ ${items.length}개의 맛집을 찾았습니다.`);
+        
+        // 첫 번째 결과 샘플 로깅
+        if (items.length > 0) {
+            console.log(`🏪 첫 번째 결과 샘플:`, {
+                title: items[0].title?.replace(/<[^>]*>/g, ''),
+                category: items[0].category,
+                address: items[0].address
+            });
+        }
         
         return items.slice(0, 5).map(item => ({
             title: item.title.replace(/<[^>]*>/g, ''),
@@ -297,6 +316,11 @@ async function getLocalRestaurants(query) {
         
     } catch (error) {
         console.error('❌ 네이버 지역검색 API 오류:', error.response?.data || error.message);
+        console.error('🔍 오류 세부사항:', {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data
+        });
         return null;
     }
 }
@@ -474,10 +498,31 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         // 네이버 지역검색 (맛집)
         else if (isRestaurantRequest(userMessage)) {
             console.log('🍽️ 맛집 요청 감지됨');
-            const restaurantResults = await getLocalRestaurants(userMessage);
+            
+            // 검색 쿼리 최적화: 지역명 추출 및 검색어 개선
+            let searchQuery = userMessage;
+            
+            // 지역명 추출
+            const allLocationKeywords = [
+                ...config.restaurant.locations.seoul,
+                ...config.restaurant.locations.gyeonggi,
+                ...config.restaurant.locations.major_cities,
+                ...config.restaurant.locations.general
+            ];
+            
+            const foundLocation = allLocationKeywords.find(location => userMessage.includes(location));
+            const foodKeywords = config.restaurant.food.filter(food => userMessage.includes(food));
+            
+            if (foundLocation) {
+                // 지역명이 있으면 "지역명 + 맛집"으로 검색
+                searchQuery = `${foundLocation} 맛집`;
+                console.log(`🔍 최적화된 검색어: "${searchQuery}" (원본: "${userMessage}")`);
+            }
+            
+            const restaurantResults = await getLocalRestaurants(searchQuery);
             
             if (restaurantResults && restaurantResults.length > 0) {
-                let restaurantText = `🍽️ "${userMessage}" 맛집 검색 결과\n\n`;
+                let restaurantText = `🍽️ "${foundLocation || userMessage}" 맛집 검색 결과\n\n`;
                 restaurantResults.slice(0, config.limits.search_results_count).forEach((restaurant, index) => {
                     restaurantText += `${index + 1}. ${restaurant.title}\n📍 ${restaurant.address}\n📞 ${restaurant.telephone}\n🏷️ ${restaurant.category}\n🔗 ${restaurant.link}\n\n`;
                 });
@@ -488,7 +533,34 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 
                 responseText = restaurantText;
             } else {
-                responseText = `"${userMessage}" 관련 맛집을 찾을 수 없습니다. 지역명과 음식 종류를 함께 검색해보세요.`;
+                // 첫 번째 검색 실패 시 더 넓은 범위로 재시도
+                console.log(`🔄 첫 번째 검색 실패, 재시도 중...`);
+                
+                let retryQuery = userMessage;
+                if (foundLocation) {
+                    // "지역명 + 식당"으로 재시도
+                    retryQuery = `${foundLocation} 식당`;
+                    console.log(`🔍 재시도 검색어: "${retryQuery}"`);
+                    
+                    const retryResults = await getLocalRestaurants(retryQuery);
+                    
+                    if (retryResults && retryResults.length > 0) {
+                        let restaurantText = `🍽️ "${foundLocation}" 식당 검색 결과\n\n`;
+                        retryResults.slice(0, config.limits.search_results_count).forEach((restaurant, index) => {
+                            restaurantText += `${index + 1}. ${restaurant.title}\n📍 ${restaurant.address}\n📞 ${restaurant.telephone}\n🏷️ ${restaurant.category}\n🔗 ${restaurant.link}\n\n`;
+                        });
+                        
+                        if (restaurantText.length > config.limits.message_max_length) {
+                            restaurantText = restaurantText.substring(0, config.limits.message_truncate_length) + '...\n\n더 많은 맛집은 네이버에서 확인하세요.';
+                        }
+                        
+                        responseText = restaurantText;
+                    } else {
+                        responseText = `"${foundLocation || userMessage}" 지역의 맛집을 찾을 수 없습니다.\n\n💡 다음과 같이 시도해보세요:\n• "${foundLocation} 한식"\n• "${foundLocation} 카페"\n• "${foundLocation} 치킨"\n\n또는 좀 더 큰 지역명으로 검색해보세요.`;
+                    }
+                } else {
+                    responseText = `"${userMessage}" 관련 맛집을 찾을 수 없습니다.\n\n💡 다음과 같이 시도해보세요:\n• "지역명 + 맛집" (예: 강남 맛집)\n• "지역명 + 음식종류" (예: 홍대 카페)`;
+                }
             }
         }
         // 맥미니 M4 vs M2 비교 질문 특별 처리
