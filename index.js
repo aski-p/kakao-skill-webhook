@@ -658,7 +658,10 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             const restaurantResults = await getLocalRestaurants(searchQuery);
             
             if (restaurantResults && restaurantResults.length > 0) {
-                let restaurantText = `🍽️ "${foundLocation || userMessage}" 맛집 검색 결과\n\n`;
+                // 첫 번째 검색 성공
+                const displayLocation = foundLocation || userMessage.replace(/\s+(맛집|식당|음식점).*$/, '');
+                let restaurantText = `🍽️ "${displayLocation}" 맛집 검색 결과\n\n`;
+                
                 restaurantResults.slice(0, config.limits.search_results_count).forEach((restaurant, index) => {
                     restaurantText += `${index + 1}. ${restaurant.title}\n📍 ${restaurant.address}\n📞 ${restaurant.telephone}\n🏷️ ${restaurant.category}\n🔗 ${restaurant.link}\n\n`;
                 });
@@ -714,12 +717,22 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     
                     // 여전히 실패하면 더 넓은 범위로 시도
                     if (!retryResults || retryResults.length === 0) {
-                        // "강북구 번3동" → "강북" + "서울" 조합 시도
+                        // "강북구 번3동" → 다양한 조합 시도
                         const broaderSearches = [];
                         
                         if (foundLocation.includes('구')) {
                             const district = foundLocation.replace('구', '');
-                            broaderSearches.push(`서울 ${district}`, `${district}역`, `${district}동`);
+                            // 강북구 → 강북 관련 검색 확장
+                            broaderSearches.push(
+                                `서울 ${district}`,
+                                `${district}역`, 
+                                `${district}동`,
+                                `${district}구청`,
+                                `${district} 지역`,
+                                `${district} 근처`,
+                                `서울시 ${district}구`,
+                                `${district} 상권`
+                            );
                         }
                         
                         if (foundLocation.includes('동')) {
@@ -727,17 +740,60 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                             broaderSearches.push(`${neighborhood}역`, `${neighborhood}`);
                         }
                         
+                        // 모든 검색어에 대해 '맛집' 뿐만 아니라 다른 키워드도 시도
+                        const searchKeywords = ['맛집', '음식점', '식당'];
+                        
                         for (const broadSearch of broaderSearches) {
                             if (retryResults && retryResults.length > 0) break;
                             
-                            retryQuery = `${broadSearch} 맛집`;
-                            console.log(`🔍 넓은 범위 재시도: "${retryQuery}"`);
+                            for (const keyword of searchKeywords) {
+                                if (retryResults && retryResults.length > 0) break;
+                                
+                                retryQuery = `${broadSearch} ${keyword}`;
+                                console.log(`🔍 확장 검색: "${retryQuery}"`);
+                                retryAttempts.push(retryQuery);
+                                
+                                retryResults = await getLocalRestaurants(retryQuery);
+                                
+                                if (retryResults && retryResults.length > 0) {
+                                    console.log(`✅ 확장 검색 성공: "${retryQuery}"`);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 최후 시도: 인근 대형 지역으로 검색
+                    if (!retryResults || retryResults.length === 0) {
+                        console.log(`🚨 최후 시도: 인근 주요 지역으로 검색...`);
+                        
+                        // 강북 관련 인근 주요 지역들
+                        const nearbyAreas = [];
+                        
+                        if (foundLocation.includes('강북')) {
+                            nearbyAreas.push('노원', '수유', '미아', '도봉', '성북');
+                        }
+                        
+                        // 다른 지역들도 추가 가능
+                        if (foundLocation.includes('강남')) {
+                            nearbyAreas.push('서초', '송파', '역삼', '삼성');
+                        }
+                        
+                        if (foundLocation.includes('마포')) {
+                            nearbyAreas.push('홍대', '상수', '합정', '연남');
+                        }
+                        
+                        for (const area of nearbyAreas) {
+                            if (retryResults && retryResults.length > 0) break;
+                            
+                            retryQuery = `${area} 맛집`;
+                            console.log(`🔍 인근 지역 검색: "${retryQuery}"`);
                             retryAttempts.push(retryQuery);
                             
                             retryResults = await getLocalRestaurants(retryQuery);
                             
                             if (retryResults && retryResults.length > 0) {
-                                console.log(`✅ 넓은 범위 검색 성공: "${retryQuery}"`);
+                                console.log(`✅ 인근 지역 검색 성공: "${retryQuery}" (${foundLocation} 대신)`);
                                 break;
                             }
                         }
@@ -752,7 +808,17 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 console.log(`📊 총 ${retryAttempts.length}번의 재시도 완료:`, retryAttempts);
                 
                 if (retryResults && retryResults.length > 0) {
-                    let restaurantText = `🍽️ "${foundLocation || userMessage}" 검색 결과\n\n`;
+                    // 성공한 검색어에서 키워드 추출해서 사용자에게 표시
+                    const successfulSearchTerm = retryQuery.replace(/\s+(맛집|식당|음식점)$/, '');
+                    const displayLocation = successfulSearchTerm || foundLocation || userMessage;
+                    
+                    let restaurantText = `🍽️ "${displayLocation}" 맛집 검색 결과\n\n`;
+                    
+                    // 원래 요청과 다른 검색어로 찾았다면 알림 추가
+                    if (retryQuery !== searchQuery) {
+                        restaurantText += `💡 "${successfulSearchTerm}" 지역 맛집을 찾았습니다\n\n`;
+                    }
+                    
                     retryResults.slice(0, config.limits.search_results_count).forEach((restaurant, index) => {
                         restaurantText += `${index + 1}. ${restaurant.title}\n📍 ${restaurant.address}\n📞 ${restaurant.telephone}\n🏷️ ${restaurant.category}\n🔗 ${restaurant.link}\n\n`;
                     });
