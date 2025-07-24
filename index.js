@@ -670,35 +670,86 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 responseText = restaurantText;
             } else {
                 // 첫 번째 검색 실패 시 다양한 방법으로 재시도
-                console.log(`🔄 첫 번째 검색 실패, 재시도 중...`);
+                console.log(`🔄 첫 번째 검색 실패, 스마트 재시도 시작...`);
                 
                 let retryResults = null;
                 let retryQuery = userMessage;
+                let retryAttempts = [];
                 
                 if (foundLocation) {
-                    // 시도 1: "지역명 + 식당"으로 재시도
-                    retryQuery = `${foundLocation} 식당`;
-                    console.log(`🔍 재시도 1차: "${retryQuery}"`);
-                    retryResults = await getLocalRestaurants(retryQuery);
+                    // 지역명 변형 생성 (구 제거, 축약형 등)
+                    const locationVariations = [foundLocation];
                     
-                    // 시도 2: "지역명 + 음식점"으로 재시도
-                    if (!retryResults || retryResults.length === 0) {
-                        retryQuery = `${foundLocation} 음식점`;
-                        console.log(`🔍 재시도 2차: "${retryQuery}"`);
-                        retryResults = await getLocalRestaurants(retryQuery);
+                    // "OO구" → "OO" 변형
+                    if (foundLocation.endsWith('구')) {
+                        locationVariations.push(foundLocation.replace('구', ''));
                     }
                     
-                    // 시도 3: "지역명"만으로 재시도 (주변 상권 검색)
+                    // "OO동" → "OO" 변형  
+                    if (foundLocation.endsWith('동')) {
+                        locationVariations.push(foundLocation.replace('동', ''));
+                    }
+                    
+                    // 각 지역명 변형에 대해 다양한 키워드로 시도
+                    for (const location of locationVariations) {
+                        const searchTerms = ['맛집', '식당', '음식점', ''];
+                        
+                        for (const term of searchTerms) {
+                            if (retryResults && retryResults.length > 0) break;
+                            
+                            retryQuery = term ? `${location} ${term}` : location;
+                            console.log(`🔍 재시도: "${retryQuery}"`);
+                            retryAttempts.push(retryQuery);
+                            
+                            retryResults = await getLocalRestaurants(retryQuery);
+                            
+                            if (retryResults && retryResults.length > 0) {
+                                console.log(`✅ 성공한 검색어: "${retryQuery}"`);
+                                break;
+                            }
+                        }
+                        
+                        if (retryResults && retryResults.length > 0) break;
+                    }
+                    
+                    // 여전히 실패하면 더 넓은 범위로 시도
                     if (!retryResults || retryResults.length === 0) {
-                        retryQuery = foundLocation;
-                        console.log(`🔍 재시도 3차: "${retryQuery}"`);
-                        retryResults = await getLocalRestaurants(retryQuery);
+                        // "강북구 번3동" → "강북" + "서울" 조합 시도
+                        const broaderSearches = [];
+                        
+                        if (foundLocation.includes('구')) {
+                            const district = foundLocation.replace('구', '');
+                            broaderSearches.push(`서울 ${district}`, `${district}역`, `${district}동`);
+                        }
+                        
+                        if (foundLocation.includes('동')) {
+                            const neighborhood = foundLocation.replace('동', '');
+                            broaderSearches.push(`${neighborhood}역`, `${neighborhood}`);
+                        }
+                        
+                        for (const broadSearch of broaderSearches) {
+                            if (retryResults && retryResults.length > 0) break;
+                            
+                            retryQuery = `${broadSearch} 맛집`;
+                            console.log(`🔍 넓은 범위 재시도: "${retryQuery}"`);
+                            retryAttempts.push(retryQuery);
+                            
+                            retryResults = await getLocalRestaurants(retryQuery);
+                            
+                            if (retryResults && retryResults.length > 0) {
+                                console.log(`✅ 넓은 범위 검색 성공: "${retryQuery}"`);
+                                break;
+                            }
+                        }
                     }
                 } else {
                     // 지역명을 못 찾은 경우 원본 메시지로 재시도
                     console.log(`🔍 지역명 없이 원본 메시지로 재시도: "${userMessage}"`);
+                    retryAttempts.push(userMessage);
                     retryResults = await getLocalRestaurants(userMessage);
                 }
+                
+                console.log(`📊 총 ${retryAttempts.length}번의 재시도 완료:`, retryAttempts);
                 
                 if (retryResults && retryResults.length > 0) {
                     let restaurantText = `🍽️ "${foundLocation || userMessage}" 검색 결과\n\n`;
@@ -712,11 +763,32 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     
                     responseText = restaurantText;
                 } else {
-                    // 모든 재시도 실패
+                    // 모든 재시도 실패 - 더 구체적인 안내
+                    console.log(`❌ 모든 검색 시도 실패. 시도한 검색어들:`, retryAttempts);
+                    
                     if (foundLocation) {
-                        responseText = `"${foundLocation}" 지역의 맛집을 찾을 수 없습니다.\n\n💡 다음과 같이 시도해보세요:\n• "${foundLocation} 한식"\n• "${foundLocation} 카페"\n• "${foundLocation} 치킨"\n\n또는 더 큰 지역명으로 검색해보세요.`;
+                        // 지역명 기반 대안 제시
+                        const alternatives = [];
+                        
+                        if (foundLocation.includes('구')) {
+                            const district = foundLocation.replace('구', '');
+                            alternatives.push(`"${district} 맛집"`, `"${district}역 맛집"`);
+                        }
+                        
+                        if (foundLocation.includes('동')) {
+                            const neighborhood = foundLocation.replace('동', '');
+                            alternatives.push(`"${neighborhood} 맛집"`, `"${neighborhood}역 맛집"`);
+                        }
+                        
+                        // 기본 대안들도 추가
+                        alternatives.push(`"${foundLocation} 한식"`, `"${foundLocation} 카페"`);
+                        
+                        // 중복 제거 후 최대 4개만
+                        const uniqueAlternatives = [...new Set(alternatives)].slice(0, 4);
+                        
+                        responseText = `"${foundLocation}" 지역 검색 결과가 없습니다.\n\n💡 이렇게 검색해보세요:\n${uniqueAlternatives.map(alt => `• ${alt}`).join('\n')}\n\n또는 더 큰 지역명 (예: 강북구→강북)으로 시도해보세요.`;
                     } else {
-                        responseText = `"${userMessage}" 관련 맛집을 찾을 수 없습니다.\n\n💡 검색 팁:\n• "지역명 + 맛집" (예: 강남 맛집)\n• "구/동 + 맛집" (예: 강북구 맛집)\n• "지역명 + 음식종류" (예: 홍대 카페)`;
+                        responseText = `"${userMessage}" 검색 결과가 없습니다.\n\n💡 검색 팁:\n• "지역명 + 맛집" (예: 강남 맛집)\n• "구/동 + 맛집" (예: 강북구 맛집)\n• "역 + 맛집" (예: 강북역 맛집)\n• "지역명 + 음식종류" (예: 홍대 카페)`;
                     }
                 }
             }
