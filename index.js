@@ -259,9 +259,9 @@ async function getLocalRestaurants(query) {
         
         const params = {
             query: query,
-            display: 10,
+            display: 20,  // 필터링을 위해 더 많이 가져옴
             start: 1,
-            sort: 'comment'
+            sort: 'comment'  // 리뷰/댓글 많은 순으로 정렬 (사용자 검색 많은 곳)
         };
         
         console.log(`🍽️ 네이버 지역검색: "${query}"`);
@@ -291,18 +291,73 @@ async function getLocalRestaurants(query) {
             return null;
         }
         
-        console.log(`✅ ${items.length}개의 맛집을 찾았습니다.`);
+        console.log(`✅ ${items.length}개의 원본 결과를 받았습니다.`);
+        
+        // 패스트푸드점 및 체인점 필터링 (설정 파일 기반)
+        const filteredItems = items.filter(item => {
+            const title = item.title.replace(/<[^>]*>/g, '');
+            const category = item.category || '';
+            
+            // 제외 키워드 체크 (체인점, 패스트푸드)
+            const hasExcludeKeyword = config.restaurant_filters.exclude_keywords.some(keyword => 
+                title.includes(keyword) || category.includes(keyword)
+            );
+            
+            // 제외 카테고리 체크 (편의점, 마트 등)
+            const hasExcludeCategory = config.restaurant_filters.exclude_categories.some(excludeCategory =>
+                category.includes(excludeCategory)
+            );
+            
+            // 필터링 결과를 로그로 남김 (디버깅용)
+            if (hasExcludeKeyword || hasExcludeCategory) {
+                console.log(`🚫 필터링 제외: "${title}" (카테고리: ${category})`);
+            }
+            
+            return !hasExcludeKeyword && !hasExcludeCategory;
+        });
+        
+        console.log(`🔍 필터링 완료: ${items.length}개 → ${filteredItems.length}개 (패스트푸드/체인점 제외)`);
+        
+        if (filteredItems.length === 0) {
+            console.log('🍽️ 필터링 후 맛집이 없습니다.');
+            return null;
+        }
+        
+        // 인기도 기준 추가 정렬 (사용자 검색량 기준, 설정 파일 기반)
+        const sortedItems = filteredItems.sort((a, b) => {
+            const titleA = a.title.replace(/<[^>]*>/g, '');
+            const titleB = b.title.replace(/<[^>]*>/g, '');
+            
+            // 인기 키워드 점수 계산
+            const popularKeywordScoreA = config.restaurant_filters.popular_keywords
+                .filter(keyword => titleA.includes(keyword)).length;
+            const popularKeywordScoreB = config.restaurant_filters.popular_keywords
+                .filter(keyword => titleB.includes(keyword)).length;
+            
+            // 카테고리 우선순위 점수
+            const categoryScoreA = config.restaurant_filters.category_priority[a.category] || 0;
+            const categoryScoreB = config.restaurant_filters.category_priority[b.category] || 0;
+            
+            // 총 점수 계산 (인기 키워드 가중치를 높게)
+            const totalScoreA = (popularKeywordScoreA * 3) + categoryScoreA;
+            const totalScoreB = (popularKeywordScoreB * 3) + categoryScoreB;
+            
+            return totalScoreB - totalScoreA; // 높은 점수가 우선
+        });
+        
+        console.log(`📊 인기도순 정렬 완료: ${sortedItems.length}개`);
         
         // 첫 번째 결과 샘플 로깅
-        if (items.length > 0) {
+        if (sortedItems.length > 0) {
             console.log(`🏪 첫 번째 결과 샘플:`, {
-                title: items[0].title?.replace(/<[^>]*>/g, ''),
-                category: items[0].category,
-                address: items[0].address
+                title: sortedItems[0].title?.replace(/<[^>]*>/g, ''),
+                category: sortedItems[0].category,
+                address: sortedItems[0].address
             });
         }
         
-        return items.slice(0, 5).map(item => ({
+        // 최대 5개까지 반환
+        return sortedItems.slice(0, 5).map(item => ({
             title: item.title.replace(/<[^>]*>/g, ''),
             category: item.category,
             description: item.description ? item.description.replace(/<[^>]*>/g, '') : '',
