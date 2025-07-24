@@ -41,7 +41,7 @@ function getKoreanDateTime() {
 }
 
 // 스마트 메시지 분할 시스템
-function smartSplit(text, maxLength = 800) {
+function smartSplit(text, maxLength = 1500) {
     if (text.length <= maxLength) return [text];
     
     const sentences = text.split(/([.!?]\s+)/);
@@ -84,7 +84,7 @@ function smartSplit(text, maxLength = 800) {
 const pendingMessages = new Map();
 
 function handleLongResponse(text, userId, responseType = 'general') {
-    const chunks = smartSplit(text, 800);
+    const chunks = smartSplit(text, 1500);
     
     if (chunks.length === 1) {
         return { text: chunks[0], hasMore: false };
@@ -524,9 +524,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 
 답변 가이드라인:
 1. 명확하고 도움이 되는 답변을 제공하세요.
-2. 핵심 내용을 간결하게 설명하세요.
-3. 답변 길이는 반드시 950자 이내로 작성하세요.
-4. 카카오톡 메시지 형태에 적합하도록 간결하게 작성하세요.
+2. 핵심 내용을 상세하게 설명하세요.
+3. 답변 길이는 1400자 이내로 작성하세요.
+4. 비교 질문의 경우 항목별로 자세히 나누어 설명해주세요.
 
 중요 제한사항:
 - 맛집, 식당, 카페 등 실제 장소 추천을 요청받으면 "실제 운영 중인 맛집 정보는 네이버 지역검색을 통해 확인해주세요. 예: '강남역 맛집', '홍대 카페' 등으로 검색해주세요."라고 안내하세요.
@@ -536,7 +536,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                         role: "user",
                         content: userMessage
                     }],
-                    max_tokens: 800
+                    max_tokens: 1200
                 },
                 {
                     headers: {
