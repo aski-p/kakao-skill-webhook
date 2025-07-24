@@ -6,10 +6,10 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '10mb' }));
 
-// 개선된 응답 타임아웃 설정
+// 카카오톡 5초 제한에 맞춘 응답 타임아웃 설정
 app.use((req, res, next) => {
-    res.setTimeout(15000, () => {
-        console.log('⏰ 요청 타임아웃 (15초)');
+    res.setTimeout(4500, () => {  // 4.5초로 단축
+        console.log('⏰ 요청 타임아웃 (4.5초) - 카카오톡 호환성');
         
         // 타임아웃 시에도 사용자에게 도움이 되는 응답 제공
         if (!res.headersSent) {
@@ -18,7 +18,7 @@ app.use((req, res, next) => {
                 template: {
                     outputs: [{
                         simpleText: {
-                            text: "⏰ 처리 시간이 길어지고 있습니다.\n\n💡 팁:\n• 간단한 질문으로 다시 시도해보세요\n• '뉴스', '날씨' 등 키워드만 입력해보세요\n• 잠시 후 다시 시도해주세요"
+                            text: "⏰ 복잡한 질문이네요! 처리 중입니다.\n\n💡 더 빠른 답변을 원하시면:\n• '맥미니 간단 비교'로 다시 물어보세요\n• 또는 잠시 후 다시 시도해주세요"
                         }
                     }]
                 }
@@ -35,12 +35,12 @@ const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
 const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
 const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
 
-// 최적화된 타임아웃 설정
+// 카카오톡 5초 제한에 맞춘 최적화된 타임아웃 설정
 const TIMEOUT_CONFIG = {
-    naver_api: 5000,        // 네이버 API: 5초 (8초에서 단축)
-    claude_general: 8000,   // Claude 일반: 8초 (12초에서 단축)
-    claude_image: 10000,    // Claude 이미지: 10초 (15초에서 단축)
-    image_download: 7000    // 이미지 다운로드: 7초 (10초에서 단축)
+    naver_api: 3000,        // 네이버 API: 3초 (5초에서 단축)
+    claude_general: 4000,   // Claude 일반: 4초 (8초에서 단축)
+    claude_image: 6000,     // Claude 이미지: 6초 (10초에서 단축)
+    image_download: 4000    // 이미지 다운로드: 4초 (7초에서 단축)
 };
 
 // 파일 시스템 기반 지속적 저장소
