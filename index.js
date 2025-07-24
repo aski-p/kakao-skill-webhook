@@ -312,22 +312,20 @@ function isNewsRequest(message) {
 }
 
 function isShoppingRequest(message) {
-    const shoppingKeywords = ['상품', '제품', '구매', '쇼핑', '판매', '가격', '베스트', '인기', '랭킹', '순위', '리뷰', '후기', '추천'];
+    const shoppingKeywords = ['상품', '제품', '구매', '쇼핑', '판매', '가격', '베스트', '인기', '랭킹', '순위', '리뷰', '후기'];
     const hasShoppingKeyword = shoppingKeywords.some(keyword => message.includes(keyword));
     
     const productKeywords = ['노트북', '휴대폰', '스마트폰', '아이폰', '갤럭시', '화장품', '의류', '신발', '가방', '시계', '이어폰', '충전기', '마우스', '키보드', '모니터', '스피커', '헤드폰', '태블릿', '컴퓨터'];
     const hasProductKeyword = productKeywords.some(keyword => message.includes(keyword));
     
     const restaurantKeywords = ['맛집', '음식점', '식당', '배달', '맛있는', '먹을곳', '밥집', '카페', '커피', '치킨', '피자'];
-    const locationKeywords = ['역', '동', '구', '시', '군', '면', '근처', '주변'];
-    
     const hasRestaurantKeyword = restaurantKeywords.some(keyword => message.includes(keyword));
-    const hasLocationKeyword = locationKeywords.some(keyword => message.includes(keyword));
     
-    const isRestaurantContext = hasRestaurantKeyword && hasLocationKeyword;
+    // 제품 추천의 경우: "제품명 + 추천" 형태
+    const hasProductRecommend = hasProductKeyword && message.includes('추천');
     
-    // 쇼핑 관련 키워드가 있거나 제품명이 있으면서 맛집 검색이 아닌 경우
-    return (hasShoppingKeyword || hasProductKeyword) && !isRestaurantContext;
+    // 쇼핑 관련 키워드가 있거나 제품 추천이면서 맛집 키워드가 없는 경우
+    return (hasShoppingKeyword || hasProductKeyword || hasProductRecommend) && !hasRestaurantKeyword;
 }
 
 function isRestaurantRequest(message) {
@@ -338,7 +336,17 @@ function isRestaurantRequest(message) {
     ];
     
     const locationKeywords = [
-        '역', '동', '구', '시', '군', '면', '근처', '주변', '앞', '사거리', '거리'
+        '역', '동', '구', '시', '군', '면', '근처', '주변', '앞', '사거리', '거리',
+        // 서울 주요 지역
+        '강남', '홍대', '신촌', '명동', '종로', '을지로', '성수', '건대', '신림', '사당', '노원', '수유', '도봉',
+        '서초', '송파', '강동', '중랑', '성북', '동대문', '마포', '용산', '영등포', '구로', '금천',
+        '서대문', '은평', '강서', '양천', '동작', '관악', '강북',
+        // 경기도 주요 지역  
+        '수원', '성남', '고양', '부천', '안산', '안양', '용인', '화성', '평택', '의정부', '시흥', '파주', '김포',
+        '광명', '광주', '군포', '오산', '이천', '양주', '동두천', '과천', '구리', '남양주', '하남',
+        '인덕원', '판교', '분당', '일산', '중동', '송도', '부평', '계양', '서현', '미금', '정자',
+        // 기타 주요 도시
+        '인천', '대전', '대구', '부산', '울산', '광주', '세종'
     ];
     
     const excludeKeywords = [
@@ -411,6 +419,14 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         const koreanTime = getKoreanDateTime();
         console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
+        
+        // 키워드 감지 디버깅
+        console.log(`🔍 키워드 감지 결과:`, {
+            isNews: isNewsRequest(userMessage),
+            isShopping: isShoppingRequest(userMessage), 
+            isRestaurant: isRestaurantRequest(userMessage),
+            message: userMessage
+        });
         
         let responseText;
         
