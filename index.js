@@ -859,35 +859,89 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 }
             }
         }
-        // 맥미니 M4 vs M2 비교 질문 특별 처리
-        else if (userMessage.includes('맥미니') && (userMessage.includes('M4') || userMessage.includes('m4')) && (userMessage.includes('M2') || userMessage.includes('m2'))) {
-            responseText = `🖥️ 맥미니 M4 vs M2 성능 비교
+        // 맥미니 관련 질문 - 최신 정보로 Claude API 사용
+        else if (userMessage.includes('맥미니') && (userMessage.includes('최신') || userMessage.includes('M4') || userMessage.includes('m4') || userMessage.includes('M2') || userMessage.includes('m2'))) {
+            console.log('✅ 맥미니 관련 질문 - Claude API로 최신 정보 검색');
+            const startTime = Date.now();
+            
+            try {
+                if (!process.env.CLAUDE_API_KEY) {
+                    throw new Error('CLAUDE_API_KEY not found in environment variables');
+                }
+                
+                // 현재 날짜 정보 포함하여 요청
+                const currentDate = new Date().toLocaleDateString('ko-KR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                
+                const claudeResponse = await axios.post(
+                    'https://api.anthropic.com/v1/messages',
+                    {
+                        model: "claude-3-haiku-20240307",
+                        system: `현재 날짜: ${currentDate}
+                        
+한국어로 답변하세요. 카카오톡 메시지에 적합하도록 다음 규칙을 따르세요:
+- 800자 이내로 간결하게 작성
+- 최신 정보 기준으로 답변 (2024년 말 기준)
+- M4 맥미니가 최신 모델임을 반영
+- 핵심 정보만 포함
+- 이모지 적절히 사용
+- 읽기 쉬운 구조로 작성`,
+                        messages: [{
+                            role: "user",
+                            content: userMessage
+                        }],
+                        max_tokens: config.limits.claude_max_tokens
+                    },
+                    {
+                        headers: {
+                            'x-api-key': process.env.CLAUDE_API_KEY,
+                            'anthropic-version': '2023-06-01',
+                            'content-type': 'application/json'
+                        },
+                        timeout: 4000
+                    }
+                );
+                
+                const responseTime = Date.now() - startTime;
+                responseText = claudeResponse.data.content[0].text;
+                console.log(`✅ 맥미니 Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
+                
+                // 응답 후처리: 카카오톡에 맞게 최적화
+                if (responseText.length > config.limits.message_max_length) {
+                    const sentences = responseText.split(/[.!?]\s+/);
+                    let truncated = '';
+                    for (const sentence of sentences) {
+                        if ((truncated + sentence).length > config.limits.message_truncate_length) break;
+                        truncated += sentence + '. ';
+                    }
+                    responseText = truncated.trim();
+                    console.log(`📝 맥미니 응답 길이 조정: ${responseText.length}자로 단축`);
+                }
+                
+            } catch (error) {
+                const responseTime = Date.now() - startTime;
+                console.log(`⚠️ 맥미니 Claude API 에러 (${responseTime}ms):`, error.message);
+                
+                // 에러 시 백업 최신 정보
+                responseText = `🖥️ 맥미니 최신 정보 (2024년 말 기준)
 
-🚀 CPU 성능
-• M4: 10코어 CPU (4P+6E), 20% 향상
-• M2: 8코어 CPU (4P+4E)
+🆕 **M4 맥미니** (최신, 2024년 10월 출시)
+• CPU: 10코어 (4P+6E), M2 대비 25% 빠름
+• GPU: 10코어, Ray Tracing 지원
+• 메모리: 최대 64GB 통합 메모리
+• 저장용량: 최대 8TB SSD
+• 가격: 기본형 약 95만원
 
-🎮 GPU 성능  
-• M4: 10코어 GPU, 25% 향상
-• M2: 10코어 GPU
+📊 **M2와 비교**
+• 성능: 전체적으로 20-25% 향상
+• AI 작업: 훨씬 빠른 처리 속도
+• 게임: Ray Tracing으로 그래픽 향상
 
-🧠 메모리
-• M4: 최대 64GB 통합 메모리
-• M2: 최대 24GB 통합 메모리
-
-💾 저장소
-• M4: 최대 8TB SSD
-• M2: 최대 2TB SSD
-
-⚡ 전력효율
-• M4: 3nm 공정, 더 효율적
-• M2: 5nm 공정
-
-💰 가격 (기본형)
-• M4: 약 95만원
-• M2: 약 80만원
-
-📈 종합 성능 향상: 약 20-25%`;
+💡 M4가 현재 **최신 맥미니**입니다!`;
+            }
         }
         // Claude API를 통한 일반 질문 처리 (카카오톡 최적화)
         else {
@@ -900,12 +954,22 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     throw new Error('CLAUDE_API_KEY not found in environment variables');
                 }
                 
+                // 현재 날짜 정보 포함하여 요청
+                const currentDate = new Date().toLocaleDateString('ko-KR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                
                 const claudeResponse = await axios.post(
                     'https://api.anthropic.com/v1/messages',
                     {
                         model: "claude-3-haiku-20240307",
-                        system: `한국어로 답변하세요. 카카오톡 메시지에 적합하도록 다음 규칙을 따르세요:
+                        system: `현재 날짜: ${currentDate}
+
+한국어로 답변하세요. 카카오톡 메시지에 적합하도록 다음 규칙을 따르세요:
 - 800자 이내로 간결하게 작성
+- 2024년 말 기준 최신 정보로 답변
 - 핵심 정보만 포함
 - 이모지 적절히 사용
 - 불필요한 설명 제거
