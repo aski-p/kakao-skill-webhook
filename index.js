@@ -84,17 +84,8 @@ async function loadPersistentData() {
             console.log('📥 대기 중인 메시지 파일 없음 (새로 시작)');
         }
         
-        // 사용자 이미지 URL 로드
-        try {
-            const imageData = await fs.readFile(USER_IMAGES_FILE, 'utf8');
-            const imageObj = JSON.parse(imageData);
-            Object.entries(imageObj).forEach(([key, value]) => {
-                userImageUrls.set(key, value);
-            });
-            console.log(`📥 ${userImageUrls.size}개의 사용자 이미지 URL 로드됨`);
-        } catch (error) {
-            console.log('📥 사용자 이미지 파일 없음 (새로 시작)');
-        }
+        // 사용자 이미지 URL 로드 (비활성화됨)
+        console.log('🚫 이미지 기능이 비활성화되어 있어 이미지 URL 로드를 건너뜁니다');
         
         // 사용자 컨텍스트 로드
         try {
@@ -122,9 +113,8 @@ async function savePersistentData() {
         const pendingObj = Object.fromEntries(pendingMessages);
         await fs.writeFile(PENDING_MESSAGES_FILE, JSON.stringify(pendingObj, null, 2));
         
-        // 사용자 이미지 URL 저장
-        const imageObj = Object.fromEntries(userImageUrls);
-        await fs.writeFile(USER_IMAGES_FILE, JSON.stringify(imageObj, null, 2));
+        // 사용자 이미지 URL 저장 (비활성화됨)
+        // 이미지 기능이 비활성화되어 있어 이미지 URL 저장을 건너뜁니다
         
         // 사용자 컨텍스트 저장 (최근 10개만)
         const contextObj = {};
@@ -609,58 +599,11 @@ function isShoppingRequest(message) {
     return (hasShoppingKeyword || hasProductKeyword || hasRecommendKeyword) && !isRestaurantContext;
 }
 
-// 이미지 요청인지 확인하는 함수
+// 이미지 요청인지 확인하는 함수 (비활성화됨)
 function isImageRequest(requestBody) {
-    // 카카오 스킬에서 이미지 URL이 포함된 경우 확인
-    const userMessage = requestBody.userRequest?.utterance || '';
-    const blocks = requestBody.userRequest?.blocks || [];
-    const action = requestBody.action || {};
-    
-    console.log(`🔍 이미지 감지 - 메시지: '${userMessage}'`);
-    console.log(`🔍 이미지 감지 - 블록 수: ${blocks.length}`);
-    console.log(`🔍 이미지 감지 - Action:`, JSON.stringify(action, null, 2));
-    
-    // 1. 메시지에 이미지 URL이 있는지 확인 (카카오 이미지 URL 포함)
-    const hasImageUrl = /https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i.test(userMessage) ||
-                       /https?:\/\/talk\.kakaocdn\.net/i.test(userMessage) ||
-                       /https?:\/\/[^\/]*kakao[^\/]*\.(com|net|co\.kr)/i.test(userMessage) ||
-                       userMessage.includes('talk.kakaocdn.net') ||
-                       userMessage.includes('kakaocdn');
-    console.log(`🔍 이미지 URL 감지: ${hasImageUrl}`);
-    
-    // 2. 카카오 스킬 블록에 이미지가 있는지 확인
-    const hasImageBlock = blocks.some(block => 
-        block.listCard?.items?.some(item => item.imageUrl) ||
-        block.basicCard?.thumbnail?.imageUrl ||
-        block.commerceCard?.thumbnails?.length > 0 ||
-        block.carousel?.items?.some(item => item.imageUrl || item.thumbnail?.imageUrl)
-    );
-    console.log(`🔍 이미지 블록 감지: ${hasImageBlock}`);
-    
-    // 3. action에서 이미지 정보 확인
-    const hasImageAction = action.params && Object.values(action.params).some(param => 
-        typeof param === 'string' && (
-            /https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i.test(param) ||
-            /https?:\/\/talk\.kakaocdn\.net/i.test(param)
-        )
-    );
-    console.log(`🔍 이미지 액션 감지: ${hasImageAction}`);
-    
-    // 4. 이미지 관련 키워드 확인
-    const imageKeywords = ['이미지', '사진', '그림', '이미지분석', '사진분석', '이미지처리', '사진처리', '사진봐', '그림봐'];
-    const hasImageKeyword = imageKeywords.some(keyword => userMessage.includes(keyword));
-    console.log(`🔍 이미지 키워드 감지: ${hasImageKeyword}`);
-    
-    // 5. 전체 요청 바디에서 이미지 URL 검색
-    const bodyString = JSON.stringify(requestBody);
-    const hasImageInBody = /https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp)/i.test(bodyString) ||
-                          /https?:\/\/talk\.kakaocdn\.net/i.test(bodyString);
-    console.log(`🔍 바디 내 이미지 URL 감지: ${hasImageInBody}`);
-    
-    const result = hasImageUrl || hasImageBlock || hasImageAction || hasImageKeyword || hasImageInBody;
-    console.log(`🔍 최종 이미지 감지 결과: ${result}`);
-    
-    return result;
+    // 이미지 기능이 완전히 비활성화되었습니다
+    console.log('🚫 이미지 기능이 비활성화되어 있습니다');
+    return false;
 }
 
 // 이미지 URL 추출 함수
@@ -747,17 +690,11 @@ function extractImageUrl(requestBody) {
     return null;
 }
 
-// 이미지 분석 요청인지 확인하는 함수
+// 이미지 분석 요청인지 확인하는 함수 (비활성화됨)
 function isImageAnalysisRequest(message) {
-    const analysisKeywords = [
-        '이미지 분석', '분석해줘', '분석하기', '내용 설명', '무엇인지',
-        '텍스트 추출', '글자 읽기', '텍스트 읽기', 'OCR',
-        '개선 제안', '개선해줘', '아이디어', '제안해줘',
-        '설명 생성', '설명해줘', '묘사해줘', '상세히',
-        '스타일 분석', '색상', '구성', '디자인'
-    ];
-    
-    return analysisKeywords.some(keyword => message.includes(keyword));
+    // 이미지 분석 기능이 완전히 비활성화되었습니다
+    console.log('🚫 이미지 분석 기능이 비활성화되어 있습니다');
+    return false;
 }
 
 // Claude Vision API를 사용한 이미지 분석 함수
@@ -930,9 +867,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         console.log(`💬 사용자 메시지 길이: ${userMessage.length}자`);
         console.log(`💬 사용자 메시지: '${userMessage}' (ID: ${userId})`);
         
-        // 이미지 분석 관련 요청인 경우 전체 요청 바디 로깅
+        // 이미지 분석 관련 요청 로깅 (비활성화됨)
         if (userMessage.includes('분석') || userMessage.includes('이미지') || userMessage.includes('사진')) {
-            console.log(`🖼️ 이미지 관련 요청 감지. 전체 요청 바디:`, JSON.stringify(req.body, null, 2));
+            console.log(`🚫 이미지 관련 요청이지만 이미지 기능이 비활성화되어 있습니다`);
         }
         
         // 전체 요청 바디를 로그로 출력 (디버깅용)
@@ -980,27 +917,31 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         // 이미지 분석 요청 처리 (최우선 처리)
         console.log(`🔍 이미지 감지 테스트: 메시지='${userMessage.substring(0, 100)}'`);
-        console.log(`🔍 이미지 감지 함수 결과: ${isImageRequest(req.body)}`);
-        console.log(`🔍 이미지 분석 요청 확인: ${isImageAnalysisRequest(processMessage)}`);
+        // 🚫 이미지 기능 완전 비활성화
+        console.log('🚫 이미지 처리 로직 건너뜀 (비활성화됨)');
         
-        // 이미지 분석 요청이면 바로 분석 처리
-        if (isImageAnalysisRequest(processMessage)) {
-            console.log('🔍 이미지 분석 요청 감지됨 - 우선 처리');
+        // 이미지 관련 키워드가 포함된 경우 안내 메시지
+        if (processMessage.includes('이미지') || processMessage.includes('사진') || processMessage.includes('그림') || processMessage.includes('분석해줘') && processMessage.includes('보여줘')) {
+            console.log('🚫 이미지 관련 키워드 감지 - 비활성화 안내');
             
-            // 현재 요청에서 이미지 URL을 먼저 찾아보기
-            let imageUrl = extractImageUrl(req.body);
+            const disabledResponse = {
+                version: "2.0",
+                template: {
+                    outputs: [{
+                        simpleText: {
+                            text: "🚫 이미지 분석 기능이 현재 비활성화되어 있습니다.\n\n💬 텍스트 기반 질문으로 도움을 드릴 수 있습니다:\n• 뉴스 검색\n• 쇼핑 정보\n• 맛집 추천\n• 일반적인 질문 답변"
+                        }
+                    }]
+                }
+            };
             
-            // 현재 요청에 이미지가 없으면 저장된 이미지 URL 사용
-            if (!imageUrl) {
-                imageUrl = userImageUrls.get(userId);
-                console.log(`📷 저장된 이미지 URL 사용: ${imageUrl}`);
-            } else {
-                // 새로운 이미지가 있으면 저장
-                userImageUrls.set(userId, imageUrl);
-                console.log(`📷 새로운 이미지 URL 저장: ${imageUrl}`);
-            }
-            
-            if (imageUrl) {
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.status(200).json(disabledResponse);
+            return;
+        }
+        
+        // 더미 조건 (절대 실행되지 않음)
+        if (false) {
                 console.log(`📷 이미지 분석 시작: ${imageUrl}`);
                 
                 try {
@@ -1080,69 +1021,20 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             }
         }
         
-        // 이미지가 있지만 분석 요청이 아닌 경우만 옵션 메뉴 표시
-        if (isImageRequest(req.body)) {
+        // 이미지 처리 로직 완전 제거됨 (두 번째 체크도 비활성화)
+        console.log('🚫 이미지 요청 체크 건너뜀 (비활성화됨)');
+        
+        // 더미 조건 (절대 실행되지 않음) 
+        if (false) {
             console.log('🖼️ 이미지 요청 감지됨');
             
-            const imageUrl = extractImageUrl(req.body);
+            const imageUrl = null; // 비활성화됨
             if (imageUrl) {
                 console.log(`📷 이미지 URL 발견: ${imageUrl}`);
                 
-                // 사용자별로 이미지 URL 저장
-                userImageUrls.set(userId, imageUrl);
-                console.log(`💾 사용자 ${userId}의 이미지 URL 저장됨`);
-                
-                // 이미지가 있을 때 처리 옵션 제공
-                const imageOptionsText = `🖼️ 이미지를 받았습니다!
+                const imageOptionsText = `🚫 이미지 기능이 비활성화되어 있습니다.`;
 
-어떤 작업을 도와드릴까요?
-
-1️⃣ 이미지 분석 - 이미지 내용 설명
-2️⃣ 텍스트 추출 - 이미지 속 텍스트 읽기  
-3️⃣ 개선 제안 - 사진/디자인 개선 아이디어
-4️⃣ 설명 생성 - 상품/장면 설명 작성
-5️⃣ 스타일 분석 - 색상, 구성, 스타일 분석
-
-예: "이미지 분석해줘" 또는 "텍스트 추출해줘"`;
-
-                const response = {
-                    version: "2.0",
-                    template: {
-                        outputs: [{
-                            simpleText: {
-                                text: imageOptionsText
-                            }
-                        }]
-                    }
-                };
-                
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.status(200).json(response);
-                console.log('✅ 이미지 처리 옵션 전송 완료');
-                return;
-            } else {
-                // 이미지 키워드는 있지만 실제 이미지 URL이 없는 경우
-                const noImageText = `🖼️ 이미지 처리를 도와드리고 싶지만, 이미지를 찾을 수 없습니다.
-
-이미지를 다시 전송하거나 이미지 URL을 포함해서 보내주세요.
-
-지원 형식: JPG, PNG, GIF, BMP, WebP`;
-
-                const response = {
-                    version: "2.0",
-                    template: {
-                        outputs: [{
-                            simpleText: {
-                                text: noImageText
-                            }
-                        }]
-                    }
-                };
-                
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.status(200).json(response);
-                console.log('✅ 이미지 없음 안내 전송 완료');
-                return;
+                // 비활성화된 코드 - 실행되지 않음
             }
         }
         
@@ -1190,42 +1082,28 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         }
         
         
-        // 이미지 수정/개선 예시 요청 처리
+        // 이미지 수정/개선 예시 요청 처리 (비활성화됨)
         if (processMessage.includes('이미지 수정') || processMessage.includes('이미지 개선') || processMessage.includes('사진 편집') || processMessage.includes('이미지 예시')) {
-            console.log('🎨 이미지 수정/개선 예시 요청 감지됨');
+            console.log('🚫 이미지 수정/개선 예시 요청이 비활성화되었습니다');
             
-            const imageEditExamples = `🎨 이미지 수정/개선 예시
+            const disabledMessage = `🚫 이미지 기능이 비활성화되었습니다
 
-AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 있습니다:
+현재 이미지 처리 기능이 비활성화되어 있어 이미지 관련 요청을 처리할 수 없습니다.
 
-📸 사진 개선:
-• 밝기/대비 조정 제안
-• 색상 보정 방향 안내
-• 구도 개선 아이디어
+다른 기능을 이용해보세요:
+• 🥘 맛집 추천
+• 🛒 쇼핑 정보 검색  
+• 💬 일반 대화
+• ❓ 질문 답변
 
-🖼️ 디자인 개선:
-• 레이아웃 최적화 제안
-• 색상 조합 추천
-• 시각적 균형 조언
-
-📝 텍스트 추출:
-• 이미지 속 글자 읽기
-• 문서 내용 정리
-• 번역 도움
-
-🔍 상세 분석:
-• 객체 식별 및 설명
-• 스타일 분석
-• 품질 평가
-
-이미지를 업로드하고 "이미지 분석해줘" 또는 "개선 제안해줘"라고 말씀해보세요!`;
+원하시는 다른 도움이 있으시면 말씀해주세요!`;
 
             const response = {
                 version: "2.0",
                 template: {
                     outputs: [{
                         simpleText: {
-                            text: imageEditExamples
+                            text: disabledMessage
                         }
                     }]
                 }
@@ -1233,7 +1111,7 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
             
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.status(200).json(response);
-            console.log('✅ 이미지 수정/개선 예시 전송 완료');
+            console.log('✅ 이미지 기능 비활성화 안내 전송 완료');
             return;
         }
         
