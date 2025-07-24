@@ -3,19 +3,28 @@ const axios = require('axios');
 const http = require('http');
 const https = require('https');
 
-// HTTP Keep-Alive 최적화
-const httpAgent = new http.Agent({ keepAlive: true });
-const httpsAgent = new https.Agent({ keepAlive: true });
+// HTTP Keep-Alive 최적화 및 연결 안정성 향상
+const httpAgent = new http.Agent({ 
+    keepAlive: true, 
+    maxSockets: 10,
+    timeout: 30000
+});
+const httpsAgent = new https.Agent({ 
+    keepAlive: true, 
+    maxSockets: 10,
+    timeout: 30000
+});
 axios.defaults.httpAgent = httpAgent;
 axios.defaults.httpsAgent = httpsAgent;
+axios.defaults.timeout = 25000; // 전역 타임아웃 25초
 
 const app = express();
 app.use(express.json());
 
-// 카카오톡 5초 제한에 맞춘 응답 타임아웃 설정
+// 안정적인 응답을 위한 타임아웃 설정
 app.use((req, res, next) => {
-    res.setTimeout(4800, () => {  // 4.8초로 설정 (여유 0.2초)
-        console.log('⏰ 카카오톡 타임아웃 방지 - 빠른 응답 전송');
+    res.setTimeout(20000, () => {  // 20초로 증가
+        console.log('⏰ 서버 타임아웃 - 안내 응답 전송');
         
         if (!res.headersSent) {
             res.status(200).json({
@@ -23,7 +32,7 @@ app.use((req, res, next) => {
                 template: {
                     outputs: [{
                         simpleText: {
-                            text: "처리가 조금 지연되고 있습니다. 간단한 질문으로 다시 시도해주세요! 😊"
+                            text: "요청을 처리하는데 시간이 걸리고 있습니다. 잠시 후 다시 시도해주세요. 🔄"
                         }
                     }]
                 }
@@ -40,12 +49,12 @@ const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
 const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
 const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
 
-// 카카오톡 5초 제한에 맞춘 최적화된 타임아웃 설정
+// 안정적인 API 호출을 위한 타임아웃 설정
 const TIMEOUT_CONFIG = {
-    naver_api: 3000,
-    claude_general: 4500,  // 카카오톡 5초 제한 고려
-    claude_image: 6000,
-    image_download: 4000
+    naver_api: 8000,
+    claude_general: 25000,  // 25초로 증가하여 안정성 확보
+    claude_image: 30000,
+    image_download: 10000
 };
 
 // 한국 시간 가져오기 함수
@@ -581,7 +590,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             }
             // 네트워크 문제
             else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-                responseText = `네트워크 연결이 불안정합니다. 잠시 후 다시 시도해주세요.`;
+                responseText = `AI 서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요. ⏳`;
             }
             // 시간 관련 질문 특별 처리
             else if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
