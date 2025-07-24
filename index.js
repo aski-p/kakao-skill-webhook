@@ -6,20 +6,24 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '10mb' }));
 
-// 응답 타임아웃 설정
+// 개선된 응답 타임아웃 설정
 app.use((req, res, next) => {
-    res.setTimeout(25000, () => {
-        console.log('⏰ 요청 타임아웃');
-        res.status(408).json({
-            version: "2.0",
-            template: {
-                outputs: [{
-                    simpleText: {
-                        text: "응답 시간이 초과되었습니다. 다시 시도해주세요."
-                    }
-                }]
-            }
-        });
+    res.setTimeout(15000, () => {
+        console.log('⏰ 요청 타임아웃 (15초)');
+        
+        // 타임아웃 시에도 사용자에게 도움이 되는 응답 제공
+        if (!res.headersSent) {
+            res.status(200).json({
+                version: "2.0",
+                template: {
+                    outputs: [{
+                        simpleText: {
+                            text: "⏰ 처리 시간이 길어지고 있습니다.\n\n💡 팁:\n• 간단한 질문으로 다시 시도해보세요\n• '뉴스', '날씨' 등 키워드만 입력해보세요\n• 잠시 후 다시 시도해주세요"
+                        }
+                    }]
+                }
+            });
+        }
     });
     next();
 });
@@ -31,14 +35,337 @@ const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
 const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
 const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
 
-// 분할된 메시지 임시 저장 (메모리 기반 - 단순한 구현)
+// 최적화된 타임아웃 설정
+const TIMEOUT_CONFIG = {
+    naver_api: 5000,        // 네이버 API: 5초 (8초에서 단축)
+    claude_general: 8000,   // Claude 일반: 8초 (12초에서 단축)
+    claude_image: 10000,    // Claude 이미지: 10초 (15초에서 단축)
+    image_download: 7000    // 이미지 다운로드: 7초 (10초에서 단축)
+};
+
+// 파일 시스템 기반 지속적 저장소
+const fs = require('fs').promises;
+const path = require('path');
+
+// 데이터 저장 디렉토리
+const DATA_DIR = path.join(__dirname, 'data');
+const PENDING_MESSAGES_FILE = path.join(DATA_DIR, 'pending_messages.json');
+const USER_IMAGES_FILE = path.join(DATA_DIR, 'user_images.json');
+const USER_CONTEXTS_FILE = path.join(DATA_DIR, 'user_contexts.json');
+
+// 메모리 캐시 (빠른 접근용)
 const pendingMessages = new Map();
-
-// 사용자별 이미지 URL 저장 (메모리 기반 - 단순한 구현)
 const userImageUrls = new Map();
-
-// 사용자별 대화 컨텍스트 저장 (이전 메시지 기억용)
 const userContexts = new Map();
+
+// 데이터 디렉토리 생성
+async function ensureDataDirectory() {
+    try {
+        await fs.mkdir(DATA_DIR, { recursive: true });
+    } catch (error) {
+        console.log('📁 데이터 디렉토리 이미 존재함');
+    }
+}
+
+// 파일에서 데이터 로드
+async function loadPersistentData() {
+    try {
+        await ensureDataDirectory();
+        
+        // 대기 중인 메시지 로드
+        try {
+            const pendingData = await fs.readFile(PENDING_MESSAGES_FILE, 'utf8');
+            const pendingObj = JSON.parse(pendingData);
+            Object.entries(pendingObj).forEach(([key, value]) => {
+                pendingMessages.set(key, value);
+            });
+            console.log(`📥 ${pendingMessages.size}개의 대기 중인 메시지 로드됨`);
+        } catch (error) {
+            console.log('📥 대기 중인 메시지 파일 없음 (새로 시작)');
+        }
+        
+        // 사용자 이미지 URL 로드
+        try {
+            const imageData = await fs.readFile(USER_IMAGES_FILE, 'utf8');
+            const imageObj = JSON.parse(imageData);
+            Object.entries(imageObj).forEach(([key, value]) => {
+                userImageUrls.set(key, value);
+            });
+            console.log(`📥 ${userImageUrls.size}개의 사용자 이미지 URL 로드됨`);
+        } catch (error) {
+            console.log('📥 사용자 이미지 파일 없음 (새로 시작)');
+        }
+        
+        // 사용자 컨텍스트 로드
+        try {
+            const contextData = await fs.readFile(USER_CONTEXTS_FILE, 'utf8');
+            const contextObj = JSON.parse(contextData);
+            Object.entries(contextObj).forEach(([key, value]) => {
+                userContexts.set(key, value);
+            });
+            console.log(`📥 ${userContexts.size}개의 사용자 컨텍스트 로드됨`);
+        } catch (error) {
+            console.log('📥 사용자 컨텍스트 파일 없음 (새로 시작)');
+        }
+        
+    } catch (error) {
+        console.error('❌ 데이터 로드 실패:', error);
+    }
+}
+
+// 파일에 데이터 저장
+async function savePersistentData() {
+    try {
+        await ensureDataDirectory();
+        
+        // 대기 중인 메시지 저장
+        const pendingObj = Object.fromEntries(pendingMessages);
+        await fs.writeFile(PENDING_MESSAGES_FILE, JSON.stringify(pendingObj, null, 2));
+        
+        // 사용자 이미지 URL 저장
+        const imageObj = Object.fromEntries(userImageUrls);
+        await fs.writeFile(USER_IMAGES_FILE, JSON.stringify(imageObj, null, 2));
+        
+        // 사용자 컨텍스트 저장 (최근 10개만)
+        const contextObj = {};
+        const recentContexts = Array.from(userContexts.entries()).slice(-10);
+        recentContexts.forEach(([key, value]) => {
+            contextObj[key] = value;
+        });
+        await fs.writeFile(USER_CONTEXTS_FILE, JSON.stringify(contextObj, null, 2));
+        
+        console.log('💾 데이터 저장 완료');
+    } catch (error) {
+        console.error('❌ 데이터 저장 실패:', error);
+    }
+}
+
+// 주기적 저장 (5분마다)
+setInterval(savePersistentData, 5 * 60 * 1000);
+
+// 서버 시작 시 데이터 로드
+loadPersistentData();
+
+// 서버 종료 시 데이터 저장
+process.on('SIGINT', async () => {
+    console.log('🔄 서버 종료 중... 데이터 저장');
+    await savePersistentData();
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    console.log('🔄 서버 종료 중... 데이터 저장');
+    await savePersistentData();
+    process.exit(0);
+});
+
+// 스마트 메시지 분할 시스템
+function smartSplit(text, maxLength = 800) {
+    if (text.length <= maxLength) return [text];
+    
+    // 문장 단위로 분할 시도 (.!?로 끝나는 문장)
+    const sentences = text.split(/([.!?]\s+)/);
+    const chunks = [];
+    let currentChunk = '';
+    
+    for (let i = 0; i < sentences.length; i++) {
+        const part = sentences[i];
+        const testChunk = currentChunk + part;
+        
+        if (testChunk.length > maxLength - 100) { // 안전 마진 100자
+            if (currentChunk.trim()) {
+                chunks.push(currentChunk.trim());
+                currentChunk = part;
+            } else {
+                // 단일 문장이 너무 길면 강제 분할
+                const forceSplit = part.match(/.{1,600}/g) || [part];
+                for (let j = 0; j < forceSplit.length; j++) {
+                    if (j === 0) {
+                        chunks.push(forceSplit[j] + '...');
+                    } else if (j === forceSplit.length - 1) {
+                        currentChunk = '...' + forceSplit[j];
+                    } else {
+                        chunks.push('...' + forceSplit[j] + '...');
+                    }
+                }
+            }
+        } else {
+            currentChunk = testChunk;
+        }
+    }
+    
+    if (currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
+    }
+    
+    return chunks;
+}
+
+// 개선된 응답 분할 처리 함수
+function handleLongResponse(text, userId, responseType = 'general') {
+    const chunks = smartSplit(text, 800);
+    
+    if (chunks.length === 1) {
+        return { text: chunks[0], hasMore: false };
+    }
+    
+    // 첫 번째 청크와 나머지 저장
+    const firstChunk = chunks[0];
+    const remainingChunks = chunks.slice(1).join('\n\n');
+    
+    // 사용자별로 나머지 내용 저장
+    pendingMessages.set(userId, remainingChunks);
+    
+    const responseTypeEmoji = {
+        'image': '🖼️',
+        'restaurant': '🍽️',
+        'news': '📰',
+        'shopping': '🛒',
+        'general': '💬'
+    };
+    
+    const emoji = responseTypeEmoji[responseType] || '💬';
+    const continueText = `\n\n${emoji} "계속" 또는 "더보기"를 입력하면 나머지 내용을 확인할 수 있습니다.`;
+    
+    console.log(`📄 ${responseType} 응답 분할: 총 ${chunks.length}개 청크, 첫 청크 ${firstChunk.length}자`);
+    
+    return {
+        text: firstChunk + continueText,
+        hasMore: true,
+        totalChunks: chunks.length
+    };
+}
+
+// 복잡한 요청 감지 함수
+function isComplexRequest(message) {
+    const complexIndicators = [
+        '분석해줘', '자세히', '상세히', '설명해줘', '어떻게', '왜', '리뷰', '비교', '추천', '장단점'
+    ];
+    
+    // 이미지나 파일이 포함된 경우
+    if (message.includes('image') || message.includes('파일')) {
+        return true;
+    }
+    
+    // 복잡한 키워드가 포함된 경우
+    const hasComplexKeyword = complexIndicators.some(keyword => 
+        message.toLowerCase().includes(keyword)
+    );
+    
+    // 문장이 길거나 복잡한 경우 (50자 이상)
+    const isLongMessage = message.length > 50;
+    
+    return hasComplexKeyword || isLongMessage;
+}
+
+// 백그라운드 처리를 위한 작업 큐
+const backgroundTasks = new Map();
+
+// 카카오 응답 형식 생성 함수들
+function createSimpleTextResponse(text) {
+    return {
+        version: "2.0",
+        template: {
+            outputs: [{
+                simpleText: { text }
+            }]
+        }
+    };
+}
+
+function createBasicCardResponse(title, description, thumbnail = null, buttons = []) {
+    const card = {
+        title,
+        description
+    };
+    
+    if (thumbnail) {
+        card.thumbnail = { imageUrl: thumbnail };
+    }
+    
+    if (buttons.length > 0) {
+        card.buttons = buttons;
+    }
+    
+    return {
+        version: "2.0",
+        template: {
+            outputs: [{
+                basicCard: card
+            }]
+        }
+    };
+}
+
+function createListCardResponse(headerTitle, items, buttons = []) {
+    const listCard = {
+        header: { title: headerTitle },
+        items: items.slice(0, 5) // 최대 5개 항목
+    };
+    
+    if (buttons.length > 0) {
+        listCard.buttons = buttons;
+    }
+    
+    return {
+        version: "2.0",
+        template: {
+            outputs: [{
+                listCard
+            }]
+        }
+    };
+}
+
+function createCarouselResponse(cards) {
+    return {
+        version: "2.0",
+        template: {
+            outputs: [{
+                carousel: {
+                    type: "basicCard",
+                    items: cards.slice(0, 10) // 최대 10개 카드
+                }
+            }]
+        }
+    };
+}
+
+// 응답 타입에 따른 최적 형식 선택
+function selectOptimalResponseFormat(data, type) {
+    switch (type) {
+        case 'news':
+            if (data.length > 3) {
+                // 뉴스가 많으면 리스트 카드
+                return 'listCard';
+            } else if (data.length > 1) {
+                // 2-3개면 캐러셀
+                return 'carousel';
+            } else {
+                // 1개면 베이직 카드
+                return 'basicCard';
+            }
+        
+        case 'shopping':
+            if (data.length > 5) {
+                return 'listCard';
+            } else if (data.length > 2) {
+                return 'carousel';
+            } else {
+                return 'basicCard';
+            }
+        
+        case 'restaurant':
+            if (data.length > 4) {
+                return 'listCard';
+            } else {
+                return 'carousel';
+            }
+        
+        default:
+            return 'simpleText';
+    }
+}
 
 // Express 미들웨어는 이미 위에서 설정됨
 
@@ -65,7 +392,7 @@ async function getLatestNews(query = '오늘 뉴스') {
                 'X-Naver-Client-Id': NAVER_CLIENT_ID,
                 'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
             },
-            timeout: 8000
+            timeout: TIMEOUT_CONFIG.naver_api
         });
         
         const items = response.data.items;
@@ -112,7 +439,7 @@ async function getShoppingResults(query) {
                 'X-Naver-Client-Id': NAVER_CLIENT_ID,
                 'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
             },
-            timeout: 8000
+            timeout: TIMEOUT_CONFIG.naver_api
         });
         
         const items = response.data.items;
@@ -201,7 +528,7 @@ async function getLocalRestaurants(query) {
                 'X-Naver-Client-Id': NAVER_CLIENT_ID,
                 'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
             },
-            timeout: 8000
+            timeout: TIMEOUT_CONFIG.naver_api
         });
         
         const items = response.data.items;
@@ -441,7 +768,7 @@ async function analyzeImageWithClaude(imageUrl, analysisType, userMessage) {
         // 이미지를 base64로 변환
         const imageResponse = await axios.get(imageUrl, {
             responseType: 'arraybuffer',
-            timeout: 10000,
+            timeout: TIMEOUT_CONFIG.image_download,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (compatible; KakaoSkill/1.0)'
             }
@@ -514,7 +841,7 @@ async function analyzeImageWithClaude(imageUrl, analysisType, userMessage) {
                     'anthropic-version': '2023-06-01',
                     'content-type': 'application/json'
                 },
-                timeout: 15000
+                timeout: TIMEOUT_CONFIG.claude_image
             }
         );
         
@@ -678,20 +1005,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 
                 try {
                     const analysisResult = await analyzeImageWithClaude(imageUrl, 'analysis', processMessage);
-                    let responseText = `🖼️ 이미지 분석 결과:\n\n${analysisResult}`;
+                    const fullResponseText = `🖼️ 이미지 분석 결과:\n\n${analysisResult}`;
                     
-                    // 이미지 분석 결과도 분할 전송 처리
-                    const maxLength = 800;
-                    if (responseText.length > maxLength) {
-                        const firstPart = responseText.substring(0, maxLength - 100);
-                        const remainingPart = responseText.substring(maxLength - 100);
-                        
-                        // 나머지 부분을 사용자별로 저장
-                        pendingMessages.set(userId, remainingPart);
-                        
-                        responseText = firstPart + '\n\n📄 "계속"이라고 입력하시면 나머지 내용을 보실 수 있습니다.';
-                        console.log(`📄 이미지 분석 결과가 길어서 분할됨: 첫 부분 ${firstPart.length}자, 나머지 ${remainingPart.length}자`);
-                    }
+                    // 스마트 분할 시스템 적용
+                    const processedResponse = handleLongResponse(fullResponseText, userId, 'image');
+                    const responseText = processedResponse.text;
                     
                     const response = {
                         version: "2.0",
@@ -977,18 +1295,9 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
                 console.log('✅ 맛집 데이터 제공 완료');
                 console.log(`📊 응답 길이: ${restaurantText.length}자`);
                 
-                // 응답이 길면 분할 전송
-                const maxLength = 800;
-                if (restaurantText.length > maxLength) {
-                    const firstPart = restaurantText.substring(0, maxLength - 100);
-                    const remainingPart = restaurantText.substring(maxLength - 100);
-                    
-                    // 나머지 부분을 사용자별로 저장
-                    pendingMessages.set(userId, remainingPart);
-                    
-                    restaurantText = firstPart + '\n\n📄 "계속"이라고 입력하시면 나머지 맛집을 보실 수 있습니다.';
-                    console.log(`📄 맛집 정보가 길어서 분할됨: 첫 부분 ${firstPart.length}자, 나머지 ${remainingPart.length}자`);
-                }
+                // 스마트 분할 시스템 적용
+                const processedResponse = handleLongResponse(restaurantText, userId, 'restaurant');
+                restaurantText = processedResponse.text;
                 
                 const response = {
                     version: "2.0",
@@ -1081,8 +1390,11 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
                 console.log('✅ 쇼핑 데이터 제공 완료');
                 console.log(`📊 응답 길이: ${shoppingText.length}자`);
                 
-                // 카카오 스킬 텍스트 길이 제한 확인
-                if (shoppingText.length > 1000) {
+                // 스마트 분할 시스템 적용
+                const processedResponse = handleLongResponse(shoppingText, userId, 'shopping');
+                
+                // 응답이 짧으면 일반 텍스트로, 길면 리스트 카드로 제공
+                if (processedResponse.hasMore || shoppingText.length > 1000) {
                     console.log('⚠️ 응답이 길어서 리스트 카드로 변환');
                     
                     // 리스트 카드 형태로 제공
@@ -1115,22 +1427,22 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
                     };
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
-                    console.log('✅ 응답 전송 완료');
+                    console.log('✅ 리스트 카드 응답 전송 완료');
                 } else {
-                    // 짧은 텍스트는 그대로 텍스트로 제공
+                    // 짧은 텍스트는 스마트 분할이 적용된 텍스트로 제공
                     const response = {
                         version: "2.0",
                         template: {
                             outputs: [{
                                 simpleText: {
-                                    text: shoppingText
+                                    text: processedResponse.text
                                 }
                             }]
                         }
                     };
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
-                    console.log('✅ 응답 전송 완료');
+                    console.log('✅ 텍스트 응답 전송 완료');
                 }
                 return;
             } else {
@@ -1213,8 +1525,11 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
                 console.log('✅ 뉴스 데이터 제공 완료');
                 console.log(`📊 응답 길이: ${newsText.length}자`);
                 
-                // 카카오 스킬 텍스트 길이 제한 (일반적으로 1000자) 확인
-                if (newsText.length > 1000) {
+                // 스마트 분할 시스템 적용
+                const processedResponse = handleLongResponse(newsText, userId, 'news');
+                
+                // 응답이 짧으면 일반 텍스트로, 길면 리스트 카드로 제공
+                if (processedResponse.hasMore || newsText.length > 1000) {
                     console.log('⚠️ 응답이 길어서 리스트 카드로 변환');
                     
                     // 리스트 카드 형태로 제공
@@ -1248,13 +1563,13 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
                         }
                     });
                 } else {
-                    // 짧은 텍스트는 그대로 텍스트로 제공
+                    // 짧은 텍스트는 스마트 분할이 적용된 텍스트로 제공
                     res.json({
                         version: "2.0",
                         template: {
                             outputs: [{
                                 simpleText: {
-                                    text: newsText
+                                    text: processedResponse.text
                                 }
                             }]
                         }
@@ -1309,7 +1624,7 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
                         'anthropic-version': '2023-06-01',
                         'content-type': 'application/json'
                     },
-                    timeout: 12000  // 12초로 늘림 (긴 응답을 위해 충분한 시간 확보)
+                    timeout: TIMEOUT_CONFIG.claude_general  // 12초로 늘림 (긴 응답을 위해 충분한 시간 확보)
                 }
             );
             
@@ -1347,23 +1662,11 @@ AI로 이미지를 분석하고 다음과 같은 개선사항을 제안할 수 �
         }
         console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
         
-        // 카카오 스킬 응답 처리 - 800자로 분할 전송
-        const maxLength = 800;
-        let kakaoResponse;
+        // 스마트 분할 시스템 적용
+        const processedResponse = handleLongResponse(responseText, userId, 'general');
+        responseText = processedResponse.text;
         
-        // 응답이 800자를 초과하면 분할
-        if (responseText.length > maxLength) {
-            const firstPart = responseText.substring(0, maxLength - 100);
-            const remainingPart = responseText.substring(maxLength - 100);
-            
-            // 나머지 부분을 사용자별로 저장
-            pendingMessages.set(userId, remainingPart);
-            
-            responseText = firstPart + '\n\n📄 "계속"이라고 입력하시면 나머지 내용을 보실 수 있습니다.';
-            console.log(`📄 응답이 길어서 분할됨: 첫 부분 ${firstPart.length}자, 나머지 ${remainingPart.length}자`);
-        }
-        
-        kakaoResponse = {
+        const kakaoResponse = {
             version: "2.0",
             template: {
                 outputs: [{
@@ -1471,8 +1774,11 @@ app.post('/', async (req, res) => {
                 console.log('✅ 쇼핑 데이터 제공 완료');
                 console.log(`📊 응답 길이: ${shoppingText.length}자`);
                 
-                // 카카오 스킬 텍스트 길이 제한 확인
-                if (shoppingText.length > 1000) {
+                // 스마트 분할 시스템 적용
+                const processedResponse = handleLongResponse(shoppingText, userId, 'shopping');
+                
+                // 응답이 짧으면 일반 텍스트로, 길면 리스트 카드로 제공
+                if (processedResponse.hasMore || shoppingText.length > 1000) {
                     console.log('⚠️ 응답이 길어서 리스트 카드로 변환');
                     
                     // 리스트 카드 형태로 제공
@@ -1505,22 +1811,22 @@ app.post('/', async (req, res) => {
                     };
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
-                    console.log('✅ 응답 전송 완료');
+                    console.log('✅ 리스트 카드 응답 전송 완료');
                 } else {
-                    // 짧은 텍스트는 그대로 텍스트로 제공
+                    // 짧은 텍스트는 스마트 분할이 적용된 텍스트로 제공
                     const response = {
                         version: "2.0",
                         template: {
                             outputs: [{
                                 simpleText: {
-                                    text: shoppingText
+                                    text: processedResponse.text
                                 }
                             }]
                         }
                     };
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
-                    console.log('✅ 응답 전송 완료');
+                    console.log('✅ 텍스트 응답 전송 완료');
                 }
                 return;
             } else {
@@ -1603,8 +1909,11 @@ app.post('/', async (req, res) => {
                 console.log('✅ 뉴스 데이터 제공 완료');
                 console.log(`📊 응답 길이: ${newsText.length}자`);
                 
-                // 카카오 스킬 텍스트 길이 제한 (일반적으로 1000자) 확인
-                if (newsText.length > 1000) {
+                // 스마트 분할 시스템 적용
+                const processedResponse = handleLongResponse(newsText, userId, 'news');
+                
+                // 응답이 짧으면 일반 텍스트로, 길면 리스트 카드로 제공
+                if (processedResponse.hasMore || newsText.length > 1000) {
                     console.log('⚠️ 응답이 길어서 리스트 카드로 변환');
                     
                     // 리스트 카드 형태로 제공
@@ -1638,13 +1947,13 @@ app.post('/', async (req, res) => {
                         }
                     });
                 } else {
-                    // 짧은 텍스트는 그대로 텍스트로 제공
+                    // 짧은 텍스트는 스마트 분할이 적용된 텍스트로 제공
                     res.json({
                         version: "2.0",
                         template: {
                             outputs: [{
                                 simpleText: {
-                                    text: newsText
+                                    text: processedResponse.text
                                 }
                             }]
                         }
@@ -1698,7 +2007,7 @@ app.post('/', async (req, res) => {
                         'anthropic-version': '2023-06-01',
                         'content-type': 'application/json'
                     },
-                    timeout: 12000  // 12초로 늘림 (긴 응답을 위해 충분한 시간 확보)
+                    timeout: TIMEOUT_CONFIG.claude_general  // 12초로 늘림 (긴 응답을 위해 충분한 시간 확보)
                 }
             );
             
