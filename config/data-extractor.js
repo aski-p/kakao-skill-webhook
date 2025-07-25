@@ -2,6 +2,7 @@
 const axios = require('axios');
 const PlaywrightCrawler = require('./playwright-crawler');
 const KobisAPI = require('./kobis-api');
+const SupabaseClient = require('./supabase-client');
 
 class DataExtractor {
     constructor(naverConfig) {
@@ -9,6 +10,7 @@ class DataExtractor {
         this.timeout = 3000;
         this.crawler = new PlaywrightCrawler();
         this.kobis = new KobisAPI();
+        this.supabase = new SupabaseClient(); // Supabase 클라이언트 추가
     }
 
     // 메인 데이터 추출 함수
@@ -1663,7 +1665,22 @@ class DataExtractor {
         try {
             console.log(`🎬 종합 영화평 요청: "${movieTitle}"`);
             
-            // 1단계: 네이버 영화 API로 기본 정보 수집
+            // 🎯 1단계: Supabase DB에서 먼저 검색 (최우선)
+            if (this.supabase && this.supabase.client) {
+                console.log('🗄️ Supabase DB에서 영화 검색 중...');
+                const supabaseMovie = await this.supabase.searchMovieByKeywords(movieTitle);
+                
+                if (supabaseMovie) {
+                    console.log(`✅ Supabase에서 "${supabaseMovie.title}" 발견 - DB 데이터 사용`);
+                    return this.generateSupabaseMovieReview(supabaseMovie);
+                }
+                
+                console.log('🔍 Supabase에서 영화를 찾지 못함 - 네이버 API로 검색 계속');
+            } else {
+                console.log('⚠️ Supabase 클라이언트 사용 불가 - 네이버 API 사용');
+            }
+            
+            // 2단계: 네이버 영화 API로 기본 정보 수집 (Supabase에 없을 때만)
             let movieResults = null;
             let searchVariations = [
                 movieTitle,                           // 원본
@@ -2340,6 +2357,74 @@ class DataExtractor {
             seen.add(user.username);
             return true;
         });
+    }
+    
+    // Supabase 데이터로 종합 영화평 생성
+    generateSupabaseMovieReview(movieData) {
+        console.log(`🎬 Supabase 데이터로 영화평 생성: "${movieData.title}"`);
+        
+        let review = `🎬 "${movieData.title}" 영화평 종합\n\n`;
+        
+        // 기본 정보
+        review += `📽️ 기본 정보\n`;
+        review += `감독: ${movieData.director || '정보 없음'}\n`;
+        review += `출연: ${movieData.cast_members ? movieData.cast_members.join(', ') : '정보 없음'}\n`;
+        review += `장르: ${movieData.genre || '정보 없음'}\n`;
+        if (movieData.release_year) review += `개봉: ${movieData.release_year}년\n`;
+        if (movieData.runtime_minutes) review += `상영시간: ${movieData.runtime_minutes}분\n`;
+        if (movieData.country) review += `제작국가: ${movieData.country}\n`;
+        
+        // 네이버 평점
+        if (movieData.naver_rating) {
+            const rating = parseFloat(movieData.naver_rating);
+            let ratingEmoji = '';
+            if (rating >= 9.0) ratingEmoji = '🌟 완벽한 걸작!';
+            else if (rating >= 8.0) ratingEmoji = '💫 매우 높은 평점! 강력 추천작';
+            else if (rating >= 7.0) ratingEmoji = '👍 좋은 평점의 추천작';
+            else if (rating >= 6.0) ratingEmoji = '⭐ 평범한 작품';
+            else ratingEmoji = '😐 아쉬운 평점';
+            
+            const stars = this.convertToStars(rating);
+            review += `\n⭐ 네이버 전체 평점: ${rating}/10 ${stars}\n${ratingEmoji}\n`;
+        }
+        
+        // 평론가 평가
+        review += `\n👨‍💼 평론가 평가:\n`;
+        if (movieData.critic_reviews && movieData.critic_reviews.length > 0) {
+            movieData.critic_reviews.forEach((critic, index) => {
+                const criticStars = this.convertToStars(critic.score);
+                review += `${index + 1}. ${critic.critic_name} ${criticStars} (${critic.score}/10)\n`;
+                review += `   "${critic.review_text}"\n\n`;
+            });
+        } else {
+            review += `평론가 리뷰를 수집 중입니다...\n`;
+            review += `더 많은 평론가 정보는 네이버 영화에서 확인하세요.\n\n`;
+        }
+        
+        // 관객 실제 평가
+        review += `👥 관객 실제 평가:\n`;
+        if (movieData.audience_reviews && movieData.audience_reviews.length > 0) {
+            movieData.audience_reviews.forEach((user, index) => {
+                const userStars = this.convertToStars(user.score);
+                review += `${index + 1}. ${user.username} ${userStars} (${user.score}/10)\n`;
+                review += `   "${user.review_text}"\n\n`;
+            });
+        } else {
+            review += `관객 리뷰를 수집 중입니다...\n`;
+            review += `더 많은 관객 리뷰는 네이버 영화에서 확인하세요.\n\n`;
+        }
+        
+        review += `🕐 실시간 수집: ${new Date().toLocaleString('ko-KR')}\n`;
+        review += `📊 Supabase 영화 데이터베이스에서 수집한 실제 정보`;
+        
+        return {
+            success: true,
+            type: 'comprehensive_movie_review',
+            data: {
+                title: movieData.title,
+                message: review.trim()
+            }
+        };
     }
     
     // 점수를 별점으로 변환

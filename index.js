@@ -5,6 +5,7 @@ const https = require('https');
 const config = require('./config/keywords');
 const MessageClassifier = require('./config/message-classifier');
 const DataExtractor = require('./config/data-extractor');
+const movieScheduler = require('./scheduler/movie-update-scheduler');
 
 // HTTP Keep-Alive 최적화 및 연결 안정성 향상
 const httpAgent = new http.Agent({ 
@@ -1105,6 +1106,49 @@ app.get('/', (req, res) => {
 });
 
 // Main webhook endpoint with Claude AI integration
+// 🔧 수동 영화 크롤링 API 엔드포인트
+app.post('/api/crawl-movies', async (req, res) => {
+    try {
+        console.log('🚀 수동 영화 크롤링 요청 수신');
+        
+        const result = await movieScheduler.runNow();
+        
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.status(200).json({
+            success: true,
+            message: '영화 크롤링이 완료되었습니다.',
+            data: result
+        });
+        
+    } catch (error) {
+        console.error('❌ 수동 크롤링 API 오류:', error);
+        res.status(500).json({
+            success: false,
+            message: '크롤링 중 오류가 발생했습니다.',
+            error: error.message
+        });
+    }
+});
+
+// 📊 스케줄러 상태 확인 API
+app.get('/api/scheduler-status', (req, res) => {
+    try {
+        const status = movieScheduler.getStatus();
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.status(200).json({
+            success: true,
+            data: status
+        });
+    } catch (error) {
+        console.error('❌ 스케줄러 상태 확인 오류:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// 🎯 카카오톡 스킬 메인 엔드포인트
 app.post('/kakao-skill-webhook', async (req, res) => {
     console.log('🔔 카카오 웹훅 요청 받음!');
     console.log('요청 본문:', JSON.stringify(req.body, null, 2));
@@ -1359,4 +1403,13 @@ app.listen(PORT, () => {
     console.log(`✅ 서버가 포트 ${PORT}에서 실행 중입니다.`);
     console.log(`🔑 Claude API 키 상태: ${process.env.CLAUDE_API_KEY ? '설정됨 (' + process.env.CLAUDE_API_KEY.length + '자)' : '미설정'}`);
     console.log(`📡 네이버 API 키 상태: ${(process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) ? '설정됨' : '미설정'}`);
+    console.log(`🗄️ Supabase 상태: ${(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) ? '설정됨' : '미설정'}`);
+    
+    // 영화 데이터 자동 업데이트 스케줄러 시작
+    try {
+        movieScheduler.start();
+        console.log('📅 영화 데이터 자동 업데이트 스케줄러 시작됨');
+    } catch (error) {
+        console.error('❌ 스케줄러 시작 실패:', error);
+    }
 });
