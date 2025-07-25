@@ -96,7 +96,7 @@ class DataExtractor {
         
         for (const query of searchQueries) {
             try {
-                const response = await this.searchNaver('news', query, 3);
+                const response = await this.searchNaver('news', query, 10);
                 if (response.items && response.items.length > 0) {
                     return this.formatMovieNewsResponse(response.items, title, query);
                 }
@@ -335,28 +335,37 @@ class DataExtractor {
             return this.createErrorResponse(`🎬 "${title}" 영화 평가 정보를 찾을 수 없습니다.`);
         }
 
-        // 전문가 평론과 관객 평을 구분
-        const expertReviews = items.filter(review => 
-            review.title.includes('평론') || review.title.includes('리뷰') || 
-            review.title.includes('평가') || review.title.includes('감상') ||
-            review.title.includes('비평') || review.title.includes('평론가')
-        );
+        // 전문가 평론과 관객 평을 구분 (더 폭넓게)
+        const expertReviews = items.filter(review => {
+            const titleAndDesc = (review.title + ' ' + review.description).toLowerCase();
+            return titleAndDesc.includes('평론가') || titleAndDesc.includes('기자') || 
+                   titleAndDesc.includes('비평') || titleAndDesc.includes('평론') ||
+                   titleAndDesc.includes('전문가') || titleAndDesc.includes('리뷰어') ||
+                   /[가-힣]{2,4}\s*(평론가|기자|비평가)/.test(titleAndDesc);
+        });
         
-        const audienceReviews = items.filter(review => 
-            (review.title.includes('관객') && (review.title.includes('평점') || review.title.includes('별점'))) ||
-            (review.title.includes('사용자') && (review.title.includes('평점') || review.title.includes('별점'))) ||
-            (review.title.includes('네티즌') && (review.title.includes('평점') || review.title.includes('별점'))) ||
-            (review.title.includes('별점') && review.title.includes(title)) ||
-            (review.title.includes('평점') && review.title.includes('관객')) ||
-            review.title.includes('★') || review.title.includes('⭐')
+        const audienceReviews = items.filter(review => {
+            const titleAndDesc = (review.title + ' ' + review.description).toLowerCase();
+            return (titleAndDesc.includes('관객') || titleAndDesc.includes('사용자') || 
+                   titleAndDesc.includes('네티즌') || titleAndDesc.includes('일반인') ||
+                   titleAndDesc.includes('시청자')) && 
+                   (titleAndDesc.includes('평점') || titleAndDesc.includes('별점') ||
+                    titleAndDesc.includes('★') || titleAndDesc.includes('⭐') ||
+                    titleAndDesc.includes('후기') || titleAndDesc.includes('감상'));
+        });
+        
+        // 둘 다 아닌 경우 일반 리뷰로 분류 (전문가나 관객에 포함되지 않는 것들)
+        const generalReviews = items.filter(review => 
+            !expertReviews.includes(review) && !audienceReviews.includes(review)
         );
 
         let reviewText = `🎬 "${title}" 영화 평점/평론 모음\n\n`;
         
-        // 전문가 평론 섹션
-        if (expertReviews.length > 0) {
+        // 전문가 평론 섹션 (일반 리뷰로 부족한 부분 채우기)
+        const allExpertReviews = [...expertReviews, ...generalReviews].slice(0, 5);
+        if (allExpertReviews.length > 0) {
             reviewText += `👨‍🎓 전문가 평가:\n\n`;
-            expertReviews.slice(0, 5).forEach((review, index) => {
+            allExpertReviews.forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
                 const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
                 
@@ -371,21 +380,41 @@ class DataExtractor {
                     criticName = `평론가${index + 1}`;
                 }
                 
-                // 평점 추출
-                const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}/);
+                // 평점 추출 및 변환
+                const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}|만점|5점|4점|3점|2점|1점/);
                 let rating = '';
                 if (ratingMatch) {
                     const ratingText = ratingMatch[0];
-                    // 숫자 평점을 별점으로 변환
-                    if (ratingText.includes('점') || ratingText.includes('/')) {
+                    if (ratingText.includes('만점')) {
+                        rating = '★★★★★';
+                    } else if (ratingText.includes('점') || ratingText.includes('/')) {
                         const score = parseFloat(ratingMatch[1]);
-                        const stars = Math.round(score / 2);
+                        let stars;
+                        if (score <= 5) {
+                            // 5점 만점 기준
+                            stars = Math.round(score);
+                        } else {
+                            // 10점 만점 기준
+                            stars = Math.round(score / 2);
+                        }
+                        stars = Math.max(1, Math.min(5, stars)); // 1-5 범위로 제한
                         rating = '★'.repeat(stars) + '☆'.repeat(5 - stars);
-                    } else {
+                    } else if (ratingText.includes('★') || ratingText.includes('⭐')) {
                         rating = ratingText;
+                    } else {
+                        rating = '★★★☆☆'; // 기본값
                     }
                 } else {
-                    rating = '★★★☆☆'; // 기본값
+                    // 평점이 없으면 내용에서 긍정/부정 판단
+                    if (cleanDescription.includes('최고') || cleanDescription.includes('완벽') || cleanDescription.includes('훌륭')) {
+                        rating = '★★★★★';
+                    } else if (cleanDescription.includes('좋') || cleanDescription.includes('추천')) {
+                        rating = '★★★★☆';
+                    } else if (cleanDescription.includes('별로') || cleanDescription.includes('실망')) {
+                        rating = '★★☆☆☆';
+                    } else {
+                        rating = '★★★☆☆';
+                    }
                 }
                 
                 // 핵심 평가 추출 (짧은 문장)
@@ -410,27 +439,48 @@ class DataExtractor {
             reviewText += '\n';
         }
         
-        // 관객 평가 섹션 (별점/평점 중심)
-        if (audienceReviews.length > 0) {
+        // 관객 평가 섹션 (일반 리뷰로 부족한 부분 채우기)
+        const remainingReviews = generalReviews.filter(review => !allExpertReviews.includes(review));
+        const allAudienceReviews = [...audienceReviews, ...remainingReviews].slice(0, 5);
+        if (allAudienceReviews.length > 0) {
             reviewText += `⭐ 관객 평가:\n\n`;
-            audienceReviews.slice(0, 5).forEach((review, index) => {
+            allAudienceReviews.forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
                 const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
                 
-                // 별점 추출 및 변환
-                const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}/);
+                // 별점 추출 및 변환 (전문가와 동일 로직)
+                const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}|만점|5점|4점|3점|2점|1점/);
                 let rating = '';
                 if (ratingMatch) {
                     const ratingText = ratingMatch[0];
-                    if (ratingText.includes('점') || ratingText.includes('/')) {
+                    if (ratingText.includes('만점')) {
+                        rating = '★★★★★';
+                    } else if (ratingText.includes('점') || ratingText.includes('/')) {
                         const score = parseFloat(ratingMatch[1]);
-                        const stars = Math.round(score / 2);
+                        let stars;
+                        if (score <= 5) {
+                            stars = Math.round(score);
+                        } else {
+                            stars = Math.round(score / 2);
+                        }
+                        stars = Math.max(1, Math.min(5, stars));
                         rating = '★'.repeat(stars) + '☆'.repeat(5 - stars);
-                    } else {
+                    } else if (ratingText.includes('★') || ratingText.includes('⭐')) {
                         rating = ratingText;
+                    } else {
+                        rating = '★★★☆☆';
                     }
                 } else {
-                    rating = '★★★★☆'; // 관객은 보통 후한 평가
+                    // 내용 기반 평점 추정
+                    if (cleanDescription.includes('최고') || cleanDescription.includes('완벽') || cleanDescription.includes('훌륭')) {
+                        rating = '★★★★★';
+                    } else if (cleanDescription.includes('좋') || cleanDescription.includes('추천') || cleanDescription.includes('재밌')) {
+                        rating = '★★★★☆';
+                    } else if (cleanDescription.includes('별로') || cleanDescription.includes('실망') || cleanDescription.includes('지루')) {
+                        rating = '★★☆☆☆';
+                    } else {
+                        rating = '★★★★☆'; // 관객은 보통 후한 평가
+                    }
                 }
                 
                 // 짧고 감정적인 평가 추출
