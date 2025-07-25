@@ -994,28 +994,40 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 if (isGameInfoRequest) {
                     console.log('🎮 게임 정보 요청 감지 - 네이버 검색 API로 정확한 정보 확인');
                     
-                    // 게임명 추출 개선 (더 정확한 패턴 매칭)
+                    // 게임명 추출 개선 (호칭 제거 및 정확한 패턴 매칭)
                     let gameName = null;
                     
+                    // 호칭 제거 (지피티야, 챗봇아, 등)
+                    let cleanMessage = userMessage.replace(/(지피티야|챗봇아|봇아|ai야|에이아이야|클로드야)\s*/gi, '').trim();
+                    
                     // 1. "OOO 게임 어때" 패턴
-                    let gameNameMatch = userMessage.match(/([가-힣a-zA-Z0-9\s]+?)\s*(게임|어때|할만해|추천|평가|리뷰)/);
+                    let gameNameMatch = cleanMessage.match(/([가-힣a-zA-Z0-9\s]+?)\s*(게임|어때|할만해|추천|평가|리뷰)/);
                     if (gameNameMatch) {
                         gameName = gameNameMatch[1].trim();
                     }
                     
                     // 2. "벨브 데드락" 같은 개발사+게임명 패턴
                     if (!gameName) {
-                        gameNameMatch = userMessage.match(/(벨브|밸브|valve)\s*([가-힣a-zA-Z0-9]+)/i);
+                        gameNameMatch = cleanMessage.match(/(벨브|밸브|valve)\s*([가-힣a-zA-Z0-9]+)/i);
                         if (gameNameMatch) {
                             gameName = `${gameNameMatch[1]} ${gameNameMatch[2]}`;
                         }
                     }
                     
-                    // 3. 단순 게임명 추출
+                    // 3. 간단한 게임명 추출 (호칭 제거된 메시지에서)
                     if (!gameName) {
-                        gameNameMatch = userMessage.match(/([가-힣a-zA-Z0-9]+)/);
+                        // "데드락 어때?" → "데드락"
+                        gameNameMatch = cleanMessage.match(/([가-힣a-zA-Z0-9]+)\s*(어때|할만해|재밌어|좋아|괜찮아)/);
                         if (gameNameMatch) {
-                            gameName = gameNameMatch[1];
+                            gameName = gameNameMatch[1].trim();
+                        }
+                    }
+                    
+                    // 4. 마지막 시도: 첫 번째 단어 추출
+                    if (!gameName) {
+                        const words = cleanMessage.split(/\s+/);
+                        if (words.length > 0 && words[0].length > 1) {
+                            gameName = words[0];
                         }
                     }
                     
@@ -1024,21 +1036,35 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                             console.log(`🔍 "${gameName}" 게임 정보 검색 시작...`);
                             
                             // 네이버 검색 API 활용한 종합 검색
-                            const searchPromises = [
+                            let searchPromises = [
                                 getLatestNews(`${gameName} 게임`),
                                 getLatestNews(`${gameName} 리뷰`), 
-                                getLatestNews(`${gameName} 평가`),
-                                getLatestNews(`${gameName} 출시`)
+                                getLatestNews(`${gameName} 평가`)
                             ];
                             
-                            const [newsResults, reviewResults, ratingResults, releaseResults] = await Promise.all(searchPromises);
+                            // 데드락의 경우 영문명도 추가 검색
+                            if (gameName.includes('데드락') || gameName.toLowerCase().includes('deadlock')) {
+                                searchPromises.push(
+                                    getLatestNews(`Deadlock 게임`),
+                                    getLatestNews(`Deadlock Valve`),
+                                    getLatestNews(`밸브 데드락`)
+                                );
+                            }
+                            
+                            // 기타 유명 게임들의 영문명 검색도 추가 가능
+                            if (gameName.includes('발로란트') || gameName.toLowerCase().includes('valorant')) {
+                                searchPromises.push(getLatestNews(`Valorant 게임`));
+                            }
+                            
+                            const searchResults_raw = await Promise.all(searchPromises);
                             
                             // 모든 검색 결과 통합
                             searchResults = [];
-                            if (newsResults) searchResults.push(...newsResults);
-                            if (reviewResults) searchResults.push(...reviewResults); 
-                            if (ratingResults) searchResults.push(...ratingResults);
-                            if (releaseResults) searchResults.push(...releaseResults);
+                            searchResults_raw.forEach(results => {
+                                if (results && results.length > 0) {
+                                    searchResults.push(...results);
+                                }
+                            });
                             
                             // 중복 제거 (제목 기준)
                             const uniqueResults = [];
