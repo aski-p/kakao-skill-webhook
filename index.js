@@ -249,6 +249,83 @@ async function getMovieReview(movieTitle) {
         }
         
         if (!movieResults || movieResults.length === 0) {
+            // 추가 시도: 영화 제목에 "F1" 포함시 특별 검색 로직
+            if (movieTitle.toLowerCase().includes('f1') || movieTitle.includes('더무비')) {
+                console.log('🏎️ F1 영화 전용 검색 로직 시작');
+                
+                // 1. 네이버 뉴스에서 영화 평론 검색
+                const reviewSearches = [
+                    `"${movieTitle}" 영화 평점`,
+                    `"${movieTitle}" 영화 평론`,
+                    `"${movieTitle}" 영화 리뷰`,
+                    `"${movieTitle}" 관객 평점`,
+                    `"${movieTitle}" 평가`
+                ];
+                
+                let allReviews = [];
+                for (const searchTerm of reviewSearches) {
+                    const reviews = await getLatestNews(searchTerm);
+                    if (reviews && reviews.length > 0) {
+                        allReviews.push(...reviews);
+                    }
+                }
+                
+                if (allReviews.length > 0) {
+                    // 중복 제거
+                    const uniqueReviews = allReviews.filter((review, index, arr) => 
+                        arr.findIndex(r => r.title === review.title) === index
+                    );
+                    
+                    let reviewText = `🎬 "${movieTitle}" 영화 평점/평론 모음\n\n`;
+                    
+                    // 전문가 평론과 관객 평을 구분
+                    const expertReviews = uniqueReviews.filter(review => 
+                        review.title.includes('평론') || review.title.includes('리뷰') || 
+                        review.title.includes('평가') || review.title.includes('감상')
+                    ).slice(0, 3);
+                    
+                    const audienceReviews = uniqueReviews.filter(review => 
+                        review.title.includes('관객') || review.title.includes('후기') || 
+                        review.title.includes('평점') || review.title.includes('별점')
+                    ).slice(0, 3);
+                    
+                    if (expertReviews.length > 0) {
+                        reviewText += `👨‍💼 전문가 평론:\n`;
+                        expertReviews.forEach((review, index) => {
+                            reviewText += `${index + 1}. ${review.title}\n`;
+                            if (review.description) {
+                                reviewText += `   "${review.description.substring(0, 80)}..."\n`;
+                            }
+                        });
+                        reviewText += `\n`;
+                    }
+                    
+                    if (audienceReviews.length > 0) {
+                        reviewText += `👥 관객 평가:\n`;
+                        audienceReviews.forEach((review, index) => {
+                            reviewText += `${index + 1}. ${review.title}\n`;
+                            if (review.description) {
+                                reviewText += `   "${review.description.substring(0, 80)}..."\n`;
+                            }
+                        });
+                        reviewText += `\n`;
+                    }
+                    
+                    if (expertReviews.length === 0 && audienceReviews.length === 0) {
+                        reviewText += `📰 검색된 리뷰/평점 (${uniqueReviews.length}개):\n`;
+                        uniqueReviews.slice(0, 5).forEach((review, index) => {
+                            reviewText += `${index + 1}. ${review.title}\n`;
+                            if (review.description) {
+                                reviewText += `   "${review.description.substring(0, 80)}..."\n`;
+                            }
+                        });
+                    }
+                    
+                    reviewText += `\n💡 더 자세한 평점은 네이버 영화, 왓챠, CGV 등에서 확인하세요.`;
+                    return reviewText;
+                }
+            }
+            
             // 추가 시도: 네이버 뉴스에서 영화 관련 정보 검색
             console.log('🔍 네이버 뉴스에서 영화 정보 검색 시도');
             const newsResults = await getLatestNews(`"${movieTitle}" 영화`);
@@ -263,7 +340,7 @@ async function getMovieReview(movieTitle) {
                 return newsInfo;
             }
             
-            return `🎬 "${movieTitle}" 영화를 찾을 수 없습니다.\n\n💡 검색 팁:\n• 정확한 영화 제목으로 다시 검색\n• 영어 제목이나 한글 제목으로 시도\n• 개봉년도와 함께 검색\n\n🏎️ F1 관련 실제 영화들:\n• "러쉬 영화평" - 2013년 F1 라이벌 영화\n• "세나 영화평" - 2010년 아일톤 세나 다큐\n• "그랑프리 영화평" - 1966년 클래식 F1 영화\n\n💭 "f1더맥스"는 존재하지 않는 제목일 수 있습니다.`;
+            return `🎬 "${movieTitle}" 영화를 찾을 수 없습니다.\n\n💡 검색 팁:\n• 정확한 영화 제목으로 다시 검색\n• 영어 제목이나 한글 제목으로 시도\n• 개봉년도와 함께 검색\n\n🏎️ F1 관련 실제 영화들:\n• "러쉬 영화평" - 2013년 F1 라이벌 영화\n• "세나 영화평" - 2010년 아일톤 세나 다큐\n• "그랑프리 영화평" - 1966년 클래식 F1 영화\n\n💭 "f1더무비"는 존재하지 않는 제목일 수 있습니다.`;
         }
         
         // 2단계: 가장 관련성 높은 영화 선택
@@ -1472,6 +1549,10 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     day: 'numeric'
                 });
                 
+                // 맥미니 질문에서도 특별 표현 감지
+                const hasMacSpecialCalling = /똑똑이|박지피티|정신차려|정신차렷|바보|멍청이|지피티야|클로드야|ai야|봇아|챗봇아/i.test(userMessage);
+                const isMacFrustrated = /아니|왜|못|안|안돼|화나|짜증|답답|멍청|바보|정신|제대로|똑바로|다운|먹통/i.test(userMessage);
+                
                 const claudeResponse = await axios.post(
                     'https://api.anthropic.com/v1/messages',
                     {
@@ -1485,7 +1566,15 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 - 확실하지 않은 정보는 "정확한 정보를 찾기 어렵습니다"라고 안내
 - 핵심 정보만 포함
 - 이모지 적절히 사용
-- 읽기 쉬운 구조로 작성`,
+- 읽기 쉬운 구조로 작성
+
+${hasMacSpecialCalling || isMacFrustrated ? `
+🤖 특별 안내: 사용자가 화나거나 답답해하는 표현을 사용했습니다.
+- 친근하고 사과하는 톤으로 답변하세요
+- "죄송합니다" 같은 표현으로 시작
+- 맥미니에 대한 정확한 정보를 제공하되 친근한 톤 유지
+- 더 나은 답변을 제공하겠다는 의지 표현
+` : ''}`,
                         messages: [{
                             role: "user",
                             content: userMessage
@@ -1711,6 +1800,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     }
                 }
                 
+                // 특별한 호칭이나 표현 감지 (전체 요청 처리용)
+                const hasSpecialCalling = /똑똑이|박지피티|정신차려|정신차렷|바보|멍청이|지피티야|클로드야|ai야|봇아|챗봇아|야|아|에이/i.test(userMessage);
+                const isFrustrated = /아니|왜|못|안|안돼|화나|짜증|답답|멍청|바보|정신|제대로|똑바로|다운|먹통|말해|응답|반응|안해|없어|말|대답|똑똑/i.test(userMessage);
+                const isDownOrSilent = /다운|먹통|안해|아무말|침묵|조용|반응없|응답없|말안|대답안|멈춘|죽었|안돌아|작동안/i.test(userMessage);
+                
                 const claudeResponse = await axios.post(
                     'https://api.anthropic.com/v1/messages',
                     {
@@ -1727,6 +1821,23 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 - 핵심 정보만 포함
 - 이모지 적절히 사용
 - 읽기 쉬운 구조로 작성
+
+${hasSpecialCalling || isFrustrated || isDownOrSilent ? `
+🤖 특별 안내: 사용자가 화나거나 답답해하는 표현을 사용했습니다.
+- 친근하고 사과하는 톤으로 답변하세요
+- "죄송합니다", "다시 시도해보겠습니다" 같은 표현 사용
+- 사용자의 감정을 인정하고 도움이 되고자 하는 자세 보여주기
+- "똑똑이", "박지피티", "정신차려" 같은 호칭은 친근한 표현으로 받아들이기
+- "다운되는", "아무말도 안한다" 같은 표현에는 "제가 제대로 답변드리지 못한 것 같네요" 등으로 응답
+- 더 나은 서비스를 제공하겠다는 의지 표현
+
+응답 형식 예시:
+😅 죄송해요! 제가 제대로 도움을 드리지 못한 것 같네요.
+[질문에 대한 정확한 답변]
+💪 더 나은 답변을 드리도록 노력하겠습니다!
+
+중요: 반드시 사용자의 실제 질문에도 답변하되, 친근하고 사과하는 톤을 유지하세요.
+` : ''}
 
 ${namuWikiInfo || (searchResults && searchResults.length > 0) ? `🎮 게임 정보 검색 결과:
 
