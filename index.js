@@ -640,22 +640,115 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         }
         // 사실 확인 요청 (뉴스 검색으로 처리) - 시간 질문보다 우선
         else if (isFactCheckRequest(userMessage)) {
-            console.log('🔍 사실 확인 요청 감지됨 - 뉴스 검색으로 처리');
-            const newsResults = await getLatestNews(userMessage);
+            console.log('🔍 사실 확인 요청 감지됨 - 스마트 뉴스 검색으로 처리');
             
-            if (newsResults && newsResults.length > 0) {
-                let factCheckText = `🔍 "${userMessage}" 관련 최신 정보\n\n`;
-                newsResults.slice(0, 5).forEach((news, index) => {
-                    factCheckText += `${index + 1}. ${news.title}\n${news.description}\n🕐 ${news.pubDate}\n🔗 ${news.link}\n\n`;
+            // 핵심 키워드 추출 (인명, 주요 단어)
+            let searchKeywords = [];
+            
+            // 1. 인명 추출 (한글 인명 패턴)
+            const nameMatches = userMessage.match(/([가-힣]{2,4})/g);
+            if (nameMatches) {
+                nameMatches.forEach(name => {
+                    if (name.length >= 2 && !['오늘', '사실', '여부', '알려', '사망했어'].includes(name)) {
+                        searchKeywords.push(name);
+                    }
                 });
+            }
+            
+            // 2. 영문 인명 추출 (헐크호건 등)
+            const englishNameMatches = userMessage.match(/([A-Za-z가-힣]{3,})/g);
+            if (englishNameMatches) {
+                englishNameMatches.forEach(name => {
+                    if (name.length >= 3 && !['the', 'and', 'for', '사실', '여부', '알려'].includes(name.toLowerCase())) {
+                        searchKeywords.push(name);
+                    }
+                });
+            }
+            
+            // 3. 유명인명 특별 처리
+            const celebrityNames = ['헐크호건', '트럼프', '바이든', '김정은', '윤석열', '이재명'];
+            celebrityNames.forEach(celebrity => {
+                if (userMessage.includes(celebrity)) {
+                    searchKeywords.unshift(celebrity); // 맨 앞에 추가
+                }
+            });
+            
+            // 3. 사실 확인 키워드 추가
+            if (userMessage.includes('사망') || userMessage.includes('죽음')) {
+                searchKeywords.push('사망');
+            }
+            if (userMessage.includes('결혼')) {
+                searchKeywords.push('결혼');
+            }
+            if (userMessage.includes('체포') || userMessage.includes('검거')) {
+                searchKeywords.push('체포');
+            }
+            
+            console.log(`🔍 추출된 검색 키워드: ${searchKeywords.join(', ')}`);
+            
+            // API 연결 상태 확인
+            if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
+                responseText = `❌ 네이버 뉴스 API 설정이 필요합니다.\n\n관리자가 API 키를 확인 중입니다.\n\n💡 임시 확인 방법:\n• 네이버 뉴스에서 직접 검색\n• 구글 뉴스에서 확인`;
+                console.log('❌ 네이버 API 키가 설정되지 않았습니다.');
+            } else {
+                console.log(`✅ 네이버 API 키 상태: 설정됨 (${NAVER_CLIENT_ID.length}자)`);
                 
-                if (factCheckText.length > config.limits.message_max_length) {
-                    factCheckText = factCheckText.substring(0, config.limits.message_truncate_length) + '...\n\n📰 더 자세한 정보는 네이버 뉴스에서 확인하세요.';
+                let newsResults = null;
+                let searchTerm = '';
+                
+                // 4. 다단계 검색 시도
+                for (const keyword of searchKeywords) {
+                    searchTerm = keyword;
+                    console.log(`🔍 "${searchTerm}" 검색 시도...`);
+                    newsResults = await getLatestNews(searchTerm);
+                    
+                    if (newsResults && newsResults.length > 0) {
+                        console.log(`✅ "${searchTerm}" 검색 성공: ${newsResults.length}개 결과`);
+                        break;
+                    } else {
+                        console.log(`❌ "${searchTerm}" 검색 결과 없음`);
+                    }
+                }
+            
+                // 5. 조합 검색 시도 (단일 키워드 실패 시)
+                if ((!newsResults || newsResults.length === 0) && searchKeywords.length >= 2) {
+                    searchTerm = searchKeywords.slice(0, 2).join(' ');
+                    console.log(`🔍 조합 검색 시도: "${searchTerm}"`);
+                    newsResults = await getLatestNews(searchTerm);
                 }
                 
-                responseText = factCheckText;
-            } else {
-                responseText = `🔍 "${userMessage}" 관련 최신 정보를 찾을 수 없습니다.\n\n💡 다른 키워드로 검색해보시거나:\n• 네이버 뉴스에서 직접 확인\n• 공식 소스에서 정보 확인\n\n사실 확인은 신뢰할 수 있는 뉴스 소스를 참고하세요.`;
+                // 6. 대안 검색 시도 (영문/한글 변환)
+                if ((!newsResults || newsResults.length === 0) && searchKeywords.length > 0) {
+                    const alternatives = [];
+                    if (searchKeywords[0] === '헐크호건') {
+                        alternatives.push('Hulk Hogan', 'WWE', '프로레슬링');
+                    }
+                    
+                    for (const alt of alternatives) {
+                        console.log(`🔍 대안 검색 시도: "${alt}"`);
+                        newsResults = await getLatestNews(alt);
+                        if (newsResults && newsResults.length > 0) {
+                            searchTerm = alt;
+                            console.log(`✅ 대안 검색 "${alt}" 성공: ${newsResults.length}개 결과`);
+                            break;
+                        }
+                    }
+                }
+                
+                if (newsResults && newsResults.length > 0) {
+                    let factCheckText = `🔍 "${searchTerm}" 관련 최신 뉴스\n\n`;
+                    newsResults.slice(0, 5).forEach((news, index) => {
+                        factCheckText += `${index + 1}. ${news.title}\n${news.description}\n🕐 ${news.pubDate}\n🔗 ${news.link}\n\n`;
+                    });
+                    
+                    if (factCheckText.length > config.limits.message_max_length) {
+                        factCheckText = factCheckText.substring(0, config.limits.message_truncate_length) + '...\n\n📰 더 자세한 정보는 네이버 뉴스에서 확인하세요.';
+                    }
+                    
+                    responseText = factCheckText;
+                } else {
+                    responseText = `🔍 "${searchKeywords.join(', ')}" 관련 최신 뉴스를 찾을 수 없습니다.\n\n💡 확인 방법:\n• 네이버 뉴스에서 "${searchKeywords[0] || '헐크호건'}" 직접 검색\n• 구글 뉴스에서 "Hulk Hogan" 검색\n• WWE 공식 사이트 확인\n\n📊 네이버 API 연결 상태: ${NAVER_CLIENT_ID ? '정상' : '오류'}\n\n최신 뉴스가 없다는 것은 해당 사실이 발생하지 않았을 가능성이 높습니다.`;
+                }
             }
         }
         // 시간 관련 질문 (사실 확인 키워드가 없는 경우에만)
