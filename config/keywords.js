@@ -90,10 +90,10 @@ module.exports = {
         ]
     },
 
-    // 타임아웃 설정
+    // 타임아웃 설정 (게임 정보 검색 최적화)
     timeouts: {
-        naver_api: 3000,
-        claude_general: 4000,
+        naver_api: 4000,        // 네이버 API: 4초로 늘림
+        claude_general: 6000,   // Claude 일반: 6초로 늘림 (게임 정보 처리용)
         claude_image: 4000,
         image_download: 3000
     },

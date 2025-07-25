@@ -926,7 +926,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                             'anthropic-version': '2023-06-01',
                             'content-type': 'application/json'
                         },
-                        timeout: 4000
+                        timeout: config.timeouts.claude_general
                     }
                 );
                 
@@ -1035,36 +1035,43 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                         try {
                             console.log(`🔍 "${gameName}" 게임 정보 검색 시작...`);
                             
-                            // 네이버 검색 API 활용한 종합 검색
-                            let searchPromises = [
-                                getLatestNews(`${gameName} 게임`),
-                                getLatestNews(`${gameName} 리뷰`), 
-                                getLatestNews(`${gameName} 평가`)
-                            ];
-                            
-                            // 데드락의 경우 영문명도 추가 검색
-                            if (gameName.includes('데드락') || gameName.toLowerCase().includes('deadlock')) {
-                                searchPromises.push(
-                                    getLatestNews(`Deadlock 게임`),
-                                    getLatestNews(`Deadlock Valve`),
-                                    getLatestNews(`밸브 데드락`)
-                                );
-                            }
-                            
-                            // 기타 유명 게임들의 영문명 검색도 추가 가능
-                            if (gameName.includes('발로란트') || gameName.toLowerCase().includes('valorant')) {
-                                searchPromises.push(getLatestNews(`Valorant 게임`));
-                            }
-                            
-                            const searchResults_raw = await Promise.all(searchPromises);
-                            
-                            // 모든 검색 결과 통합
+                            // 효율적인 순차 검색 - 빠른 결과 확보
                             searchResults = [];
-                            searchResults_raw.forEach(results => {
+                            
+                            // 1차: 기본 검색 (가장 확실한 검색어부터)
+                            const primarySearches = [`${gameName} 게임`];
+                            
+                            // 데드락의 경우 영문명을 우선 검색
+                            if (gameName.includes('데드락') || gameName.toLowerCase().includes('deadlock')) {
+                                primarySearches.unshift(`Deadlock 게임`); // 맨 앞에 추가
+                                primarySearches.push(`Deadlock Valve`);
+                            }
+                            
+                            console.log(`🚀 1차 검색 시작: ${primarySearches.join(', ')}`);
+                            
+                            for (const searchTerm of primarySearches) {
+                                const results = await getLatestNews(searchTerm);
                                 if (results && results.length > 0) {
                                     searchResults.push(...results);
+                                    console.log(`✅ "${searchTerm}" 검색 성공: ${results.length}개 결과`);
+                                    break; // 첫 번째 성공한 검색으로 충분
                                 }
-                            });
+                            }
+                            
+                            // 검색 결과가 부족하면 2차 검색
+                            if (searchResults.length < 3) {
+                                console.log(`🔄 2차 검색 시작 (현재 ${searchResults.length}개)`);
+                                const secondarySearches = [`${gameName} 리뷰`, `${gameName} 평가`];
+                                
+                                for (const searchTerm of secondarySearches) {
+                                    const results = await getLatestNews(searchTerm);
+                                    if (results && results.length > 0) {
+                                        searchResults.push(...results);
+                                        console.log(`✅ "${searchTerm}" 추가 검색: ${results.length}개 결과`);
+                                        if (searchResults.length >= 5) break; // 충분한 결과 확보
+                                    }
+                                }
+                            }
                             
                             // 중복 제거 (제목 기준)
                             const uniqueResults = [];
@@ -1145,7 +1152,7 @@ ${gameSearchSummary}
                             'anthropic-version': '2023-06-01',
                             'content-type': 'application/json'
                         },
-                        timeout: 4000  // 4초로 약간 늘림
+                        timeout: config.timeouts.claude_general  // 6초로 늘림
                     }
                 );
                 
@@ -1182,7 +1189,12 @@ ${gameSearchSummary}
                 if (error.response?.status === 401) {
                     responseText = `🔑 AI 서비스 인증에 문제가 있습니다.\n\n관리자에게 문의해주세요.`;
                 } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-                    responseText = `⏰ AI 응답 시간이 초과되었습니다.\n\n더 간단한 질문으로 다시 시도해주세요.`;
+                    // 게임 정보 요청인 경우 검색 결과라도 제공
+                    if (isGameInfoRequest && searchResults && searchResults.length > 0) {
+                        responseText = `🎮 AI 처리 시간이 초과되었지만, 검색된 정보를 제공드립니다:\n\n${gameSearchSummary}\n💡 더 자세한 정보는 위 검색 결과를 참고해주세요.`;
+                    } else {
+                        responseText = `⏰ AI 응답 시간이 초과되었습니다.\n\n게임 정보 검색은 정상 작동하지만 AI 처리에서 지연이 발생했습니다.\n다시 시도해주세요.`;
+                    }
                 } else if (error.response?.status === 429) {
                     responseText = `🚫 AI 사용량 한도에 도달했습니다.\n\n잠시 후 다시 시도해주세요.`;
                 } else if (error.message.includes('CLAUDE_API_KEY not found')) {
