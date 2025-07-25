@@ -53,6 +53,20 @@ const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
 // 설정 파일에서 타임아웃 설정 가져오기
 const TIMEOUT_CONFIG = config.timeouts;
 
+// 사실 확인 요청 감지 함수
+function isFactCheckRequest(message) {
+    const factCheckKeywords = [
+        '사실', '진실', '사망', '죽음', '별세', '타계', '작고', '서거',
+        '결혼', '이혼', '임신', '출산', '체포', '검거', '구속',
+        '사고', '화재', '지진', '홍수', '태풍', '폭발',
+        '발표', '공개', '출시', '런칭', '개봉', '방영',
+        '사실이야', '진짜야', '맞아', '확실해', '사실 여부', 
+        '진실 여부', '확인', '알려줘', '맞는지', '사실인지'
+    ];
+    
+    return factCheckKeywords.some(keyword => message.includes(keyword));
+}
+
 // 나무위키 게임 정보 가져오기 함수
 async function getNamuWikiGameInfo(gameName) {
     try {
@@ -578,6 +592,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             isShopping: isShoppingRequest(userMessage), 
             isRestaurant: isRestaurantRequest(userMessage),
             isReviewQuestion: config.shopping.review_keywords.some(keyword => userMessage.includes(keyword)),
+            isFactCheck: isFactCheckRequest(userMessage),
             message: userMessage
         };
         
@@ -623,8 +638,28 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
             responseText = `안녕하세요! 현재 시간은 ${koreanTime.formatted}입니다. 무엇을 도와드릴까요?`;
         }
-        // 시간 관련 질문
-        else if (userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) {
+        // 사실 확인 요청 (뉴스 검색으로 처리) - 시간 질문보다 우선
+        else if (isFactCheckRequest(userMessage)) {
+            console.log('🔍 사실 확인 요청 감지됨 - 뉴스 검색으로 처리');
+            const newsResults = await getLatestNews(userMessage);
+            
+            if (newsResults && newsResults.length > 0) {
+                let factCheckText = `🔍 "${userMessage}" 관련 최신 정보\n\n`;
+                newsResults.slice(0, 5).forEach((news, index) => {
+                    factCheckText += `${index + 1}. ${news.title}\n${news.description}\n🕐 ${news.pubDate}\n🔗 ${news.link}\n\n`;
+                });
+                
+                if (factCheckText.length > config.limits.message_max_length) {
+                    factCheckText = factCheckText.substring(0, config.limits.message_truncate_length) + '...\n\n📰 더 자세한 정보는 네이버 뉴스에서 확인하세요.';
+                }
+                
+                responseText = factCheckText;
+            } else {
+                responseText = `🔍 "${userMessage}" 관련 최신 정보를 찾을 수 없습니다.\n\n💡 다른 키워드로 검색해보시거나:\n• 네이버 뉴스에서 직접 확인\n• 공식 소스에서 정보 확인\n\n사실 확인은 신뢰할 수 있는 뉴스 소스를 참고하세요.`;
+            }
+        }
+        // 시간 관련 질문 (사실 확인 키워드가 없는 경우에만)
+        else if ((userMessage.includes('시간') || userMessage.includes('날짜') || userMessage.includes('오늘') || userMessage.includes('지금')) && !isFactCheckRequest(userMessage)) {
             const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
             const now = new Date();
             const koreaDate = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Seoul'}));
