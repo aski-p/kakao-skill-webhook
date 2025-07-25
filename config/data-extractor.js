@@ -65,13 +65,13 @@ class DataExtractor {
         console.log(`🎬 영화 API 검색 시도: "${title}"`);
 
         try {
-            // 1. Playwright 실시간 크롤링 시도 (우선순위)
-            console.log('🎯 실시간 크롤링 시도...');
-            const realtimeResult = await this.crawler.crawlMultipleSites(title);
+            // 1. 뉴스 검색 우선 (안정적인 검색)
+            console.log('🔍 뉴스 기반 영화 검색 시도...');
+            const newsResult = await this.searchMovieReviewsInNews(title, reviewType);
             
-            if (realtimeResult && (realtimeResult.naver || realtimeResult.cgv)) {
-                console.log('✅ 실시간 크롤링 성공');
-                return this.crawler.formatForKakaoSkill(realtimeResult, title);
+            if (newsResult && newsResult.success) {
+                console.log('✅ 뉴스 검색 성공');
+                return newsResult;
             }
 
             // 2. 네이버 영화 API 검색 시도 (폴백)
@@ -91,22 +91,33 @@ class DataExtractor {
                 return this.formatMovieResponse(movie, title, reviewType);
             }
 
-            // 3. 뉴스 검색으로 최종 폴백
-            return await this.searchMovieReviewsInNews(title, reviewType);
+            // 3. Playwright 실시간 크롤링 시도 (최종 시도)
+            console.log('🎯 실시간 크롤링 최종 시도...');
+            try {
+                const realtimeResult = await this.crawler.crawlMultipleSites(title);
+                if (realtimeResult && (realtimeResult.naver || realtimeResult.cgv)) {
+                    console.log('✅ 실시간 크롤링 성공');
+                    return this.crawler.formatForKakaoSkill(realtimeResult, title);
+                }
+            } catch (crawlError) {
+                console.log('⚠️ 크롤링 스킵:', crawlError.message);
+            }
+
+            // 4. 최종 실패
+            return this.createErrorResponse(`🎬 "${title}" 영화 정보를 찾을 수 없습니다.`);
 
         } catch (error) {
             console.error('❌ 영화 검색 실패:', error);
-            return await this.searchMovieReviewsInNews(title, reviewType);
+            return this.createErrorResponse(`🎬 "${title}" 영화 검색 중 오류가 발생했습니다.`);
         }
     }
 
     async searchMovieReviewsInNews(title, reviewType) {
-        // F1 더무비 검색 - 원래 제목 그대로 검색
-        console.log(`🎬 영화 뉴스 검색: "${title}" (원본 제목 유지)`);
-        // 더 이상 제목을 변경하지 않음
+        console.log(`🎬 영화 뉴스 검색: "${title}"`);
         
         const searchQueries = this.generateMovieSearchQueries(title, reviewType);
         
+        // 첫 번째 검색 시도
         for (const query of searchQueries) {
             try {
                 console.log(`🔍 영화 검색: ${query}`);
@@ -116,7 +127,33 @@ class DataExtractor {
                     return this.formatMovieNewsResponse(response.items, title, query);
                 }
             } catch (error) {
-                console.log(`⚠️ 영화 뉴스 검색 실패: ${query}`, error);
+                console.log(`⚠️ 영화 뉴스 검색 실패: ${query}`, error.message);
+            }
+        }
+        
+        // F1 관련 영화인 경우 확장 검색
+        if (title.toLowerCase().includes('f1') || title.includes('더무비')) {
+            console.log('🏎️ F1 관련 영화 확장 검색 시도...');
+            const f1Queries = [
+                'F1 영화 평점',
+                '러쉬 영화 평점 크리스 헴스워스',
+                '포드 vs 페라리 영화 평점',
+                'F1 레이싱 영화 추천',
+                '자동차 레이싱 영화 평점'
+            ];
+            
+            for (const query of f1Queries) {
+                try {
+                    console.log(`🔍 F1 확장 검색: ${query}`);
+                    const response = await this.searchNaver('news', query, 10);
+                    if (response.items && response.items.length > 0) {
+                        console.log(`✅ F1 확장 검색 결과 ${response.items.length}개 찾음`);
+                        // F1 관련 영화들 안내 메시지와 함께 결과 반환
+                        return this.formatF1AlternativeResponse(response.items, title);
+                    }
+                } catch (error) {
+                    console.log(`⚠️ F1 확장 검색 실패: ${query}`, error.message);
+                }
             }
         }
         
@@ -808,6 +845,76 @@ class DataExtractor {
                 title: title,
                 query: query,
                 message: reviewText.trim()
+            }
+        };
+    }
+
+    // F1 관련 대안 영화 응답 포맷
+    formatF1AlternativeResponse(items, originalTitle) {
+        if (!items || items.length === 0) {
+            return this.createErrorResponse(`🎬 "${originalTitle}" 관련 F1 영화 정보를 찾을 수 없습니다.`);
+        }
+
+        let message = `🏎️ "${originalTitle}" 대신 실제 F1 영화들을 찾았습니다!\n\n`;
+        
+        // F1 관련 영화 정보 추출
+        const f1Movies = [];
+        items.forEach(item => {
+            const cleanTitle = this.cleanHtmlAndSpecialChars(item.title);
+            const cleanDescription = this.cleanHtmlAndSpecialChars(item.description);
+            
+            // F1 관련 영화명 추출
+            if (cleanTitle.includes('러쉬') || cleanDescription.includes('러쉬')) {
+                f1Movies.push({
+                    title: '러쉬 (Rush)',
+                    description: '크리스 헴스워스 주연의 F1 레이싱 영화',
+                    info: cleanDescription.substring(0, 80)
+                });
+            } else if (cleanTitle.includes('포드') || cleanDescription.includes('포드')) {
+                f1Movies.push({
+                    title: '포드 vs 페라리',
+                    description: '르망 24시 레이스를 다룬 레이싱 영화',
+                    info: cleanDescription.substring(0, 80)
+                });
+            } else if (cleanTitle.includes('그랑프리') || cleanDescription.includes('그랑프리')) {
+                f1Movies.push({
+                    title: '그랑프리',
+                    description: '클래식 F1 레이싱 영화',
+                    info: cleanDescription.substring(0, 80)
+                });
+            }
+        });
+
+        // 중복 제거
+        const uniqueMovies = f1Movies.filter((movie, index, self) =>
+            index === self.findIndex(m => m.title === movie.title)
+        );
+
+        if (uniqueMovies.length > 0) {
+            message += `🎬 추천 F1/레이싱 영화:\n\n`;
+            uniqueMovies.slice(0, 3).forEach((movie, index) => {
+                message += `${index + 1}. ${movie.title}\n   ${movie.description}\n   ${movie.info}...\n\n`;
+            });
+        } else {
+            // 일반 F1 관련 기사들
+            message += `📰 F1 관련 최신 정보:\n\n`;
+            items.slice(0, 3).forEach((item, index) => {
+                const cleanTitle = this.cleanHtmlAndSpecialChars(item.title);
+                const cleanDescription = this.cleanHtmlAndSpecialChars(item.description);
+                message += `${index + 1}. ${cleanTitle}\n   ${cleanDescription.substring(0, 60)}...\n\n`;
+            });
+        }
+
+        message += `💡 정확한 영화명으로 다시 검색해보세요!\n`;
+        message += `예: "러쉬 영화평", "포드 vs 페라리 평점"`;
+
+        return {
+            success: true,
+            type: 'f1_alternative',
+            data: {
+                originalTitle: originalTitle,
+                suggestions: uniqueMovies,
+                message: message.trim()
             }
         };
     }
