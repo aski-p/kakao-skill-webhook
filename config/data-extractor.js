@@ -356,19 +356,19 @@ class DataExtractor {
         // 전문가 평론 섹션
         if (expertReviews.length > 0) {
             reviewText += `👨‍🎓 전문가 평론:\n\n`;
-            expertReviews.slice(0, 3).forEach((review, index) => {
+            expertReviews.slice(0, 2).forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
-                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description).substring(0, 120);
-                reviewText += `${index + 1}. ${cleanTitle}\n   "${cleanDescription}..."\n\n`;
+                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description).substring(0, 200);
+                reviewText += `${index + 1}. ${cleanTitle}\n\n"${cleanDescription}..."\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
             });
         }
         
         // 관객 평가 섹션 (별점/평점 중심)
         if (audienceReviews.length > 0) {
             reviewText += `⭐ 관객 평점:\n\n`;
-            audienceReviews.slice(0, 3).forEach((review, index) => {
+            audienceReviews.slice(0, 2).forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
-                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description).substring(0, 120);
+                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description).substring(0, 180);
                 
                 // 별점이나 평점 추출 시도
                 const ratingMatch = cleanDescription.match(/(\d+\.?\d*)\s*(?:점|\/10|★|⭐)/);
@@ -381,17 +381,17 @@ class DataExtractor {
                     ratingInfo = ` [${starMatch[1]}]`;
                 }
                 
-                reviewText += `${index + 1}. ${cleanTitle}${ratingInfo}\n   "${cleanDescription}..."\n\n`;
+                reviewText += `${index + 1}. ${cleanTitle}${ratingInfo}\n\n"${cleanDescription}..."\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
             });
         }
         
         // 둘 다 없으면 일반 리뷰들
         if (expertReviews.length === 0 && audienceReviews.length === 0) {
             reviewText += `📝 영화 관련 정보:\n\n`;
-            items.slice(0, 5).forEach((review, index) => {
+            items.slice(0, 3).forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
-                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description).substring(0, 120);
-                reviewText += `${index + 1}. ${cleanTitle}\n   "${cleanDescription}..."\n\n`;
+                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description).substring(0, 180);
+                reviewText += `${index + 1}. ${cleanTitle}\n\n"${cleanDescription}..."\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
             });
         }
 
