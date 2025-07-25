@@ -223,7 +223,9 @@ class MessageClassifier {
             let f1Title = message
                 .replace(/f1\s*더무비?/i, 'F1 더무비')
                 .replace(/더무비\s*f1/i, 'F1 더무비')
+                .replace(/네이버/g, '')  // 네이버 제거
                 .replace(/\b(영화평|평점|평가|리뷰|별점|어때|영화)\b/g, '')
+                .replace(/\s+/g, ' ')  // 여러 공백을 하나로
                 .trim();
             
             console.log(`🏎️ F1 영화 특별 처리: "${f1Title}"`);
@@ -251,7 +253,7 @@ class MessageClassifier {
     // 영화 제목 정리 헬퍼 함수
     cleanMovieTitle(title) {
         return title
-            .replace(/\b(영화평|평점|평가|리뷰|별점|어때|영화)\b/g, '')
+            .replace(/\b(영화평|평점|평가|리뷰|별점|어때|영화|네이버)\b/g, '')
             .replace(/\s+/g, ' ')
             .trim();
     }

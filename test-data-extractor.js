@@ -11,10 +11,10 @@ async function testDataExtractor() {
     
     try {
         // F1 더무비 테스트
-        console.log('📝 테스트: "F1 더무비"');
+        console.log('📝 테스트: "F1더무비 네이버"');
         console.log('='.repeat(60));
         
-        const movieTitle = "F1 더무비";
+        const movieTitle = "F1더무비 네이버";
         
         // MOVIE_REVIEW 카테고리로 데이터 추출 요청 (올바른 형식)
         const classification = {

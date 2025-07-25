@@ -63,16 +63,17 @@ class DataExtractor {
 
         console.log(`🎬 영화 검색: "${title}" (리뷰 타입: ${reviewType})`);
 
-        // 사용자가 원하는 상세한 형식의 영화평을 위해 기존 getMovieReview 함수 활용
+        // 🎯 사용자가 원하는 상세한 형식의 영화평을 최우선으로 제공
+        console.log('🚀 종합 영화평 시스템 우선 실행');
         try {
-            // index.js의 getMovieReview 함수를 직접 사용하지 않고 여기서 구현
             const movieReviewResult = await this.getComprehensiveMovieReview(title);
             
             if (movieReviewResult && movieReviewResult.success) {
+                console.log('✅ 종합 영화평 시스템 성공 - 상세 포맷 제공');
                 return movieReviewResult;
             }
         } catch (error) {
-            console.log(`⚠️ 종합 영화평 생성 실패: ${error.message}`);
+            console.log(`⚠️ 종합 영화평 생성 실패, 폴백 시스템 사용: ${error.message}`);
         }
 
         // 1. KOBIS API로 영화 정보 및 박스오피스 검색
