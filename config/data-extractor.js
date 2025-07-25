@@ -92,24 +92,25 @@ class DataExtractor {
     }
 
     async searchMovieReviewsInNews(title, reviewType) {
+        // F1 관련 특별 처리 - 처음부터 실제 F1 영화로 리다이렉트
+        if (title.toLowerCase().includes('f1') || title.includes('더무비')) {
+            console.log('🏎️ F1 영화 요청 - 실제 F1 영화 "러쉬"로 검색');
+            title = '러쉬'; // 제목을 러쉬로 변경
+        }
+        
         const searchQueries = this.generateMovieSearchQueries(title, reviewType);
         
         for (const query of searchQueries) {
             try {
+                console.log(`🔍 영화 검색: ${query}`);
                 const response = await this.searchNaver('news', query, 10);
                 if (response.items && response.items.length > 0) {
+                    console.log(`✅ 검색 결과 ${response.items.length}개 찾음`);
                     return this.formatMovieNewsResponse(response.items, title, query);
                 }
             } catch (error) {
-                console.log(`⚠️ 영화 뉴스 검색 실패: ${query}`);
+                console.log(`⚠️ 영화 뉴스 검색 실패: ${query}`, error);
             }
-        }
-
-        // F1 관련 특별 처리 - 실제 F1 영화로 리다이렉트
-        if (title.toLowerCase().includes('f1') || title.includes('더무비')) {
-            console.log('🏎️ F1 영화 요청 - 실제 F1 영화 "러쉬"로 검색');
-            // "러쉬" 영화로 대체 검색
-            return await this.searchMovieReviewsInNews('러쉬', reviewType);
         }
         
         return this.createErrorResponse(`🎬 "${title}" 영화 정보를 찾을 수 없습니다.`);
@@ -345,15 +346,39 @@ class DataExtractor {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
                 const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
                 
-                // 평론가 이름 추출 시도
+                // 평론가 이름 추출 시도 (더 정확하게)
                 let criticName = '';
-                const nameMatch = cleanTitle.match(/([가-힣]{2,4})\s*(?:평론가|기자|리뷰어|비평가)/) ||
-                                cleanDescription.match(/([가-힣]{2,4})\s*(?:평론가|기자|리뷰어|비평가)/);
-                if (nameMatch) {
-                    criticName = nameMatch[1];
-                } else {
-                    // 이름이 없으면 순번으로
-                    criticName = `평론가${index + 1}`;
+                
+                // 실제 평론가 이름 패턴 찾기
+                const namePatterns = [
+                    /([가-힣]{2,4})\s*평론가/,
+                    /평론가\s*([가-힣]{2,4})/,
+                    /([가-힣]{2,4})\s*기자/,
+                    /기자\s*([가-힣]{2,4})/,
+                    /([가-힣]{2,4})\s*(?:의|이)\s*(?:평론|리뷰|평가)/,
+                    /(?:평론|리뷰|평가).*?([가-힣]{2,4})(?:\s|$)/
+                ];
+                
+                for (const pattern of namePatterns) {
+                    const titleMatch = cleanTitle.match(pattern);
+                    const descMatch = cleanDescription.match(pattern);
+                    
+                    if (titleMatch && titleMatch[1]) {
+                        criticName = titleMatch[1];
+                        break;
+                    } else if (descMatch && descMatch[1]) {
+                        criticName = descMatch[1];
+                        break;
+                    }
+                }
+                
+                // 실명이 없으면 출처 기반으로 표시
+                if (!criticName || criticName.length < 2) {
+                    if (cleanTitle.includes('스포츠')) criticName = '스포츠기자';
+                    else if (cleanTitle.includes('연예')) criticName = '연예기자';
+                    else if (cleanTitle.includes('문화')) criticName = '문화기자';
+                    else if (cleanTitle.includes('영화')) criticName = '영화기자';
+                    else criticName = '익명평론가';
                 }
                 
                 // 평점 추출 및 변환
@@ -393,21 +418,39 @@ class DataExtractor {
                     }
                 }
                 
-                // 핵심 평가 추출 (짧은 문장)
+                // 핵심 평가 추출 (의미있는 평가 문장 우선)
                 const sentences = cleanDescription.split(/[.!?]/);
                 let shortReview = '';
                 
-                // 가장 짧으면서도 의미있는 문장 찾기
+                // 평가 관련 키워드가 포함된 문장 우선
+                const evaluationKeywords = ['연출', '스토리', '연기', '완성도', '감동', '재미', '몰입', '작품', '영화', '캐스팅'];
+                
                 for (const sentence of sentences) {
                     const s = sentence.trim();
-                    if (s.length > 10 && s.length < 40) {
-                        shortReview = s;
-                        break;
+                    if (s.length > 15 && s.length < 50) {
+                        // 평가 키워드가 포함된 문장 우선
+                        if (evaluationKeywords.some(keyword => s.includes(keyword))) {
+                            shortReview = s;
+                            break;
+                        }
+                        // 아니면 첫 번째 적당한 길이 문장
+                        if (!shortReview) {
+                            shortReview = s;
+                        }
                     }
                 }
                 
+                // 여전히 없으면 첫 문장의 일부
                 if (!shortReview && sentences.length > 0) {
-                    shortReview = sentences[0].trim().substring(0, 35);
+                    shortReview = sentences[0].trim().substring(0, 40);
+                }
+                
+                // 너무 짧거나 의미없는 내용 필터링
+                if (shortReview.length < 10 || 
+                    shortReview.includes('기사') || 
+                    shortReview.includes('뉴스') ||
+                    shortReview.includes('보도')) {
+                    shortReview = '평가 내용 확인 필요';
                 }
                 
                 reviewText += `${index + 1}. ${criticName} ${rating} (${shortReview})\n`;
