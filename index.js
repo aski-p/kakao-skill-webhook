@@ -96,6 +96,24 @@ function isYouTubeSummaryRequest(message) {
     return youtubeUrl && summaryKeywords.some(keyword => message.includes(keyword));
 }
 
+// 영화 평가 요청 감지 함수
+function isMovieReviewRequest(message) {
+    const movieKeywords = ['영화', '영화평', '평점', '평가', '리뷰', '별점', '관람평'];
+    const reviewKeywords = ['어때', '평가', '리뷰', '별점', '평점', '평좀', '어떤지', '볼만해', '재밌어'];
+    
+    const hasMovieKeyword = movieKeywords.some(keyword => message.includes(keyword));
+    const hasReviewKeyword = reviewKeywords.some(keyword => message.includes(keyword));
+    
+    // "영화" 키워드가 있거나, 영화 제목과 평가 키워드가 함께 있는 경우
+    return hasMovieKeyword || (hasReviewKeyword && !isGameInfoRequest(message));
+}
+
+// 게임 정보 요청 감지 함수 (영화와 구분하기 위해)
+function isGameInfoRequest(message) {
+    const gameKeywords = ['게임', '플레이', '스팀', '에픽', 'PC게임', '콘솔'];
+    return gameKeywords.some(keyword => message.includes(keyword));
+}
+
 // YouTube API로 영상 정보 가져오기
 async function getYouTubeVideoInfo(videoId) {
     try {
@@ -125,6 +143,121 @@ async function getYouTubeVideoInfo(videoId) {
     } catch (error) {
         console.log(`❌ YouTube API 오류: ${error.message}`);
         return null;
+    }
+}
+
+// 네이버 영화 검색 함수
+async function getNaverMovieInfo(movieTitle) {
+    try {
+        if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
+            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            return null;
+        }
+        
+        const params = {
+            query: movieTitle,
+            display: 5,
+            start: 1
+        };
+        
+        console.log(`🎬 네이버 영화 검색: "${movieTitle}"`);
+        
+        const response = await axios.get('https://openapi.naver.com/v1/search/movie.json', {
+            params: params,
+            headers: {
+                'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+            },
+            timeout: TIMEOUT_CONFIG.naver_api
+        });
+        
+        const items = response.data.items;
+        if (!items || items.length === 0) {
+            console.log('🎬 검색된 영화가 없습니다.');
+            return null;
+        }
+        
+        console.log(`✅ ${items.length}개의 영화를 찾았습니다.`);
+        
+        return items.map(item => ({
+            title: item.title.replace(/<[^>]*>/g, ''),
+            director: item.director.replace(/<[^>]*>/g, ''),
+            actor: item.actor.replace(/<[^>]*>/g, ''),
+            pubDate: item.pubDate,
+            userRating: item.userRating,
+            link: item.link,
+            image: item.image
+        }));
+        
+    } catch (error) {
+        console.error('❌ 네이버 영화 API 오류:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 영화 평가 처리 함수
+async function getMovieReview(movieTitle) {
+    try {
+        console.log(`🎬 영화 평가 요청: "${movieTitle}"`);
+        
+        // 1단계: 네이버 영화 검색으로 영화 정보 가져오기
+        const movieResults = await getNaverMovieInfo(movieTitle);
+        
+        if (!movieResults || movieResults.length === 0) {
+            return `🎬 "${movieTitle}" 영화를 찾을 수 없습니다.\n\n💡 검색 팁:\n• 정확한 영화 제목으로 다시 검색\n• 영어 제목이나 한글 제목으로 시도\n• 개봉년도와 함께 검색 (예: "탑건 2022")`;
+        }
+        
+        // 2단계: 가장 관련성 높은 영화 선택
+        const bestMatch = movieResults[0];
+        
+        // 3단계: 네이버 뉴스에서 영화 리뷰 검색
+        let reviewResults = await getLatestNews(`${bestMatch.title} 리뷰`);
+        if (!reviewResults || reviewResults.length === 0) {
+            reviewResults = await getLatestNews(`${bestMatch.title} 평점`);
+        }
+        
+        let movieReviewText = `🎬 "${bestMatch.title}" 영화 정보\n\n`;
+        
+        // 영화 기본 정보
+        movieReviewText += `📽️ 감독: ${bestMatch.director || '정보 없음'}\n`;
+        movieReviewText += `🎭 출연: ${bestMatch.actor ? bestMatch.actor.substring(0, 100) + '...' : '정보 없음'}\n`;
+        movieReviewText += `📅 개봉: ${bestMatch.pubDate || '정보 없음'}\n`;
+        
+        // 네이버 평점
+        if (bestMatch.userRating && bestMatch.userRating !== '0.00') {
+            const rating = parseFloat(bestMatch.userRating);
+            const stars = '⭐'.repeat(Math.round(rating / 2));
+            movieReviewText += `⭐ 네이버 평점: ${rating}/10 ${stars}\n`;
+            
+            // 평점 분석
+            if (rating >= 8.0) {
+                movieReviewText += `💫 높은 평점! 많은 관객들이 만족한 작품\n`;
+            } else if (rating >= 6.0) {
+                movieReviewText += `👍 괜찮은 평점의 무난한 작품\n`;
+            } else if (rating >= 4.0) {
+                movieReviewText += `😐 평점이 아쉬운 작품\n`;
+            } else {
+                movieReviewText += `👎 낮은 평점의 작품\n`;
+            }
+        } else {
+            movieReviewText += `⭐ 네이버 평점: 정보 없음\n`;
+        }
+        
+        movieReviewText += `\n🔗 상세 정보: ${bestMatch.link}\n`;
+        
+        // 리뷰 정보 추가
+        if (reviewResults && reviewResults.length > 0) {
+            movieReviewText += `\n📰 최신 리뷰 (${reviewResults.length}개):\n`;
+            reviewResults.slice(0, 3).forEach((review, index) => {
+                movieReviewText += `${index + 1}. ${review.title}\n`;
+            });
+        }
+        
+        return movieReviewText;
+        
+    } catch (error) {
+        console.log(`❌ 영화 평가 오류: ${error.message}`);
+        return `🎬 영화 정보를 가져올 수 없습니다.\n\n❌ 오류:\n• 네이버 영화 API 연결 실패\n• 영화 제목을 정확히 입력해주세요\n\n💡 다시 시도:\n• "영화제목 + 영화평" 형식으로 질문\n• 네이버 영화에서 직접 검색`;
     }
 }
 
@@ -721,6 +854,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             isReviewQuestion: config.shopping.review_keywords.some(keyword => userMessage.includes(keyword)),
             isFactCheck: isFactCheckRequest(userMessage),
             isYouTubeSummary: isYouTubeSummaryRequest(userMessage),
+            isMovieReview: isMovieReviewRequest(userMessage),
             youtubeUrl: extractYouTubeUrl(userMessage),
             message: userMessage
         };
@@ -776,6 +910,22 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 responseText = await getYouTubeSummary(youtubeData);
             } else {
                 responseText = `📺 유튜브 URL을 찾을 수 없습니다.\n\n💡 올바른 형식:\n• https://www.youtube.com/watch?v=VIDEO_ID\n• https://youtu.be/VIDEO_ID\n\n다시 시도해주세요.`;
+            }
+        }
+        // 영화 평가 요청 처리
+        else if (isMovieReviewRequest(userMessage)) {
+            console.log('🎬 영화 평가 요청 감지됨');
+            
+            // 영화 제목 추출 (평가 관련 키워드 제거)
+            let movieTitle = userMessage
+                .replace(/영화평|평점|평가|리뷰|별점|평좀|해줘|좀|어때|어떤지|볼만해|재밌어|봤어|본|생각|의견/g, '')
+                .trim();
+            
+            // 빈 제목 처리
+            if (!movieTitle || movieTitle.length < 2) {
+                responseText = `🎬 영화 평가를 위해 영화 제목을 알려주세요!\n\n💡 올바른 형식:\n• "탑건 영화평"\n• "어벤져스 평점"\n• "기생충 어때?"\n\n다시 시도해주세요.`;
+            } else {
+                responseText = await getMovieReview(movieTitle);
             }
         }
         // 사실 확인 요청 (뉴스 검색으로 처리) - 시간 질문보다 우선
