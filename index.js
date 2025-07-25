@@ -986,33 +986,97 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     day: 'numeric'
                 });
                 
-                // 게임 정보 요청인 경우 웹 검색으로 실제 정보 확인
+                // 게임 정보 요청인 경우 네이버 검색 API로 실제 정보 확인
                 let searchResults = null;
+                let gameSearchSummary = '';
                 const isGameInfoRequest = userMessage.includes('게임') && config.shopping.review_keywords.some(keyword => userMessage.includes(keyword));
                 
                 if (isGameInfoRequest) {
-                    console.log('🎮 게임 정보 요청 감지 - 웹 검색으로 실제 정보 확인');
-                    // 게임명 추출 시도
-                    const gameNameMatch = userMessage.match(/([가-힣a-zA-Z0-9\s]+)\s*(게임|어때|할만해)/);
+                    console.log('🎮 게임 정보 요청 감지 - 네이버 검색 API로 정확한 정보 확인');
+                    
+                    // 게임명 추출 개선 (더 정확한 패턴 매칭)
+                    let gameName = null;
+                    
+                    // 1. "OOO 게임 어때" 패턴
+                    let gameNameMatch = userMessage.match(/([가-힣a-zA-Z0-9\s]+?)\s*(게임|어때|할만해|추천|평가|리뷰)/);
                     if (gameNameMatch) {
-                        const gameName = gameNameMatch[1].trim();
-                        
+                        gameName = gameNameMatch[1].trim();
+                    }
+                    
+                    // 2. "벨브 데드락" 같은 개발사+게임명 패턴
+                    if (!gameName) {
+                        gameNameMatch = userMessage.match(/(벨브|밸브|valve)\s*([가-힣a-zA-Z0-9]+)/i);
+                        if (gameNameMatch) {
+                            gameName = `${gameNameMatch[1]} ${gameNameMatch[2]}`;
+                        }
+                    }
+                    
+                    // 3. 단순 게임명 추출
+                    if (!gameName) {
+                        gameNameMatch = userMessage.match(/([가-힣a-zA-Z0-9]+)/);
+                        if (gameNameMatch) {
+                            gameName = gameNameMatch[1];
+                        }
+                    }
+                    
+                    if (gameName) {
                         try {
-                            // WebSearch 도구 사용하여 실제 웹 검색
-                            console.log(`🌐 "${gameName}" 웹 검색 시작...`);
+                            console.log(`🔍 "${gameName}" 게임 정보 검색 시작...`);
                             
-                            // 간단한 대안: 뉴스 검색과 함께 더 구체적인 검색
-                            const newsResults = await getLatestNews(`${gameName} 게임`);
-                            const gameReviewResults = await getLatestNews(`${gameName} 리뷰`);
+                            // 네이버 검색 API 활용한 종합 검색
+                            const searchPromises = [
+                                getLatestNews(`${gameName} 게임`),
+                                getLatestNews(`${gameName} 리뷰`), 
+                                getLatestNews(`${gameName} 평가`),
+                                getLatestNews(`${gameName} 출시`)
+                            ];
                             
+                            const [newsResults, reviewResults, ratingResults, releaseResults] = await Promise.all(searchPromises);
+                            
+                            // 모든 검색 결과 통합
                             searchResults = [];
                             if (newsResults) searchResults.push(...newsResults);
-                            if (gameReviewResults) searchResults.push(...gameReviewResults);
+                            if (reviewResults) searchResults.push(...reviewResults); 
+                            if (ratingResults) searchResults.push(...ratingResults);
+                            if (releaseResults) searchResults.push(...releaseResults);
                             
-                            console.log(`🔍 "${gameName}" 종합 검색 결과: ${searchResults?.length || 0}개`);
+                            // 중복 제거 (제목 기준)
+                            const uniqueResults = [];
+                            const seenTitles = new Set();
+                            
+                            for (const result of searchResults) {
+                                const cleanTitle = result.title.replace(/<[^>]*>/g, '').trim();
+                                if (!seenTitles.has(cleanTitle)) {
+                                    seenTitles.add(cleanTitle);
+                                    uniqueResults.push({
+                                        ...result,
+                                        title: cleanTitle
+                                    });
+                                }
+                            }
+                            
+                            searchResults = uniqueResults.slice(0, 10); // 최대 10개까지
+                            
+                            console.log(`📊 "${gameName}" 검색 완료: ${searchResults.length}개 결과`);
+                            
+                            // 검색 결과 요약 생성
+                            if (searchResults.length > 0) {
+                                gameSearchSummary = `🔍 "${gameName}" 관련 최신 정보:\n`;
+                                searchResults.slice(0, 3).forEach((result, index) => {
+                                    gameSearchSummary += `${index + 1}. ${result.title}\n`;
+                                });
+                                gameSearchSummary += `\n총 ${searchResults.length}개의 관련 정보를 찾았습니다.\n`;
+                            } else {
+                                gameSearchSummary = `❌ "${gameName}"에 대한 최신 정보를 찾을 수 없습니다.\n`;
+                            }
+                            
                         } catch (error) {
-                            console.log(`❌ 웹 검색 오류: ${error.message}`);
+                            console.log(`❌ 게임 정보 검색 오류: ${error.message}`);
+                            gameSearchSummary = `⚠️ 검색 중 오류가 발생했습니다.\n`;
                         }
+                    } else {
+                        console.log(`⚠️ 게임명을 추출할 수 없습니다: "${userMessage}"`);
+                        gameSearchSummary = `❓ 게임명을 정확히 파악하기 어렵습니다.\n`;
                     }
                 }
                 
@@ -1026,12 +1090,23 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 - 800자 이내로 간결하게 작성
 - 2025년 최신 정보로 답변 (추측하지 말고 확실한 정보만)
 - 게임 정보는 정확성을 최우선으로 (틀린 정보 제공 금지)
+- 네이버 검색 결과가 있으면 반드시 그 정보를 바탕으로 답변
+- 검색 결과 없이는 게임 정보 추측 금지
 - 확실하지 않은 게임 정보는 "정확한 정보를 찾기 어렵습니다"라고 안내
 - 핵심 정보만 포함
 - 이모지 적절히 사용
 - 읽기 쉬운 구조로 작성
 
-${searchResults && searchResults.length > 0 ? `참고할 실제 검색 정보 (이 정보를 바탕으로 답변하세요):\n${searchResults.slice(0, 5).map(item => `- ${item.title}: ${item.description}`).join('\n')}\n` : '확실한 정보가 없으므로 "정확한 정보를 찾기 어렵습니다"라고 답변하세요.\n'}`,
+${searchResults && searchResults.length > 0 ? `🔍 네이버 검색으로 찾은 실제 정보 (반드시 이 정보를 바탕으로 답변하세요):
+${gameSearchSummary}
+
+상세 검색 결과:
+${searchResults.slice(0, 5).map((item, index) => `${index + 1}. ${item.title}\n   ${item.description || '설명 없음'}`).join('\n\n')}
+
+위 검색 결과를 바탕으로 정확한 정보만 제공하세요.` : `❌ 네이버 검색에서 관련 정보를 찾을 수 없습니다.
+${gameSearchSummary}
+
+검색 결과가 없으므로 "죄송합니다. 해당 게임에 대한 정확한 정보를 네이버에서 찾을 수 없습니다"라고 답변하세요.`}`,
                         messages: [{
                             role: "user",
                             content: userMessage
@@ -1089,7 +1164,7 @@ ${searchResults && searchResults.length > 0 ? `참고할 실제 검색 정보 (�
                 } else {
                     // 게임 정보 요청인 경우 안전한 에러 메시지
                     if (isGameInfoRequest) {
-                        responseText = `🎮 죄송합니다. 해당 게임에 대한 정확한 정보를 찾기 어렵습니다.\n\n💡 더 정확한 정보를 원하시면:\n• 게임 공식 웹사이트 확인\n• 스팀, 플레이스토어 등에서 검색\n• 게임 리뷰 사이트 참고\n\n잘못된 정보보다는 정확한 안내를 우선합니다.`;
+                        responseText = `🎮 죄송합니다. AI 서비스 오류로 게임 정보를 처리할 수 없습니다.\n\n${gameSearchSummary || ''}💡 정확한 게임 정보를 원하시면:\n• 네이버에서 "게임명 + 리뷰" 검색\n• 스팀, 플레이스토어 등 공식 스토어 확인\n• 게임 공식 웹사이트 방문\n\n네이버 검색 API를 통한 실시간 정보 제공을 목표로 하고 있습니다.`;
                     } else {
                         responseText = `⚠️ AI 서비스가 일시 불안정합니다.\n\n잠시 후 다시 시도해주세요.`;
                     }
