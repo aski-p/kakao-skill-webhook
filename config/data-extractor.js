@@ -449,33 +449,45 @@ class DataExtractor {
             return this.createErrorResponse(`🎬 "${title}" 영화 평가 정보를 찾을 수 없습니다.`);
         }
         
-        // F1 영화 요청인 경우 안내 메시지 추가
-        const isF1Request = query.includes('F1') || title.includes('F1') || title.includes('더무비');
-        const titlePrefix = isF1Request ? `🏎️ F1 영화 대신 실제 F1 영화 "러쉬" ` : ``;
+        // 요청된 영화 제목 그대로 사용
+        const titlePrefix = ``;
 
-        // 전문가 평론과 관객 평을 구분 (더 폭넓게)
+        // 전문가 평론 필터링 (더 넓은 범위)
         const expertReviews = items.filter(review => {
             const titleAndDesc = (review.title + ' ' + review.description).toLowerCase();
             return titleAndDesc.includes('평론가') || titleAndDesc.includes('기자') || 
                    titleAndDesc.includes('비평') || titleAndDesc.includes('평론') ||
                    titleAndDesc.includes('전문가') || titleAndDesc.includes('리뷰어') ||
+                   titleAndDesc.includes('씨네21') || titleAndDesc.includes('무비위크') ||
+                   titleAndDesc.includes('스포츠한국') || titleAndDesc.includes('연합뉴스') ||
+                   titleAndDesc.includes('중앙일보') || titleAndDesc.includes('조선일보') ||
                    /[가-힣]{2,4}\s*(평론가|기자|비평가)/.test(titleAndDesc);
         });
         
+        // 관객 평가 필터링 (더 넓은 범위)
         const audienceReviews = items.filter(review => {
             const titleAndDesc = (review.title + ' ' + review.description).toLowerCase();
             return (titleAndDesc.includes('관객') || titleAndDesc.includes('사용자') || 
                    titleAndDesc.includes('네티즌') || titleAndDesc.includes('일반인') ||
-                   titleAndDesc.includes('시청자')) && 
+                   titleAndDesc.includes('시청자') || titleAndDesc.includes('네이버영화') ||
+                   titleAndDesc.includes('왓챠') || titleAndDesc.includes('cgv') ||
+                   titleAndDesc.includes('롯데시네마') || titleAndDesc.includes('메가박스')) && 
                    (titleAndDesc.includes('평점') || titleAndDesc.includes('별점') ||
                     titleAndDesc.includes('★') || titleAndDesc.includes('⭐') ||
-                    titleAndDesc.includes('후기') || titleAndDesc.includes('감상'));
+                    titleAndDesc.includes('후기') || titleAndDesc.includes('감상') ||
+                    titleAndDesc.includes('리뷰'));
         });
         
-        // 둘 다 아닌 경우 일반 리뷰로 분류 (전문가나 관객에 포함되지 않는 것들)
-        const generalReviews = items.filter(review => 
-            !expertReviews.includes(review) && !audienceReviews.includes(review)
-        );
+        // 둘 다 아닌 경우 일반 리뷰로 분류 - 하지만 영화 관련이면 전문가로 분류
+        const generalReviews = items.filter(review => {
+            if (expertReviews.includes(review) || audienceReviews.includes(review)) {
+                return false;
+            }
+            // 영화 관련 키워드가 있으면 전문가 리뷰로 간주
+            const titleAndDesc = (review.title + ' ' + review.description).toLowerCase();
+            return titleAndDesc.includes('영화') || titleAndDesc.includes('리뷰') || 
+                   titleAndDesc.includes('평가') || titleAndDesc.includes('평점');
+        });
 
         let reviewText = `${titlePrefix}🎬 "${title}" 영화 평점/평론 모음\n\n`;
         
