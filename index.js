@@ -53,6 +53,77 @@ const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
 // 설정 파일에서 타임아웃 설정 가져오기
 const TIMEOUT_CONFIG = config.timeouts;
 
+// 나무위키 게임 정보 가져오기 함수
+async function getNamuWikiGameInfo(gameName) {
+    try {
+        console.log(`🌳 나무위키에서 "${gameName}" 게임 정보 검색 시작`);
+        
+        // 나무위키 검색 URL 구성
+        const searchUrl = `https://namu.wiki/w/${encodeURIComponent(gameName)}`;
+        
+        // 웹 페이지 요청
+        const response = await axios.get(searchUrl, {
+            timeout: 5000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+        });
+        
+        if (response.status === 200 && response.data) {
+            const html = response.data;
+            
+            // 기본 정보 추출 (간단한 텍스트 추출)
+            let gameInfo = '';
+            
+            // 제목 추출
+            const titleMatch = html.match(/<title>([^<]+)<\/title>/);
+            if (titleMatch) {
+                gameInfo += `🎮 ${titleMatch[1].replace(' - 나무위키', '')}\n\n`;
+            }
+            
+            // 첫 번째 문단 추출 (개요)
+            const contentMatch = html.match(/<div[^>]*class="[^"]*wiki-content[^"]*"[^>]*>([\s\S]*?)<\/div>/);
+            if (contentMatch) {
+                let content = contentMatch[1];
+                
+                // HTML 태그 제거
+                content = content.replace(/<[^>]*>/g, '');
+                
+                // 특수 문자 디코딩
+                content = content.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+                
+                // 불필요한 공백 제거
+                content = content.replace(/\s+/g, ' ').trim();
+                
+                // 첫 500자만 추출
+                if (content.length > 500) {
+                    content = content.substring(0, 500) + '...';
+                }
+                
+                if (content) {
+                    gameInfo += `📝 개요:\n${content}\n\n`;
+                }
+            }
+            
+            gameInfo += `🔗 자세한 정보: ${searchUrl}`;
+            
+            console.log(`✅ 나무위키 "${gameName}" 정보 추출 완료: ${gameInfo.length}자`);
+            return gameInfo;
+            
+        } else {
+            console.log(`❌ 나무위키 "${gameName}" 페이지 응답 실패`);
+            return null;
+        }
+        
+    } catch (error) {
+        console.log(`❌ 나무위키 "${gameName}" 정보 추출 오류:`, error.message);
+        
+        // 대안: 나무위키 검색 결과 페이지로 안내
+        const searchQuery = encodeURIComponent(gameName);
+        return `🌳 나무위키에서 "${gameName}" 정보를 찾을 수 없습니다.\n\n🔍 직접 검색해보세요:\nhttps://namu.wiki/Search?q=${searchQuery}\n\n나무위키는 게임 정보가 매우 상세하게 정리되어 있습니다.`;
+    }
+}
+
 // 한국 시간 가져오기 함수
 function getKoreanDateTime() {
     const now = new Date();
@@ -1035,10 +1106,19 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                         try {
                             console.log(`🔍 "${gameName}" 게임 정보 검색 시작...`);
                             
-                            // 효율적인 순차 검색 - 빠른 결과 확보
+                            // 1단계: 나무위키에서 기본 게임 정보 가져오기 (우선순위)
+                            let namuWikiInfo = null;
+                            try {
+                                namuWikiInfo = await getNamuWikiGameInfo(gameName);
+                                console.log(`🌳 나무위키 검색 완료: ${namuWikiInfo ? '성공' : '실패'}`);
+                            } catch (error) {
+                                console.log(`🌳 나무위키 검색 오류: ${error.message}`);
+                            }
+                            
+                            // 2단계: 네이버 뉴스로 최신 정보 보완
                             searchResults = [];
                             
-                            // 1차: 기본 검색 (가장 확실한 검색어부터)
+                            // 기본 검색 (가장 확실한 검색어부터)
                             const primarySearches = [`${gameName} 게임`];
                             
                             // 데드락의 경우 영문명을 우선 검색
@@ -1047,7 +1127,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                                 primarySearches.push(`Deadlock Valve`);
                             }
                             
-                            console.log(`🚀 1차 검색 시작: ${primarySearches.join(', ')}`);
+                            console.log(`🚀 네이버 뉴스 검색 시작: ${primarySearches.join(', ')}`);
                             
                             for (const searchTerm of primarySearches) {
                                 const results = await getLatestNews(searchTerm);
@@ -1058,9 +1138,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                                 }
                             }
                             
-                            // 검색 결과가 부족하면 2차 검색
-                            if (searchResults.length < 3) {
-                                console.log(`🔄 2차 검색 시작 (현재 ${searchResults.length}개)`);
+                            // 검색 결과가 부족하면 추가 검색
+                            if (searchResults.length < 2) {
+                                console.log(`🔄 추가 뉴스 검색 (현재 ${searchResults.length}개)`);
                                 const secondarySearches = [`${gameName} 리뷰`, `${gameName} 평가`];
                                 
                                 for (const searchTerm of secondarySearches) {
@@ -1068,7 +1148,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                                     if (results && results.length > 0) {
                                         searchResults.push(...results);
                                         console.log(`✅ "${searchTerm}" 추가 검색: ${results.length}개 결과`);
-                                        if (searchResults.length >= 5) break; // 충분한 결과 확보
+                                        if (searchResults.length >= 3) break; // 충분한 결과 확보
                                     }
                                 }
                             }
@@ -1092,15 +1172,22 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                             
                             console.log(`📊 "${gameName}" 검색 완료: ${searchResults.length}개 결과`);
                             
-                            // 검색 결과 요약 생성
+                            // 검색 결과 요약 생성 (나무위키 + 네이버 뉴스)
+                            gameSearchSummary = '';
+                            
+                            if (namuWikiInfo) {
+                                gameSearchSummary += `🌳 나무위키 정보:\n나무위키에서 "${gameName}" 상세 정보를 찾았습니다.\n\n`;
+                            }
+                            
                             if (searchResults.length > 0) {
-                                gameSearchSummary = `🔍 "${gameName}" 관련 최신 정보:\n`;
+                                gameSearchSummary += `📰 최신 뉴스 (${searchResults.length}개):\n`;
                                 searchResults.slice(0, 3).forEach((result, index) => {
                                     gameSearchSummary += `${index + 1}. ${result.title}\n`;
                                 });
-                                gameSearchSummary += `\n총 ${searchResults.length}개의 관련 정보를 찾았습니다.\n`;
-                            } else {
-                                gameSearchSummary = `❌ "${gameName}"에 대한 최신 정보를 찾을 수 없습니다.\n`;
+                            }
+                            
+                            if (!namuWikiInfo && searchResults.length === 0) {
+                                gameSearchSummary = `❌ "${gameName}"에 대한 정보를 찾을 수 없습니다.\n`;
                             }
                             
                         } catch (error) {
@@ -1123,23 +1210,29 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 - 800자 이내로 간결하게 작성
 - 2025년 최신 정보로 답변 (추측하지 말고 확실한 정보만)
 - 게임 정보는 정확성을 최우선으로 (틀린 정보 제공 금지)
-- 네이버 검색 결과가 있으면 반드시 그 정보를 바탕으로 답변
+- 나무위키 정보가 있으면 우선적으로 활용 (가장 상세하고 정확한 정보)
+- 네이버 검색 결과로 최신 동향 보완
 - 검색 결과 없이는 게임 정보 추측 금지
 - 확실하지 않은 게임 정보는 "정확한 정보를 찾기 어렵습니다"라고 안내
 - 핵심 정보만 포함
 - 이모지 적절히 사용
 - 읽기 쉬운 구조로 작성
 
-${searchResults && searchResults.length > 0 ? `🔍 네이버 검색으로 찾은 실제 정보 (반드시 이 정보를 바탕으로 답변하세요):
+${namuWikiInfo || (searchResults && searchResults.length > 0) ? `🎮 게임 정보 검색 결과:
+
+${namuWikiInfo ? `🌳 나무위키 상세 정보:
+${namuWikiInfo}
+
+` : ''}${searchResults && searchResults.length > 0 ? `📰 최신 뉴스 정보:
 ${gameSearchSummary}
 
-상세 검색 결과:
-${searchResults.slice(0, 5).map((item, index) => `${index + 1}. ${item.title}\n   ${item.description || '설명 없음'}`).join('\n\n')}
+상세 뉴스:
+${searchResults.slice(0, 3).map((item, index) => `${index + 1}. ${item.title}\n   ${item.description || '설명 없음'}`).join('\n\n')}` : ''}
 
-위 검색 결과를 바탕으로 정확한 정보만 제공하세요.` : `❌ 네이버 검색에서 관련 정보를 찾을 수 없습니다.
+위 정보를 바탕으로 정확하고 유용한 답변을 제공하세요.` : `❌ 게임 정보를 찾을 수 없습니다.
 ${gameSearchSummary}
 
-검색 결과가 없으므로 "죄송합니다. 해당 게임에 대한 정확한 정보를 네이버에서 찾을 수 없습니다"라고 답변하세요.`}`,
+나무위키와 네이버 검색에서 관련 정보를 찾을 수 없으므로 "죄송합니다. 해당 게임에 대한 정확한 정보를 찾을 수 없습니다"라고 답변하세요.`}`,
                         messages: [{
                             role: "user",
                             content: userMessage
