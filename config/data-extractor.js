@@ -1862,6 +1862,85 @@ class DataExtractor {
                     { username: 'racing_king', score: 9.0, review: 'F1 팬이라면 꼭 봐야 할 영화. 실제 F1과 거의 구분이 안 될 정도!' }
                 ]
             },
+            
+            // 2005년 친절한 금자씨
+            {
+                title: '친절한 금자씨',
+                englishTitle: 'Lady Vengeance',
+                director: '박찬욱',
+                cast: ['이영애', '최민식', '강혜정', '김시후', '남일우'],
+                genre: '스릴러, 드라마',
+                releaseYear: '2005',
+                runtime: '115분',
+                country: '한국',
+                rating: '8.2',
+                description: '13년간 복수를 계획해온 여인 금자의 치밀하고 아름다운 복수극',
+                keywords: ['친절한금자씨', '친절한 금자씨', '금자씨', '박찬욱', '이영애', '최민식', '복수삼부작', 'lady vengeance'],
+                critics: [
+                    { name: '이동진', score: 8.5, review: '박찬욱 감독의 복수 삼부작 완결편. 시각적 완성도와 서사의 깊이가 인상적이다.' },
+                    { name: '김혜리', score: 8.3, review: '이영애의 카리스마틱한 연기와 박찬욱 특유의 미학이 조화를 이룬 걸작.' },
+                    { name: '허지웅', score: 8.0, review: '복수라는 원초적 감정을 예술로 승화시킨 박찬욱의 역작.' }
+                ],
+                audience: [
+                    { username: 'movie_fanatic', score: 9.0, review: '이영애 연기 정말 대단해요. 복수극의 완성판!' },
+                    { username: 'park_chanwook_fan', score: 8.8, review: '박찬욱 감독의 연출력이 빛나는 작품. 시각적으로도 완벽!' },
+                    { username: 'korean_cinema', score: 8.5, review: '한국 영화의 수준을 보여주는 명작. 강력 추천합니다.' },
+                    { username: 'thriller_lover', score: 8.7, review: '스릴러 장르의 최고봉. 몰입도가 장난 아니에요!' }
+                ]
+            },
+
+            // 2019년 기생충
+            {
+                title: '기생충',
+                englishTitle: 'Parasite',
+                director: '봉준호',
+                cast: ['송강호', '이선균', '조여정', '최우식', '박소담'],
+                genre: '코미디, 스릴러, 드라마',
+                releaseYear: '2019',
+                runtime: '132분',
+                country: '한국',
+                rating: '8.9',
+                description: '전 세계를 충격에 빠뜨린 봉준호 감독의 사회 풍자 걸작',
+                keywords: ['기생충', 'parasite', '봉준호', '송강호', '이선균', '조여정', '최우식', '박소담', '아카데미'],
+                critics: [
+                    { name: '이동진', score: 9.2, review: '봉준호 감독이 만들어낸 완벽한 사회 우화. 모든 장면이 의미로 가득하다.' },
+                    { name: '김혜리', score: 9.0, review: '계급사회의 모순을 예리하게 파헤친 현대적 걸작. 연출과 연기 모두 완벽.' },
+                    { name: '허지웅', score: 8.8, review: '한국 영화의 위상을 전 세계에 알린 역사적 작품. 봉준호의 연출력이 정점에 달했다.' }
+                ],
+                audience: [
+                    { username: 'korean_pride', score: 9.5, review: '한국 영화 역사상 최고의 작품! 아카데미 수상이 당연해요.' },
+                    { username: 'bong_joonho_fan', score: 9.3, review: '봉준호 감독님 천재! 사회비판이 이렇게 재미있을 수가!' },
+                    { username: 'movie_critic88', score: 8.9, review: '계급갈등을 이렇게 깔끔하게 담아낼 수 있다니. 정말 대단!' },
+                    { username: 'cinema_lover', score: 9.1, review: '몇 번을 봐도 새로운 의미를 발견하게 되는 영화. 명작 중의 명작!' }
+                ]
+            },
+
+            // 2022년 탑건: 매버릭
+            {
+                title: '탑건: 매버릭',
+                englishTitle: 'Top Gun: Maverick',
+                director: '조제프 코신스키',
+                cast: ['톰 크루즈', '마일즈 텔러', '제니퍼 코넬리', '존 햄', '글렌 파월'],
+                genre: '액션, 드라마',
+                releaseYear: '2022',
+                runtime: '131분',
+                country: '미국',
+                rating: '8.7',
+                description: '전설적인 파일럿 매버릭의 귀환과 새로운 도전',
+                keywords: ['탑건', 'topgun', 'top gun', '매버릭', 'maverick', '톰크루즈', '톰 크루즈', '조제프코신스키'],
+                critics: [
+                    { name: '이동진', score: 8.8, review: '톰 크루즈와 조제프 코신스키 감독의 완벽한 조합. 액션 영화의 새로운 기준을 제시했다.' },
+                    { name: '김혜리', score: 8.5, review: '36년 만의 속편이지만 전혀 아쉽지 않다. 감동과 스펙터클의 완벽한 균형.' },
+                    { name: '허지웅', score: 8.6, review: '실제 비행 촬영의 압도적인 스케일. 톰 크루즈의 액션에 대한 열정이 빛난다.' }
+                ],
+                audience: [
+                    { username: 'action_fan92', score: 9.2, review: '진짜 비행기로 찍은 액션이 대박! 톰 크루즈 연기도 최고!' },
+                    { username: 'maverick_fan', score: 8.9, review: '36년을 기다린 보람이 있어요. 감동과 액션 모두 완벽!' },
+                    { username: 'cruise_fan88', score: 8.7, review: '60세 톰 크루즈가 이런 액션을... 정말 대단한 배우!' },
+                    { username: 'movie_lover123', score: 9.0, review: '아이맥스로 봐야 할 영화! 스케일이 정말 압도적이에요!' }
+                ]
+            },
+
             // 2013년 러쉬
             {
                 title: '러쉬',
