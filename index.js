@@ -173,11 +173,16 @@ async function getNaverMovieInfo(movieTitle) {
         
         const items = response.data.items;
         if (!items || items.length === 0) {
-            console.log('🎬 검색된 영화가 없습니다.');
+            console.log(`🎬 "${movieTitle}" 검색 결과 없음`);
             return null;
         }
         
-        console.log(`✅ ${items.length}개의 영화를 찾았습니다.`);
+        console.log(`✅ "${movieTitle}" 검색 결과: ${items.length}개 영화 발견`);
+        
+        // 검색 결과 디버깅
+        items.forEach((item, index) => {
+            console.log(`  ${index + 1}. ${item.title.replace(/<[^>]*>/g, '')} (${item.pubDate}) - 평점: ${item.userRating}`);
+        });
         
         return items.map(item => ({
             title: item.title.replace(/<[^>]*>/g, ''),
@@ -200,11 +205,65 @@ async function getMovieReview(movieTitle) {
     try {
         console.log(`🎬 영화 평가 요청: "${movieTitle}"`);
         
-        // 1단계: 네이버 영화 검색으로 영화 정보 가져오기
-        const movieResults = await getNaverMovieInfo(movieTitle);
+        // 1단계: 다양한 검색어로 시도
+        let movieResults = null;
+        const searchVariations = [
+            movieTitle,                           // 원본
+            movieTitle.replace(/\s+/g, ''),      // 공백 제거
+            movieTitle.replace(/더/g, ' '),       // "더" → 공백
+            movieTitle.replace(/더/g, 'THE'),     // "더" → "THE"
+            movieTitle.replace(/더/g, '')         // "더" 제거
+        ];
+        
+        // F1 특별 처리
+        if (movieTitle.toLowerCase().includes('f1')) {
+            searchVariations.push('F1', 'f1', 'Formula 1', '포뮬러원', '포뮬러 1');
+            
+            // F1 더 맥스 특별 처리 - 실제 존재하는 F1 영화들로 확장
+            if (movieTitle.includes('맥스')) {
+                searchVariations.push(
+                    'F1 더 맥스', 
+                    'F1 the Max', 
+                    'F1: Drive to Survive',
+                    '러쉬',           // 실제 F1 영화
+                    'Rush',          // 영문 제목
+                    '세나',           // 아일톤 세나 다큐
+                    'Senna',
+                    '그랑프리',       // 클래식 F1 영화
+                    'Grand Prix'
+                );
+            }
+        }
+        
+        console.log(`🔍 검색 시도할 키워드들: ${searchVariations.join(', ')}`);
+        
+        // 각 검색어로 순차적으로 시도
+        for (const searchTerm of searchVariations) {
+            if (searchTerm && searchTerm.length > 0) {
+                movieResults = await getNaverMovieInfo(searchTerm);
+                if (movieResults && movieResults.length > 0) {
+                    console.log(`✅ "${searchTerm}"로 영화 발견됨`);
+                    break;
+                }
+            }
+        }
         
         if (!movieResults || movieResults.length === 0) {
-            return `🎬 "${movieTitle}" 영화를 찾을 수 없습니다.\n\n💡 검색 팁:\n• 정확한 영화 제목으로 다시 검색\n• 영어 제목이나 한글 제목으로 시도\n• 개봉년도와 함께 검색 (예: "탑건 2022")`;
+            // 추가 시도: 네이버 뉴스에서 영화 관련 정보 검색
+            console.log('🔍 네이버 뉴스에서 영화 정보 검색 시도');
+            const newsResults = await getLatestNews(`"${movieTitle}" 영화`);
+            
+            if (newsResults && newsResults.length > 0) {
+                let newsInfo = `🎬 "${movieTitle}" 관련 최신 정보\n\n`;
+                newsInfo += `📰 뉴스 검색 결과 (영화 정보):\n`;
+                newsResults.slice(0, 4).forEach((news, index) => {
+                    newsInfo += `${index + 1}. ${news.title}\n`;
+                });
+                newsInfo += `\n💡 정확한 영화 제목 확인:\n• "러쉬" (2013) - F1 라이벌 영화\n• "세나" (2010) - 아일톤 세나 다큐\n• "그랑프리" (1966) - 클래식 F1 영화\n• 또는 "러쉬 영화평"으로 다시 검색`;
+                return newsInfo;
+            }
+            
+            return `🎬 "${movieTitle}" 영화를 찾을 수 없습니다.\n\n💡 검색 팁:\n• 정확한 영화 제목으로 다시 검색\n• 영어 제목이나 한글 제목으로 시도\n• 개봉년도와 함께 검색\n\n🏎️ F1 관련 실제 영화들:\n• "러쉬 영화평" - 2013년 F1 라이벌 영화\n• "세나 영화평" - 2010년 아일톤 세나 다큐\n• "그랑프리 영화평" - 1966년 클래식 F1 영화\n\n💭 "f1더맥스"는 존재하지 않는 제목일 수 있습니다.`;
         }
         
         // 2단계: 가장 관련성 높은 영화 선택
