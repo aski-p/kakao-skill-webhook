@@ -1192,11 +1192,21 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                             
                         } catch (error) {
                             console.log(`❌ 게임 정보 검색 오류: ${error.message}`);
-                            gameSearchSummary = `⚠️ 검색 중 오류가 발생했습니다.\n`;
+                            gameSearchSummary = `⚠️ 검색 중 오류가 발생했습니다. Claude AI 직접 판단으로 전환합니다.\n`;
+                            
+                            // 검색 실패 시 Claude AI에게 직접 질문 던지기
+                            searchResults = null;
+                            namuWikiInfo = null;
+                            console.log(`🔄 검색 실패, Claude AI 직접 판단 모드로 전환`);
                         }
                     } else {
                         console.log(`⚠️ 게임명을 추출할 수 없습니다: "${userMessage}"`);
-                        gameSearchSummary = `❓ 게임명을 정확히 파악하기 어렵습니다.\n`;
+                        gameSearchSummary = `❓ 게임명을 정확히 파악하기 어려워 Claude AI 직접 판단으로 전환합니다.\n`;
+                        
+                        // 게임명 추출 실패 시도 Claude AI에게 직접 질문 던지기
+                        searchResults = null;
+                        namuWikiInfo = null;
+                        console.log(`🔄 게임명 추출 실패, Claude AI 직접 판단 모드로 전환`);
                     }
                 }
                 
@@ -1210,9 +1220,8 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 - 800자 이내로 간결하게 작성
 - 2025년 최신 정보로 답변 (추측하지 말고 확실한 정보만)
 - 게임 정보는 정확성을 최우선으로 (틀린 정보 제공 금지)
-- 나무위키 정보가 있으면 우선적으로 활용 (가장 상세하고 정확한 정보)
-- 네이버 검색 결과로 최신 동향 보완
-- 검색 결과 없이는 게임 정보 추측 금지
+- 검색 결과가 있으면 우선적으로 활용
+- 검색 실패 시에는 내장된 지식으로 답변 (2024년까지의 정보 활용)
 - 확실하지 않은 게임 정보는 "정확한 정보를 찾기 어렵습니다"라고 안내
 - 핵심 정보만 포함
 - 이모지 적절히 사용
@@ -1229,10 +1238,15 @@ ${gameSearchSummary}
 상세 뉴스:
 ${searchResults.slice(0, 3).map((item, index) => `${index + 1}. ${item.title}\n   ${item.description || '설명 없음'}`).join('\n\n')}` : ''}
 
-위 정보를 바탕으로 정확하고 유용한 답변을 제공하세요.` : `❌ 게임 정보를 찾을 수 없습니다.
+위 검색 결과를 바탕으로 정확하고 유용한 답변을 제공하세요.` : `🔄 검색 시스템에서 정보를 찾지 못했습니다.
 ${gameSearchSummary}
 
-나무위키와 네이버 검색에서 관련 정보를 찾을 수 없으므로 "죄송합니다. 해당 게임에 대한 정확한 정보를 찾을 수 없습니다"라고 답변하세요.`}`,
+검색 실패로 인해 내장된 지식으로 답변합니다. 알고 있는 정보 범위 내에서 게임에 대해 설명하되, 2024년 이후 최신 정보는 제한적일 수 있음을 알려주세요.
+
+답변 형식:
+🎮 [게임명]에 대해 알고 있는 정보를 바탕으로 설명드립니다.
+[게임 정보 설명]
+⚠️ 단, 2024년 이후 최신 정보는 제한적일 수 있습니다.`}`,
                         messages: [{
                             role: "user",
                             content: userMessage
@@ -1330,12 +1344,23 @@ ${gameSearchSummary}
         
     } catch (error) {
         console.error('❌ 웹훅 처리 중 전체 오류:', error);
+        
+        // 게임 정보 요청이었는지 확인
+        const isGameQuestion = userMessage && userMessage.includes('게임') && config.shopping.review_keywords.some(keyword => userMessage.includes(keyword));
+        
+        let errorMessage;
+        if (isGameQuestion) {
+            errorMessage = `🎮 게임 정보 검색 중 오류가 발생했습니다.\n\n💡 다시 시도해주시거나:\n• "게임명 + 어때" 형식으로 질문\n• 네이버에서 직접 검색\n\n검색 시스템을 개선하고 있습니다.`;
+        } else {
+            errorMessage = `⚠️ 서비스 처리 중 오류가 발생했습니다.\n\n잠시 후 다시 시도해주세요.\n문제가 지속되면 더 간단한 질문으로 시도해보세요.`;
+        }
+        
         const errorResponse = {
             version: "2.0",
             template: {
                 outputs: [{
                     simpleText: {
-                        text: "죄송합니다. 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+                        text: errorMessage
                     }
                 }]
             }
