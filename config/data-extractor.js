@@ -92,10 +92,10 @@ class DataExtractor {
     }
 
     async searchMovieReviewsInNews(title, reviewType) {
-        // F1 관련 특별 처리 - 처음부터 실제 F1 영화로 리다이렉트
+        // F1 관련 특별 처리 - 정확한 F1 영화 러쉬로 검색
         if (title.toLowerCase().includes('f1') || title.includes('더무비')) {
-            console.log('🏎️ F1 영화 요청 - 실제 F1 영화 "러쉬"로 검색');
-            title = '러쉬'; // 제목을 러쉬로 변경
+            console.log('🏎️ F1 영화 요청 - "러쉬 F1 영화"로 정확한 검색');
+            title = '러쉬 F1'; // F1을 포함해서 정확한 영화 검색
         }
         
         const searchQueries = this.generateMovieSearchQueries(title, reviewType);
@@ -117,10 +117,23 @@ class DataExtractor {
     }
 
     generateMovieSearchQueries(title, reviewType) {
+        // F1 영화 러쉬는 더 구체적인 검색어 사용
+        if (title.includes('러쉬 F1')) {
+            return [
+                '"러쉬" F1 영화 평점',
+                '"러쉬" F1 레이싱 영화 리뷰',
+                '"러쉬" 크리스 헴스워스 영화 평가',
+                '"러쉬" 니키 라우다 영화',
+                '"러쉬" 제임스 헌트 영화 평론'
+            ];
+        }
+
         const baseQueries = [
             `"${title}" 영화 평점`,
-            `"${title}" 영화 리뷰`,
-            `"${title}" 영화 평가`
+            `"${title}" 영화 리뷰`,  
+            `"${title}" 영화 평가`,
+            `${title} 영화 평점`,  // 따옴표 없는 버전도 추가
+            `${title} 평점 리뷰`
         ];
 
         if (reviewType === 'critic') {
@@ -128,8 +141,6 @@ class DataExtractor {
         } else if (reviewType === 'audience') {
             baseQueries.unshift(`"${title}" 관객 평점`, `"${title}" 사용자 평가`);
         }
-
-        // F1 영화는 실제 "러쉬" 영화로 검색하므로 이 부분은 필요없음 (상위에서 처리됨)
 
         return baseQueries;
     }
@@ -492,36 +503,51 @@ class DataExtractor {
                 // 평론가 이름 추출 시도 (더 정확하게)
                 let criticName = '';
                 
-                // 실제 평론가 이름 패턴 찾기
-                const namePatterns = [
-                    /([가-힣]{2,4})\s*평론가/,
-                    /평론가\s*([가-힣]{2,4})/,
-                    /([가-힣]{2,4})\s*기자/,
-                    /기자\s*([가-힣]{2,4})/,
-                    /([가-힣]{2,4})\s*(?:의|이)\s*(?:평론|리뷰|평가)/,
-                    /(?:평론|리뷰|평가).*?([가-힣]{2,4})(?:\s|$)/
-                ];
+                // 유명 평론가 우선 검색
+                const famousCritics = ['이동진', '김혜리', '유지나', '황진미', '박평식', '김철홍', '김영진', '허지웅'];
+                for (const critic of famousCritics) {
+                    if (cleanTitle.includes(critic) || cleanDescription.includes(critic)) {
+                        criticName = critic;
+                        break;
+                    }
+                }
                 
-                for (const pattern of namePatterns) {
-                    const titleMatch = cleanTitle.match(pattern);
-                    const descMatch = cleanDescription.match(pattern);
+                // 유명 평론가를 찾지 못한 경우 일반 패턴으로 검색
+                if (!criticName) {
+                    const namePatterns = [
+                        /([가-힣]{2,4})\s*평론가/,
+                        /평론가\s*([가-힣]{2,4})/,
+                        /([가-힣]{2,4})\s*기자/,
+                        /기자\s*([가-힣]{2,4})/,
+                        /([가-힣]{2,4})\s*(?:의|이)\s*(?:평론|리뷰|평가)/,
+                        /(?:평론|리뷰|평가).*?([가-힣]{2,4})(?:\s|$)/,
+                        /작성자[:\s]*([가-힣]{2,4})/,
+                        /글[:\s]*([가-힣]{2,4})/
+                    ];
                     
-                    if (titleMatch && titleMatch[1]) {
-                        criticName = titleMatch[1];
-                        break;
-                    } else if (descMatch && descMatch[1]) {
-                        criticName = descMatch[1];
-                        break;
+                    for (const pattern of namePatterns) {
+                        const titleMatch = cleanTitle.match(pattern);
+                        const descMatch = cleanDescription.match(pattern);
+                        
+                        if (titleMatch && titleMatch[1] && !['네이버', '다음', '구글', '영화', '평점'].includes(titleMatch[1])) {
+                            criticName = titleMatch[1];
+                            break;
+                        } else if (descMatch && descMatch[1] && !['네이버', '다음', '구글', '영화', '평점'].includes(descMatch[1])) {
+                            criticName = descMatch[1];
+                            break;
+                        }
                     }
                 }
                 
                 // 실명이 없으면 출처 기반으로 표시
                 if (!criticName || criticName.length < 2) {
-                    if (cleanTitle.includes('스포츠')) criticName = '스포츠기자';
+                    if (cleanTitle.includes('씨네21')) criticName = '씨네21';
+                    else if (cleanTitle.includes('무비위크')) criticName = '무비위크';
+                    else if (cleanTitle.includes('스포츠')) criticName = '스포츠기자';
                     else if (cleanTitle.includes('연예')) criticName = '연예기자';
                     else if (cleanTitle.includes('문화')) criticName = '문화기자';
                     else if (cleanTitle.includes('영화')) criticName = '영화기자';
-                    else criticName = '익명평론가';
+                    else criticName = '영화전문가';
                 }
                 
                 // 평점 추출 및 변환
@@ -666,7 +692,16 @@ class DataExtractor {
                     shortReview = sentences[0].trim().substring(0, 30);
                 }
                 
-                reviewText += `${index + 1}. 관객${index + 1} ${rating} (${shortReview})\n`;
+                // 실제 사용자 이름이나 출처 찾기
+                let userName = `관객${index + 1}`;
+                if (cleanTitle.includes('네티즌')) userName = '네티즌';
+                else if (cleanTitle.includes('사용자')) userName = '사용자';
+                else if (cleanTitle.includes('관람객')) userName = '관람객';
+                else if (cleanDescription.includes('네이버영화')) userName = '네이버영화';
+                else if (cleanDescription.includes('왓챠')) userName = '왓챠';
+                else if (cleanDescription.includes('CGV')) userName = 'CGV';
+                
+                reviewText += `${index + 1}. ${userName} ${rating} (${shortReview})\n`;
             });
             reviewText += '\n';
         }
