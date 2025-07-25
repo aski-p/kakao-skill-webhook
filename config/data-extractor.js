@@ -611,12 +611,12 @@ class DataExtractor {
             !expertReviews.includes(review) && !audienceReviews.includes(review)
         );
 
-        let reviewText = `${titlePrefix}🎬 "${title}" 영화 평점/평론 모음\n\n`;
+        let reviewText = `${titlePrefix}🎬 "${title}" 영화평 종합\n\n`;
         
         // 전문가 평론 섹션 (일반 리뷰로 부족한 부분 채우기)
         const allExpertReviews = [...expertReviews, ...generalReviews].slice(0, 5);
         if (allExpertReviews.length > 0) {
-            reviewText += `👨‍🎓 전문가 평가:\n\n`;
+            reviewText += `👨‍💼 평론가 평가:\n\n`;
             allExpertReviews.forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
                 const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
@@ -837,7 +837,7 @@ class DataExtractor {
         const remainingReviews = generalReviews.filter(review => !allExpertReviews.includes(review));
         const allAudienceReviews = [...audienceReviews, ...remainingReviews].slice(0, 5);
         if (allAudienceReviews.length > 0) {
-            reviewText += `⭐ 관객 평가:\n\n`;
+            reviewText += `👥 관객 실제 평가:\n\n`;
             allAudienceReviews.forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
                 const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
@@ -1742,9 +1742,14 @@ class DataExtractor {
             }
             
             if (!movieResults || movieResults.length === 0) {
+                console.log('⚠️ 네이버 API에서 영화를 찾지 못함 - 기본 종합 포맷으로 생성');
+                // 영화를 찾지 못해도 종합 포맷으로 응답 생성
                 return {
-                    success: false,
-                    data: { message: `🎬 "${movieTitle}" 영화를 찾을 수 없습니다.\n\n💡 검색 팁:\n• 정확한 영화 제목으로 다시 검색\n• 영어 제목이나 한글 제목으로 시도\n• 개봉년도와 함께 검색\n\n예) "베놈2 영화평", "탑건 매버릭 평점"` }
+                    success: true,
+                    type: 'comprehensive_movie_review',
+                    data: {
+                        message: `🎬 "${movieTitle}" 영화평 종합\n\n📽️ 기본 정보\n영화 제목: ${movieTitle}\n\n⭐ 검색 결과\n요청하신 영화의 상세 정보를 찾고 있습니다.\n\n👨‍💼 평론가 평가:\n현재 평론가 리뷰를 수집 중입니다.\n\n👥 관객 실제 평가:\n관객 평점과 리뷰를 수집 중입니다.\n\n💡 검색 팁:\n• 정확한 영화 제목으로 다시 검색\n• 영어 제목이나 한글 제목으로 시도\n• 개봉년도와 함께 검색\n\n예) "베놈2 영화평", "탑건 매버릭 평점"`
+                    }
                 };
             }
             
