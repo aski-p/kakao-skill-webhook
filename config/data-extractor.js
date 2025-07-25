@@ -99,6 +99,13 @@ class DataExtractor {
             }
         }
 
+        // F1 관련 특별 에러 메시지
+        if (title.toLowerCase().includes('f1') || title.includes('더무비')) {
+            return this.createErrorResponse(
+                `🎬 "${title}" 영화를 찾을 수 없습니다.\n\n🏎️ F1 관련 실제 영화들:\n• "러쉬" (2013) - 제임스 헌트 vs 니키 라우다\n• "아일톤 세나" (2010) - 전설의 F1 드라이버 다큐\n• "그랑프리" (1966) - 클래식 F1 영화\n\n💡 정확한 영화 제목으로 다시 검색해보세요!`
+            );
+        }
+        
         return this.createErrorResponse(`🎬 "${title}" 영화 정보를 찾을 수 없습니다.`);
     }
 
@@ -117,10 +124,20 @@ class DataExtractor {
 
         // F1 영화 특별 처리
         if (title.toLowerCase().includes('f1') || title.includes('더무비')) {
+            console.log(`🏎️ F1 영화 특별 검색 로직 적용: "${title}"`);
+            
+            // F1 관련 실제 영화들과 가상의 "F1 더무비"를 모두 검색
             baseQueries.unshift(
                 `"F1 더무비" 평점`,
-                `"F1 더무비" 리뷰`,
-                `"포뮬러1 영화" 평점`
+                `"F1 더무비" 리뷰`, 
+                `"F1 더무비" 영화`,
+                `"러쉬" 영화 평점`, // 실제 F1 영화
+                `"러쉬" F1 영화 리뷰`,
+                `"아일톤 세나" 다큐 평점`,
+                `"그랑프리" 영화 리뷰`,
+                `"포뮬러1" 영화 평점`,
+                `F1 영화 추천`,
+                `포뮬러원 영화 리뷰`
             );
         }
 

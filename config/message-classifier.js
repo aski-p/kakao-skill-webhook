@@ -19,9 +19,10 @@ class MessageClassifier {
             },
             
             WEATHER: {
-                priority: 2,
+                priority: 1, // 우선순위 높임 (뉴스보다 우선)
                 patterns: {
-                    content: /날씨|기온|온도|기상|비|눈|바람|습도|미세먼지/,
+                    content: /날씨|기온|온도|기상|비|눈|바람|습도|미세먼지|맑음|흐림|구름/,
+                    action: /알려줘|어때|어떻게|확인|궁금/,
                     location: /([가-힣]{2,}(?:시|구|군|동|역|읍|면))/,
                     time: /오늘|내일|모레|이번주|다음주|주말/
                 },
@@ -62,10 +63,11 @@ class MessageClassifier {
             },
             
             NEWS: {
-                priority: 5,
+                priority: 6, // 우선순위 낮춤 (날씨 후순위)
                 patterns: {
-                    content: /뉴스|최신|속보|사건|사고|정치|경제|스포츠/,
-                    time: /오늘|어제|이번주|최근|방금/,
+                    content: /뉴스|최신|속보|사건|사고|정치|경제|스포츠|기사|언론/,
+                    action: /검색|찾아|보여줘|알려줘/,
+                    time: /어제|이번주|최근|방금/, // "오늘" 제거 (날씨와 중복)
                     topic: /([가-힣]+(?:사건|사고|뉴스|이슈))/
                 },
                 extractors: {
@@ -191,9 +193,26 @@ class MessageClassifier {
 
     extractMovieTitle(message) {
         // 영화 제목 추출 (평가 관련 키워드 제거)
+        // 단어 경계를 고려하여 정확히 매칭
         const cleanMessage = message
-            .replace(/영화평|평점|평가|리뷰|별점|평좀|해줘|좀|어때|어떤지|볼만해|재밌어|봤어|본|생각|의견|말해줘|말해|알려줘|알려|보여줘|보여/g, '')
+            .replace(/\b(영화평|평점|평가|리뷰|별점|평좀|어때|어떤지|볼만해|재밌어|봤어|본|생각|의견)\b/g, '')
+            .replace(/\b(해줘|좀|말해줘|알려줘|보여줘)\b/g, '')
+            .replace(/\s+/g, ' ') // 여러 공백을 하나로
             .trim();
+        
+        console.log(`🎬 영화 제목 추출: "${message}" → "${cleanMessage}"`);
+        
+        // F1 관련 특별 처리
+        if (cleanMessage.toLowerCase().includes('f1') || cleanMessage.includes('더무비')) {
+            // "f1 더무비" 형태 정리
+            let f1Title = cleanMessage
+                .replace(/f1\s*더무비?/i, 'F1 더무비')
+                .replace(/더무비\s*f1/i, 'F1 더무비')
+                .trim();
+            
+            console.log(`🏎️ F1 영화 특별 처리: "${f1Title}"`);
+            return f1Title;
+        }
         
         // 따옴표나 제목 형태 추출
         const titleMatch = cleanMessage.match(/"([^"]+)"|'([^']+)'|([가-힣a-zA-Z0-9\s]{2,})/);
