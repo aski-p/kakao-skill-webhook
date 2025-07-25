@@ -986,18 +986,33 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     day: 'numeric'
                 });
                 
-                // 게임 정보 요청인 경우 먼저 뉴스 검색으로 최신 정보 확인
-                let gameSearchResults = null;
+                // 게임 정보 요청인 경우 웹 검색으로 실제 정보 확인
+                let searchResults = null;
                 const isGameInfoRequest = userMessage.includes('게임') && config.shopping.review_keywords.some(keyword => userMessage.includes(keyword));
                 
                 if (isGameInfoRequest) {
-                    console.log('🎮 게임 정보 요청 감지 - 뉴스 검색으로 최신 정보 확인');
+                    console.log('🎮 게임 정보 요청 감지 - 웹 검색으로 실제 정보 확인');
                     // 게임명 추출 시도
                     const gameNameMatch = userMessage.match(/([가-힣a-zA-Z0-9\s]+)\s*(게임|어때|할만해)/);
                     if (gameNameMatch) {
                         const gameName = gameNameMatch[1].trim();
-                        gameSearchResults = await getLatestNews(`${gameName} 게임`);
-                        console.log(`🔍 "${gameName}" 게임 뉴스 검색 결과: ${gameSearchResults?.length || 0}개`);
+                        
+                        try {
+                            // WebSearch 도구 사용하여 실제 웹 검색
+                            console.log(`🌐 "${gameName}" 웹 검색 시작...`);
+                            
+                            // 간단한 대안: 뉴스 검색과 함께 더 구체적인 검색
+                            const newsResults = await getLatestNews(`${gameName} 게임`);
+                            const gameReviewResults = await getLatestNews(`${gameName} 리뷰`);
+                            
+                            searchResults = [];
+                            if (newsResults) searchResults.push(...newsResults);
+                            if (gameReviewResults) searchResults.push(...gameReviewResults);
+                            
+                            console.log(`🔍 "${gameName}" 종합 검색 결과: ${searchResults?.length || 0}개`);
+                        } catch (error) {
+                            console.log(`❌ 웹 검색 오류: ${error.message}`);
+                        }
                     }
                 }
                 
@@ -1016,7 +1031,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 - 이모지 적절히 사용
 - 읽기 쉬운 구조로 작성
 
-${gameSearchResults ? `참고할 최신 뉴스 정보:\n${gameSearchResults.map(item => `- ${item.title}: ${item.description}`).join('\n')}\n` : ''}`,
+${searchResults && searchResults.length > 0 ? `참고할 실제 검색 정보 (이 정보를 바탕으로 답변하세요):\n${searchResults.slice(0, 5).map(item => `- ${item.title}: ${item.description}`).join('\n')}\n` : '확실한 정보가 없으므로 "정확한 정보를 찾기 어렵습니다"라고 답변하세요.\n'}`,
                         messages: [{
                             role: "user",
                             content: userMessage
@@ -1072,7 +1087,12 @@ ${gameSearchResults ? `참고할 최신 뉴스 정보:\n${gameSearchResults.map(
                 } else if (error.message.includes('CLAUDE_API_KEY not found')) {
                     responseText = `⚙️ AI 서비스 설정이 필요합니다.\n\n관리자가 설정을 확인 중입니다.`;
                 } else {
-                    responseText = `⚠️ AI 서비스가 일시 불안정합니다.\n\n잠시 후 다시 시도해주세요.`;
+                    // 게임 정보 요청인 경우 안전한 에러 메시지
+                    if (isGameInfoRequest) {
+                        responseText = `🎮 죄송합니다. 해당 게임에 대한 정확한 정보를 찾기 어렵습니다.\n\n💡 더 정확한 정보를 원하시면:\n• 게임 공식 웹사이트 확인\n• 스팀, 플레이스토어 등에서 검색\n• 게임 리뷰 사이트 참고\n\n잘못된 정보보다는 정확한 안내를 우선합니다.`;
+                    } else {
+                        responseText = `⚠️ AI 서비스가 일시 불안정합니다.\n\n잠시 후 다시 시도해주세요.`;
+                    }
                 }
             }
         }
