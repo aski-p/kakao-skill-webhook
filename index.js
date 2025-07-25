@@ -107,6 +107,12 @@ function isYouTubeSummaryRequest(message) {
 
 // 영화 평가 요청 감지 함수
 function isMovieReviewRequest(message) {
+    // F1 영화평 요청은 새로운 시스템에서 처리
+    if (/f1.*더?무비|더?무비.*f1/i.test(message)) {
+        console.log('🏎️ F1 요청은 새로운 시스템에서 처리');
+        return false;
+    }
+    
     const movieKeywords = ['영화', '영화평', '평점', '평가', '리뷰', '별점', '관람평'];
     const reviewKeywords = ['어때', '평가', '리뷰', '별점', '평점', '평좀', '어떤지', '볼만해', '재밌어'];
     
@@ -1240,6 +1246,28 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 `😄 칭찬 감사드려요! 정말 기뻐요!\n\n🎯 계속 발전하는 AI가 되도록 노력하겠습니다!`
             ];
             responseText = praiseResponses[Math.floor(Math.random() * praiseResponses.length)];
+        }
+        // 🎬 F1 영화평 요청 강제 처리 (확실한 작동을 위해)
+        else if (/f1.*더?무비|더?무비.*f1/i.test(userMessage)) {
+            console.log('🏎️ F1 영화평 요청 감지 - 강제 새 시스템 실행');
+            
+            try {
+                const classification = messageClassifier.classifyMessage(userMessage);
+                console.log('📊 F1 분류 결과:', classification);
+                
+                const extractionResult = await dataExtractor.extractData(classification);
+                console.log('📋 F1 추출 결과:', extractionResult);
+                
+                if (extractionResult.success) {
+                    responseText = extractionResult.data.message;
+                    console.log('✅ F1 영화평 새 시스템 성공');
+                } else {
+                    responseText = extractionResult.data.message || 'F1 더무비 정보를 찾는 중 문제가 발생했습니다.';
+                }
+            } catch (error) {
+                console.error('❌ F1 영화평 처리 오류:', error);
+                responseText = 'F1 더무비 정보 처리 중 오류가 발생했습니다.';
+            }
         }
         // 🧠 새로운 지능형 메시지 분류 시스템 적용
         else {
