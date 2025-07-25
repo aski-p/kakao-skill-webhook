@@ -595,8 +595,225 @@ function smartSplit(text, maxLength = 1500) {
     return chunks;
 }
 
-// 응답 분할 처리 함수
+// 대화 메모리 시스템
 const pendingMessages = new Map();
+const conversationMemory = new Map(); // 사용자별 대화 히스토리
+const userPatterns = new Map(); // 사용자별 패턴 분석
+
+// 대화 컨텍스트 구조
+function createUserContext(userId) {
+    return {
+        history: [], // 최근 10개 메시지
+        patterns: {
+            questionCount: 0,
+            complaintCount: 0,
+            casualChatCount: 0,
+            topicsOfInterest: new Set(),
+            preferredResponseStyle: 'detailed', // detailed, brief, friendly
+            lastEmotionalState: 'neutral', // happy, frustrated, curious, neutral
+            sessionStartTime: Date.now()
+        },
+        lastInteraction: Date.now()
+    };
+}
+
+// 대화 히스토리 추가
+function addToConversationHistory(userId, userMessage, botResponse, intent = 'unknown') {
+    if (!conversationMemory.has(userId)) {
+        conversationMemory.set(userId, createUserContext(userId));
+    }
+    
+    const context = conversationMemory.get(userId);
+    
+    // 최근 10개만 유지
+    context.history.push({
+        timestamp: Date.now(),
+        userMessage: userMessage,
+        botResponse: botResponse.substring(0, 200) + '...', // 응답 요약
+        intent: intent,
+        messageType: classifyMessageType(userMessage)
+    });
+    
+    if (context.history.length > 10) {
+        context.history.shift();
+    }
+    
+    // 패턴 업데이트
+    updateUserPatterns(userId, userMessage, intent);
+    context.lastInteraction = Date.now();
+    
+    console.log(`💭 대화 히스토리 저장: ${userId} (총 ${context.history.length}개 메시지)`);
+}
+
+// 메시지 타입 분류
+function classifyMessageType(message) {
+    if (/\?|어떻게|뭐|언제|어디|왜|누구/.test(message)) return 'question';
+    if (/똑똑|정신차려|먹통|화나|짜증|답답/.test(message)) return 'complaint';
+    if (/고마워|감사|좋아|훌륭|완벽/.test(message)) return 'praise';
+    if (/안녕|hi|hello|좋은|날씨/.test(message)) return 'casual';
+    return 'request';
+}
+
+// 사용자 패턴 업데이트
+function updateUserPatterns(userId, message, intent) {
+    if (!userPatterns.has(userId)) {
+        userPatterns.set(userId, { questionCount: 0, complaintCount: 0, casualChatCount: 0, topicsOfInterest: new Set() });
+    }
+    
+    const patterns = userPatterns.get(userId);
+    
+    // 카운트 업데이트
+    if (intent === 'question') patterns.questionCount++;
+    if (intent === 'complaint') patterns.complaintCount++;
+    if (intent === 'casual') patterns.casualChatCount++;
+    
+    // 관심 주제 추출
+    const topics = extractTopics(message);
+    topics.forEach(topic => patterns.topicsOfInterest.add(topic));
+}
+
+// 관심 주제 추출
+function extractTopics(message) {
+    const topics = [];
+    if (/게임|플레이/.test(message)) topics.push('게임');
+    if (/영화|드라마/.test(message)) topics.push('영화');
+    if (/맛집|음식|식당/.test(message)) topics.push('음식');
+    if (/뉴스|정치|사회/.test(message)) topics.push('뉴스');
+    if (/쇼핑|구매|상품/.test(message)) topics.push('쇼핑');
+    if (/맥미니|아이폰|맥북|애플/.test(message)) topics.push('애플제품');
+    return topics;
+}
+
+// 컨텍스트 기반 의도 추론 엔진
+function analyzeMessageWithContext(userId, currentMessage) {
+    const context = conversationMemory.get(userId);
+    
+    if (!context) {
+        // 첫 대화 - 기본 분석
+        return {
+            intent: classifyBasicIntent(currentMessage),
+            confidence: 0.7,
+            responseStyle: 'friendly',
+            needsGuidance: false,
+            contextInsight: 'first_interaction'
+        };
+    }
+    
+    const recentHistory = context.history.slice(-3); // 최근 3개 메시지
+    const messageType = classifyMessageType(currentMessage);
+    
+    // 컨텍스트 기반 의도 분석
+    let intent = classifyBasicIntent(currentMessage);
+    let confidence = 0.7;
+    let needsGuidance = false;
+    let responseStyle = 'detailed';
+    
+    // 연속된 불만 패턴 감지
+    if (messageType === 'complaint') {
+        const recentComplaints = recentHistory.filter(h => h.messageType === 'complaint').length;
+        if (recentComplaints >= 2) {
+            confidence = 0.9;
+            responseStyle = 'apologetic_helpful';
+            intent = 'frustrated_user_needs_help';
+        }
+    }
+    
+    // 질문이 아닌 것에 대한 안내 필요성 판단
+    if (!isActualQuestion(currentMessage) && !isSpecificRequest(currentMessage)) {
+        needsGuidance = true;
+        intent = 'needs_guidance';
+        confidence = 0.8;
+    }
+    
+    // 사용자 패턴 기반 스타일 조정
+    const patterns = userPatterns.get(userId);
+    if (patterns) {
+        if (patterns.complaintCount > patterns.questionCount) {
+            responseStyle = 'patient_helpful';
+        } else if (patterns.casualChatCount > 0) {
+            responseStyle = 'friendly_conversational';
+        }
+    }
+    
+    return {
+        intent,
+        confidence,
+        responseStyle,
+        needsGuidance,
+        contextInsight: buildContextInsight(context, currentMessage),
+        userPattern: patterns
+    };
+}
+
+// 실제 질문인지 판단
+function isActualQuestion(message) {
+    const questionIndicators = [
+        /\?/, // 물음표
+        /어떻게|어떤|어디|언제|왜|누구|뭐|몇|얼마/, // 의문사
+        /알려줘|검색|찾아|추천|비교/, // 요청 동사
+        /어때|할만해|좋아|괜찮/, // 평가 요청
+        /.*해줘|.*알아|.*봐줘/ // 도움 요청
+    ];
+    
+    return questionIndicators.some(pattern => pattern.test(message));
+}
+
+// 구체적 요청인지 판단
+function isSpecificRequest(message) {
+    const requestPatterns = [
+        /뉴스|맛집|쇼핑|영화|게임|시간|날씨/, // 구체적 도메인
+        /추천|검색|찾아|알려|보여/, // 명확한 동작
+        /계속|더보기|다음/ // 시스템 명령
+    ];
+    
+    return requestPatterns.some(pattern => pattern.test(message));
+}
+
+// 기본 의도 분류
+function classifyBasicIntent(message) {
+    if (isActualQuestion(message) || isSpecificRequest(message)) return 'question_or_request';
+    if (/고마워|감사|좋아|훌륭/.test(message)) return 'praise';
+    if (/안녕|hi|hello/.test(message)) return 'greeting';
+    if (/똑똑|정신차려|먹통|화나|짜증/.test(message)) return 'complaint';
+    return 'unclear_intent';
+}
+
+// 컨텍스트 인사이트 생성
+function buildContextInsight(context, currentMessage) {
+    const recentTopics = new Set();
+    context.history.slice(-3).forEach(h => {
+        extractTopics(h.userMessage).forEach(topic => recentTopics.add(topic));
+    });
+    
+    return {
+        recentTopics: Array.from(recentTopics),
+        conversationLength: context.history.length,
+        emotionalState: detectEmotionalState(context.history),
+        suggestionTopics: generateSuggestions(recentTopics)
+    };
+}
+
+// 감정 상태 감지
+function detectEmotionalState(history) {
+    const recent = history.slice(-3);
+    const complaintCount = recent.filter(h => h.messageType === 'complaint').length;
+    const praiseCount = recent.filter(h => h.messageType === 'praise').length;
+    
+    if (complaintCount >= 2) return 'frustrated';
+    if (praiseCount >= 1) return 'satisfied';
+    if (recent.length >= 2) return 'engaged';
+    return 'neutral';
+}
+
+// 제안 주제 생성
+function generateSuggestions(recentTopics) {
+    if (recentTopics.has('게임')) return ['새로운 게임 추천', '게임 리뷰 검색'];
+    if (recentTopics.has('영화')) return ['최신 영화 정보', '영화 평점 검색'];
+    if (recentTopics.has('음식')) return ['다른 지역 맛집', '음식 배달 정보'];
+    return ['최신 뉴스', '날씨 정보', '맛집 추천'];
+}
+
+// 응답 분할 처리 함수
 
 function handleLongResponse(text, userId, responseType = 'general') {
     const chunks = smartSplit(text, 1500);
@@ -1033,24 +1250,32 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         let responseText;
         
-        // 즉시 응답: 명확한 불만/화난 표현만 감지 (일반 질문과 구분)
-        const specificAngryExpressions = /똑똑.*정신|정신차려|정신차렷|박지피티.*정신|먹통|다운.*현상|안.*말|아무.*말.*안|반응.*없|응답.*없|바보같|멍청.*짓|화.*나.*짜증|답답.*죽겠/i;
-        const conversationalEvolutionRequests = /대화형.*ai.*진화|진화.*대화형|ai.*진화해|대화형.*만들어|채팅.*봇.*만들어/i;
+        // 🧠 컨텍스트 기반 의도 분석 (대화 메모리 활용)
+        const analysis = analyzeMessageWithContext(userId, userMessage);
+        console.log(`🧠 의도 분석 결과:`, analysis);
         
-        if (specificAngryExpressions.test(userMessage) || conversationalEvolutionRequests.test(userMessage)) {
-            console.log('😅 구체적 불만 표현 또는 대화형 진화 요청 감지 - 즉시 응답');
+        // 컨텍스트 기반 응답 생성
+        if (analysis.needsGuidance) {
+            // 질문이 아닌 경우 → 안내 메시지
+            const suggestions = analysis.contextInsight.suggestionTopics || ['뉴스 검색', '맛집 추천', '날씨 정보'];
             
-            // 즉시 친근한 응답 제공
-            const responses = [
-                `😅 앗! 죄송해요! 제가 너무 느렸나봐요?\n\n🤖 지금 바로 대화형 AI로 업그레이드 중입니다!\n\n💬 무엇이든 물어보세요:\n• 뉴스, 맛집, 쇼핑 검색\n• 영화 평점, 게임 정보\n• 일상 대화도 OK!\n\n⚡ 이제 빠르게 답변드릴게요!`,
+            responseText = `💬 무엇을 도와드릴까요?\n\n🎯 이런 걸 물어보실 수 있어요:\n${suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\n✨ 또는 자유롭게 질문해주세요!\n• 뉴스, 맛집, 쇼핑 검색\n• 영화 평점, 게임 정보\n• 일반적인 질문도 환영!`;
+            
+            // 대화 히스토리에 저장
+            addToConversationHistory(userId, userMessage, responseText, analysis.intent);
+        }
+        else if (analysis.intent === 'frustrated_user_needs_help') {
+            // 연속된 불만 → 특별한 도움 제공
+            console.log('😅 연속된 불만 감지 - 맞춤형 도움 제공');
+            
+            const helpfulResponses = [
+                `😊 계속 도움이 안 되는 것 같아 죄송해요!\n\n🎯 정확히 뭘 찾고 계신가요?\n• "홍대 맛집" - 맛집 정보\n• "오늘 뉴스" - 최신 뉴스\n• "아이폰 가격" - 쇼핑 정보\n\n💪 구체적으로 말씀해주시면 바로 도와드릴게요!`,
                 
-                `🙋‍♂️ 네! 여기 있어요! 정신 바짝 차렸습니다!\n\n🚀 대화형 AI 모드 ON:\n• 즉시 응답 시스템 활성화\n• 친근한 대화 모드 준비\n• 모든 질문 환영!\n\n💪 이제 뭐든 물어보세요! 바로바로 답변드릴게요!`,
-                
-                `😊 앗! 미안해요! 제가 좀 멍했나 봐요?\n\n🔥 지금부터 대화형 AI로 100% 진화 완료!\n\n✨ 새로운 기능들:\n• 실시간 빠른 응답\n• 친근한 톤으로 대화\n• 정확한 정보 검색\n\n🎯 무엇을 도와드릴까요?`
+                `🤗 제가 이해를 못한 것 같네요!\n\n💡 이렇게 질문해주시면 도움이 될 거예요:\n• 구체적인 키워드로 (예: "강남 카페")\n• 원하는 정보 명시 (예: "영화 평점")\n• 간단명료하게 (예: "오늘 날씨")\n\n✨ 다시 시도해보세요!`
             ];
             
-            // 랜덤하게 응답 선택
-            responseText = responses[Math.floor(Math.random() * responses.length)];
+            responseText = helpfulResponses[Math.floor(Math.random() * helpfulResponses.length)];
+            addToConversationHistory(userId, userMessage, responseText, analysis.intent);
         }
         // 간단한 인사나 기본 질문 처리
         else if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
@@ -1950,6 +2175,29 @@ ${gameSearchSummary}
                 }]
             }
         };
+        
+        // 🧠 대화 히스토리 저장 (응답 생성 완료 후)
+        if (userId && userMessage && responseText) {
+            try {
+                // 기존 분석이 있으면 사용, 없으면 새로 분석
+                const finalIntent = analysis?.intent || classifyBasicIntent(userMessage);
+                addToConversationHistory(userId, userMessage, responseText, finalIntent);
+                
+                // 메모리 정리 (30분 이상 비활성 사용자)
+                const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+                for (const [id, context] of conversationMemory.entries()) {
+                    if (context.lastInteraction < thirtyMinutesAgo) {
+                        conversationMemory.delete(id);
+                        userPatterns.delete(id);
+                        console.log(`🧹 메모리 정리: ${id} (30분 비활성)`);
+                    }
+                }
+                
+                console.log(`💾 현재 메모리: 대화기록 ${conversationMemory.size}명, 패턴 ${userPatterns.size}명`);
+            } catch (error) {
+                console.log(`⚠️ 대화 히스토리 저장 오류: ${error.message}`);
+            }
+        }
         
         console.log(`📤 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2)}`);
         
