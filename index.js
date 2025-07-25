@@ -399,8 +399,13 @@ function isShoppingRequest(message) {
     // 특정 제품명이 포함된 경우 (맥미니, 아이폰 등)
     const hasSpecificProduct = config.shopping.products.some(product => message.includes(product));
     
-    // 쇼핑 관련 키워드가 있거나 제품 관련이면서 맛집 키워드가 없는 경우
-    return (hasShoppingKeyword || hasProductKeyword || hasProductRecommend || (hasPriceKeyword && hasSpecificProduct)) && !hasRestaurantKeyword;
+    // 리뷰/평가 관련 질문은 쇼핑이 아닌 Claude AI로 처리
+    const isReviewQuestion = config.shopping.review_keywords.some(keyword => message.includes(keyword));
+    
+    // 명확한 쇼핑 의도가 있고, 리뷰 질문이 아니며, 맛집 키워드가 없는 경우만 쇼핑 검색
+    const hasShoppingIntent = hasShoppingKeyword || hasProductRecommend || (hasPriceKeyword && hasSpecificProduct);
+    
+    return hasShoppingIntent && !isReviewQuestion && !hasRestaurantKeyword;
 }
 
 function isRestaurantRequest(message) {
@@ -501,6 +506,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             isNews: isNewsRequest(userMessage),
             isShopping: isShoppingRequest(userMessage), 
             isRestaurant: isRestaurantRequest(userMessage),
+            isReviewQuestion: config.shopping.review_keywords.some(keyword => userMessage.includes(keyword)),
             message: userMessage
         };
         
