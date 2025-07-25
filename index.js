@@ -105,22 +105,11 @@ function isYouTubeSummaryRequest(message) {
     return youtubeUrl && summaryKeywords.some(keyword => message.includes(keyword));
 }
 
-// 영화 평가 요청 감지 함수
+// 영화 평가 요청 감지 함수 (새로운 시스템에서 모든 영화평 처리)
 function isMovieReviewRequest(message) {
-    // F1 영화평 요청은 새로운 시스템에서 처리
-    if (/f1.*더?무비|더?무비.*f1/i.test(message)) {
-        console.log('🏎️ F1 요청은 새로운 시스템에서 처리');
-        return false;
-    }
-    
-    const movieKeywords = ['영화', '영화평', '평점', '평가', '리뷰', '별점', '관람평'];
-    const reviewKeywords = ['어때', '평가', '리뷰', '별점', '평점', '평좀', '어떤지', '볼만해', '재밌어'];
-    
-    const hasMovieKeyword = movieKeywords.some(keyword => message.includes(keyword));
-    const hasReviewKeyword = reviewKeywords.some(keyword => message.includes(keyword));
-    
-    // "영화" 키워드가 있거나, 영화 제목과 평가 키워드가 함께 있는 경우
-    return hasMovieKeyword || (hasReviewKeyword && !isGameInfoRequest(message));
+    // 모든 영화평 요청은 새로운 종합 시스템에서 처리
+    console.log('🎬 모든 영화평 요청은 새로운 시스템에서 처리');
+    return false;
 }
 
 // 게임 정보 요청 감지 함수 (영화와 구분하기 위해)
@@ -1247,26 +1236,36 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             ];
             responseText = praiseResponses[Math.floor(Math.random() * praiseResponses.length)];
         }
-        // 🎬 F1 영화평 요청 강제 처리 (확실한 작동을 위해)
-        else if (/f1.*더?무비|더?무비.*f1/i.test(userMessage)) {
-            console.log('🏎️ F1 영화평 요청 감지 - 강제 새 시스템 실행');
+        // 🎬 모든 영화평 요청을 새로운 종합 시스템에서 처리 (개선된 패턴)
+        else if (/영화.*평점|평점.*영화|영화평|영화.*평가|평가.*영화|영화.*리뷰|리뷰.*영화|영화.*별점|별점.*영화|.*영화.*어때|.*평점.*어때|.*리뷰.*어때|.*별점.*어때|F1|더무비|평가|평점|별점|리뷰/.test(userMessage)) {
+            console.log('🎬 영화평 요청 감지 - 새로운 종합 시스템 실행');
             
             try {
                 const classification = messageClassifier.classifyMessage(userMessage);
-                console.log('📊 F1 분류 결과:', classification);
+                console.log('📊 영화평 분류 결과:', classification);
+                
+                // MOVIE_REVIEW로 분류되지 않은 경우 강제로 영화평으로 처리
+                if (classification.category !== 'MOVIE_REVIEW') {
+                    console.log('🔄 강제 영화평 분류 적용');
+                    classification.category = 'MOVIE_REVIEW';
+                    classification.data = {
+                        title: userMessage.replace(/\b(영화평|평점|평가|리뷰|별점|어때|영화|네이버)\b/g, '').trim(),
+                        reviewType: 'general'
+                    };
+                }
                 
                 const extractionResult = await dataExtractor.extractData(classification);
-                console.log('📋 F1 추출 결과:', extractionResult);
+                console.log('📋 영화평 추출 결과:', extractionResult);
                 
                 if (extractionResult.success) {
                     responseText = extractionResult.data.message;
-                    console.log('✅ F1 영화평 새 시스템 성공');
+                    console.log('✅ 영화평 새 시스템 성공');
                 } else {
-                    responseText = extractionResult.data.message || 'F1 더무비 정보를 찾는 중 문제가 발생했습니다.';
+                    responseText = extractionResult.data.message || '영화 정보를 찾는 중 문제가 발생했습니다.';
                 }
             } catch (error) {
-                console.error('❌ F1 영화평 처리 오류:', error);
-                responseText = 'F1 더무비 정보 처리 중 오류가 발생했습니다.';
+                console.error('❌ 영화평 처리 오류:', error);
+                responseText = '영화 정보 처리 중 오류가 발생했습니다.';
             }
         }
         // 🧠 새로운 지능형 메시지 분류 시스템 적용
