@@ -515,42 +515,57 @@ class DataExtractor {
         // 요청된 영화 제목 그대로 사용
         const titlePrefix = ``;
 
-        // 전문가 평론 필터링 (더 넓은 범위)
-        const expertReviews = items.filter(review => {
+        // 박스오피스/통계 기사 제외 필터
+        const filteredItems = items.filter(item => {
+            const titleAndDesc = (item.title + ' ' + item.description).toLowerCase();
+            // 박스오피스, 통계, 뉴스성 기사 제외
+            return !titleAndDesc.includes('박스오피스') && 
+                   !titleAndDesc.includes('관객수') &&
+                   !titleAndDesc.includes('200만') &&
+                   !titleAndDesc.includes('돌파') &&
+                   !titleAndDesc.includes('흥행') &&
+                   !titleAndDesc.includes('전산망') &&
+                   !titleAndDesc.includes('테넷');
+        });
+
+        // 실제 평점/리뷰 기사만 필터링 (더 엄격하게)
+        const reviewItems = filteredItems.filter(item => {
+            const titleAndDesc = (item.title + ' ' + item.description).toLowerCase();
+            return (titleAndDesc.includes('평점') || titleAndDesc.includes('평가') || 
+                   titleAndDesc.includes('리뷰') || titleAndDesc.includes('평론') ||
+                   titleAndDesc.includes('별점') || titleAndDesc.includes('★') ||
+                   titleAndDesc.includes('⭐') || titleAndDesc.includes('후기')) &&
+                   (titleAndDesc.includes('영화') || titleAndDesc.includes(title.toLowerCase()));
+        });
+
+        // 실제 리뷰가 없으면 일반 영화 관련 기사라도 보여주기
+        const finalItems = reviewItems.length > 0 ? reviewItems : filteredItems.slice(0, 3);
+
+        // 전문가 평론 필터링 (더 엄격하게)
+        const expertReviews = finalItems.filter(review => {
             const titleAndDesc = (review.title + ' ' + review.description).toLowerCase();
-            return titleAndDesc.includes('평론가') || titleAndDesc.includes('기자') || 
-                   titleAndDesc.includes('비평') || titleAndDesc.includes('평론') ||
-                   titleAndDesc.includes('전문가') || titleAndDesc.includes('리뷰어') ||
+            return (titleAndDesc.includes('평론가') || titleAndDesc.includes('비평가') || 
                    titleAndDesc.includes('씨네21') || titleAndDesc.includes('무비위크') ||
-                   titleAndDesc.includes('스포츠한국') || titleAndDesc.includes('연합뉴스') ||
-                   titleAndDesc.includes('중앙일보') || titleAndDesc.includes('조선일보') ||
-                   /[가-힣]{2,4}\s*(평론가|기자|비평가)/.test(titleAndDesc);
+                   /[가-힣]{2,4}\s*평론가/.test(titleAndDesc)) &&
+                   (titleAndDesc.includes('평점') || titleAndDesc.includes('평가') || 
+                    titleAndDesc.includes('★') || titleAndDesc.includes('별점'));
         });
         
-        // 관객 평가 필터링 (더 넓은 범위)
-        const audienceReviews = items.filter(review => {
+        // 관객 평가 필터링 (더 엄격하게)
+        const audienceReviews = finalItems.filter(review => {
             const titleAndDesc = (review.title + ' ' + review.description).toLowerCase();
-            return (titleAndDesc.includes('관객') || titleAndDesc.includes('사용자') || 
-                   titleAndDesc.includes('네티즌') || titleAndDesc.includes('일반인') ||
-                   titleAndDesc.includes('시청자') || titleAndDesc.includes('네이버영화') ||
-                   titleAndDesc.includes('왓챠') || titleAndDesc.includes('cgv') ||
-                   titleAndDesc.includes('롯데시네마') || titleAndDesc.includes('메가박스')) && 
+            return (titleAndDesc.includes('관객') || titleAndDesc.includes('네티즌') ||
+                   titleAndDesc.includes('네이버영화') || titleAndDesc.includes('왓챠') ||
+                   titleAndDesc.includes('cgv')) && 
                    (titleAndDesc.includes('평점') || titleAndDesc.includes('별점') ||
                     titleAndDesc.includes('★') || titleAndDesc.includes('⭐') ||
-                    titleAndDesc.includes('후기') || titleAndDesc.includes('감상') ||
-                    titleAndDesc.includes('리뷰'));
+                    titleAndDesc.includes('후기') || titleAndDesc.includes('리뷰'));
         });
         
-        // 둘 다 아닌 경우 일반 리뷰로 분류 - 하지만 영화 관련이면 전문가로 분류
-        const generalReviews = items.filter(review => {
-            if (expertReviews.includes(review) || audienceReviews.includes(review)) {
-                return false;
-            }
-            // 영화 관련 키워드가 있으면 전문가 리뷰로 간주
-            const titleAndDesc = (review.title + ' ' + review.description).toLowerCase();
-            return titleAndDesc.includes('영화') || titleAndDesc.includes('리뷰') || 
-                   titleAndDesc.includes('평가') || titleAndDesc.includes('평점');
-        });
+        // 일반 영화 기사 (평점 정보 없는 경우)
+        const generalReviews = finalItems.filter(review => 
+            !expertReviews.includes(review) && !audienceReviews.includes(review)
+        );
 
         let reviewText = `${titlePrefix}🎬 "${title}" 영화 평점/평론 모음\n\n`;
         
@@ -644,76 +659,106 @@ class DataExtractor {
                     }
                 }
                 
-                // 평점 추출 및 변환
-                const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}|만점|5점|4점|3점|2점|1점/);
+                // 평점 추출 및 변환 (박스오피스 숫자 제외)
                 let rating = '';
-                if (ratingMatch) {
-                    const ratingText = ratingMatch[0];
-                    if (ratingText.includes('만점')) {
-                        rating = '★★★★★';
-                    } else if (ratingText.includes('점') || ratingText.includes('/')) {
-                        const score = parseFloat(ratingMatch[1]);
-                        let stars;
-                        if (score <= 5) {
-                            // 5점 만점 기준
-                            stars = Math.round(score);
-                        } else {
-                            // 10점 만점 기준
-                            stars = Math.round(score / 2);
+                
+                // 박스오피스 관련 숫자는 제외
+                if (!cleanDescription.includes('200만') && 
+                    !cleanDescription.includes('박스오피스') && 
+                    !cleanDescription.includes('관객수') &&
+                    !cleanDescription.includes('흥행')) {
+                    
+                    // 실제 평점만 추출
+                    const ratingMatch = cleanDescription.match(/평점\s*(\d+(?:\.\d+)?)\s*점|★{1,5}|⭐{1,5}|만점|(\d)\s*점(?:\s*만점)?/);
+                    
+                    if (ratingMatch) {
+                        const ratingText = ratingMatch[0];
+                        if (ratingText.includes('만점')) {
+                            rating = '★★★★★';
+                        } else if (ratingMatch[1] || ratingMatch[2]) {
+                            const score = parseFloat(ratingMatch[1] || ratingMatch[2]);
+                            if (score <= 5) {
+                                // 5점 만점 기준
+                                const stars = Math.max(1, Math.min(5, Math.round(score)));
+                                rating = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+                            } else if (score <= 10) {
+                                // 10점 만점 기준  
+                                const stars = Math.max(1, Math.min(5, Math.round(score / 2)));
+                                rating = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+                            }
+                        } else if (ratingText.includes('★') || ratingText.includes('⭐')) {
+                            rating = ratingText;
                         }
-                        stars = Math.max(1, Math.min(5, stars)); // 1-5 범위로 제한
-                        rating = '★'.repeat(stars) + '☆'.repeat(5 - stars);
-                    } else if (ratingText.includes('★') || ratingText.includes('⭐')) {
-                        rating = ratingText;
-                    } else {
-                        rating = '★★★☆☆'; // 기본값
-                    }
-                } else {
-                    // 평점이 없으면 내용에서 긍정/부정 판단
-                    if (cleanDescription.includes('최고') || cleanDescription.includes('완벽') || cleanDescription.includes('훌륭')) {
-                        rating = '★★★★★';
-                    } else if (cleanDescription.includes('좋') || cleanDescription.includes('추천')) {
-                        rating = '★★★★☆';
-                    } else if (cleanDescription.includes('별로') || cleanDescription.includes('실망')) {
-                        rating = '★★☆☆☆';
-                    } else {
-                        rating = '★★★☆☆';
                     }
                 }
                 
-                // 핵심 평가 추출 (의미있는 평가 문장 우선)
+                // 평점이 없으면 내용에서 긍정/부정 판단 (더 신중하게)
+                if (!rating) {
+                    if (cleanDescription.includes('최고') || cleanDescription.includes('완벽') || cleanDescription.includes('훌륭') || cleanDescription.includes('걸작')) {
+                        rating = '★★★★★';
+                    } else if (cleanDescription.includes('좋') || cleanDescription.includes('추천') || cleanDescription.includes('재밌')) {
+                        rating = '★★★★☆';
+                    } else if (cleanDescription.includes('별로') || cleanDescription.includes('실망') || cleanDescription.includes('아쉽')) {
+                        rating = '★★☆☆☆';
+                    } else {
+                        rating = '정보없음'; // 평점 정보 없음으로 표시
+                    }
+                }
+                
+                // 핵심 평가 추출 (박스오피스 내용 제외)
                 const sentences = cleanDescription.split(/[.!?]/);
                 let shortReview = '';
                 
+                // 박스오피스 관련 문장 제외 키워드
+                const excludeKeywords = ['박스오피스', '관객수', '200만', '돌파', '흥행', '전산망', '테넷', '만명'];
+                
                 // 평가 관련 키워드가 포함된 문장 우선
-                const evaluationKeywords = ['연출', '스토리', '연기', '완성도', '감동', '재미', '몰입', '작품', '영화', '캐스팅'];
+                const evaluationKeywords = ['연출', '스토리', '연기', '완성도', '감동', '재미', '몰입', '작품', '캐스팅', '연기력', '스릴', '액션'];
                 
                 for (const sentence of sentences) {
                     const s = sentence.trim();
-                    if (s.length > 15 && s.length < 50) {
+                    
+                    // 박스오피스 관련 문장은 제외
+                    if (excludeKeywords.some(keyword => s.includes(keyword))) {
+                        continue;
+                    }
+                    
+                    if (s.length > 10 && s.length < 60) {
                         // 평가 키워드가 포함된 문장 우선
                         if (evaluationKeywords.some(keyword => s.includes(keyword))) {
                             shortReview = s;
                             break;
                         }
-                        // 아니면 첫 번째 적당한 길이 문장
-                        if (!shortReview) {
+                        // 영화 관련 내용이면서 적당한 길이 문장
+                        if (!shortReview && (s.includes('영화') || s.includes('작품'))) {
                             shortReview = s;
                         }
                     }
                 }
                 
-                // 여전히 없으면 첫 문장의 일부
-                if (!shortReview && sentences.length > 0) {
-                    shortReview = sentences[0].trim().substring(0, 40);
+                // 여전히 없으면 첫 번째 깨끗한 문장
+                if (!shortReview) {
+                    for (const sentence of sentences) {
+                        const s = sentence.trim();
+                        if (s.length > 10 && s.length < 50 && 
+                            !excludeKeywords.some(keyword => s.includes(keyword))) {
+                            shortReview = s;
+                            break;
+                        }
+                    }
                 }
                 
-                // 너무 짧거나 의미없는 내용 필터링
-                if (shortReview.length < 10 || 
-                    shortReview.includes('기사') || 
+                // 마지막 폴백
+                if (!shortReview) {
+                    shortReview = '영화 관련 정보';
+                }
+                
+                // 의미없는 내용 필터링
+                if (shortReview.includes('기사') || 
                     shortReview.includes('뉴스') ||
-                    shortReview.includes('보도')) {
-                    shortReview = '평가 내용 확인 필요';
+                    shortReview.includes('보도') ||
+                    shortReview.includes('전산망')) {
+                    shortReview = '영화 정보';
                 }
                 
                 reviewText += `${index + 1}. ${criticName} ${rating} (${shortReview})\n`;
