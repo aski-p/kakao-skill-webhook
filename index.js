@@ -665,13 +665,8 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 });
             }
             
-            // 3. 유명인명 특별 처리
-            const celebrityNames = ['헐크호건', '트럼프', '바이든', '김정은', '윤석열', '이재명'];
-            celebrityNames.forEach(celebrity => {
-                if (userMessage.includes(celebrity)) {
-                    searchKeywords.unshift(celebrity); // 맨 앞에 추가
-                }
-            });
+            // 3. 중복 제거 및 정리
+            searchKeywords = [...new Set(searchKeywords)]; // 중복 제거
             
             // 3. 사실 확인 키워드 추가
             if (userMessage.includes('사망') || userMessage.includes('죽음')) {
@@ -717,11 +712,39 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     newsResults = await getLatestNews(searchTerm);
                 }
                 
-                // 6. 대안 검색 시도 (영문/한글 변환)
+                // 6. 범용 대안 검색 시도 (더 넓은 키워드로)
                 if ((!newsResults || newsResults.length === 0) && searchKeywords.length > 0) {
+                    const mainKeyword = searchKeywords[0];
                     const alternatives = [];
-                    if (searchKeywords[0] === '헐크호건') {
-                        alternatives.push('Hulk Hogan', 'WWE', '프로레슬링');
+                    
+                    // 사망 관련 질문인 경우 대안 검색어
+                    if (userMessage.includes('사망') || userMessage.includes('죽음')) {
+                        alternatives.push(
+                            `${mainKeyword} 부고`,
+                            `${mainKeyword} 별세`,
+                            `${mainKeyword} 타계`,
+                            mainKeyword // 인명만으로도 검색
+                        );
+                    }
+                    // 결혼 관련
+                    else if (userMessage.includes('결혼')) {
+                        alternatives.push(
+                            `${mainKeyword} 웨딩`,
+                            `${mainKeyword} 혼인`,
+                            mainKeyword
+                        );
+                    }
+                    // 사고 관련
+                    else if (userMessage.includes('사고') || userMessage.includes('체포')) {
+                        alternatives.push(
+                            `${mainKeyword} 사건`,
+                            `${mainKeyword} 논란`,
+                            mainKeyword
+                        );
+                    }
+                    // 기본: 인명만으로 검색
+                    else {
+                        alternatives.push(mainKeyword);
                     }
                     
                     for (const alt of alternatives) {
@@ -747,7 +770,8 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     
                     responseText = factCheckText;
                 } else {
-                    responseText = `🔍 "${searchKeywords.join(', ')}" 관련 최신 뉴스를 찾을 수 없습니다.\n\n💡 확인 방법:\n• 네이버 뉴스에서 "${searchKeywords[0] || '헐크호건'}" 직접 검색\n• 구글 뉴스에서 "Hulk Hogan" 검색\n• WWE 공식 사이트 확인\n\n📊 네이버 API 연결 상태: ${NAVER_CLIENT_ID ? '정상' : '오류'}\n\n최신 뉴스가 없다는 것은 해당 사실이 발생하지 않았을 가능성이 높습니다.`;
+                    const mainKeyword = searchKeywords[0] || '관련 인물';
+                    responseText = `🔍 "${searchKeywords.join(', ')}" 관련 최신 뉴스를 찾을 수 없습니다.\n\n💡 확인 방법:\n• 네이버 뉴스에서 "${mainKeyword}" 직접 검색\n• 구글 뉴스에서 검색\n• 공식 소스나 신뢰할 수 있는 언론사 확인\n\n📊 네이버 API 연결 상태: ${NAVER_CLIENT_ID ? '정상' : '오류'}\n\n최신 뉴스가 없다는 것은 해당 사실이 발생하지 않았을 가능성이 높습니다.`;
                 }
             }
         }
