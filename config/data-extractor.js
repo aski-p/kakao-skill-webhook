@@ -132,15 +132,26 @@ class DataExtractor {
         if (title.toLowerCase().includes('f1') || title.includes('더무비')) {
             console.log(`🏎️ F1 영화 특별 검색 로직 적용: "${title}"`);
             
-            // F1 관련 실제 영화들과 가상의 "F1 더무비"를 모두 검색
+            // F1 관련 전문가 평론과 관객 평점을 구분해서 검색
             baseQueries.unshift(
-                `"F1 더무비" 평점`,
+                // 전문가 평론
+                `"F1 더무비" 영화 평론`,
                 `"F1 더무비" 리뷰`, 
-                `"F1 더무비" 영화`,
-                `"러쉬" 영화 평점`, // 실제 F1 영화
+                `"F1 더무비" 평가`,
+                `"러쉬" 영화 평론`, // 실제 F1 영화
                 `"러쉬" F1 영화 리뷰`,
-                `"아일톤 세나" 다큐 평점`,
+                `"아일톤 세나" 다큐 평론`,
                 `"그랑프리" 영화 리뷰`,
+                
+                // 관객 평점 전용
+                `"F1 더무비" 관객 평점`,
+                `"F1 더무비" 별점`,
+                `"F1 더무비" 네티즌 평점`,
+                `"F1 더무비" 사용자 평가`,
+                `"러쉬" 관객 평점`,
+                `"아일톤 세나" 관객 평점`,
+                
+                // 일반 검색
                 `"포뮬러1" 영화 평점`,
                 `F1 영화 추천`,
                 `포뮬러원 영화 리뷰`
@@ -326,9 +337,12 @@ class DataExtractor {
         );
         
         const audienceReviews = items.filter(review => 
-            review.title.includes('관객') || review.title.includes('사용자') || 
-            review.title.includes('네티즌') || review.title.includes('평점') ||
-            (review.title.includes('평') && !expertReviews.includes(review))
+            (review.title.includes('관객') && (review.title.includes('평점') || review.title.includes('별점'))) ||
+            (review.title.includes('사용자') && (review.title.includes('평점') || review.title.includes('별점'))) ||
+            (review.title.includes('네티즌') && (review.title.includes('평점') || review.title.includes('별점'))) ||
+            (review.title.includes('별점') && review.title.includes(title)) ||
+            (review.title.includes('평점') && review.title.includes('관객')) ||
+            review.title.includes('★') || review.title.includes('⭐')
         );
 
         let reviewText = `🎬 "${title}" 영화 평점/평론 모음\n\n`;
@@ -343,13 +357,25 @@ class DataExtractor {
             });
         }
         
-        // 관객 평가 섹션
+        // 관객 평가 섹션 (별점/평점 중심)
         if (audienceReviews.length > 0) {
-            reviewText += `🎭 관객 평가:\n\n`;
+            reviewText += `⭐ 관객 평점:\n\n`;
             audienceReviews.slice(0, 3).forEach((review, index) => {
                 const cleanTitle = review.title.replace(/<\/?[^>]+(>|$)/g, '');
-                const cleanDescription = review.description.replace(/<\/?[^>]+(>|$)/g, '').substring(0, 100);
-                reviewText += `${index + 1}. ${cleanTitle}\n   "${cleanDescription}..."\n\n`;
+                const cleanDescription = review.description.replace(/<\/?[^>]+(>|$)/g, '').substring(0, 120);
+                
+                // 별점이나 평점 추출 시도
+                const ratingMatch = cleanDescription.match(/(\d+\.?\d*)\s*(?:점|\/10|★|⭐)/);
+                const starMatch = cleanDescription.match(/(★+|⭐+)/);
+                
+                let ratingInfo = '';
+                if (ratingMatch) {
+                    ratingInfo = ` [${ratingMatch[1]}점]`;
+                } else if (starMatch) {
+                    ratingInfo = ` [${starMatch[1]}]`;
+                }
+                
+                reviewText += `${index + 1}. ${cleanTitle}${ratingInfo}\n   "${cleanDescription}..."\n\n`;
             });
         }
         
