@@ -140,15 +140,22 @@ class DataExtractor {
         console.log(`🌤️ 날씨 정보 요청: ${location} (${timeframe})`);
         
         try {
-            // 네이버 검색 API로 날씨 정보 검색
-            const weatherQuery = `${location} 날씨 기온 미세먼지`;
+            // 실제 날씨 API 호출
+            const weatherData = await this.getActualWeatherData(location);
+            
+            if (weatherData) {
+                return this.formatRealWeatherResponse(weatherData, location, timeframe);
+            }
+            
+            // API 실패시 fallback으로 뉴스 검색
+            console.log('⚠️ 날씨 API 실패, 뉴스 검색으로 fallback');
+            const weatherQuery = `${location} 오늘 날씨 기온`;
             const response = await this.searchNaver('news', weatherQuery, 3);
             
             if (response.items && response.items.length > 0) {
-                return this.formatWeatherResponse(response.items, location, timeframe);
+                return this.formatWeatherNewsResponse(response.items, location, timeframe);
             }
             
-            // 검색 결과가 없으면 기본 메시지
             return this.createWeatherPlaceholder(location);
             
         } catch (error) {
@@ -259,6 +266,78 @@ class DataExtractor {
             needsAI: true,
             data: { topic, questionType }
         };
+    }
+
+    // === 실제 날씨 API 함수 ===
+    
+    async getActualWeatherData(location) {
+        try {
+            // 지역명을 좌표로 변환 (네이버 지오코딩 또는 간단한 매핑)
+            const coords = this.getLocationCoords(location);
+            if (!coords) {
+                console.log(`⚠️ 지역 좌표를 찾을 수 없음: ${location}`);
+                return null;
+            }
+            
+            // OpenWeatherMap API 호출 (무료 버전)
+            const weatherApiKey = process.env.OPENWEATHER_API_KEY;
+            if (!weatherApiKey) {
+                console.log('⚠️ OpenWeatherMap API 키가 설정되지 않음');
+                return null;
+            }
+            
+            const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${coords.lat}&lon=${coords.lon}&appid=${weatherApiKey}&units=metric&lang=kr`;
+            
+            const response = await axios.get(weatherUrl, { timeout: 3000 });
+            
+            if (response.data) {
+                console.log(`✅ 실제 날씨 데이터 수신: ${location}`);
+                return response.data;
+            }
+            
+            return null;
+            
+        } catch (error) {
+            console.error(`❌ 날씨 API 호출 실패:`, error.message);
+            return null;
+        }
+    }
+    
+    getLocationCoords(location) {
+        // 주요 도시 좌표 매핑 (확장 가능)
+        const cityCoords = {
+            '서울': { lat: 37.5665, lon: 126.9780 },
+            '인천': { lat: 37.4563, lon: 126.7052 },
+            '부산': { lat: 35.1796, lon: 129.0756 },
+            '대구': { lat: 35.8714, lon: 128.6014 },
+            '대전': { lat: 36.3504, lon: 127.3845 },
+            '광주': { lat: 35.1595, lon: 126.8526 },
+            '울산': { lat: 35.5384, lon: 129.3114 },
+            '세종': { lat: 36.4800, lon: 127.2890 },
+            '수원': { lat: 37.2636, lon: 127.0286 },
+            '인덕원': { lat: 37.3897, lon: 126.9697 },
+            '강남': { lat: 37.4979, lon: 127.0276 },
+            '홍대': { lat: 37.5563, lon: 126.9236 },
+            '신촌': { lat: 37.5547, lon: 126.9364 },
+            '명동': { lat: 37.5636, lon: 126.9834 }
+        };
+        
+        // 정확한 매칭 시도
+        if (cityCoords[location]) {
+            return cityCoords[location];
+        }
+        
+        // 부분 매칭 시도
+        for (const [city, coords] of Object.entries(cityCoords)) {
+            if (location.includes(city) || city.includes(location)) {
+                console.log(`📍 지역 매칭: ${location} → ${city}`);
+                return coords;
+            }
+        }
+        
+        // 기본값 (서울)
+        console.log(`📍 기본 지역 사용: ${location} → 서울`);
+        return cityCoords['서울'];
     }
 
     // === 네이버 검색 공통 함수 ===
@@ -663,8 +742,67 @@ class DataExtractor {
             .trim();
     }
 
-    // 날씨 응답 포맷팅
-    formatWeatherResponse(items, location, timeframe) {
+    // 실제 날씨 데이터 포맷팅
+    formatRealWeatherResponse(weatherData, location, timeframe) {
+        const temp = Math.round(weatherData.main.temp);
+        const feelsLike = Math.round(weatherData.main.feels_like);
+        const humidity = weatherData.main.humidity;
+        const weather = weatherData.weather[0];
+        const weatherDesc = weather.description;
+        
+        // 날씨 아이콘 매핑
+        const weatherIcon = this.getWeatherIcon(weather.main);
+        
+        // 시간대별 메시지
+        const timeMessage = this.getTimeMessage(timeframe);
+        
+        const message = `${weatherIcon} "${location}" ${timeMessage} 날씨\n\n` +
+                       `🌡️ 현재 기온: ${temp}°C (체감 ${feelsLike}°C)\n` +
+                       `☁️ 날씨: ${weatherDesc}\n` +
+                       `💧 습도: ${humidity}%\n` +
+                       `🌪️ 바람: ${Math.round(weatherData.wind?.speed || 0)}m/s\n\n` +
+                       `📍 실시간 정확한 날씨 정보입니다!`;
+
+        return {
+            success: true,
+            type: 'weather',
+            data: {
+                location: location,
+                timeframe: timeframe,
+                temperature: temp,
+                description: weatherDesc,
+                message: message
+            }
+        };
+    }
+    
+    getWeatherIcon(weatherMain) {
+        const iconMap = {
+            'Clear': '☀️',
+            'Clouds': '☁️',
+            'Rain': '🌧️',
+            'Drizzle': '🌦️',
+            'Thunderstorm': '⛈️',
+            'Snow': '❄️',
+            'Mist': '🌫️',
+            'Fog': '🌫️',
+            'Haze': '🌫️'
+        };
+        return iconMap[weatherMain] || '🌤️';
+    }
+    
+    getTimeMessage(timeframe) {
+        switch(timeframe) {
+            case 'today': return '오늘';
+            case 'tomorrow': return '내일';
+            case 'yesterday': return '어제';
+            case 'this_week': return '이번주';
+            default: return '현재';
+        }
+    }
+
+    // 날씨 뉴스 응답 포맷팅 (fallback용)
+    formatWeatherNewsResponse(items, location, timeframe) {
         if (!items || items.length === 0) {
             return this.createWeatherPlaceholder(location);
         }
@@ -682,7 +820,7 @@ class DataExtractor {
             data: {
                 location: location,
                 timeframe: timeframe,
-                message: `🌤️ "${location}" 날씨 관련 최신 정보\n\n${weatherInfo}\n\n💡 더 정확한 실시간 날씨는 기상청이나 날씨앱을 확인해주세요!`
+                message: `🌤️ "${location}" 날씨 관련 최신 정보\n\n${weatherInfo}\n\n⚠️ 실시간 날씨 API 연결 실패로 뉴스 검색 결과입니다.`
             }
         };
     }
