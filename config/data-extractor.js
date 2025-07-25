@@ -59,8 +59,14 @@ class DataExtractor {
 
         console.log(`🎬 영화 검색: "${title}" (리뷰 타입: ${reviewType})`);
 
+        // F1 영화나 특별한 케이스는 바로 뉴스 검색으로 처리
+        if (title.toLowerCase().includes('f1') || title.includes('더무비') || title.includes('무비')) {
+            console.log('🏎️ F1/특별 영화 → 뉴스 검색으로 직접 처리');
+            return await this.searchMovieReviewsInNews(title, reviewType);
+        }
+
         try {
-            // 1. 네이버 영화 API 검색 시도
+            // 1. 네이버 영화 API 검색 시도 (일반 영화만)
             const movieApiUrl = `https://openapi.naver.com/v1/search/movie.json?query=${encodeURIComponent(title)}&display=1`;
             
             const movieResponse = await axios.get(movieApiUrl, {
@@ -308,11 +314,54 @@ class DataExtractor {
     }
 
     formatMovieNewsResponse(items, title, query) {
-        const reviews = items.slice(0, 3).map((item, index) => {
-            const cleanTitle = item.title.replace(/<\/?[^>]+(>|$)/g, '');
-            const cleanDescription = item.description.replace(/<\/?[^>]+(>|$)/g, '').substring(0, 80);
-            return `${index + 1}. ${cleanTitle}\n   ${cleanDescription}...`;
-        }).join('\n\n');
+        if (!items || items.length === 0) {
+            return this.createErrorResponse(`🎬 "${title}" 영화 평가 정보를 찾을 수 없습니다.`);
+        }
+
+        // 전문가 평론과 관객 평을 구분
+        const expertReviews = items.filter(review => 
+            review.title.includes('평론') || review.title.includes('리뷰') || 
+            review.title.includes('평가') || review.title.includes('감상') ||
+            review.title.includes('비평') || review.title.includes('평론가')
+        );
+        
+        const audienceReviews = items.filter(review => 
+            review.title.includes('관객') || review.title.includes('사용자') || 
+            review.title.includes('네티즌') || review.title.includes('평점') ||
+            (review.title.includes('평') && !expertReviews.includes(review))
+        );
+
+        let reviewText = `🎬 "${title}" 영화 평점/평론 모음\n\n`;
+        
+        // 전문가 평론 섹션
+        if (expertReviews.length > 0) {
+            reviewText += `👨‍🎓 전문가 평론:\n\n`;
+            expertReviews.slice(0, 3).forEach((review, index) => {
+                const cleanTitle = review.title.replace(/<\/?[^>]+(>|$)/g, '');
+                const cleanDescription = review.description.replace(/<\/?[^>]+(>|$)/g, '').substring(0, 100);
+                reviewText += `${index + 1}. ${cleanTitle}\n   "${cleanDescription}..."\n\n`;
+            });
+        }
+        
+        // 관객 평가 섹션
+        if (audienceReviews.length > 0) {
+            reviewText += `🎭 관객 평가:\n\n`;
+            audienceReviews.slice(0, 3).forEach((review, index) => {
+                const cleanTitle = review.title.replace(/<\/?[^>]+(>|$)/g, '');
+                const cleanDescription = review.description.replace(/<\/?[^>]+(>|$)/g, '').substring(0, 100);
+                reviewText += `${index + 1}. ${cleanTitle}\n   "${cleanDescription}..."\n\n`;
+            });
+        }
+        
+        // 둘 다 없으면 일반 리뷰들
+        if (expertReviews.length === 0 && audienceReviews.length === 0) {
+            reviewText += `📝 영화 관련 정보:\n\n`;
+            items.slice(0, 5).forEach((review, index) => {
+                const cleanTitle = review.title.replace(/<\/?[^>]+(>|$)/g, '');
+                const cleanDescription = review.description.replace(/<\/?[^>]+(>|$)/g, '').substring(0, 100);
+                reviewText += `${index + 1}. ${cleanTitle}\n   "${cleanDescription}..."\n\n`;
+            });
+        }
 
         return {
             success: true,
@@ -320,7 +369,7 @@ class DataExtractor {
             data: {
                 title: title,
                 query: query,
-                message: `🎬 "${title}" 영화 평가 정보\n\n${reviews}\n\n💡 더 자세한 정보는 검색 결과를 확인해주세요!`
+                message: reviewText.trim()
             }
         };
     }
