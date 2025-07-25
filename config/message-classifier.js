@@ -196,31 +196,64 @@ class MessageClassifier {
     // === 데이터 추출 함수들 ===
 
     extractMovieTitle(message) {
-        // 영화 제목 추출 (평가 관련 키워드 제거)
-        // 단어 경계를 고려하여 정확히 매칭
-        const cleanMessage = message
-            .replace(/\b(영화평|평점|평가|리뷰|별점|평좀|어때|어떤지|볼만해|재밌어|봤어|본|생각|의견)\b/g, '')
-            .replace(/\b(해줘|좀|말해줘|알려줘|보여줘)\b/g, '')
-            .replace(/\s+/g, ' ') // 여러 공백을 하나로
-            .trim();
+        console.log(`🎬 영화 제목 추출 시작: "${message}"`);
         
-        console.log(`🎬 영화 제목 추출: "${message}" → "${cleanMessage}"`);
+        // 특별한 패턴으로 영화 제목 먼저 추출
+        const moviePatterns = [
+            // "영화명 + 키워드" 패턴
+            /^([가-힣a-zA-Z0-9\s:·]{2,}?)\s+(영화평|평점|평가|리뷰|별점|어때)$/,
+            /^([가-힣a-zA-Z0-9\s:·]{2,}?)\s+영화\s+(평점|평가|리뷰)$/,
+            // 따옴표 패턴
+            /"([^"]+)"/,
+            /'([^']+)'/
+        ];
+        
+        // 패턴 매칭으로 영화 제목 추출
+        for (const pattern of moviePatterns) {
+            const match = message.match(pattern);
+            if (match) {
+                const extracted = match[1].trim();
+                console.log(`✅ 패턴 매칭 성공: "${extracted}"`);
+                return this.cleanMovieTitle(extracted);
+            }
+        }
         
         // F1 관련 특별 처리
-        if (cleanMessage.toLowerCase().includes('f1') || cleanMessage.includes('더무비')) {
-            // "f1 더무비" 형태 정리
-            let f1Title = cleanMessage
+        if (message.toLowerCase().includes('f1') || message.includes('더무비')) {
+            let f1Title = message
                 .replace(/f1\s*더무비?/i, 'F1 더무비')
                 .replace(/더무비\s*f1/i, 'F1 더무비')
+                .replace(/\b(영화평|평점|평가|리뷰|별점|어때|영화)\b/g, '')
                 .trim();
             
             console.log(`🏎️ F1 영화 특별 처리: "${f1Title}"`);
             return f1Title;
         }
         
-        // 따옴표나 제목 형태 추출
-        const titleMatch = cleanMessage.match(/"([^"]+)"|'([^']+)'|([가-힣a-zA-Z0-9\s]{2,})/);
-        return titleMatch ? (titleMatch[1] || titleMatch[2] || titleMatch[3]).trim() : cleanMessage;
+        // 일반적인 키워드 제거
+        let cleanMessage = message
+            .replace(/\b(영화평|평점|평가|리뷰|별점|평좀|어때|어떤지|볼만해|재밌어|봤어|본|생각|의견)\b/g, '')
+            .replace(/\b(해줘|좀|말해줘|알려줘|보여줘)\b/g, '')
+            .replace(/\b영화\s*/g, '') // "영화" 단어도 제거
+            .replace(/\s+/g, ' ') // 여러 공백을 하나로
+            .trim();
+        
+        // 빈 문자열이면 원본에서 다시 시도
+        if (!cleanMessage) {
+            cleanMessage = message.replace(/\b(평점|평가|리뷰|별점|어때)\b.*$/, '').trim();
+        }
+        
+        const result = this.cleanMovieTitle(cleanMessage || message);
+        console.log(`🎯 최종 영화 제목: "${result}"`);
+        return result;
+    }
+    
+    // 영화 제목 정리 헬퍼 함수
+    cleanMovieTitle(title) {
+        return title
+            .replace(/\b(영화평|평점|평가|리뷰|별점|어때|영화)\b/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
     }
 
     extractReviewType(message) {

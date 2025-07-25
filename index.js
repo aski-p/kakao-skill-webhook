@@ -209,12 +209,12 @@ async function getNaverMovieInfo(movieTitle) {
     }
 }
 
-// 영화 평가 처리 함수
+// 영화 평가 처리 함수 (개선된 버전 - Playwright 크롤링 포함)
 async function getMovieReview(movieTitle) {
     try {
-        console.log(`🎬 영화 평가 요청: "${movieTitle}"`);
+        console.log(`🎬 종합 영화평 요청: "${movieTitle}"`);
         
-        // 1단계: 다양한 검색어로 시도
+        // 1단계: 네이버 영화 API로 기본 정보 수집
         let movieResults = null;
         const searchVariations = [
             movieTitle,                           // 원본
@@ -223,26 +223,6 @@ async function getMovieReview(movieTitle) {
             movieTitle.replace(/더/g, 'THE'),     // "더" → "THE"
             movieTitle.replace(/더/g, '')         // "더" 제거
         ];
-        
-        // F1 특별 처리
-        if (movieTitle.toLowerCase().includes('f1')) {
-            searchVariations.push('F1', 'f1', 'Formula 1', '포뮬러원', '포뮬러 1');
-            
-            // F1 더 맥스 특별 처리 - 실제 존재하는 F1 영화들로 확장
-            if (movieTitle.includes('맥스')) {
-                searchVariations.push(
-                    'F1 더 맥스', 
-                    'F1 the Max', 
-                    'F1: Drive to Survive',
-                    '러쉬',           // 실제 F1 영화
-                    'Rush',          // 영문 제목
-                    '세나',           // 아일톤 세나 다큐
-                    'Senna',
-                    '그랑프리',       // 클래식 F1 영화
-                    'Grand Prix'
-                );
-            }
-        }
         
         console.log(`🔍 검색 시도할 키워드들: ${searchVariations.join(', ')}`);
         
@@ -258,157 +238,99 @@ async function getMovieReview(movieTitle) {
         }
         
         if (!movieResults || movieResults.length === 0) {
-            // 추가 시도: 영화 제목에 "F1" 포함시 특별 검색 로직
-            console.log(`🔍 영화 제목 분석: "${movieTitle}" (소문자: "${movieTitle.toLowerCase()}")`);
-            
-            if (movieTitle.toLowerCase().includes('f1') || movieTitle.includes('더무비') || movieTitle.includes('무비')) {
-                console.log('🏎️ F1/무비 영화 전용 검색 로직 시작');
-                
-                // 1. 네이버 뉴스에서 영화 평론 검색 (F1 특화 검색어 포함)
-                const reviewSearches = [
-                    `"${movieTitle}" 영화 평점`,
-                    `"${movieTitle}" 영화 평론`,
-                    `"${movieTitle}" 영화 리뷰`,
-                    `"${movieTitle}" 관객 평점`,
-                    `"${movieTitle}" 평가`,
-                    `"F1 더무비" 평점`, // F1 특화 검색
-                    `"F1 더무비" 리뷰`,
-                    `"F1 영화" 평론`,
-                    `"포뮬러1 영화" 평점`
-                ];
-                
-                let allReviews = [];
-                for (const searchTerm of reviewSearches) {
-                    const reviews = await getLatestNews(searchTerm);
-                    if (reviews && reviews.length > 0) {
-                        allReviews.push(...reviews);
-                    }
-                }
-                
-                if (allReviews.length > 0) {
-                    // 중복 제거
-                    const uniqueReviews = allReviews.filter((review, index, arr) => 
-                        arr.findIndex(r => r.title === review.title) === index
-                    );
-                    
-                    let reviewText = `🎬 "${movieTitle}" 영화 평점/평론 모음\n\n`;
-                    
-                    // 전문가 평론과 관객 평을 구분
-                    const expertReviews = uniqueReviews.filter(review => 
-                        review.title.includes('평론') || review.title.includes('리뷰') || 
-                        review.title.includes('평가') || review.title.includes('감상')
-                    ).slice(0, 3);
-                    
-                    const audienceReviews = uniqueReviews.filter(review => 
-                        review.title.includes('관객') || review.title.includes('후기') || 
-                        review.title.includes('평점') || review.title.includes('별점')
-                    ).slice(0, 3);
-                    
-                    if (expertReviews.length > 0) {
-                        reviewText += `👨‍💼 전문가 평론:\n`;
-                        expertReviews.forEach((review, index) => {
-                            reviewText += `${index + 1}. ${review.title}\n`;
-                            if (review.description) {
-                                reviewText += `   "${review.description.substring(0, 80)}..."\n`;
-                            }
-                        });
-                        reviewText += `\n`;
-                    }
-                    
-                    if (audienceReviews.length > 0) {
-                        reviewText += `👥 관객 평가:\n`;
-                        audienceReviews.forEach((review, index) => {
-                            reviewText += `${index + 1}. ${review.title}\n`;
-                            if (review.description) {
-                                reviewText += `   "${review.description.substring(0, 80)}..."\n`;
-                            }
-                        });
-                        reviewText += `\n`;
-                    }
-                    
-                    if (expertReviews.length === 0 && audienceReviews.length === 0) {
-                        reviewText += `📰 검색된 리뷰/평점 (${uniqueReviews.length}개):\n`;
-                        uniqueReviews.slice(0, 5).forEach((review, index) => {
-                            reviewText += `${index + 1}. ${review.title}\n`;
-                            if (review.description) {
-                                reviewText += `   "${review.description.substring(0, 80)}..."\n`;
-                            }
-                        });
-                    }
-                    
-                    reviewText += `\n💡 더 자세한 평점은 네이버 영화, 왓챠, CGV 등에서 확인하세요.`;
-                    return reviewText;
-                }
-            }
-            
-            // 추가 시도: 네이버 뉴스에서 영화 관련 정보 검색
+            // 검색 결과가 없는 경우 뉴스 검색으로 폴백
             console.log('🔍 네이버 뉴스에서 영화 정보 검색 시도');
-            const newsResults = await getLatestNews(`"${movieTitle}" 영화`);
+            const newsResults = await getLatestNews(`"${movieTitle}" 영화 평점`);
             
             if (newsResults && newsResults.length > 0) {
-                let newsInfo = `🎬 "${movieTitle}" 관련 최신 정보\n\n`;
-                newsInfo += `📰 뉴스 검색 결과 (영화 정보):\n`;
-                newsResults.slice(0, 4).forEach((news, index) => {
+                let newsInfo = `🎬 "${movieTitle}" 영화평 뉴스 검색 결과\n\n`;
+                newsInfo += `📰 관련 뉴스/리뷰:\n`;
+                newsResults.slice(0, 5).forEach((news, index) => {
                     newsInfo += `${index + 1}. ${news.title}\n`;
+                    if (news.description) {
+                        newsInfo += `   "${news.description.substring(0, 60)}..."\n`;
+                    }
                 });
-                newsInfo += `\n💡 정확한 영화 제목 확인:\n• "러쉬" (2013) - F1 라이벌 영화\n• "세나" (2010) - 아일톤 세나 다큐\n• "그랑프리" (1966) - 클래식 F1 영화\n• 또는 "러쉬 영화평"으로 다시 검색`;
+                newsInfo += `\n💡 정확한 영화 제목으로 다시 검색해보세요.`;
                 return newsInfo;
             }
             
-            return `🎬 "${movieTitle}" 영화를 찾을 수 없습니다.\n\n💡 검색 팁:\n• 정확한 영화 제목으로 다시 검색\n• 영어 제목이나 한글 제목으로 시도\n• 개봉년도와 함께 검색\n\n🏎️ F1 관련 실제 영화들:\n• "러쉬 영화평" - 2013년 F1 라이벌 영화\n• "세나 영화평" - 2010년 아일톤 세나 다큐\n• "그랑프리 영화평" - 1966년 클래식 F1 영화\n\n💭 "f1더무비"는 존재하지 않는 제목일 수 있습니다.`;
+            return `🎬 "${movieTitle}" 영화를 찾을 수 없습니다.\n\n💡 검색 팁:\n• 정확한 영화 제목으로 다시 검색\n• 영어 제목이나 한글 제목으로 시도\n• 개봉년도와 함께 검색\n\n예) "베놈2 영화평", "탑건 매버릭 평점"`;
         }
         
-        // 2단계: 가장 관련성 높은 영화 선택
+        // 2단계: Playwright로 실시간 상세 평점 크롤링 시도
         const bestMatch = movieResults[0];
+        console.log(`🎭 Playwright 크롤링 시도: "${bestMatch.title}"`);
         
-        // 3단계: 네이버 뉴스에서 영화 리뷰 검색
-        let reviewResults = await getLatestNews(`${bestMatch.title} 리뷰`);
-        if (!reviewResults || reviewResults.length === 0) {
-            reviewResults = await getLatestNews(`${bestMatch.title} 평점`);
+        try {
+            // Playwright 크롤러 import (config 폴더에서)
+            const PlaywrightCrawler = require('./config/playwright-crawler');
+            const crawler = new PlaywrightCrawler();
+            
+            // 실시간 크롤링 시도
+            const crawlResults = await crawler.crawlMultipleSites(bestMatch.title);
+            
+            if (crawlResults && crawlResults.naver) {
+                console.log('✅ Playwright 크롤링 성공 - 상세 정보 제공');
+                const result = crawler.formatForKakaoSkill(crawlResults, bestMatch.title);
+                await crawler.close();
+                return result.data.message;
+            } else {
+                console.log('⚠️ Playwright 크롤링 실패 - API 정보로 폴백');
+                await crawler.close();
+            }
+        } catch (crawlerError) {
+            console.log(`⚠️ Playwright 크롤링 오류: ${crawlerError.message}`);
         }
         
-        let movieReviewText = `🎬 "${bestMatch.title}" 영화 정보\n\n`;
+        // 3단계: API 정보로 기본 영화평 생성 (폴백)
+        let movieReviewText = `🎬 "${bestMatch.title}" 영화평\n\n`;
         
         // 영화 기본 정보
-        movieReviewText += `📽️ 감독: ${bestMatch.director || '정보 없음'}\n`;
-        movieReviewText += `🎭 출연: ${bestMatch.actor ? bestMatch.actor.substring(0, 100) + '...' : '정보 없음'}\n`;
-        movieReviewText += `📅 개봉: ${bestMatch.pubDate || '정보 없음'}\n`;
+        movieReviewText += `📽️ 기본 정보\n`;
+        movieReviewText += `감독: ${bestMatch.director || '정보 없음'}\n`;
+        movieReviewText += `출연: ${bestMatch.actor ? bestMatch.actor.substring(0, 50) + '...' : '정보 없음'}\n`;
+        movieReviewText += `개봉: ${bestMatch.pubDate || '정보 없음'}\n`;
         
         // 네이버 평점
         if (bestMatch.userRating && bestMatch.userRating !== '0.00') {
             const rating = parseFloat(bestMatch.userRating);
             const stars = '⭐'.repeat(Math.round(rating / 2));
-            movieReviewText += `⭐ 네이버 평점: ${rating}/10 ${stars}\n`;
+            movieReviewText += `\n⭐ 네이버 평점: ${rating}/10 ${stars}\n`;
             
             // 평점 분석
             if (rating >= 8.0) {
-                movieReviewText += `💫 높은 평점! 많은 관객들이 만족한 작품\n`;
+                movieReviewText += `💫 매우 높은 평점! 강력 추천작\n`;
+            } else if (rating >= 7.0) {
+                movieReviewText += `👍 좋은 평점의 추천작\n`;
             } else if (rating >= 6.0) {
-                movieReviewText += `👍 괜찮은 평점의 무난한 작품\n`;
-            } else if (rating >= 4.0) {
-                movieReviewText += `😐 평점이 아쉬운 작품\n`;
+                movieReviewText += `😊 무난한 평점의 볼만한 작품\n`;
+            } else if (rating >= 5.0) {
+                movieReviewText += `😐 평범한 평점\n`;
             } else {
-                movieReviewText += `👎 낮은 평점의 작품\n`;
+                movieReviewText += `😕 아쉬운 평점\n`;
             }
         } else {
-            movieReviewText += `⭐ 네이버 평점: 정보 없음\n`;
+            movieReviewText += `\n⭐ 네이버 평점: 정보 없음\n`;
         }
         
-        movieReviewText += `\n🔗 상세 정보: ${bestMatch.link}\n`;
-        
-        // 리뷰 정보 추가
+        // 추가 리뷰 정보 검색
+        const reviewResults = await getLatestNews(`${bestMatch.title} 리뷰`);
         if (reviewResults && reviewResults.length > 0) {
-            movieReviewText += `\n📰 최신 리뷰 (${reviewResults.length}개):\n`;
+            movieReviewText += `\n📰 최신 리뷰/평론:\n`;
             reviewResults.slice(0, 3).forEach((review, index) => {
                 movieReviewText += `${index + 1}. ${review.title}\n`;
             });
         }
         
+        movieReviewText += `\n🔗 상세 정보: ${bestMatch.link}`;
+        movieReviewText += `\n💡 더 자세한 평점은 네이버 영화에서 확인하세요.`;
+        
         return movieReviewText;
         
     } catch (error) {
         console.log(`❌ 영화 평가 오류: ${error.message}`);
-        return `🎬 영화 정보를 가져올 수 없습니다.\n\n❌ 오류:\n• 네이버 영화 API 연결 실패\n• 영화 제목을 정확히 입력해주세요\n\n💡 다시 시도:\n• "영화제목 + 영화평" 형식으로 질문\n• 네이버 영화에서 직접 검색`;
+        return `🎬 영화 정보를 가져올 수 없습니다.\n\n❌ 오류 발생\n💡 다시 시도해주세요:\n• "영화제목 + 영화평" 형식으로 질문\n• 정확한 영화 제목으로 검색`;
     }
 }
 
