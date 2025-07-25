@@ -8,9 +8,10 @@ class MessageClassifier {
             MOVIE_REVIEW: {
                 priority: 1,
                 patterns: {
-                    content: /영화|드라마|시리즈|애니|다큐/,
-                    action: /평점|평가|리뷰|후기|별점|재밌|볼만|어때|추천/,
-                    context: /f1|더무비|무비|movie|film/i
+                    content: /영화|드라마|시리즈|애니|다큐|무비|movie|film/i,
+                    action: /평점|평가|리뷰|후기|별점|재밌|볼만|어때|추천|관람평|말해줘/,
+                    context: /f1|더무비|러쉬|액션|스릴러|로맨스|공포|코미디/i,
+                    movieKeywords: /관람평|영화평|평좀|영화.*말해줘/
                 },
                 extractors: {
                     title: this.extractMovieTitle.bind(this),
@@ -19,10 +20,11 @@ class MessageClassifier {
             },
             
             WEATHER: {
-                priority: 1, // 우선순위 높임 (뉴스보다 우선)
+                priority: 2, // 영화보다 낮은 우선순위
                 patterns: {
                     content: /날씨|기온|온도|기상|비|눈|바람|습도|미세먼지|맑음|흐림|구름/,
                     action: /알려줘|어때|어떻게|확인|궁금/,
+                    weatherSpecific: /날씨.*알려줘|기온.*어때|온도.*궁금/,
                     location: /([가-힣]{2,}(?:시|구|군|동|역|읍|면))/,
                     time: /오늘|내일|모레|이번주|다음주|주말/
                 },
@@ -160,6 +162,8 @@ class MessageClassifier {
                 switch (patternType) {
                     case 'content': score += 3; break;
                     case 'action': score += 2; break;
+                    case 'movieKeywords': score += 4; break; // 영화 키워드 높은 가중치
+                    case 'weatherSpecific': score += 4; break; // 날씨 특정 키워드 높은 가중치
                     case 'context': score += 1; break;
                     case 'location': score += 1; break;
                     case 'time': score += 1; break;
