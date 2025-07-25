@@ -67,6 +67,92 @@ function isFactCheckRequest(message) {
     return factCheckKeywords.some(keyword => message.includes(keyword));
 }
 
+// 유튜브 URL 감지 함수
+function extractYouTubeUrl(message) {
+    const youtubePatterns = [
+        /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+        /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/,
+        /(?:https?:\/\/)?youtu\.be\/([a-zA-Z0-9_-]{11})/
+    ];
+    
+    for (const pattern of youtubePatterns) {
+        const match = message.match(pattern);
+        if (match) {
+            const videoId = match[1];
+            return {
+                url: `https://www.youtube.com/watch?v=${videoId}`,
+                videoId: videoId
+            };
+        }
+    }
+    return null;
+}
+
+// 유튜브 요약 요청 감지 함수
+function isYouTubeSummaryRequest(message) {
+    const youtubeUrl = extractYouTubeUrl(message);
+    const summaryKeywords = ['요약', '내용', '정리', '설명', '어떤내용', '뭐라고', '뭔소리', '무슨말'];
+    
+    return youtubeUrl && summaryKeywords.some(keyword => message.includes(keyword));
+}
+
+// 유튜브 요약 처리 함수
+async function getYouTubeSummary(youtubeData) {
+    try {
+        console.log(`📺 유튜브 요약 요청: ${youtubeData.url}`);
+        
+        if (!process.env.CLAUDE_API_KEY) {
+            throw new Error('CLAUDE_API_KEY not found');
+        }
+        
+        // Claude API를 통한 유튜브 요약 요청
+        const claudeResponse = await axios.post(
+            'https://api.anthropic.com/v1/messages',
+            {
+                model: "claude-3-haiku-20240307",
+                system: `당신은 유튜브 영상 분석 전문가입니다. 
+                
+한국어로 답변하세요. 다음 규칙을 따르세요:
+- 800자 이내로 간결하게 작성
+- 영상의 주요 내용을 3-5개 핵심 포인트로 요약
+- 이모지를 적절히 사용하여 읽기 쉽게 구성
+- 영상을 직접 볼 수 없다면 URL 정보를 바탕으로 안내
+- 추측보다는 명확한 정보 제공을 우선
+
+영상 URL에서 추출할 수 있는 정보를 최대한 활용하세요.`,
+                messages: [{
+                    role: "user", 
+                    content: `다음 유튜브 영상을 요약해주세요:
+                    
+URL: ${youtubeData.url}
+Video ID: ${youtubeData.videoId}
+
+영상의 주요 내용, 핵심 메시지, 중요한 포인트들을 정리해서 알려주세요.`
+                }],
+                max_tokens: 400
+            },
+            {
+                headers: {
+                    'x-api-key': process.env.CLAUDE_API_KEY,
+                    'anthropic-version': '2023-06-01',
+                    'content-type': 'application/json'
+                },
+                timeout: config.timeouts.claude_general
+            }
+        );
+        
+        const summary = claudeResponse.data.content[0].text;
+        console.log(`✅ 유튜브 요약 완료: ${summary.length}자`);
+        
+        return `📺 유튜브 영상 요약\n🔗 ${youtubeData.url}\n\n${summary}\n\n💡 더 자세한 내용은 영상을 직접 시청해주세요.`;
+        
+    } catch (error) {
+        console.log(`❌ 유튜브 요약 오류: ${error.message}`);
+        
+        return `📺 유튜브 영상 요약을 처리할 수 없습니다.\n🔗 ${youtubeData.url}\n\n⚠️ 현재 Claude AI가 유튜브 영상을 직접 분석할 수 없습니다.\n\n💡 다른 방법:\n• 영상을 직접 시청\n• 영상 제목이나 채널명으로 검색\n• 영상 설명란 확인`;
+    }
+}
+
 // 나무위키 게임 정보 가져오기 함수
 async function getNamuWikiGameInfo(gameName) {
     try {
@@ -593,6 +679,8 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             isRestaurant: isRestaurantRequest(userMessage),
             isReviewQuestion: config.shopping.review_keywords.some(keyword => userMessage.includes(keyword)),
             isFactCheck: isFactCheckRequest(userMessage),
+            isYouTubeSummary: isYouTubeSummaryRequest(userMessage),
+            youtubeUrl: extractYouTubeUrl(userMessage),
             message: userMessage
         };
         
@@ -637,6 +725,17 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         // 간단한 인사나 기본 질문 처리
         if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
             responseText = `안녕하세요! 현재 시간은 ${koreanTime.formatted}입니다. 무엇을 도와드릴까요?`;
+        }
+        // 유튜브 요약 요청 처리
+        else if (isYouTubeSummaryRequest(userMessage)) {
+            console.log('📺 유튜브 요약 요청 감지됨');
+            const youtubeData = extractYouTubeUrl(userMessage);
+            
+            if (youtubeData) {
+                responseText = await getYouTubeSummary(youtubeData);
+            } else {
+                responseText = `📺 유튜브 URL을 찾을 수 없습니다.\n\n💡 올바른 형식:\n• https://www.youtube.com/watch?v=VIDEO_ID\n• https://youtu.be/VIDEO_ID\n\n다시 시도해주세요.`;
+            }
         }
         // 사실 확인 요청 (뉴스 검색으로 처리) - 시간 질문보다 우선
         else if (isFactCheckRequest(userMessage)) {
