@@ -250,16 +250,22 @@ async function getMovieReview(movieTitle) {
         
         if (!movieResults || movieResults.length === 0) {
             // 추가 시도: 영화 제목에 "F1" 포함시 특별 검색 로직
-            if (movieTitle.toLowerCase().includes('f1') || movieTitle.includes('더무비')) {
-                console.log('🏎️ F1 영화 전용 검색 로직 시작');
+            console.log(`🔍 영화 제목 분석: "${movieTitle}" (소문자: "${movieTitle.toLowerCase()}")`);
+            
+            if (movieTitle.toLowerCase().includes('f1') || movieTitle.includes('더무비') || movieTitle.includes('무비')) {
+                console.log('🏎️ F1/무비 영화 전용 검색 로직 시작');
                 
-                // 1. 네이버 뉴스에서 영화 평론 검색
+                // 1. 네이버 뉴스에서 영화 평론 검색 (F1 특화 검색어 포함)
                 const reviewSearches = [
                     `"${movieTitle}" 영화 평점`,
                     `"${movieTitle}" 영화 평론`,
                     `"${movieTitle}" 영화 리뷰`,
                     `"${movieTitle}" 관객 평점`,
-                    `"${movieTitle}" 평가`
+                    `"${movieTitle}" 평가`,
+                    `"F1 더무비" 평점`, // F1 특화 검색
+                    `"F1 더무비" 리뷰`,
+                    `"F1 영화" 평론`,
+                    `"포뮬러1 영화" 평점`
                 ];
                 
                 let allReviews = [];
@@ -750,9 +756,10 @@ function isActualQuestion(message) {
     const questionIndicators = [
         /\?/, // 물음표
         /어떻게|어떤|어디|언제|왜|누구|뭐|몇|얼마/, // 의문사
-        /알려줘|검색|찾아|추천|비교/, // 요청 동사
+        /알려줘|검색|찾아|추천|비교|말해줘/, // 요청 동사
         /어때|할만해|좋아|괜찮/, // 평가 요청
-        /.*해줘|.*알아|.*봐줘/ // 도움 요청
+        /.*해줘|.*알아|.*봐줘/, // 도움 요청
+        /영화평|평점|평가|리뷰|별점/ // 영화 평가 요청
     ];
     
     return questionIndicators.some(pattern => pattern.test(message));
@@ -762,8 +769,9 @@ function isActualQuestion(message) {
 function isSpecificRequest(message) {
     const requestPatterns = [
         /뉴스|맛집|쇼핑|영화|게임|시간|날씨/, // 구체적 도메인
-        /추천|검색|찾아|알려|보여/, // 명확한 동작
-        /계속|더보기|다음/ // 시스템 명령
+        /추천|검색|찾아|알려|보여|말해/, // 명확한 동작
+        /계속|더보기|다음/, // 시스템 명령
+        /영화평|평점|평가|리뷰|별점/ // 영화 평가 요청
     ];
     
     return requestPatterns.some(pattern => pattern.test(message));
@@ -1285,6 +1293,21 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         else if (/시간|몇시|지금/.test(userMessage)) {
             responseText = `🕐 현재 시간: ${koreanTime.formatted}\n\n📅 오늘 날짜: ${koreanTime.date}\n\n⚡ 빠른 응답 모드로 답변드렸어요!`;
         }
+        // 날씨 요청 처리
+        else if (/날씨|기온|비|눈|맑음|흐림|온도/.test(userMessage)) {
+            console.log('🌤️ 날씨 요청 감지됨');
+            
+            // 지역 추출
+            let location = '서울';
+            const locationMatch = userMessage.match(/([가-힣]+)(?:\s+)?날씨/);
+            if (locationMatch) {
+                location = locationMatch[1];
+            }
+            
+            responseText = `🌤️ "${location}" 날씨 정보\n\n⚠️ 실시간 날씨 API 연동이 아직 준비 중입니다.\n\n💡 정확한 날씨 정보는:\n• 네이버 날씨 검색\n• 기상청 날씨누리\n• 스마트폰 날씨 앱\n\n에서 확인해주세요!\n\n🔧 곧 실시간 날씨 정보 제공 예정입니다.`;
+            
+            addToConversationHistory(userId, userMessage, responseText, 'weather_request');
+        }
         else if (/고마워|감사|ㄱㅅ|thanks/.test(userMessage)) {
             const thankResponses = [
                 `😊 천만에요! 도움이 되었다니 기뻐요!\n\n💪 앞으로도 더 나은 서비스로 보답하겠습니다!`,
@@ -1318,7 +1341,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             
             // 영화 제목 추출 (평가 관련 키워드 제거)
             let movieTitle = userMessage
-                .replace(/영화평|평점|평가|리뷰|별점|평좀|해줘|좀|어때|어떤지|볼만해|재밌어|봤어|본|생각|의견/g, '')
+                .replace(/영화평|평점|평가|리뷰|별점|평좀|해줘|좀|어때|어떤지|볼만해|재밌어|봤어|본|생각|의견|말해줘|말해|알려줘|알려|보여줘|보여/g, '')
                 .trim();
             
             // 빈 제목 처리
