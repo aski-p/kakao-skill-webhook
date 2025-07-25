@@ -1372,50 +1372,8 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         */
         
         // ⚠️ 응답 길이 최적화 (카카오톡 메시지 길이 제한)
-        if (responseText && responseText.length > config.limits.message_max_length) {
-            responseText = responseText.substring(0, config.limits.message_truncate_length) + '...';
-        }
-        
-        console.log(`📤 최종 응답 길이: ${responseText ? responseText.length : 0}자`);
-        
-        // 🎉 카카오톡 스킬 응답 포맷
-        const response = {
-            version: "2.0",
-            template: {
-                outputs: [{
-                    simpleText: {
-                        text: responseText || '죄송합니다. 응답을 생성하는 중 문제가 발생했습니다.'
-                    }
-                }]
-            }
-        };
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.status(200).json(response);
-        
-    } catch (error) {
-        console.error('❌ 전체 요청 처리 중 오류:', error);
-        
-        const errorResponse = {
-            version: "2.0",
-            template: {
-                outputs: [{
-                    simpleText: {
-                        text: '⚠️ 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
-                    }
-                }]
-            }
-        };
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.status(200).json(errorResponse);
-    }
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`✅ 서버가 포트 ${PORT}에서 실행 중입니다.`);
-    console.log(`🔑 Claude API 키 상태: ${process.env.CLAUDE_API_KEY ? '설정됨 (' + process.env.CLAUDE_API_KEY.length + '자)' : '미설정'}`);
-    console.log(`📡 네이버 API 키 상태: ${(process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) ? '설정됨' : '미설정'}`);
-});
+            
+            if (youtubeData) {
                 responseText = await getYouTubeSummary(youtubeData);
             } else {
                 responseText = `📺 유튜브 URL을 찾을 수 없습니다.\n\n💡 올바른 형식:\n• https://www.youtube.com/watch?v=VIDEO_ID\n• https://youtu.be/VIDEO_ID\n\n다시 시도해주세요.`;
