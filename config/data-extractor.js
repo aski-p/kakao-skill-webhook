@@ -356,42 +356,85 @@ class DataExtractor {
         // 전문가 평론 섹션
         if (expertReviews.length > 0) {
             reviewText += `👨‍🎓 전문가 평론:\n\n`;
-            expertReviews.slice(0, 2).forEach((review, index) => {
+            expertReviews.slice(0, 3).forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
-                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description).substring(0, 200);
-                reviewText += `${index + 1}. ${cleanTitle}\n\n"${cleanDescription}..."\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
+                
+                // 평점 추출 (1~10점, 별점, 등급)
+                const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}|[A-F]\+?등급/);
+                const rating = ratingMatch ? ratingMatch[0] : '';
+                
+                // 한줄평 추출 (첫 번째 문장이나 핵심 문구)
+                let oneLineReview = cleanDescription
+                    .split(/[.!?]/)
+                    .find(sentence => sentence.trim().length > 10 && sentence.trim().length < 60);
+                
+                if (!oneLineReview) {
+                    oneLineReview = cleanDescription.substring(0, 50);
+                }
+                
+                oneLineReview = oneLineReview.trim();
+                
+                reviewText += `${index + 1}. ${rating ? `${rating} ` : ''}${oneLineReview}...\n`;
             });
+            reviewText += '\n';
         }
         
         // 관객 평가 섹션 (별점/평점 중심)
         if (audienceReviews.length > 0) {
             reviewText += `⭐ 관객 평점:\n\n`;
-            audienceReviews.slice(0, 2).forEach((review, index) => {
+            audienceReviews.slice(0, 4).forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
-                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description).substring(0, 180);
+                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
                 
-                // 별점이나 평점 추출 시도
-                const ratingMatch = cleanDescription.match(/(\d+\.?\d*)\s*(?:점|\/10|★|⭐)/);
-                const starMatch = cleanDescription.match(/(★+|⭐+)/);
+                // 별점이나 평점 추출 (더 정확한 패턴)
+                const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}/);
+                const rating = ratingMatch ? ratingMatch[0] : '';
                 
-                let ratingInfo = '';
-                if (ratingMatch) {
-                    ratingInfo = ` [${ratingMatch[1]}점]`;
-                } else if (starMatch) {
-                    ratingInfo = ` [${starMatch[1]}]`;
+                // 관객 한줄평 추출 (감정이나 평가 표현 우선)
+                let oneLineReview = cleanDescription
+                    .split(/[.!?]/)
+                    .find(sentence => {
+                        const s = sentence.trim();
+                        return s.length > 8 && s.length < 40 && 
+                               (s.includes('재밌') || s.includes('좋') || s.includes('별로') || 
+                                s.includes('최고') || s.includes('감동') || s.includes('추천') ||
+                                s.includes('볼만') || s.includes('실망'));
+                    });
+                
+                if (!oneLineReview) {
+                    oneLineReview = cleanDescription.substring(0, 35);
                 }
                 
-                reviewText += `${index + 1}. ${cleanTitle}${ratingInfo}\n\n"${cleanDescription}..."\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+                oneLineReview = oneLineReview.trim();
+                
+                reviewText += `${index + 1}. ${rating ? `${rating} ` : ''}${oneLineReview}...\n`;
             });
+            reviewText += '\n';
         }
         
         // 둘 다 없으면 일반 리뷰들
         if (expertReviews.length === 0 && audienceReviews.length === 0) {
             reviewText += `📝 영화 관련 정보:\n\n`;
-            items.slice(0, 3).forEach((review, index) => {
+            items.slice(0, 5).forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
-                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description).substring(0, 180);
-                reviewText += `${index + 1}. ${cleanTitle}\n\n"${cleanDescription}..."\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
+                
+                // 평점이나 한줄평 추출
+                const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}/);
+                const rating = ratingMatch ? ratingMatch[0] : '';
+                
+                let summary = cleanDescription
+                    .split(/[.!?]/)
+                    .find(sentence => sentence.trim().length > 10 && sentence.trim().length < 50);
+                
+                if (!summary) {
+                    summary = cleanDescription.substring(0, 40);
+                }
+                
+                summary = summary.trim();
+                
+                reviewText += `${index + 1}. ${rating ? `${rating} ` : ''}${summary}...\n`;
             });
         }
 
