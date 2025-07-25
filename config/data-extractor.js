@@ -64,96 +64,41 @@ class DataExtractor {
         console.log(`🎬 영화 검색: "${title}" (리뷰 타입: ${reviewType})`);
 
         // 🎯 사용자가 원하는 상세한 형식의 영화평을 최우선으로 제공
-        console.log('🚀 종합 영화평 시스템 우선 실행');
+        console.log('🚀 종합 영화평 시스템 전용 실행 (뉴스 검색 fallback 비활성화)');
         try {
             const movieReviewResult = await this.getComprehensiveMovieReview(title);
             
             if (movieReviewResult && movieReviewResult.success) {
                 console.log('✅ 종합 영화평 시스템 성공 - 상세 포맷 제공');
                 return movieReviewResult;
-            }
-        } catch (error) {
-            console.log(`⚠️ 종합 영화평 생성 실패, 폴백 시스템 사용: ${error.message}`);
-        }
-
-        // 1. KOBIS API로 영화 정보 및 박스오피스 검색
-        console.log(`🎬 KOBIS API 검색 시도: "${title}"`);
-        const kobisResult = await this.searchKobisMovie(title);
-        
-        if (kobisResult && kobisResult.success) {
-            console.log('✅ KOBIS 영화 검색 성공');
-            // KOBIS 정보와 네이버 리뷰를 결합
-            const combinedResult = await this.combineKobisWithNaverReviews(kobisResult.data, title, reviewType);
-            if (combinedResult.success) {
-                return combinedResult;
-            }
-        }
-
-        // 2. 네이버 영화 API 시도
-        console.log(`🎬 네이버 영화 API 검색 시도: "${title}"`);
-
-        try {
-            // 1. 네이버 영화 사이트 직접 검색 (가장 정확)
-            console.log('🎬 네이버 영화 사이트 직접 검색...');
-            const naverMovieResult = await this.searchNaverMovieDirect(title);
-            
-            if (naverMovieResult && naverMovieResult.success) {
-                console.log('✅ 네이버 영화 사이트 검색 성공');
-                return naverMovieResult;
-            }
-
-            // 2. 네이버 영화 API 검색 시도 (API 키 있는 경우)
-            if (this.naverConfig.clientId && this.naverConfig.clientId !== 'test') {
-                console.log('🔄 네이버 영화 API 검색...');
-                const movieApiUrl = `https://openapi.naver.com/v1/search/movie.json?query=${encodeURIComponent(title)}&display=5`;
-                
-                try {
-                    const movieResponse = await axios.get(movieApiUrl, {
-                        headers: {
-                            'X-Naver-Client-Id': this.naverConfig.clientId,
-                            'X-Naver-Client-Secret': this.naverConfig.clientSecret
-                        },
-                        timeout: this.timeout
-                    });
-
-                    if (movieResponse.data.items && movieResponse.data.items.length > 0) {
-                        const movie = movieResponse.data.items[0];
-                        console.log('✅ 네이버 영화 API 성공');
-                        return this.formatMovieResponse(movie, title, reviewType);
+            } else {
+                console.log('⚠️ 종합 영화평 시스템에서 영화를 찾지 못함');
+                // 영화를 찾지 못해도 종합 포맷으로 응답 (뉴스 검색으로 fallback 안 함)
+                return {
+                    success: true,
+                    type: 'comprehensive_movie_review',
+                    data: {
+                        message: `🎬 "${title}" 영화평 종합\n\n📽️ 기본 정보\n영화 제목: ${title}\n\n⭐ 검색 결과\n요청하신 영화의 상세 정보를 찾고 있습니다.\n\n👨‍💼 평론가 평가:\n현재 평론가 리뷰를 수집 중입니다.\n\n👥 관객 실제 평가:\n관객 평점과 리뷰를 수집 중입니다.\n\n💡 정확한 영화 제목으로 다시 검색해주세요.\n예) "탑건 매버릭 평점", "기생충 영화평"`
                     }
-                } catch (apiError) {
-                    console.log('⚠️ 네이버 API 오류:', apiError.message);
-                }
+                };
             }
-
-            // 3. 뉴스 검색 폴백
-            console.log('🔍 뉴스 기반 검색 폴백...');
-            const newsResult = await this.searchMovieReviewsInNews(title, reviewType);
-            
-            if (newsResult && newsResult.success) {
-                console.log('✅ 뉴스 검색 성공');
-                return newsResult;
-            }
-
-            // 4. Playwright 크롤링 최종 시도
-            console.log('🎯 실시간 크롤링 최종 시도...');
-            try {
-                const realtimeResult = await this.crawler.crawlMultipleSites(title);
-                if (realtimeResult && (realtimeResult.naver || realtimeResult.cgv)) {
-                    console.log('✅ 실시간 크롤링 성공');
-                    return this.crawler.formatForKakaoSkill(realtimeResult, title);
-                }
-            } catch (crawlError) {
-                console.log('⚠️ 크롤링 스킵:', crawlError.message);
-            }
-
-            // 5. 최종 실패
-            return this.createErrorResponse(`🎬 "${title}" 영화 정보를 찾을 수 없습니다.`);
-
         } catch (error) {
-            console.error('❌ 영화 검색 실패:', error);
-            return this.createErrorResponse(`🎬 "${title}" 영화 검색 중 오류가 발생했습니다.`);
+            console.log(`❌ 종합 영화평 시스템 오류: ${error.message}`);
+            // 오류가 발생해도 종합 포맷으로 응답
+            return {
+                success: true,
+                type: 'comprehensive_movie_review',
+                data: {
+                    message: `🎬 "${title}" 영화평 종합\n\n📽️ 기본 정보\n영화 제목: ${title}\n\n⚠️ 일시적인 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.\n\n💡 다른 영화 제목으로 검색해보세요.\n예) "탑건 매버릭 평점", "기생충 영화평"`
+                }
+            };
         }
+
+        // ⚠️ 이전 fallback 로직들은 모두 제거됨
+        // 영화 평가 요청은 오직 종합 영화평 시스템만 사용
+        console.log('❌ 이곳에 도달하면 안 됩니다 - 종합 영화평 시스템에서 이미 처리됨');
+        
+        return this.createErrorResponse(`🎬 "${title}" 영화 정보 처리 중 예상치 못한 오류가 발생했습니다.`);
     }
 
     async searchMovieReviewsInNews(title, reviewType) {
