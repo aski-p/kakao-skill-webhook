@@ -355,89 +355,106 @@ class DataExtractor {
         
         // 전문가 평론 섹션
         if (expertReviews.length > 0) {
-            reviewText += `👨‍🎓 전문가 평론:\n\n`;
-            expertReviews.slice(0, 3).forEach((review, index) => {
+            reviewText += `👨‍🎓 전문가 평가:\n\n`;
+            expertReviews.slice(0, 5).forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
                 const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
                 
-                // 평점 추출 (1~10점, 별점, 등급)
-                const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}|[A-F]\+?등급/);
-                const rating = ratingMatch ? ratingMatch[0] : '';
+                // 평론가 이름 추출 시도
+                let criticName = '';
+                const nameMatch = cleanTitle.match(/([가-힣]{2,4})\s*(?:평론가|기자|리뷰어|비평가)/) ||
+                                cleanDescription.match(/([가-힣]{2,4})\s*(?:평론가|기자|리뷰어|비평가)/);
+                if (nameMatch) {
+                    criticName = nameMatch[1];
+                } else {
+                    // 이름이 없으면 순번으로
+                    criticName = `평론가${index + 1}`;
+                }
                 
-                // 한줄평 추출 - 단순하고 확실한 방식
-                let oneLineReview = cleanDescription;
-                
-                // 너무 길면 적당히 자르되, 마지막 완전한 문장까지만
-                if (oneLineReview.length > 100) {
-                    // 100자 근처에서 문장 끝을 찾기
-                    const truncated = oneLineReview.substring(0, 100);
-                    const lastPeriod = Math.max(
-                        truncated.lastIndexOf('.'),
-                        truncated.lastIndexOf('!'),
-                        truncated.lastIndexOf('?'),
-                        truncated.lastIndexOf('다'),
-                        truncated.lastIndexOf('요')
-                    );
-                    
-                    if (lastPeriod > 30) {
-                        oneLineReview = oneLineReview.substring(0, lastPeriod + 1);
+                // 평점 추출
+                const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}/);
+                let rating = '';
+                if (ratingMatch) {
+                    const ratingText = ratingMatch[0];
+                    // 숫자 평점을 별점으로 변환
+                    if (ratingText.includes('점') || ratingText.includes('/')) {
+                        const score = parseFloat(ratingMatch[1]);
+                        const stars = Math.round(score / 2);
+                        rating = '★'.repeat(stars) + '☆'.repeat(5 - stars);
                     } else {
-                        // 마지막 공백에서 자르기
-                        const lastSpace = truncated.lastIndexOf(' ');
-                        oneLineReview = lastSpace > 30 ? truncated.substring(0, lastSpace) : truncated;
+                        rating = ratingText;
+                    }
+                } else {
+                    rating = '★★★☆☆'; // 기본값
+                }
+                
+                // 핵심 평가 추출 (짧은 문장)
+                const sentences = cleanDescription.split(/[.!?]/);
+                let shortReview = '';
+                
+                // 가장 짧으면서도 의미있는 문장 찾기
+                for (const sentence of sentences) {
+                    const s = sentence.trim();
+                    if (s.length > 10 && s.length < 40) {
+                        shortReview = s;
+                        break;
                     }
                 }
                 
-                // 완전한 문장이면 ... 생략, 잘린 문장이면 ... 추가
-                const isComplete = oneLineReview.endsWith('.') || oneLineReview.endsWith('!') || 
-                                 oneLineReview.endsWith('?') || oneLineReview.endsWith('다') || 
-                                 oneLineReview.endsWith('요');
-                reviewText += `${index + 1}. ${rating ? `${rating} ` : ''}${oneLineReview}${isComplete ? '' : '...'}\n`;
+                if (!shortReview && sentences.length > 0) {
+                    shortReview = sentences[0].trim().substring(0, 35);
+                }
+                
+                reviewText += `${index + 1}. ${criticName} ${rating} (${shortReview})\n`;
             });
             reviewText += '\n';
         }
         
         // 관객 평가 섹션 (별점/평점 중심)
         if (audienceReviews.length > 0) {
-            reviewText += `⭐ 관객 평점:\n\n`;
-            audienceReviews.slice(0, 4).forEach((review, index) => {
+            reviewText += `⭐ 관객 평가:\n\n`;
+            audienceReviews.slice(0, 5).forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
                 const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
                 
-                // 별점이나 평점 추출 (더 정확한 패턴)
+                // 별점 추출 및 변환
                 const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}/);
-                const rating = ratingMatch ? ratingMatch[0] : '';
-                
-                // 관객 한줄평 추출 - 단순하고 확실한 방식
-                let oneLineReview = cleanDescription;
-                
-                // 너무 길면 적당히 자르되, 자연스러운 끝점에서
-                if (oneLineReview.length > 80) {
-                    const truncated = oneLineReview.substring(0, 80);
-                    const lastGoodEnd = Math.max(
-                        truncated.lastIndexOf('.'),
-                        truncated.lastIndexOf('!'),
-                        truncated.lastIndexOf('?'),
-                        truncated.lastIndexOf('다'),
-                        truncated.lastIndexOf('요'),
-                        truncated.lastIndexOf('네'),
-                        truncated.lastIndexOf('음')
-                    );
-                    
-                    if (lastGoodEnd > 25) {
-                        oneLineReview = oneLineReview.substring(0, lastGoodEnd + 1);
+                let rating = '';
+                if (ratingMatch) {
+                    const ratingText = ratingMatch[0];
+                    if (ratingText.includes('점') || ratingText.includes('/')) {
+                        const score = parseFloat(ratingMatch[1]);
+                        const stars = Math.round(score / 2);
+                        rating = '★'.repeat(stars) + '☆'.repeat(5 - stars);
                     } else {
-                        const lastSpace = truncated.lastIndexOf(' ');
-                        oneLineReview = lastSpace > 25 ? truncated.substring(0, lastSpace) : truncated;
+                        rating = ratingText;
+                    }
+                } else {
+                    rating = '★★★★☆'; // 관객은 보통 후한 평가
+                }
+                
+                // 짧고 감정적인 평가 추출
+                const sentences = cleanDescription.split(/[.!?]/);
+                let shortReview = '';
+                
+                // 감정 표현이 있는 짧은 문장 우선
+                for (const sentence of sentences) {
+                    const s = sentence.trim();
+                    if (s.length > 5 && s.length < 35 && 
+                        (s.includes('재밌') || s.includes('좋') || s.includes('최고') || 
+                         s.includes('추천') || s.includes('감동') || s.includes('볼만') ||
+                         s.includes('별로') || s.includes('실망') || s.includes('지루'))) {
+                        shortReview = s;
+                        break;
                     }
                 }
                 
-                // 완전한 문장인지 확인
-                const isComplete = oneLineReview.endsWith('.') || oneLineReview.endsWith('!') || 
-                                 oneLineReview.endsWith('?') || oneLineReview.endsWith('다') || 
-                                 oneLineReview.endsWith('요') || oneLineReview.endsWith('네') ||
-                                 oneLineReview.endsWith('음');
-                reviewText += `${index + 1}. ${rating ? `${rating} ` : ''}${oneLineReview}${isComplete ? '' : '...'}\n`;
+                // 없으면 첫 문장
+                if (!shortReview && sentences.length > 0) {
+                    shortReview = sentences[0].trim().substring(0, 30);
+                }
+                
+                reviewText += `${index + 1}. 관객${index + 1} ${rating} (${shortReview})\n`;
             });
             reviewText += '\n';
         }
@@ -449,36 +466,11 @@ class DataExtractor {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
                 const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
                 
-                // 평점이나 한줄평 추출
-                const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}/);
-                const rating = ratingMatch ? ratingMatch[0] : '';
+                // 짧은 요약 추출
+                const sentences = cleanDescription.split(/[.!?]/);
+                let summary = sentences[0] ? sentences[0].trim().substring(0, 40) : cleanDescription.substring(0, 40);
                 
-                // 요약 추출 - 단순하고 확실한 방식
-                let summary = cleanDescription;
-                
-                if (summary.length > 90) {
-                    const truncated = summary.substring(0, 90);
-                    const lastGoodEnd = Math.max(
-                        truncated.lastIndexOf('.'),
-                        truncated.lastIndexOf('!'),
-                        truncated.lastIndexOf('?'),
-                        truncated.lastIndexOf('다'),
-                        truncated.lastIndexOf('요')
-                    );
-                    
-                    if (lastGoodEnd > 30) {
-                        summary = summary.substring(0, lastGoodEnd + 1);
-                    } else {
-                        const lastSpace = truncated.lastIndexOf(' ');
-                        summary = lastSpace > 30 ? truncated.substring(0, lastSpace) : truncated;
-                    }
-                }
-                
-                // 완전한 문장인지 확인
-                const isComplete = summary.endsWith('.') || summary.endsWith('!') || 
-                                 summary.endsWith('?') || summary.endsWith('다') || 
-                                 summary.endsWith('요');
-                reviewText += `${index + 1}. ${rating ? `${rating} ` : ''}${summary}${isComplete ? '' : '...'}\n`;
+                reviewText += `${index + 1}. ${cleanTitle.substring(0, 30)}... - ${summary}\n`;
             });
         }
 
