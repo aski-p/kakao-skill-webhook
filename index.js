@@ -96,38 +96,79 @@ function isYouTubeSummaryRequest(message) {
     return youtubeUrl && summaryKeywords.some(keyword => message.includes(keyword));
 }
 
-// 유튜브 요약 처리 함수
+// YouTube API로 영상 정보 가져오기
+async function getYouTubeVideoInfo(videoId) {
+    try {
+        // YouTube Data API v3 사용 (API 키 필요)
+        const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
+        
+        if (!YOUTUBE_API_KEY) {
+            console.log('⚠️ YouTube API 키가 설정되지 않았습니다.');
+            return null;
+        }
+        
+        const url = `https://www.googleapis.com/youtube/v3/videos?id=${videoId}&part=snippet,contentDetails&key=${YOUTUBE_API_KEY}`;
+        const response = await axios.get(url, { timeout: 3000 });
+        
+        if (response.data.items && response.data.items.length > 0) {
+            const video = response.data.items[0];
+            return {
+                title: video.snippet.title,
+                description: video.snippet.description,
+                channelTitle: video.snippet.channelTitle,
+                publishedAt: video.snippet.publishedAt,
+                duration: video.contentDetails.duration
+            };
+        }
+        
+        return null;
+    } catch (error) {
+        console.log(`❌ YouTube API 오류: ${error.message}`);
+        return null;
+    }
+}
+
+// 유튜브 요약 처리 함수 (개선된 버전)
 async function getYouTubeSummary(youtubeData) {
     try {
         console.log(`📺 유튜브 요약 요청: ${youtubeData.url}`);
+        
+        // 1단계: YouTube API로 실제 영상 정보 가져오기
+        const videoInfo = await getYouTubeVideoInfo(youtubeData.videoId);
         
         if (!process.env.CLAUDE_API_KEY) {
             throw new Error('CLAUDE_API_KEY not found');
         }
         
-        // Claude API를 통한 유튜브 요약 요청
+        let systemPrompt = `당신은 유튜브 영상 정보를 분석하는 전문가입니다.
+        
+한국어로 답변하세요. 다음 규칙을 엄격히 따르세요:
+- 800자 이내로 간결하게 작성
+- 절대 추측하거나 상상하지 마세요
+- 영상 내용을 본 적이 없다는 것을 명확히 하세요
+- "운전 사고", "충돌" 같은 내용을 만들어내지 마세요
+- 제목과 설명에서 확인 가능한 정보만 제공
+- 자막이나 영상 내용은 알 수 없다고 명시
+- 이모지를 적절히 사용하여 읽기 쉽게 구성
+
+중요: 영상을 직접 볼 수 없으므로 내용을 추측하지 마세요!`;
+
+        let userContent = `다음 유튜브 영상 정보를 분석해주세요:\n\nURL: ${youtubeData.url}\nVideo ID: ${youtubeData.videoId}\n`;
+        
+        if (videoInfo) {
+            userContent += `\n📌 영상 정보:\n제목: ${videoInfo.title}\n채널: ${videoInfo.channelTitle}\n업로드 날짜: ${videoInfo.publishedAt}\n설명: ${videoInfo.description ? videoInfo.description.substring(0, 500) + '...' : '설명 없음'}\n\n이 정보를 바탕으로 영상이 어떤 내용인지 파악할 수 있는 범위에서 설명해주세요.`;
+        } else {
+            userContent += `\n⚠️ YouTube API로 영상 정보를 가져올 수 없습니다.\n영상을 직접 볼 수 없으므로 내용을 추측하지 말고, 이 한계를 명확히 설명해주세요.`;
+        }
+        
         const claudeResponse = await axios.post(
             'https://api.anthropic.com/v1/messages',
             {
                 model: "claude-3-haiku-20240307",
-                system: `당신은 유튜브 영상 분석 전문가입니다. 
-                
-한국어로 답변하세요. 다음 규칙을 따르세요:
-- 800자 이내로 간결하게 작성
-- 영상의 주요 내용을 3-5개 핵심 포인트로 요약
-- 이모지를 적절히 사용하여 읽기 쉽게 구성
-- 영상을 직접 볼 수 없다면 URL 정보를 바탕으로 안내
-- 추측보다는 명확한 정보 제공을 우선
-
-영상 URL에서 추출할 수 있는 정보를 최대한 활용하세요.`,
+                system: systemPrompt,
                 messages: [{
                     role: "user", 
-                    content: `다음 유튜브 영상을 요약해주세요:
-                    
-URL: ${youtubeData.url}
-Video ID: ${youtubeData.videoId}
-
-영상의 주요 내용, 핵심 메시지, 중요한 포인트들을 정리해서 알려주세요.`
+                    content: userContent
                 }],
                 max_tokens: 400
             },
@@ -142,14 +183,14 @@ Video ID: ${youtubeData.videoId}
         );
         
         const summary = claudeResponse.data.content[0].text;
-        console.log(`✅ 유튜브 요약 완료: ${summary.length}자`);
+        console.log(`✅ 유튜브 분석 완료: ${summary.length}자`);
         
-        return `📺 유튜브 영상 요약\n🔗 ${youtubeData.url}\n\n${summary}\n\n💡 더 자세한 내용은 영상을 직접 시청해주세요.`;
+        return `📺 유튜브 영상 정보\n🔗 ${youtubeData.url}\n\n${summary}\n\n⚠️ 자막 기반 요약을 원하시면 YouTube 자막 API 연동이 필요합니다.`;
         
     } catch (error) {
         console.log(`❌ 유튜브 요약 오류: ${error.message}`);
         
-        return `📺 유튜브 영상 요약을 처리할 수 없습니다.\n🔗 ${youtubeData.url}\n\n⚠️ 현재 Claude AI가 유튜브 영상을 직접 분석할 수 없습니다.\n\n💡 다른 방법:\n• 영상을 직접 시청\n• 영상 제목이나 채널명으로 검색\n• 영상 설명란 확인`;
+        return `📺 유튜브 영상 요약을 처리할 수 없습니다.\n🔗 ${youtubeData.url}\n\n❌ 문제점:\n• YouTube API 키 미설정 또는 오류\n• Claude AI가 영상을 직접 볼 수 없음\n• 자막 데이터 접근 불가\n\n💡 정확한 요약을 위해서는:\n• YouTube Data API 키 설정 필요\n• 자막 추출 도구 연동 필요\n• 또는 영상을 직접 시청하세요`;
     }
 }
 
