@@ -1,10 +1,12 @@
 // 카테고리별 데이터 추출 및 검색 엔진
 const axios = require('axios');
+const PlaywrightCrawler = require('./playwright-crawler');
 
 class DataExtractor {
     constructor(naverConfig) {
         this.naverConfig = naverConfig;
         this.timeout = 3000;
+        this.crawler = new PlaywrightCrawler();
     }
 
     // 메인 데이터 추출 함수
@@ -63,7 +65,17 @@ class DataExtractor {
         console.log(`🎬 영화 API 검색 시도: "${title}"`);
 
         try {
-            // 1. 네이버 영화 API 검색 시도 (일반 영화만)
+            // 1. Playwright 실시간 크롤링 시도 (우선순위)
+            console.log('🎯 실시간 크롤링 시도...');
+            const realtimeResult = await this.crawler.crawlMultipleSites(title);
+            
+            if (realtimeResult && (realtimeResult.naver || realtimeResult.cgv)) {
+                console.log('✅ 실시간 크롤링 성공');
+                return this.crawler.formatForKakaoSkill(realtimeResult, title);
+            }
+
+            // 2. 네이버 영화 API 검색 시도 (폴백)
+            console.log('🔄 네이버 API 폴백...');
             const movieApiUrl = `https://openapi.naver.com/v1/search/movie.json?query=${encodeURIComponent(title)}&display=1`;
             
             const movieResponse = await axios.get(movieApiUrl, {
@@ -79,7 +91,7 @@ class DataExtractor {
                 return this.formatMovieResponse(movie, title, reviewType);
             }
 
-            // 2. 영화 API에서 찾지 못한 경우 뉴스 검색으로 폴백
+            // 3. 뉴스 검색으로 최종 폴백
             return await this.searchMovieReviewsInNews(title, reviewType);
 
         } catch (error) {
