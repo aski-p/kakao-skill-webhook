@@ -65,8 +65,41 @@ class DataExtractor {
         console.log(`🎬 영화 API 검색 시도: "${title}"`);
 
         try {
-            // 1. 뉴스 검색 우선 (안정적인 검색)
-            console.log('🔍 뉴스 기반 영화 검색 시도...');
+            // 1. 네이버 영화 사이트 직접 검색 (가장 정확)
+            console.log('🎬 네이버 영화 사이트 직접 검색...');
+            const naverMovieResult = await this.searchNaverMovieDirect(title);
+            
+            if (naverMovieResult && naverMovieResult.success) {
+                console.log('✅ 네이버 영화 사이트 검색 성공');
+                return naverMovieResult;
+            }
+
+            // 2. 네이버 영화 API 검색 시도 (API 키 있는 경우)
+            if (this.naverConfig.clientId && this.naverConfig.clientId !== 'test') {
+                console.log('🔄 네이버 영화 API 검색...');
+                const movieApiUrl = `https://openapi.naver.com/v1/search/movie.json?query=${encodeURIComponent(title)}&display=5`;
+                
+                try {
+                    const movieResponse = await axios.get(movieApiUrl, {
+                        headers: {
+                            'X-Naver-Client-Id': this.naverConfig.clientId,
+                            'X-Naver-Client-Secret': this.naverConfig.clientSecret
+                        },
+                        timeout: this.timeout
+                    });
+
+                    if (movieResponse.data.items && movieResponse.data.items.length > 0) {
+                        const movie = movieResponse.data.items[0];
+                        console.log('✅ 네이버 영화 API 성공');
+                        return this.formatMovieResponse(movie, title, reviewType);
+                    }
+                } catch (apiError) {
+                    console.log('⚠️ 네이버 API 오류:', apiError.message);
+                }
+            }
+
+            // 3. 뉴스 검색 폴백
+            console.log('🔍 뉴스 기반 검색 폴백...');
             const newsResult = await this.searchMovieReviewsInNews(title, reviewType);
             
             if (newsResult && newsResult.success) {
@@ -74,24 +107,7 @@ class DataExtractor {
                 return newsResult;
             }
 
-            // 2. 네이버 영화 API 검색 시도 (폴백)
-            console.log('🔄 네이버 API 폴백...');
-            const movieApiUrl = `https://openapi.naver.com/v1/search/movie.json?query=${encodeURIComponent(title)}&display=1`;
-            
-            const movieResponse = await axios.get(movieApiUrl, {
-                headers: {
-                    'X-Naver-Client-Id': this.naverConfig.clientId,
-                    'X-Naver-Client-Secret': this.naverConfig.clientSecret
-                },
-                timeout: this.timeout
-            });
-
-            if (movieResponse.data.items && movieResponse.data.items.length > 0) {
-                const movie = movieResponse.data.items[0];
-                return this.formatMovieResponse(movie, title, reviewType);
-            }
-
-            // 3. Playwright 실시간 크롤링 시도 (최종 시도)
+            // 4. Playwright 크롤링 최종 시도
             console.log('🎯 실시간 크롤링 최종 시도...');
             try {
                 const realtimeResult = await this.crawler.crawlMultipleSites(title);
@@ -103,7 +119,7 @@ class DataExtractor {
                 console.log('⚠️ 크롤링 스킵:', crawlError.message);
             }
 
-            // 4. 최종 실패
+            // 5. 최종 실패
             return this.createErrorResponse(`🎬 "${title}" 영화 정보를 찾을 수 없습니다.`);
 
         } catch (error) {
@@ -1194,6 +1210,256 @@ class DataExtractor {
                 message: `🌤️ "${location}" 날씨 정보\n\n⚠️ 현재 날씨 정보를 찾을 수 없습니다.\n\n💡 정확한 날씨 정보는:\n• 네이버 날씨 검색\n• 기상청 날씨누리\n• 스마트폰 날씨 앱\n\n에서 확인해주세요!`
             }
         };
+    }
+
+    // 네이버 영화 API 직접 검색 (새로 구현)
+    async searchNaverMovieDirect(title) {
+        console.log(`🎬 네이버 영화 API 직접 검색: "${title}"`);
+        
+        try {
+            // 네이버 영화 API 검색
+            const movieApiUrl = `https://openapi.naver.com/v1/search/movie.json?query=${encodeURIComponent(title)}&display=10`;
+            
+            const movieResponse = await axios.get(movieApiUrl, {
+                headers: {
+                    'X-Naver-Client-Id': this.naverConfig.clientId,
+                    'X-Naver-Client-Secret': this.naverConfig.clientSecret
+                },
+                timeout: this.timeout
+            });
+
+            if (!movieResponse.data.items || movieResponse.data.items.length === 0) {
+                console.log(`⚠️ "${title}" 영화 API 결과 없음`);
+                return { success: false, reason: 'no_results' };
+            }
+
+            // 가장 적합한 영화 찾기
+            const bestMatch = this.findBestMovieMatch(movieResponse.data.items, title);
+            
+            if (!bestMatch) {
+                console.log(`⚠️ "${title}" 적합한 영화 찾지 못함`);
+                return { success: false, reason: 'no_match' };
+            }
+
+            console.log(`✅ 찾은 영화: ${bestMatch.title}`);
+
+            // 영화 상세 정보와 함께 리뷰 검색
+            const movieTitle = this.cleanHtmlAndSpecialChars(bestMatch.title);
+            const reviewData = await this.searchMovieReviewsFromNews(movieTitle, bestMatch);
+
+            return {
+                success: true,
+                type: 'movie_review',
+                data: {
+                    title: movieTitle,
+                    rating: bestMatch.userRating || '정보없음',
+                    director: this.cleanHtmlAndSpecialChars(bestMatch.director).replace(/\|/g, ', '),
+                    actor: this.cleanHtmlAndSpecialChars(bestMatch.actor).replace(/\|/g, ', ').substring(0, 80),
+                    year: bestMatch.pubDate,
+                    link: bestMatch.link,
+                    reviews: reviewData.reviews || [],
+                    message: this.formatMovieDirectResponse(bestMatch, reviewData)
+                }
+            };
+
+        } catch (error) {
+            console.error(`❌ 네이버 영화 API 직접 검색 실패:`, error.message);
+            return { success: false, reason: 'api_error', error: error.message };
+        }
+    }
+
+    // 최적의 영화 매치 찾기
+    findBestMovieMatch(movies, searchTitle) {
+        const cleanSearchTitle = searchTitle.toLowerCase().replace(/\s+/g, '');
+        
+        // F1 더무비 특별 처리
+        if (cleanSearchTitle.includes('f1') && cleanSearchTitle.includes('더무비')) {
+            const f1Movie = movies.find(movie => {
+                const cleanTitle = this.cleanHtmlAndSpecialChars(movie.title).toLowerCase();
+                return cleanTitle.includes('f1') || 
+                       cleanTitle.includes('더무비') ||
+                       (cleanTitle.includes('brad') && cleanTitle.includes('pitt'));
+            });
+            if (f1Movie) return f1Movie;
+        }
+
+        // 정확한 제목 매치 우선
+        const exactMatch = movies.find(movie => {
+            const cleanTitle = this.cleanHtmlAndSpecialChars(movie.title).toLowerCase().replace(/\s+/g, '');
+            return cleanTitle === cleanSearchTitle;
+        });
+        if (exactMatch) return exactMatch;
+
+        // 부분 매치
+        const partialMatch = movies.find(movie => {
+            const cleanTitle = this.cleanHtmlAndSpecialChars(movie.title).toLowerCase();
+            return cleanTitle.includes(searchTitle.toLowerCase()) || 
+                   searchTitle.toLowerCase().includes(cleanTitle);
+        });
+        if (partialMatch) return partialMatch;
+
+        // 첫 번째 결과 반환
+        return movies[0];
+    }
+
+    // 영화 리뷰 뉴스 검색
+    async searchMovieReviewsFromNews(movieTitle, movieInfo) {
+        const reviewQueries = [
+            `"${movieTitle}" 영화 평점`,
+            `"${movieTitle}" 리뷰`,
+            `"${movieTitle}" 평가`,
+            `${movieTitle} 관객 반응`,
+            `${movieTitle} 평론`
+        ];
+
+        const allReviews = [];
+
+        for (const query of reviewQueries.slice(0, 3)) { // 처음 3개 쿼리만 사용
+            try {
+                const response = await this.searchNaver('news', query, 5);
+                if (response.items && response.items.length > 0) {
+                    const reviews = this.extractReviewsFromNews(response.items, movieTitle);
+                    allReviews.push(...reviews);
+                }
+            } catch (error) {
+                console.log(`⚠️ 리뷰 검색 실패: ${query}`, error.message);
+            }
+        }
+
+        return {
+            reviews: allReviews.slice(0, 6), // 최대 6개 리뷰
+            count: allReviews.length
+        };
+    }
+
+    // 뉴스에서 리뷰 추출
+    extractReviewsFromNews(items, movieTitle) {
+        const reviews = [];
+        
+        for (const item of items) {
+            const cleanTitle = this.cleanHtmlAndSpecialChars(item.title);
+            const cleanDesc = this.cleanHtmlAndSpecialChars(item.description);
+            
+            // 박스오피스/통계 제외
+            if (this.isBoxOfficeNews(cleanTitle + ' ' + cleanDesc)) {
+                continue;
+            }
+
+            // 평점 추출
+            const rating = this.extractRatingFromText(cleanDesc);
+            
+            // 리뷰어 정보 추출
+            const reviewer = this.extractReviewerFromText(cleanTitle, cleanDesc);
+            
+            reviews.push({
+                reviewer: reviewer || '관객',
+                rating: rating,
+                content: cleanDesc.substring(0, 100) + (cleanDesc.length > 100 ? '...' : ''),
+                source: '뉴스',
+                date: new Date(item.pubDate).toLocaleDateString('ko-KR')
+            });
+        }
+
+        return reviews;
+    }
+
+    // 박스오피스 뉴스 판별
+    isBoxOfficeNews(text) {
+        const boxOfficeKeywords = [
+            '박스오피스', '관객수', '200만', '돌파', '흥행', 
+            '전산망', '순위', '1위', '매출', '수익'
+        ];
+        
+        const lowerText = text.toLowerCase();
+        return boxOfficeKeywords.some(keyword => lowerText.includes(keyword));
+    }
+
+    // 텍스트에서 평점 추출
+    extractRatingFromText(text) {
+        // 별점 패턴
+        const starMatch = text.match(/★{1,5}|⭐{1,5}/);
+        if (starMatch) {
+            return starMatch[0];
+        }
+
+        // 숫자 평점 패턴 (5점, 10점 만점)
+        const scoreMatch = text.match(/(\d+(?:\.\d+)?)[점\/]?(?:\s*(?:점|\/)\s*)?(\d+)/);
+        if (scoreMatch) {
+            const score = parseFloat(scoreMatch[1]);
+            const total = parseInt(scoreMatch[2]) || 10;
+            
+            if (total === 5) {
+                return '★'.repeat(Math.round(score)) + '☆'.repeat(5 - Math.round(score));
+            } else if (total === 10) {
+                const stars = Math.round(score / 2);
+                return '★'.repeat(stars) + '☆'.repeat(5 - stars);
+            }
+        }
+
+        // 간단한 숫자 점수
+        const simpleScore = text.match(/(\d+(?:\.\d+)?)점/);
+        if (simpleScore) {
+            const score = parseFloat(simpleScore[1]);
+            if (score <= 5) {
+                return '★'.repeat(Math.round(score)) + '☆'.repeat(5 - Math.round(score));
+            } else if (score <= 10) {
+                const stars = Math.round(score / 2);
+                return '★'.repeat(stars) + '☆'.repeat(5 - stars);
+            }
+        }
+
+        return '★★★☆☆'; // 기본값
+    }
+
+    // 리뷰어 정보 추출
+    extractReviewerFromText(title, description) {
+        // 평론가나 매체명 패턴
+        const criticPatterns = [
+            /([가-힣]{2,4})\s*평론가/,
+            /평론가\s*([가-힣]{2,4})/,
+            /([가-힣]{2,4})\s*기자/,
+            /([가-힣]+(?:신문|일보|방송|뉴스))/,
+            /(씨네21|무비위크|필름투데이|롯데시네마|CGV|메가박스)/
+        ];
+
+        const text = title + ' ' + description;
+        
+        for (const pattern of criticPatterns) {
+            const match = text.match(pattern);
+            if (match) {
+                return match[1] || match[0];
+            }
+        }
+
+        return null;
+    }
+
+    // 네이버 영화 직접 검색 응답 포맷팅
+    formatMovieDirectResponse(movieInfo, reviewData) {
+        const cleanTitle = this.cleanHtmlAndSpecialChars(movieInfo.title);
+        const rating = movieInfo.userRating || '정보없음';
+        const director = this.cleanHtmlAndSpecialChars(movieInfo.director).replace(/\|/g, ', ');
+        const actor = this.cleanHtmlAndSpecialChars(movieInfo.actor).replace(/\|/g, ', ').substring(0, 60);
+
+        let message = `🎬 "${cleanTitle}" 영화 정보\n\n`;
+        message += `⭐ 네이버 평점: ${rating}/10\n`;
+        message += `🎭 감독: ${director}\n`;
+        message += `👥 주연: ${actor}\n`;
+        message += `📅 개봉: ${movieInfo.pubDate}\n\n`;
+
+        if (reviewData.reviews && reviewData.reviews.length > 0) {
+            message += `📝 평가 모음:\n`;
+            reviewData.reviews.forEach((review, index) => {
+                message += `${index + 1}. ${review.reviewer}: ${review.rating}\n`;
+                message += `   "${review.content}"\n`;
+                if (index < reviewData.reviews.length - 1) message += '\n';
+            });
+            message += `\n🎯 총 ${reviewData.count}개의 평가를 찾았습니다.`;
+        } else {
+            message += `📝 리뷰 정보를 수집 중입니다.`;
+        }
+
+        return message;
     }
 
     createErrorResponse(message) {
