@@ -166,16 +166,22 @@ class DataExtractor {
         
         console.log(`🌤️ 날씨 정보 요청: ${location} (${timeframe})`);
         
-        // 현재는 placeholder 응답 (향후 날씨 API 연동)
-        return {
-            success: true,
-            type: 'weather',
-            data: {
-                location: location,
-                timeframe: timeframe,
-                message: `🌤️ "${location}" 날씨 정보\n\n⚠️ 실시간 날씨 API 연동이 아직 준비 중입니다.\n\n💡 정확한 날씨 정보는:\n• 네이버 날씨 검색\n• 기상청 날씨누리\n• 스마트폰 날씨 앱\n\n에서 확인해주세요!\n\n🔧 곧 실시간 날씨 정보 제공 예정입니다.`
+        try {
+            // 네이버 검색 API로 날씨 정보 검색
+            const weatherQuery = `${location} 날씨 기온 미세먼지`;
+            const response = await this.searchNaver('news', weatherQuery, 3);
+            
+            if (response.items && response.items.length > 0) {
+                return this.formatWeatherResponse(response.items, location, timeframe);
             }
-        };
+            
+            // 검색 결과가 없으면 기본 메시지
+            return this.createWeatherPlaceholder(location);
+            
+        } catch (error) {
+            console.error('❌ 날씨 정보 검색 실패:', error);
+            return this.createWeatherPlaceholder(location);
+        }
     }
 
     async extractRestaurantData(data) {
@@ -351,8 +357,8 @@ class DataExtractor {
         if (expertReviews.length > 0) {
             reviewText += `👨‍🎓 전문가 평론:\n\n`;
             expertReviews.slice(0, 3).forEach((review, index) => {
-                const cleanTitle = review.title.replace(/<\/?[^>]+(>|$)/g, '');
-                const cleanDescription = review.description.replace(/<\/?[^>]+(>|$)/g, '').substring(0, 100);
+                const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
+                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description).substring(0, 120);
                 reviewText += `${index + 1}. ${cleanTitle}\n   "${cleanDescription}..."\n\n`;
             });
         }
@@ -361,8 +367,8 @@ class DataExtractor {
         if (audienceReviews.length > 0) {
             reviewText += `⭐ 관객 평점:\n\n`;
             audienceReviews.slice(0, 3).forEach((review, index) => {
-                const cleanTitle = review.title.replace(/<\/?[^>]+(>|$)/g, '');
-                const cleanDescription = review.description.replace(/<\/?[^>]+(>|$)/g, '').substring(0, 120);
+                const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
+                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description).substring(0, 120);
                 
                 // 별점이나 평점 추출 시도
                 const ratingMatch = cleanDescription.match(/(\d+\.?\d*)\s*(?:점|\/10|★|⭐)/);
@@ -383,8 +389,8 @@ class DataExtractor {
         if (expertReviews.length === 0 && audienceReviews.length === 0) {
             reviewText += `📝 영화 관련 정보:\n\n`;
             items.slice(0, 5).forEach((review, index) => {
-                const cleanTitle = review.title.replace(/<\/?[^>]+(>|$)/g, '');
-                const cleanDescription = review.description.replace(/<\/?[^>]+(>|$)/g, '').substring(0, 100);
+                const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
+                const cleanDescription = this.cleanHtmlAndSpecialChars(review.description).substring(0, 120);
                 reviewText += `${index + 1}. ${cleanTitle}\n   "${cleanDescription}..."\n\n`;
             });
         }
@@ -484,6 +490,63 @@ class DataExtractor {
             data: {
                 claim: claim,
                 message: `🔍 "${claim}" 사실 확인 정보\n\n${facts}\n\n⚠️ 정확한 사실 확인은 공식 출처를 통해 검증해주세요.`
+            }
+        };
+    }
+
+    // HTML 태그 및 특수문자 정리 함수
+    cleanHtmlAndSpecialChars(text) {
+        if (!text) return '';
+        
+        return text
+            // HTML 태그 제거
+            .replace(/<\/?[^>]+(>|$)/g, '')
+            // HTML 엔티티 디코딩
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&nbsp;/g, ' ')
+            // 특수문자 정리
+            .replace(/[^\w\s가-힣.,!?():'"★⭐-]/g, ' ')
+            // 여러 공백을 하나로
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    // 날씨 응답 포맷팅
+    formatWeatherResponse(items, location, timeframe) {
+        if (!items || items.length === 0) {
+            return this.createWeatherPlaceholder(location);
+        }
+
+        const weatherInfo = items.slice(0, 3).map((item, index) => {
+            const cleanTitle = this.cleanHtmlAndSpecialChars(item.title);
+            const cleanDescription = this.cleanHtmlAndSpecialChars(item.description).substring(0, 100);
+            const pubDate = new Date(item.pubDate).toLocaleDateString('ko-KR');
+            return `${index + 1}. ${cleanTitle}\n   ${cleanDescription}...\n   📅 ${pubDate}`;
+        }).join('\n\n');
+
+        return {
+            success: true,
+            type: 'weather',
+            data: {
+                location: location,
+                timeframe: timeframe,
+                message: `🌤️ "${location}" 날씨 관련 최신 정보\n\n${weatherInfo}\n\n💡 더 정확한 실시간 날씨는 기상청이나 날씨앱을 확인해주세요!`
+            }
+        };
+    }
+
+    // 날씨 기본 응답
+    createWeatherPlaceholder(location) {
+        return {
+            success: true,
+            type: 'weather',
+            data: {
+                location: location,
+                message: `🌤️ "${location}" 날씨 정보\n\n⚠️ 현재 날씨 정보를 찾을 수 없습니다.\n\n💡 정확한 날씨 정보는:\n• 네이버 날씨 검색\n• 기상청 날씨누리\n• 스마트폰 날씨 앱\n\n에서 확인해주세요!`
             }
         };
     }
