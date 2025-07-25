@@ -1735,13 +1735,14 @@ class DataExtractor {
                     'F1',                             // 단순 F1
                     'F1 더무비',                      // 정확한 제목
                     'F1더무비',                       // 공백 없이
-                    'Rush',                           // 영어 제목
-                    '러쉬',                           // 한글 러쉬
-                    'F1 movie',                       // 영어
-                    '포뮬러원',                        // 포뮬러원
+                    '브래드 피트',                      // 2024년 F1 더무비 주연
+                    '브래드 피트 F1',                   // 배우명 + F1
+                    '조제프 코신스키',                   // 2024년 F1 더무비 감독
+                    'Rush',                           // 2013년 F1 영화
+                    '러쉬',                           // 러쉬 한글
+                    '크리스 헴스워스',                   // 러쉬 주연
                     'Formula 1',                      // Formula 1
-                    '크리스 헴스워스 F1',               // 배우명 포함
-                    '론 하워드 F1',                     // 감독명 포함
+                    '포뮬러원',                        // 포뮬러원
                     ...searchVariations
                 ];
             }
@@ -1760,66 +1761,11 @@ class DataExtractor {
             }
             
             if (!movieResults || movieResults.length === 0) {
-                console.log('⚠️ 네이버 API에서 영화를 찾지 못함 - 하드코딩 데이터로 대체');
-                
-                // F1 관련 영화인 경우 실제 데이터 제공 (2024년 F1 더 무비)
-                if (movieTitle.toLowerCase().includes('f1') || movieTitle.includes('더무비')) {
-                    const bestMatch = {
-                        title: 'F1 더 무비',
-                        director: '조제프 코신스키',
-                        actor: '브래드 피트, 데미안 비칠, 케리 콘던, 하비에르 바르뎀',
-                        genre: '액션, 스포츠, 드라마',
-                        userRating: '8.2',
-                        pubDate: '2024'
-                    };
-                    
-                    // 실제 데이터로 종합 포맷 생성
-                    let movieReviewText = `🎬 "${bestMatch.title}" 영화평 종합\n\n`;
-                    
-                    // 기본 정보
-                    movieReviewText += `📽️ 기본 정보\n`;
-                    movieReviewText += `감독: ${bestMatch.director}\n`;
-                    movieReviewText += `출연: ${bestMatch.actor}\n`;
-                    movieReviewText += `장르: ${bestMatch.genre}\n`;
-                    movieReviewText += `개봉: ${bestMatch.pubDate}년\n\n`;
-                    
-                    // 네이버 평점
-                    const rating = parseFloat(bestMatch.userRating);
-                    let ratingEmoji = '';
-                    if (rating >= 9.0) ratingEmoji = '🌟 완벽한 걸작!';
-                    else if (rating >= 8.0) ratingEmoji = '💫 매우 높은 평점! 강력 추천작';
-                    else if (rating >= 7.0) ratingEmoji = '👍 좋은 평점의 추천작';
-                    else if (rating >= 6.0) ratingEmoji = '⭐ 평범한 작품';
-                    else ratingEmoji = '😐 아쉬운 평점';
-                    
-                    movieReviewText += `⭐ 네이버 전체 평점: ${rating}/10 ★★★★☆\n${ratingEmoji}\n\n`;
-                    
-                    // 평론가 평가
-                    movieReviewText += `👨‍💼 평론가 평가:\n`;
-                    movieReviewText += `1. 이동진 ★★★★☆ (8.3/10)\n   "브래드 피트의 카리스마와 조제프 코신스키 감독의 연출력이 조화를 이룬 수작. F1의 현실적인 묘사가 인상적."\n\n`;
-                    movieReviewText += `2. 김혜리 ★★★★☆ (8.1/10)\n   "실제 F1 경기장에서 촬영한 스케일이 압도적. 브래드 피트의 노련한 연기가 빛난다."\n\n`;
-                    movieReviewText += `3. 허지웅 ★★★★☆ (8.0/10)\n   "Top Gun: Maverick의 조제프 코신스키 감독다운 박진감 넘치는 액션. F1 팬들에게 강력 추천."\n\n`;
-                    
-                    // 관객 실제 평가
-                    movieReviewText += `👥 관객 실제 평가:\n`;
-                    movieReviewText += `1. f1_fanatic ★★★★★ (9.2/10)\n   "브래드 피트가 진짜 F1 드라이버 같아요! 실제 경기장 촬영이 대박!"\n\n`;
-                    movieReviewText += `2. movie_lover92 ★★★★☆ (8.5/10)\n   "조제프 코신스키 감독의 Top Gun 이후 또 다른 걸작. 액션이 정말 압권."\n\n`;
-                    movieReviewText += `3. brad_pitt_fan ★★★★☆ (8.3/10)\n   "브래드 피트 연기력 정말 대단. 나이가 무색할 정도로 멋있었어요."\n\n`;
-                    movieReviewText += `4. racing_king ★★★★★ (9.0/10)\n   "F1 팬이라면 꼭 봐야 할 영화. 실제 F1과 거의 구분이 안 될 정도!"`;
-                    
-                    return {
-                        success: true,
-                        type: 'comprehensive_movie_review',
-                        data: { message: movieReviewText }
-                    };
-                }
-                
-                // 기타 영화의 경우 검색 안내 메시지
+                console.log('⚠️ 네이버 API에서 영화를 찾지 못함 - fallback 시스템으로 이동');
                 return {
-                    success: true,
-                    type: 'comprehensive_movie_review',
-                    data: {
-                        message: `🎬 "${movieTitle}" 영화평 종합\n\n📽️ 기본 정보\n영화 제목: ${movieTitle}\n\n⭐ 검색 결과\n요청하신 영화의 상세 정보를 찾고 있습니다.\n\n👨‍💼 평론가 평가:\n현재 평론가 리뷰를 수집 중입니다.\n\n👥 관객 실제 평가:\n관객 평점과 리뷰를 수집 중입니다.\n\n💡 검색 팁:\n• 정확한 영화 제목으로 다시 검색\n• 영어 제목이나 한글 제목으로 시도\n• 개봉년도와 함께 검색\n\n예) "베놈2 영화평", "탑건 매버릭 평점"`
+                    success: false,
+                    data: { 
+                        message: `🎬 "${movieTitle}" 영화 정보를 찾을 수 없습니다.\n\n💡 다른 검색 방법을 시도하고 있습니다...` 
                     }
                 };
             }
@@ -1913,33 +1859,8 @@ class DataExtractor {
     async getNaverMovieInfo(searchTerm) {
         try {
             if (!this.naverConfig.clientId || this.naverConfig.clientId === 'test') {
-                console.log('⚠️ 네이버 API 키가 설정되지 않았습니다. 테스트 데이터 반환');
-                
-                // F1 더무비 테스트 데이터
-                if (searchTerm.toLowerCase().includes('f1') || searchTerm.includes('더무비') || 
-                    searchTerm.toLowerCase().includes('rush') || searchTerm.includes('러쉬') ||
-                    searchTerm.includes('포뮬러') || searchTerm.toLowerCase().includes('formula')) {
-                    return [{
-                        title: 'F1 더무비',
-                        director: '조제프 코신스키',
-                        actor: '브래드 피트, 데미안 비칠, 케리 콘던, 하비에르 바르뎀',
-                        genre: '액션, 스포츠, 드라마',
-                        userRating: '8.2',
-                        link: 'https://movie.naver.com/movie/bi/mi/basic.naver',
-                        pubDate: '2024',
-                        image: 'https://movie.naver.com/movie/image.jpg'
-                    }];
-                }
-                
-                // 기타 영화 기본 데이터
-                return [{
-                    title: searchTerm,
-                    director: '감독 정보',
-                    actor: '주요 배우들',
-                    genre: '장르',
-                    userRating: '7.5',
-                    link: 'https://movie.naver.com/movie/bi/mi/basic.naver'
-                }];
+                console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+                return null; // 테스트 데이터 없이 null 반환하여 실제 fallback 시스템 테스트
             }
             
             const movieApiUrl = `https://openapi.naver.com/v1/search/movie.json?query=${encodeURIComponent(searchTerm)}&display=5`;
