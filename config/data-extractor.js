@@ -140,20 +140,20 @@ class DataExtractor {
         console.log(`🌤️ 날씨 정보 요청: ${location} (${timeframe})`);
         
         try {
-            // 실제 날씨 API 호출
-            const weatherData = await this.getActualWeatherData(location);
+            // 네이버 API로 날씨 정보 검색 (더 정확한 쿼리 사용)
+            const weatherQueries = this.generateWeatherSearchQueries(location, timeframe);
             
-            if (weatherData) {
-                return this.formatRealWeatherResponse(weatherData, location, timeframe);
-            }
-            
-            // API 실패시 fallback으로 뉴스 검색
-            console.log('⚠️ 날씨 API 실패, 뉴스 검색으로 fallback');
-            const weatherQuery = `${location} 오늘 날씨 기온`;
-            const response = await this.searchNaver('news', weatherQuery, 3);
-            
-            if (response.items && response.items.length > 0) {
-                return this.formatWeatherNewsResponse(response.items, location, timeframe);
+            for (const query of weatherQueries) {
+                console.log(`🔍 날씨 검색: ${query}`);
+                const response = await this.searchNaver('news', query, 5);
+                
+                if (response.items && response.items.length > 0) {
+                    // 날씨 관련 정보 추출 및 파싱
+                    const weatherInfo = this.parseWeatherFromNews(response.items, location);
+                    if (weatherInfo) {
+                        return this.formatParsedWeatherResponse(weatherInfo, location, timeframe);
+                    }
+                }
             }
             
             return this.createWeatherPlaceholder(location);
@@ -268,77 +268,141 @@ class DataExtractor {
         };
     }
 
-    // === 실제 날씨 API 함수 ===
+    // === 네이버 기반 날씨 검색 함수 ===
     
-    async getActualWeatherData(location) {
-        try {
-            // 지역명을 좌표로 변환 (네이버 지오코딩 또는 간단한 매핑)
-            const coords = this.getLocationCoords(location);
-            if (!coords) {
-                console.log(`⚠️ 지역 좌표를 찾을 수 없음: ${location}`);
-                return null;
-            }
-            
-            // OpenWeatherMap API 호출 (무료 버전)
-            const weatherApiKey = process.env.OPENWEATHER_API_KEY;
-            if (!weatherApiKey) {
-                console.log('⚠️ OpenWeatherMap API 키가 설정되지 않음');
-                return null;
-            }
-            
-            const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${coords.lat}&lon=${coords.lon}&appid=${weatherApiKey}&units=metric&lang=kr`;
-            
-            const response = await axios.get(weatherUrl, { timeout: 3000 });
-            
-            if (response.data) {
-                console.log(`✅ 실제 날씨 데이터 수신: ${location}`);
-                return response.data;
-            }
-            
-            return null;
-            
-        } catch (error) {
-            console.error(`❌ 날씨 API 호출 실패:`, error.message);
-            return null;
-        }
-    }
-    
-    getLocationCoords(location) {
-        // 주요 도시 좌표 매핑 (확장 가능)
-        const cityCoords = {
-            '서울': { lat: 37.5665, lon: 126.9780 },
-            '인천': { lat: 37.4563, lon: 126.7052 },
-            '부산': { lat: 35.1796, lon: 129.0756 },
-            '대구': { lat: 35.8714, lon: 128.6014 },
-            '대전': { lat: 36.3504, lon: 127.3845 },
-            '광주': { lat: 35.1595, lon: 126.8526 },
-            '울산': { lat: 35.5384, lon: 129.3114 },
-            '세종': { lat: 36.4800, lon: 127.2890 },
-            '수원': { lat: 37.2636, lon: 127.0286 },
-            '인덕원': { lat: 37.3897, lon: 126.9697 },
-            '강남': { lat: 37.4979, lon: 127.0276 },
-            '홍대': { lat: 37.5563, lon: 126.9236 },
-            '신촌': { lat: 37.5547, lon: 126.9364 },
-            '명동': { lat: 37.5636, lon: 126.9834 }
+    generateWeatherSearchQueries(location, timeframe) {
+        const timeKeywords = {
+            'today': '오늘',
+            'tomorrow': '내일',
+            'yesterday': '어제',
+            'this_week': '이번주',
+            'current': '현재'
         };
         
-        // 정확한 매칭 시도
-        if (cityCoords[location]) {
-            return cityCoords[location];
-        }
+        const timeWord = timeKeywords[timeframe] || '오늘';
         
-        // 부분 매칭 시도
-        for (const [city, coords] of Object.entries(cityCoords)) {
-            if (location.includes(city) || city.includes(location)) {
-                console.log(`📍 지역 매칭: ${location} → ${city}`);
-                return coords;
+        return [
+            `${location} ${timeWord} 날씨 기온`,
+            `${location} 날씨 ${timeWord} 온도`,
+            `${location} ${timeWord} 기상`,
+            `${location} 현재 날씨`,
+            `${location} 날씨 예보`,
+            `${location} 기온 ${timeWord}`,
+            `${location} 날씨정보 ${timeWord}`
+        ];
+    }
+    
+    parseWeatherFromNews(items, location) {
+        let bestWeatherInfo = null;
+        let bestScore = 0;
+        
+        for (const item of items) {
+            const title = this.cleanHtmlAndSpecialChars(item.title);
+            const description = this.cleanHtmlAndSpecialChars(item.description);
+            const fullText = title + ' ' + description;
+            
+            // 날씨 관련 점수 계산
+            let score = 0;
+            if (fullText.includes(location)) score += 10;
+            if (fullText.includes('날씨')) score += 5;
+            if (fullText.includes('기온')) score += 5;
+            if (fullText.includes('온도')) score += 4;
+            if (fullText.includes('도')) score += 3; // 온도 단위
+            if (fullText.includes('℃') || fullText.includes('도씨')) score += 8;
+            
+            // 기온 정보 추출
+            const temperature = this.extractTemperature(fullText);
+            if (temperature) score += 15;
+            
+            // 날씨 상태 추출
+            const weatherCondition = this.extractWeatherCondition(fullText);
+            if (weatherCondition) score += 10;
+            
+            // 습도, 바람 등 추가 정보
+            const additionalInfo = this.extractAdditionalWeatherInfo(fullText);
+            if (additionalInfo.humidity || additionalInfo.wind) score += 5;
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestWeatherInfo = {
+                    temperature: temperature,
+                    condition: weatherCondition,
+                    additional: additionalInfo,
+                    source: title,
+                    description: description.substring(0, 100),
+                    score: score
+                };
             }
         }
         
-        // 기본값 (서울)
-        console.log(`📍 기본 지역 사용: ${location} → 서울`);
-        return cityCoords['서울'];
+        // 최소 점수 요구사항 (날씨 관련성 확보)
+        return bestScore >= 15 ? bestWeatherInfo : null;
     }
+    
+    extractTemperature(text) {
+        // 기온 패턴 추출
+        const tempPatterns = [
+            /(\d+(?:\.\d+)?)\s*(?:도|℃|도씨)/g,
+            /기온\s*(\d+(?:\.\d+)?)/g,
+            /온도\s*(\d+(?:\.\d+)?)/g,
+            /(\d+(?:\.\d+)?)\s*도씨/g
+        ];
+        
+        for (const pattern of tempPatterns) {
+            const matches = [...text.matchAll(pattern)];
+            if (matches.length > 0) {
+                const temps = matches.map(m => parseFloat(m[1])).filter(t => t >= -30 && t <= 50);
+                if (temps.length > 0) {
+                    return Math.round(temps[0]); // 첫 번째 유효한 기온
+                }
+            }
+        }
+        return null;
+    }
+    
+    extractWeatherCondition(text) {
+        const conditions = [
+            { keywords: ['맑음', '맑은', '쾌청'], icon: '☀️', name: '맑음' },
+            { keywords: ['흐림', '흐린', '구름'], icon: '☁️', name: '흐림' },
+            { keywords: ['비', '강우', '비바람', '소나기'], icon: '🌧️', name: '비' },
+            { keywords: ['눈', '강설', '눈바람'], icon: '❄️', name: '눈' },
+            { keywords: ['안개', '박무'], icon: '🌫️', name: '안개' },
+            { keywords: ['바람', '강풍'], icon: '💨', name: '바람' },
+            { keywords: ['천둥', '번개'], icon: '⛈️', name: '뇌우' }
+        ];
+        
+        for (const condition of conditions) {
+            if (condition.keywords.some(keyword => text.includes(keyword))) {
+                return condition;
+            }
+        }
+        return null;
+    }
+    
+    extractAdditionalWeatherInfo(text) {
+        const info = {};
+        
+        // 습도
+        const humidityMatch = text.match(/습도\s*(\d+)\s*%/);
+        if (humidityMatch) {
+            info.humidity = parseInt(humidityMatch[1]);
+        }
+        
+        // 바람
+        const windMatch = text.match(/바람\s*(\d+(?:\.\d+)?)\s*(?:m\/s|초속)/);
+        if (windMatch) {
+            info.wind = parseFloat(windMatch[1]);
+        }
+        
+        // 미세먼지
+        const dustMatch = text.match(/미세먼지\s*(\d+)/);
+        if (dustMatch) {
+            info.dust = parseInt(dustMatch[1]);
+        }
+        
+        return info;
+    }
+
 
     // === 네이버 검색 공통 함수 ===
 
@@ -742,54 +806,51 @@ class DataExtractor {
             .trim();
     }
 
-    // 실제 날씨 데이터 포맷팅
-    formatRealWeatherResponse(weatherData, location, timeframe) {
-        const temp = Math.round(weatherData.main.temp);
-        const feelsLike = Math.round(weatherData.main.feels_like);
-        const humidity = weatherData.main.humidity;
-        const weather = weatherData.weather[0];
-        const weatherDesc = weather.description;
+    // 네이버 뉴스에서 파싱한 날씨 데이터 포맷팅
+    formatParsedWeatherResponse(weatherInfo, location, timeframe) {
+        const { temperature, condition, additional, source } = weatherInfo;
         
-        // 날씨 아이콘 매핑
-        const weatherIcon = this.getWeatherIcon(weather.main);
-        
-        // 시간대별 메시지
         const timeMessage = this.getTimeMessage(timeframe);
+        let message = `🌤️ "${location}" ${timeMessage} 날씨\n\n`;
         
-        const message = `${weatherIcon} "${location}" ${timeMessage} 날씨\n\n` +
-                       `🌡️ 현재 기온: ${temp}°C (체감 ${feelsLike}°C)\n` +
-                       `☁️ 날씨: ${weatherDesc}\n` +
-                       `💧 습도: ${humidity}%\n` +
-                       `🌪️ 바람: ${Math.round(weatherData.wind?.speed || 0)}m/s\n\n` +
-                       `📍 실시간 정확한 날씨 정보입니다!`;
-
+        // 기온 정보
+        if (temperature !== null) {
+            message += `🌡️ 기온: ${temperature}°C\n`;
+        }
+        
+        // 날씨 상태
+        if (condition) {
+            message += `${condition.icon} 날씨: ${condition.name}\n`;
+        }
+        
+        // 추가 정보
+        if (additional.humidity) {
+            message += `💧 습도: ${additional.humidity}%\n`;
+        }
+        if (additional.wind) {
+            message += `🌪️ 바람: ${additional.wind}m/s\n`;
+        }
+        if (additional.dust) {
+            message += `🌫️ 미세먼지: ${additional.dust}\n`;
+        }
+        
+        message += `\n📰 출처: ${source}\n`;
+        message += `📍 네이버 검색 기반 날씨 정보입니다!`;
+        
         return {
             success: true,
             type: 'weather',
             data: {
                 location: location,
                 timeframe: timeframe,
-                temperature: temp,
-                description: weatherDesc,
+                temperature: temperature,
+                condition: condition?.name,
                 message: message
             }
         };
     }
+
     
-    getWeatherIcon(weatherMain) {
-        const iconMap = {
-            'Clear': '☀️',
-            'Clouds': '☁️',
-            'Rain': '🌧️',
-            'Drizzle': '🌦️',
-            'Thunderstorm': '⛈️',
-            'Snow': '❄️',
-            'Mist': '🌫️',
-            'Fog': '🌫️',
-            'Haze': '🌫️'
-        };
-        return iconMap[weatherMain] || '🌤️';
-    }
     
     getTimeMessage(timeframe) {
         switch(timeframe) {
