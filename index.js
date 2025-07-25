@@ -908,8 +908,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                         
 한국어로 답변하세요. 카카오톡 메시지에 적합하도록 다음 규칙을 따르세요:
 - 800자 이내로 간결하게 작성
-- 최신 정보 기준으로 답변 (2024년 말 기준)
+- 2025년 최신 정보로 답변 (추측하지 말고 확실한 정보만)
 - M4 맥미니가 최신 모델임을 반영
+- 확실하지 않은 정보는 "정확한 정보를 찾기 어렵습니다"라고 안내
 - 핵심 정보만 포함
 - 이모지 적절히 사용
 - 읽기 쉬운 구조로 작성`,
@@ -985,6 +986,21 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     day: 'numeric'
                 });
                 
+                // 게임 정보 요청인 경우 먼저 뉴스 검색으로 최신 정보 확인
+                let gameSearchResults = null;
+                const isGameInfoRequest = userMessage.includes('게임') && config.shopping.review_keywords.some(keyword => userMessage.includes(keyword));
+                
+                if (isGameInfoRequest) {
+                    console.log('🎮 게임 정보 요청 감지 - 뉴스 검색으로 최신 정보 확인');
+                    // 게임명 추출 시도
+                    const gameNameMatch = userMessage.match(/([가-힣a-zA-Z0-9\s]+)\s*(게임|어때|할만해)/);
+                    if (gameNameMatch) {
+                        const gameName = gameNameMatch[1].trim();
+                        gameSearchResults = await getLatestNews(`${gameName} 게임`);
+                        console.log(`🔍 "${gameName}" 게임 뉴스 검색 결과: ${gameSearchResults?.length || 0}개`);
+                    }
+                }
+                
                 const claudeResponse = await axios.post(
                     'https://api.anthropic.com/v1/messages',
                     {
@@ -993,11 +1009,14 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 
 한국어로 답변하세요. 카카오톡 메시지에 적합하도록 다음 규칙을 따르세요:
 - 800자 이내로 간결하게 작성
-- 2024년 말 기준 최신 정보로 답변
+- 2025년 최신 정보로 답변 (추측하지 말고 확실한 정보만)
+- 게임 정보는 정확성을 최우선으로 (틀린 정보 제공 금지)
+- 확실하지 않은 게임 정보는 "정확한 정보를 찾기 어렵습니다"라고 안내
 - 핵심 정보만 포함
 - 이모지 적절히 사용
-- 불필요한 설명 제거
-- 읽기 쉬운 구조로 작성`,
+- 읽기 쉬운 구조로 작성
+
+${gameSearchResults ? `참고할 최신 뉴스 정보:\n${gameSearchResults.map(item => `- ${item.title}: ${item.description}`).join('\n')}\n` : ''}`,
                         messages: [{
                             role: "user",
                             content: userMessage
