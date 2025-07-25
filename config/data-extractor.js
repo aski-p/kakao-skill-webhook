@@ -161,6 +161,20 @@ class DataExtractor {
     }
 
     generateMovieSearchQueries(title, reviewType) {
+        // F1 더무비 특별 처리
+        if (title.toLowerCase().includes('f1') && title.includes('더무비')) {
+            return [
+                `"F1 더무비" 영화 평점`,
+                `"F1더무비" 평점`,
+                `"F1 더무비" 브래드 피트 평가`,
+                `F1 더무비 관객 반응`,
+                `F1더무비 리뷰`,
+                `F1 더무비 평론`,
+                `브래드 피트 F1 더무비 평점`,
+                `F1 더무비 네이버영화`
+            ];
+        }
+
         const baseQueries = [
             `"${title}" 영화 평점`,
             `"${title}" 영화 리뷰`,  
@@ -855,6 +869,23 @@ class DataExtractor {
             return this.createErrorResponse(`🎬 "${originalTitle}" 관련 F1 영화 정보를 찾을 수 없습니다.`);
         }
 
+        // F1 더무비가 실제 존재하는 영화인지 확인
+        const hasRealF1Movie = items.some(item => {
+            const cleanTitle = this.cleanHtmlAndSpecialChars(item.title);
+            const cleanDescription = this.cleanHtmlAndSpecialChars(item.description);
+            return (cleanTitle.includes('F1 더무비') || cleanTitle.includes('F1더무비') || 
+                    cleanDescription.includes('F1 더무비') || cleanDescription.includes('F1더무비')) &&
+                   (cleanTitle.includes('브래드 피트') || cleanDescription.includes('브래드 피트') ||
+                    cleanTitle.includes('200만') || cleanDescription.includes('관객'));
+        });
+
+        if (hasRealF1Movie) {
+            // 실제 F1 더무비 영화 정보가 있으면 정규 영화 리뷰 형식으로 처리
+            console.log('✅ F1 더무비 실제 영화 발견 - 정규 리뷰 형식으로 처리');
+            return this.formatMovieNewsResponse(items, originalTitle, 'F1 더무비 검색');
+        }
+
+        // 실제 영화가 아닌 경우에만 대안 추천
         let message = `🏎️ "${originalTitle}" 대신 실제 F1 영화들을 찾았습니다!\n\n`;
         
         // F1 관련 영화 정보 추출
