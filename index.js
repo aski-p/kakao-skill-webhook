@@ -206,9 +206,9 @@ async function getShoppingResults(query) {
         
         const params = {
             query: query,
-            display: 10,
+            display: 15,  // 더 많이 가져와서 필터링
             start: 1,
-            sort: 'sim'
+            sort: 'price'  // 가격순으로 정렬
         };
         
         console.log(`🛒 네이버 쇼핑 검색: "${query}"`);
@@ -393,8 +393,14 @@ function isShoppingRequest(message) {
     // 제품 추천의 경우: "제품명 + 추천" 형태
     const hasProductRecommend = hasProductKeyword && message.includes('추천');
     
-    // 쇼핑 관련 키워드가 있거나 제품 추천이면서 맛집 키워드가 없는 경우
-    return (hasShoppingKeyword || hasProductKeyword || hasProductRecommend) && !hasRestaurantKeyword;
+    // 가격 비교 요청: "제일 싼곳", "저렴한", "가격", "어디서 사야" 등
+    const hasPriceKeyword = config.shopping.price_keywords.some(keyword => message.includes(keyword));
+    
+    // 특정 제품명이 포함된 경우 (맥미니, 아이폰 등)
+    const hasSpecificProduct = config.shopping.products.some(product => message.includes(product));
+    
+    // 쇼핑 관련 키워드가 있거나 제품 관련이면서 맛집 키워드가 없는 경우
+    return (hasShoppingKeyword || hasProductKeyword || hasProductRecommend || (hasPriceKeyword && hasSpecificProduct)) && !hasRestaurantKeyword;
 }
 
 function isRestaurantRequest(message) {
@@ -590,9 +596,20 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             const shoppingResults = await getShoppingResults(searchQuery);
             
             if (shoppingResults && shoppingResults.length > 0) {
-                let shoppingText = `🛒 "${searchQuery}" 쇼핑 검색 결과\n\n`;
+                // 가격 중심의 쇼핑 검색 결과 표시
+                const hasPriceRequest = config.shopping.price_keywords.some(keyword => userMessage.includes(keyword));
+                
+                let shoppingText;
+                if (hasPriceRequest) {
+                    shoppingText = `💰 "${searchQuery}" 최저가 검색 결과 (가격순)\n\n`;
+                } else {
+                    shoppingText = `🛒 "${searchQuery}" 쇼핑 검색 결과\n\n`;
+                }
+                
                 shoppingResults.slice(0, config.limits.search_results_count).forEach((product, index) => {
-                    shoppingText += `${index + 1}. ${product.title}\n💰 ${product.price}\n🏪 ${product.mallName}\n🔗 ${product.link}\n\n`;
+                    // 가격을 더 눈에 띄게 표시
+                    const priceDisplay = product.price !== '가격정보없음' ? `💰 ${product.price}` : '💰 가격문의';
+                    shoppingText += `${index + 1}. ${product.title}\n${priceDisplay}\n🏪 ${product.mallName}\n🔗 ${product.link}\n\n`;
                 });
                 
                 if (shoppingText.length > config.limits.message_max_length) {
@@ -859,8 +876,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 }
             }
         }
-        // 맥미니 관련 질문 - 최신 정보로 Claude API 사용
-        else if (userMessage.includes('맥미니') && (userMessage.includes('최신') || userMessage.includes('M4') || userMessage.includes('m4') || userMessage.includes('M2') || userMessage.includes('m2'))) {
+        // 맥미니 가격 관련 질문은 쇼핑 검색으로 처리되므로 제외
+        // 맥미니 관련 질문 - 최신 정보로 Claude API 사용 (가격 질문 제외)
+        else if (userMessage.includes('맥미니') && (userMessage.includes('최신') || userMessage.includes('M4') || userMessage.includes('m4') || userMessage.includes('M2') || userMessage.includes('m2')) && !config.shopping.price_keywords.some(keyword => userMessage.includes(keyword))) {
             console.log('✅ 맥미니 관련 질문 - Claude API로 최신 정보 검색');
             const startTime = Date.now();
             
