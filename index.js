@@ -1331,13 +1331,13 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     
                     // 대화 히스토리에 분류 정보와 함께 저장
                     addToConversationHistory(userId, userMessage, responseText, classification.category.toLowerCase());
-                } else if (extractionResult.needsAI) {
-                    // Claude AI가 필요한 일반 질문인 경우
-                    console.log('🤖 Claude AI 처리 필요한 질문:', extractionResult.data);
+                } else if (extractionResult.needsAI || classification.category === 'UNKNOWN') {
+                    // Claude AI가 필요한 일반 질문이거나 알 수 없는 카테고리인 경우
+                    console.log('🤖 Claude AI 처리 필요:', extractionResult.needsAI ? '일반 질문' : '알 수 없는 카테고리');
                     responseText = await callClaudeAI(userMessage, userId);
                 } else {
                     // 데이터 추출 실패 시 폴백
-                    responseText = extractionResult.data.message || '죄송합니다. 정보를 찾는 중 문제가 발생했습니다.';
+                    responseText = extractionResult.data?.message || '죄송합니다. 정보를 찾는 중 문제가 발생했습니다.';
                 }
                 
             } catch (error) {
@@ -1398,12 +1398,18 @@ app.post('/kakao-skill-webhook', async (req, res) => {
     }
 });
 
+// 🎬 영화진흥위원회 API 엔드포인트 추가
+app.use('/api', require('./api/kofic-crawl'));
+app.use('/api', require('./api/full-crawling'));
+app.use('/api', require('./api/direct-crawling'));
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`✅ 서버가 포트 ${PORT}에서 실행 중입니다.`);
     console.log(`🔑 Claude API 키 상태: ${process.env.CLAUDE_API_KEY ? '설정됨 (' + process.env.CLAUDE_API_KEY.length + '자)' : '미설정'}`);
     console.log(`📡 네이버 API 키 상태: ${(process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) ? '설정됨' : '미설정'}`);
     console.log(`🗄️ Supabase 상태: ${(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) ? '설정됨' : '미설정'}`);
+    console.log(`🎬 영화진흥위원회 API 상태: ${process.env.KOFIC_API_KEY ? '설정됨' : '미설정'}`);
     
     // 영화 데이터 자동 업데이트 스케줄러 시작
     try {

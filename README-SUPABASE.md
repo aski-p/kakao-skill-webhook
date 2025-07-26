@@ -16,23 +16,27 @@ SUPABASE_URL=your-supabase-project-url
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 NAVER_CLIENT_ID=your-naver-client-id
 NAVER_CLIENT_SECRET=your-naver-client-secret
+KOFIC_API_KEY=504ec8ff56d6c888399e9b9c1f719f03
 ```
 
 ## 🚀 시스템 기능
 
 ### 1. 영화평 검색 우선순위
-1. **Supabase DB 조회** (최우선) - 가장 빠르고 정확
+1. **Supabase DB 조회** (최우선) - 영화진흥위원회 + 네이버 통합 데이터
 2. **로컬 공개 DB** (fallback) - 인기 영화 하드코딩 데이터
 3. **네이버 API** (마지막) - 실시간 검색
 
-### 2. 자동 크롤링 시스템
+### 2. 자동 크롤링 시스템 (통합)
 - **스케줄**: 매일 오전 12시 (한국시간)
-- **기능**: 네이버 영화 API로 신규 영화 수집
+- **1단계**: 영화진흥위원회 API로 박스오피스 기반 전체 영화 수집
+- **2단계**: 네이버 API로 포스터, 평점 등 상세 정보 보완
 - **중복 방지**: 기존 영화 제목+연도 검사
-- **데이터**: 영화 정보 + 평론가/관객 리뷰
+- **데이터**: 영화 기본정보 + 평론가/관객 리뷰 + 박스오피스 순위
 
 ### 3. API 엔드포인트
-- `POST /api/crawl-movies`: 수동 크롤링 실행
+- `POST /api/crawl-movies`: 통합 크롤링 실행 (영화진흥위원회 + 네이버)
+- `POST /api/crawl-kofic-movies`: 영화진흥위원회 전용 크롤링
+- `GET /api/kofic-status`: 영화진흥위원회 API 상태 확인
 - `GET /api/scheduler-status`: 스케줄러 상태 확인
 - `POST /kakao-skill-webhook`: 메인 챗봇 엔드포인트
 
@@ -93,12 +97,20 @@ NAVER_CLIENT_SECRET=your-naver-client-secret
 
 ### 수동 크롤링 실행
 ```bash
+# 통합 크롤링 (영화진흥위원회 + 네이버)
 curl -X POST https://your-app.railway.app/api/crawl-movies
+
+# 영화진흥위원회 전용 크롤링
+curl -X POST https://your-app.railway.app/api/crawl-kofic-movies
 ```
 
-### 스케줄러 상태 확인
+### 시스템 상태 확인
 ```bash
+# 스케줄러 상태
 curl https://your-app.railway.app/api/scheduler-status
+
+# 영화진흥위원회 API 상태
+curl https://your-app.railway.app/api/kofic-status
 ```
 
 ### 로그 모니터링
@@ -107,10 +119,16 @@ curl https://your-app.railway.app/api/scheduler-status
 
 ## 🎉 결과
 
+✅ **영화진흥위원회 API 통합**: 박스오피스 기반 전체 영화 데이터베이스  
 ✅ **완전한 영화평 시스템**: 감독, 출연진, 평점, 평론가 리뷰, 관객 리뷰 포함  
-✅ **자동 데이터 업데이트**: 매일 신규 영화 자동 수집  
+✅ **자동 데이터 업데이트**: 매일 신규 영화 자동 수집 (2단계 크롤링)  
 ✅ **중복 방지**: 기존 영화와 중복 체크  
 ✅ **실시간 조회**: Supabase 데이터베이스에서 빠른 검색  
-✅ **확장 가능**: 언제든 새로운 영화 추가 가능  
+✅ **확장 가능**: 영화진흥위원회 최신 데이터 자동 동기화  
 
-이제 "친절한 금자씨 영화평"부터 모든 영화 요청이 완전한 데이터베이스 기반으로 처리됩니다! 🎬✨
+**Railway 환경변수 추가 후 완전 활성화**:
+```
+KOFIC_API_KEY=504ec8ff56d6c888399e9b9c1f719f03
+```
+
+이제 모든 영화 요청이 영화진흥위원회 공식 데이터 기반으로 처리됩니다! 🎬✨

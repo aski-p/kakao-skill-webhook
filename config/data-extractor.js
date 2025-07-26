@@ -46,7 +46,17 @@ class DataExtractor {
                     return await this.extractGeneralData(data);
                 
                 default:
-                    return this.createErrorResponse(`알 수 없는 카테고리: ${category}`);
+                    // 알 수 없는 카테고리는 Claude AI로 처리
+                    return {
+                        success: false,
+                        type: 'unknown',
+                        needsAI: true,
+                        data: { 
+                            message: `알 수 없는 카테고리: ${category}`,
+                            category: category,
+                            originalData: data
+                        }
+                    };
             }
         } catch (error) {
             console.error(`❌ 데이터 추출 실패 (${category}):`, error);
@@ -221,12 +231,35 @@ class DataExtractor {
         
         console.log(`🍽️ 맛집 검색: ${location} ${foodType} (선호도: ${preference})`);
         
+        // 맛집 검색은 반드시 '맛집' 키워드를 포함하여 검색
         const query = this.buildRestaurantQuery(location, foodType, preference);
         
         try {
-            const response = await this.searchNaver('local', query, 5);
-            return this.formatRestaurantResponse(response.items, location, foodType);
+            // 네이버 local API 사용하여 맛집 검색
+            const response = await this.searchNaver('local', query, 10);
+            
+            // 응답 데이터 확인 및 디버그 로그
+            console.log(`🔍 맛집 검색 쿼리: "${query}"`);
+            console.log(`📊 검색 결과 수: ${response.items ? response.items.length : 0}`);
+            
+            if (response.items && response.items.length > 0) {
+                console.log(`✅ 맛집 검색 성공 - ${response.items.length}개 결과 발견`);
+                return this.formatRestaurantResponse(response.items, location, foodType);
+            } else {
+                console.log(`⚠️ 맛집 검색 결과 없음 - 다른 키워드로 재시도`);
+                // 다른 키워드로 재시도
+                const fallbackQuery = `${location} 맛집 추천`;
+                const fallbackResponse = await this.searchNaver('local', fallbackQuery, 10);
+                
+                if (fallbackResponse.items && fallbackResponse.items.length > 0) {
+                    console.log(`✅ 재검색 성공 - ${fallbackResponse.items.length}개 결과 발견`);
+                    return this.formatRestaurantResponse(fallbackResponse.items, location, foodType);
+                } else {
+                    return this.createErrorResponse(`${location} 지역의 맛집 정보를 찾을 수 없습니다. 정확한 지역명을 입력해주세요.`);
+                }
+            }
         } catch (error) {
+            console.error(`❌ 맛집 검색 API 오류:`, error);
             return this.createErrorResponse('맛집 정보를 가져오는 중 오류가 발생했습니다.');
         }
     }
@@ -234,14 +267,20 @@ class DataExtractor {
     buildRestaurantQuery(location, foodType, preferences) {
         let query = location;
         
+        // 항상 '맛집' 키워드 포함
+        query += ' 맛집';
+        
+        // 음식 종류가 있으면 추가
         if (foodType && foodType !== 'general') {
             query += ` ${foodType}`;
         }
         
+        // 인기 맛집인 경우 추가 키워드
         if (preferences && preferences.includes('popular')) {
-            query += ' 맛집';
+            query += ' 인기';
         }
         
+        console.log(`🔍 최종 맛집 검색 쿼리: "${query}"`);
         return query;
     }
 
@@ -255,7 +294,8 @@ class DataExtractor {
         }
         
         try {
-            const response = await this.searchNaver('shop', productName, 5);
+            // 10개 상품을 가져오도록 증가
+            const response = await this.searchNaver('shop', productName, 10);
             return this.formatShoppingResponse(response.items, productName, priceRange);
         } catch (error) {
             return this.createErrorResponse('상품 정보를 가져오는 중 오류가 발생했습니다.');
@@ -1031,20 +1071,36 @@ class DataExtractor {
             return this.createErrorResponse(`${location} ${foodType} 맛집 정보를 찾을 수 없습니다.`);
         }
 
-        const restaurants = items.slice(0, 3).map((item, index) => {
+        // 상위 5개 맛집 정보 제공 (기존 3개에서 증가)
+        const restaurants = items.slice(0, 5).map((item, index) => {
             const name = item.title.replace(/<\/?[^>]+(>|$)/g, '');
             const address = item.address || '주소 정보 없음';
             const category = item.category || '';
-            return `${index + 1}. ${name}\n   📍 ${address}\n   🏷️ ${category}`;
+            const telephone = item.telephone || '';
+            const roadAddress = item.roadAddress || item.address || '';
+            
+            let restaurantInfo = `${index + 1}. ${name}\n   📍 ${roadAddress}`;
+            
+            if (category) {
+                restaurantInfo += `\n   🍽️ ${category}`;
+            }
+            
+            if (telephone) {
+                restaurantInfo += `\n   📞 ${telephone}`;
+            }
+            
+            return restaurantInfo;
         }).join('\n\n');
 
+        const foodTypeText = foodType && foodType !== 'general' ? ` ${foodType}` : '';
+        
         return {
             success: true,
             type: 'restaurant',
             data: {
                 location: location,
                 foodType: foodType,
-                message: `🍽️ ${location} ${foodType} 맛집 추천\n\n${restaurants}`
+                message: `🍽️ ${location}${foodTypeText} 맛집 추천\n\n${restaurants}\n\n💡 전화번호를 확인하여 예약하시기 바랍니다!`
             }
         };
     }
@@ -1054,11 +1110,13 @@ class DataExtractor {
             return this.createErrorResponse(`"${productName}" 상품을 찾을 수 없습니다.`);
         }
 
-        const products = items.slice(0, 3).map((item, index) => {
+        // 10개 상품 모두 표시하고 링크 포함
+        const products = items.slice(0, 10).map((item, index) => {
             const name = item.title.replace(/<\/?[^>]+(>|$)/g, '');
             const price = parseInt(item.lprice).toLocaleString();
             const mallName = item.mallName || '쇼핑몰';
-            return `${index + 1}. ${name}\n   💰 ${price}원 (${mallName})`;
+            const link = item.link;
+            return `${index + 1}. ${name}\n   💰 ${price}원 (${mallName})\n   🔗 ${link}`;
         }).join('\n\n');
 
         return {
@@ -1066,7 +1124,7 @@ class DataExtractor {
             type: 'shopping',
             data: {
                 productName: productName,
-                message: `🛒 "${productName}" 상품 검색 결과\n\n${products}`
+                message: `🛒 "${productName}" 상품 검색 결과 (상위 10개)\n\n${products}\n\n💡 링크를 클릭하여 상품 상세정보를 확인하세요!`
             }
         };
     }
