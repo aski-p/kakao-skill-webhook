@@ -3,8 +3,8 @@
 # 영화 데이터베이스 SQL 파일을 VS Code로 열기
 # 사용법: ./open-movie-sql.sh
 
-# 영화 데이터베이스 SQL 파일 찾기
-MOVIE_SQL=$(ls -t massive_movies_*_with_reviews_*.sql 2>/dev/null | head -n 1)
+# 영화 데이터베이스 SQL 파일 찾기 (massive 우선)
+MOVIE_SQL=$(ls -t massive_real_movie_database_*.sql massive_movies_*_with_reviews_*.sql *movie_database*.sql 2>/dev/null | head -n 1)
 
 if [ -z "$MOVIE_SQL" ]; then
     echo "❌ 영화 데이터베이스 SQL 파일을 찾을 수 없습니다."
