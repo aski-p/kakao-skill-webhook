@@ -3,9 +3,9 @@ const { createClient } = require('@supabase/supabase-js');
 
 class SupabaseClient {
     constructor() {
-        // 환경변수에서 Supabase 설정 가져오기 (Railway 환경변수명 사용)
-        this.supabaseUrl = process.env.SUPABASE_URL;
-        this.supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        // 환경변수에서 Supabase 설정 가져오기 (Railway 환경변수명 지원)
+        this.supabaseUrl = process.env.SUPABASE_URL || process.env.supabase_url;
+        this.supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.supabase_service_role_key;
         
         if (!this.supabaseUrl) {
             console.log('⚠️ SUPABASE_URL 환경변수가 설정되지 않았습니다.');
