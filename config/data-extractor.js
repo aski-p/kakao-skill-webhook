@@ -45,6 +45,9 @@ class DataExtractor {
                 case 'GENERAL_QUESTION':
                     return await this.extractGeneralData(data);
                 
+                case 'CASUAL_CONVERSATION':
+                    return await this.extractCasualConversationData(data);
+                
                 default:
                     // 알 수 없는 카테고리는 Claude AI로 처리
                     return {
@@ -357,6 +360,24 @@ class DataExtractor {
             type: 'general_question',
             needsAI: true,
             data: { topic, questionType }
+        };
+    }
+
+    async extractCasualConversationData(data) {
+        const { conversationType, topic } = data;
+        
+        console.log(`💬 일상 대화: ${conversationType} - ${topic}`);
+        
+        // 일상 대화는 Claude AI로 위임
+        return {
+            success: true,
+            type: 'casual_conversation',
+            needsAI: true,
+            data: { 
+                conversationType, 
+                topic,
+                message: '일상적인 대화입니다. Claude AI에서 처리합니다.'
+            }
         };
     }
 

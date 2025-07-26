@@ -20,13 +20,13 @@ class MessageClassifier {
             },
             
             WEATHER: {
-                priority: 2, // 영화보다 낮은 우선순위
+                priority: 8, // 우선순위를 대폭 낮춤 (일상 대화와 혼동 방지)
                 patterns: {
-                    content: /날씨|기온|온도|기상|비|눈|바람|습도|미세먼지|맑음|흐림|구름/,
+                    content: /날씨|기온|온도|기상|비|눈|바람|습도|미세먼지|맑음|흐림|구름|폭염|태풍|장마/,
                     action: /알려줘|어때|어떻게|확인|궁금/,
-                    weatherSpecific: /날씨.*알려줘|기온.*어때|온도.*궁금/,
+                    weatherSpecific: /날씨.*알려줘|기온.*어때|온도.*궁금|날씨.*어때|오늘.*날씨|내일.*날씨/,
                     location: /([가-힣]{2,}(?:시|구|군|동|역|읍|면))/,
-                    time: /오늘|내일|모레|이번주|다음주|주말/
+                    time: /내일|모레|이번주|다음주|주말/ // "오늘" 제거하여 일상 대화와 구분
                 },
                 extractors: {
                     location: this.extractLocation.bind(this),
@@ -102,11 +102,28 @@ class MessageClassifier {
                 }
             },
             
+            CASUAL_CONVERSATION: {
+                priority: 2, // 높은 우선순위 (일상 대화 우선)
+                patterns: {
+                    greeting: /안녕|좋은아침|좋은밤|잘자|굿모닝|굿나잇/,
+                    daily: /오늘.*뭐.*할|뭐.*하고.*있|심심해|재미없어|지루해|할게없어/,
+                    emotion: /행복해|기뻐|슬퍼|우울해|화나|짜증나|피곤해|졸려/,
+                    casual: /뭐해|뭐하고|어디가|어디있어|집에있어|회사에있어/,
+                    simple: /^(네|응|아니|그래|맞아|ㅇㅇ|ㄱㅅ|ㄳ|감사|고마워)$/,
+                    chat: /대화하자|얘기하자|심심하니|재밌는.*있어|추천.*해줘/
+                },
+                extractors: {
+                    conversationType: this.extractConversationType.bind(this),
+                    topic: this.extractCasualTopic.bind(this)
+                }
+            },
+
             GENERAL_QUESTION: {
-                priority: 10, // 낮은 우선순위 (마지막 분류)
+                priority: 9, // 우선순위 더 낮춤 (일상 대화 이후)
                 patterns: {
                     question: /\?|어떻게|어떤|어디|언제|왜|누구|뭐|몇|얼마/,
-                    request: /알려줘|검색|찾아|추천|비교|말해줘|설명해/
+                    request: /알려줘|검색|찾아|추천|비교|말해줘|설명해/,
+                    exclude: /^(안녕|뭐해|뭐하고|오늘.*뭐.*할)/ // 일상 대화 제외
                 },
                 extractors: {
                     topic: this.extractGeneralTopic.bind(this),
@@ -164,6 +181,12 @@ class MessageClassifier {
                     case 'action': score += 2; break;
                     case 'movieKeywords': score += 4; break; // 영화 키워드 높은 가중치
                     case 'weatherSpecific': score += 4; break; // 날씨 특정 키워드 높은 가중치
+                    case 'daily': score += 5; break; // 일상 대화 키워드 최고 가중치
+                    case 'greeting': score += 4; break; // 인사 키워드 높은 가중치
+                    case 'casual': score += 4; break; // 캐주얼 대화 키워드 높은 가중치
+                    case 'emotion': score += 3; break; // 감정 표현 키워드
+                    case 'simple': score += 3; break; // 간단한 응답 키워드
+                    case 'chat': score += 3; break; // 대화 요청 키워드
                     case 'context': score += 1; break;
                     case 'location': score += 1; break;
                     case 'time': score += 1; break;
@@ -402,6 +425,22 @@ class MessageClassifier {
         if (/왜|이유/.test(message)) return 'why';
         if (/누구/.test(message)) return 'who';
         return 'general';
+    }
+
+    // 일상 대화 관련 추출 함수들
+    extractConversationType(message) {
+        if (/안녕|좋은아침|좋은밤|잘자|굿모닝|굿나잇/.test(message)) return 'greeting';
+        if (/오늘.*뭐.*할|뭐.*하고.*있|심심해|재미없어|지루해/.test(message)) return 'daily_chat';
+        if (/행복해|기뻐|슬퍼|우울해|화나|짜증나|피곤해|졸려/.test(message)) return 'emotion';
+        if (/뭐해|뭐하고|어디가|어디있어/.test(message)) return 'casual_ask';
+        if (/^(네|응|아니|그래|맞아|ㅇㅇ|ㄱㅅ|ㄳ|감사|고마워)$/.test(message)) return 'response';
+        if (/대화하자|얘기하자|심심하니/.test(message)) return 'chat_request';
+        return 'general_casual';
+    }
+
+    extractCasualTopic(message) {
+        // 일상 대화 주제 추출
+        return message.replace(/뭐해|뭐하고|어떻게|어때|오늘|내일/g, '').trim() || message;
     }
 }
 
