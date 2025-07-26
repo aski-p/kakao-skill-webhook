@@ -1,0 +1,81 @@
+
+> kakao-chatbot@1.0.0 start
+> node index.js
+
+⚠️ SUPABASE_URL 환경변수가 설정되지 않았습니다.
+⚠️ SUPABASE_URL 환경변수가 설정되지 않았습니다.
+⚠️ KOFIC_API_KEY 환경변수가 설정되지 않았습니다.
+⚠️ SUPABASE_URL 환경변수가 설정되지 않았습니다.
+✅ 서버가 포트 3000에서 실행 중입니다.
+🔑 Claude API 키 상태: 설정됨 (108자)
+📡 네이버 API 키 상태: 미설정
+🗄️ Supabase 상태: 미설정
+🎬 영화진흥위원회 API 상태: 미설정
+📅 영화 데이터 자동 업데이트 스케줄러 시작
+✅ 스케줄러 설정 완료
+📅 다음 실행 시간: 매일 오전 12시 (KST)
+📅 영화 데이터 자동 업데이트 스케줄러 시작됨
+🔔 카카오 웹훅 요청 받음!
+요청 본문: {
+  "userRequest": {
+    "utterance": "오늘 뭐할꺼야?"
+  },
+  "user": {
+    "id": "test_user"
+  }
+}
+💬 사용자 메시지: '오늘 뭐할꺼야?' (ID: anonymous)
+🕐 현재 한국 시간: 2025. 07. 26. 12:16:46
+🎬 모든 영화평 요청은 새로운 시스템에서 처리
+🔍 키워드 감지 결과: {
+  isNews: false,
+  isShopping: false,
+  isRestaurant: false,
+  isReviewQuestion: false,
+  isFactCheck: false,
+  isYouTubeSummary: null,
+  isMovieReview: false,
+  youtubeUrl: null,
+  message: '오늘 뭐할꺼야?'
+}
+🧠 의도 분석 결과: {
+  intent: 'question_or_request',
+  confidence: 0.7,
+  responseStyle: 'friendly',
+  needsGuidance: false,
+  contextInsight: 'first_interaction'
+}
+🧠 지능형 메시지 분류 시스템 시작
+🔍 메시지 분류 시작: 오늘 뭐할꺼야?
+📊 분류 결과: [
+  {
+    category: 'CASUAL_CONVERSATION',
+    score: 5,
+    priority: 2,
+    data: { conversationType: 'daily_chat', topic: '뭐할꺼야?' }
+  },
+  {
+    category: 'GENERAL_QUESTION',
+    score: 2,
+    priority: 9,
+    data: { topic: '오늘 뭐할꺼야', questionType: 'what' }
+  }
+]
+📊 분류 결과: {
+  category: 'CASUAL_CONVERSATION',
+  score: 5,
+  priority: 2,
+  data: { conversationType: 'daily_chat', topic: '뭐할꺼야?' }
+}
+🔧 데이터 추출 시작: CASUAL_CONVERSATION { conversationType: 'daily_chat', topic: '뭐할꺼야?' }
+💬 일상 대화: daily_chat - 뭐할꺼야?
+📋 추출 결과: {
+  success: true,
+  type: 'casual_conversation',
+  needsAI: true,
+  data: { conversationType: 'daily_chat', topic: '뭐할꺼야?' }
+}
+🤖 Claude AI 처리 필요: 일반 질문/일상 대화
+🤖 Claude AI 호출 시작: "오늘 뭐할꺼야?" (사용자: anonymous)
+✅ Claude AI 응답 성공: "안녕하세요! 오늘 하루 어떤 계획을 가지고 계신지 궁금해요. 날씨도 좋고 주말이라 다양한 활동을 즐길 수 있을 것 같네요. 집에서 편하게 휴식을 취하거나, 산책이나 카페 가기, 친..."
+📤 최종 응답 길이: 206자

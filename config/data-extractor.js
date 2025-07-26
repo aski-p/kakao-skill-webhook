@@ -368,15 +368,15 @@ class DataExtractor {
         
         console.log(`💬 일상 대화: ${conversationType} - ${topic}`);
         
-        // 일상 대화는 Claude AI로 위임
+        // 일상 대화는 Claude AI로 위임 (메시지 없이 needsAI만 true로 설정)
         return {
             success: true,
             type: 'casual_conversation',
             needsAI: true,
             data: { 
                 conversationType, 
-                topic,
-                message: '일상적인 대화입니다. Claude AI에서 처리합니다.'
+                topic
+                // message 제거: Claude AI가 직접 처리하도록 함
             }
         };
     }

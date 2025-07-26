@@ -56,6 +56,77 @@ const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
 // 설정 파일에서 타임아웃 설정 가져오기
 const TIMEOUT_CONFIG = config.timeouts;
 
+// Claude API 설정
+const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
+const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+
+// 🤖 Claude AI 호출 함수
+async function callClaudeAI(userMessage, userId) {
+    try {
+        console.log(`🤖 Claude AI 호출 시작: "${userMessage}" (사용자: ${userId})`);
+        
+        if (!CLAUDE_API_KEY) {
+            console.log('⚠️ Claude API 키가 설정되지 않음 - 기본 응답 반환');
+            return `💬 안녕하세요! 자연스러운 대화를 나누고 싶지만, 아직 Claude AI가 설정되지 않아서 간단한 응답만 드릴 수 있어요.\n\n🔧 관리자에게 Claude API 키 설정을 요청해주세요.\n\n임시로 이렇게 답변드려요: "${userMessage}"에 대해서는 더 자세히 알아봐야겠네요!`;
+        }
+
+        const response = await axios.post(CLAUDE_API_URL, {
+            model: "claude-3-haiku-20240307",
+            max_tokens: 1000,
+            messages: [{
+                role: "user",
+                content: `당신은 친근하고 도움이 되는 한국어 AI 어시스턴트입니다. 사용자의 메시지에 자연스럽고 유용한 답변을 해주세요.
+
+사용자 메시지: "${userMessage}"
+
+답변 가이드라인:
+- 한국어로 자연스럽게 대화하세요
+- 친근한 톤을 유지하세요  
+- 구체적이고 도움이 되는 정보를 제공하세요
+- 필요하면 이모지를 적절히 사용하세요
+- 답변은 200자 이내로 간결하게 해주세요`
+            }],
+            temperature: 0.7
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': CLAUDE_API_KEY,
+                'anthropic-version': '2023-06-01'
+            },
+            timeout: 3000
+        });
+
+        const aiResponse = response.data.content[0].text;
+        console.log(`✅ Claude AI 응답 성공: "${aiResponse.substring(0, 100)}..."`);
+        
+        return aiResponse;
+        
+    } catch (error) {
+        console.error('❌ Claude AI 호출 오류:', error.message);
+        
+        // 폴백 응답 - 자연스러운 대화 시뮬레이션
+        const fallbackResponses = {
+            greeting: ['안녕하세요! 😊 좋은 하루 보내고 계신가요?', '안녕하세요! 반가워요! 🤗', '안녕하세요! 오늘은 어떤 하루인가요?'],
+            daily: ['오늘은 뭔가 특별한 걸 해보시면 어떨까요? 😄', '하루하루가 소중하니까, 뭔가 의미 있는 일을 찾아보세요! ✨', '오늘 하루도 화이팅이에요! 💪'],
+            emotion: ['기분이 어떠세요? 함께 이야기 나누어요! 😊', '감정을 표현하는 건 좋은 일이에요! 🤗', '힘든 일이 있으면 언제든 말씀해주세요! 💙'],
+            casual: ['네, 그렇군요! 더 자세히 얘기해주세요! 😊', '흥미롭네요! 어떻게 생각하세요? 🤔', '좋은 질문이에요! 함께 생각해봐요! 💭'],
+            default: ['죄송해요, 정확히 이해하지 못했어요. 다시 말씀해주시겠어요? 😅', '흥미로운 질문이네요! 더 구체적으로 설명해주실 수 있나요? 🤔', '좋은 대화 같아요! 계속 이야기해봐요! 😊']
+        };
+        
+        let responseType = 'default';
+        if (/안녕|hi|hello|반가워/i.test(userMessage)) responseType = 'greeting';
+        else if (/오늘.*뭐.*할|뭐.*하고.*있|심심해|지루해/.test(userMessage)) responseType = 'daily';
+        else if (/행복해|기뻐|슬퍼|우울해|화나|피곤해/.test(userMessage)) responseType = 'emotion';
+        else if (/뭐해|어디가|집에있어/.test(userMessage)) responseType = 'casual';
+        
+        const responses = fallbackResponses[responseType];
+        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+        
+        console.log(`🔄 폴백 응답 사용: "${randomResponse}"`);
+        return randomResponse;
+    }
+}
+
 // 🧠 지능형 메시지 분류 및 데이터 추출 시스템 초기화
 const messageClassifier = new MessageClassifier();
 const dataExtractor = new DataExtractor({
@@ -1326,15 +1397,15 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 console.log('📋 추출 결과:', extractionResult);
                 
                 // 3단계: 결과에 따른 응답 생성
-                if (extractionResult.success) {
+                if (extractionResult.needsAI || classification.category === 'UNKNOWN') {
+                    // Claude AI가 필요한 경우 (일상 대화, 일반 질문, 알 수 없는 카테고리)
+                    console.log('🤖 Claude AI 처리 필요:', extractionResult.needsAI ? '일반 질문/일상 대화' : '알 수 없는 카테고리');
+                    responseText = await callClaudeAI(userMessage, userId);
+                } else if (extractionResult.success) {
                     responseText = extractionResult.data.message || '정보를 성공적으로 가져왔습니다.';
                     
                     // 대화 히스토리에 분류 정보와 함께 저장
                     addToConversationHistory(userId, userMessage, responseText, classification.category.toLowerCase());
-                } else if (extractionResult.needsAI || classification.category === 'UNKNOWN') {
-                    // Claude AI가 필요한 일반 질문이거나 알 수 없는 카테고리인 경우
-                    console.log('🤖 Claude AI 처리 필요:', extractionResult.needsAI ? '일반 질문' : '알 수 없는 카테고리');
-                    responseText = await callClaudeAI(userMessage, userId);
                 } else {
                     // 데이터 추출 실패 시 폴백
                     responseText = extractionResult.data?.message || '죄송합니다. 정보를 찾는 중 문제가 발생했습니다.';
