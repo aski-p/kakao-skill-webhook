@@ -93,7 +93,7 @@ async function callClaudeAI(userMessage, userId) {
                 'x-api-key': CLAUDE_API_KEY,
                 'anthropic-version': '2023-06-01'
             },
-            timeout: 3000
+            timeout: 4000
         });
 
         const aiResponse = response.data.content[0].text;

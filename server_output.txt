@@ -8,7 +8,7 @@
 ⚠️ SUPABASE_URL 환경변수가 설정되지 않았습니다.
 ✅ 서버가 포트 3000에서 실행 중입니다.
 🔑 Claude API 키 상태: 설정됨 (108자)
-📡 네이버 API 키 상태: 미설정
+📡 네이버 API 키 상태: 설정됨
 🗄️ Supabase 상태: 미설정
 🎬 영화진흥위원회 API 상태: 미설정
 📅 영화 데이터 자동 업데이트 스케줄러 시작
@@ -18,25 +18,25 @@
 🔔 카카오 웹훅 요청 받음!
 요청 본문: {
   "userRequest": {
-    "utterance": "오늘 뭐할꺼야?"
+    "utterance": "오늘 날짜 알려줘"
   },
   "user": {
     "id": "test_user"
   }
 }
-💬 사용자 메시지: '오늘 뭐할꺼야?' (ID: anonymous)
-🕐 현재 한국 시간: 2025. 07. 26. 12:16:46
+💬 사용자 메시지: '오늘 날짜 알려줘' (ID: anonymous)
+🕐 현재 한국 시간: 2025. 07. 26. 12:49:30
 🎬 모든 영화평 요청은 새로운 시스템에서 처리
 🔍 키워드 감지 결과: {
   isNews: false,
   isShopping: false,
   isRestaurant: false,
   isReviewQuestion: false,
-  isFactCheck: false,
+  isFactCheck: true,
   isYouTubeSummary: null,
   isMovieReview: false,
   youtubeUrl: null,
-  message: '오늘 뭐할꺼야?'
+  message: '오늘 날짜 알려줘'
 }
 🧠 의도 분석 결과: {
   intent: 'question_or_request',
@@ -46,36 +46,42 @@
   contextInsight: 'first_interaction'
 }
 🧠 지능형 메시지 분류 시스템 시작
-🔍 메시지 분류 시작: 오늘 뭐할꺼야?
+🔍 메시지 분류 시작: 오늘 날짜 알려줘
 📊 분류 결과: [
   {
     category: 'CASUAL_CONVERSATION',
-    score: 5,
+    score: 3,
     priority: 2,
-    data: { conversationType: 'daily_chat', topic: '뭐할꺼야?' }
+    data: { conversationType: 'general_casual', topic: '날짜 알려줘' }
+  },
+  {
+    category: 'WEATHER',
+    score: 2,
+    priority: 8,
+    data: { location: '서울', timeframe: 'today' }
   },
   {
     category: 'GENERAL_QUESTION',
-    score: 2,
+    score: 1,
     priority: 9,
-    data: { topic: '오늘 뭐할꺼야', questionType: 'what' }
+    data: { topic: '오늘 날짜', questionType: 'general' }
   }
 ]
 📊 분류 결과: {
   category: 'CASUAL_CONVERSATION',
-  score: 5,
+  score: 3,
   priority: 2,
-  data: { conversationType: 'daily_chat', topic: '뭐할꺼야?' }
+  data: { conversationType: 'general_casual', topic: '날짜 알려줘' }
 }
-🔧 데이터 추출 시작: CASUAL_CONVERSATION { conversationType: 'daily_chat', topic: '뭐할꺼야?' }
-💬 일상 대화: daily_chat - 뭐할꺼야?
+🔧 데이터 추출 시작: CASUAL_CONVERSATION { conversationType: 'general_casual', topic: '날짜 알려줘' }
+💬 일상 대화: general_casual - 날짜 알려줘
 📋 추출 결과: {
   success: true,
   type: 'casual_conversation',
   needsAI: true,
-  data: { conversationType: 'daily_chat', topic: '뭐할꺼야?' }
+  data: { conversationType: 'general_casual', topic: '날짜 알려줘' }
 }
 🤖 Claude AI 처리 필요: 일반 질문/일상 대화
-🤖 Claude AI 호출 시작: "오늘 뭐할꺼야?" (사용자: anonymous)
-✅ Claude AI 응답 성공: "안녕하세요! 오늘 하루 어떤 계획을 가지고 계신지 궁금해요. 날씨도 좋고 주말이라 다양한 활동을 즐길 수 있을 것 같네요. 집에서 편하게 휴식을 취하거나, 산책이나 카페 가기, 친..."
-📤 최종 응답 길이: 206자
+🤖 Claude AI 호출 시작: "오늘 날짜 알려줘" (사용자: anonymous)
+✅ Claude AI 응답 성공: "네, 알겠습니다! 오늘 날짜는 2023년 4월 20일입니다. 오늘도 좋은 하루 보내시기 바랍니다! 🙂..."
+📤 최종 응답 길이: 57자

@@ -9,9 +9,11 @@ class MessageClassifier {
                 priority: 1,
                 patterns: {
                     content: /영화|드라마|시리즈|애니|다큐|무비|movie|film/i,
-                    action: /평점|평가|리뷰|후기|별점|재밌|볼만|어때|추천|관람평|말해줘/,
+                    action: /평점|평가|리뷰|후기|별점|재밌|볼만|어때|추천|관람평/,
                     context: /f1|더무비|러쉬|액션|스릴러|로맨스|공포|코미디/i,
-                    movieKeywords: /관람평|영화평|평좀|영화.*말해줘/
+                    movieKeywords: /관람평|영화평|평좀/,
+                    // 명시적인 영화 질문만 (일반적인 "말해줘"는 제외)
+                    explicit: /영화.*평점|영화.*평가|영화.*리뷰|영화.*어때|영화.*재밌|영화.*볼만|영화.*추천/
                 },
                 extractors: {
                     title: this.extractMovieTitle.bind(this),
@@ -65,12 +67,13 @@ class MessageClassifier {
             },
             
             NEWS: {
-                priority: 6, // 우선순위 낮춤 (날씨 후순위)
+                priority: 10, // 우선순위를 대폭 낮춤 (일반 질문과 구분)
                 patterns: {
-                    content: /뉴스|최신|속보|사건|사고|정치|경제|스포츠|기사|언론/,
-                    action: /검색|찾아|보여줘|알려줘/,
-                    time: /어제|이번주|최근|방금/, // "오늘" 제거 (날씨와 중복)
-                    topic: /([가-힣]+(?:사건|사고|뉴스|이슈))/
+                    content: /뉴스.*검색|뉴스.*찾아|뉴스.*보여줘|최신.*뉴스|속보.*검색|기사.*검색/,
+                    action: /검색|찾아|보여줘/,
+                    time: /어제|이번주|최근|방금/, // "오늘" 제거 (일반 질문과 중복)
+                    topic: /([가-힣]+(?:사건|사고|뉴스|이슈))/,
+                    explicit: /뉴스.*알려줘|최신.*뉴스.*알려줘/ // 명시적인 뉴스 요청만
                 },
                 extractors: {
                     topic: this.extractNewsTopic.bind(this),
@@ -103,14 +106,18 @@ class MessageClassifier {
             },
             
             CASUAL_CONVERSATION: {
-                priority: 2, // 높은 우선순위 (일상 대화 우선)
+                priority: 2, // 높은 우선순위 (일반 대화 우선)
                 patterns: {
                     greeting: /안녕|좋은아침|좋은밤|잘자|굿모닝|굿나잇/,
                     daily: /오늘.*뭐.*할|뭐.*하고.*있|심심해|재미없어|지루해|할게없어/,
                     emotion: /행복해|기뻐|슬퍼|우울해|화나|짜증나|피곤해|졸려/,
                     casual: /뭐해|뭐하고|어디가|어디있어|집에있어|회사에있어/,
                     simple: /^(네|응|아니|그래|맞아|ㅇㅇ|ㄱㅅ|ㄳ|감사|고마워)$/,
-                    chat: /대화하자|얘기하자|심심하니|재밌는.*있어|추천.*해줘/
+                    chat: /대화하자|얘기하자|심심하니|재밌는.*있어|추천.*해줘/,
+                    // 일반적인 질문들 추가 (뉴스/데이터 검색이 아닌)
+                    general: /오늘.*날짜|몇월.*몇일|무슨.*요일|지금.*시간|현재.*시간|몇시|언제|어떤.*날/,
+                    time: /시간.*알려줘|날짜.*알려줘|요일.*알려줘|지금.*몇시/,
+                    info: /^(오늘|지금|현재).*알려줘$/ // 단순한 정보 요청
                 },
                 extractors: {
                     conversationType: this.extractConversationType.bind(this),
