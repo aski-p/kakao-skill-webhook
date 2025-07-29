@@ -194,6 +194,58 @@ function isGameInfoRequest(message) {
     return gameKeywords.some(keyword => message.includes(keyword));
 }
 
+// Claude AI 버전 문의 감지 함수
+function isClaudeVersionQuery(message) {
+    // 1. 필수 키워드: Claude AI 관련 키워드가 있어야 함
+    const claudeKeywords = ['클로드', 'claude', 'ai', '인공지능', '챗봇', '너', '당신', '모델', 'model'];
+    const hasClaudeKeyword = claudeKeywords.some(keyword => message.toLowerCase().includes(keyword));
+    
+    // 2. 버전 관련 키워드가 있어야 함
+    const versionKeywords = ['버전', 'version', '소넷', 'sonnet', '하이쿠', 'haiku', '모델', 'model', '뭐야', '뭔지', '어떤거', '무슨'];
+    const hasVersionKeyword = versionKeywords.some(keyword => message.toLowerCase().includes(keyword));
+    
+    // 3. 질문 패턴 확인 (더 구체적으로)
+    const questionPatterns = [
+        /너.*버전/,
+        /당신.*버전/,
+        /클로드.*버전/,
+        /claude.*version/i,
+        /무슨.*버전/,
+        /어떤.*버전/,
+        /뭔.*버전/,
+        /버전.*뭐/,
+        /버전.*무슨/,
+        /버전.*어떤/,
+        /소넷.*하이쿠/,
+        /하이쿠.*소넷/,
+        /AI.*모델/,
+        /인공지능.*모델/,
+        /너.*누구/,
+        /당신.*누구/,
+        /정체.*뭐/
+    ];
+    const hasQuestionPattern = questionPatterns.some(pattern => pattern.test(message));
+    
+    // 4. 제외 패턴 (다른 버전 문의는 제외)
+    const excludePatterns = [
+        /앱.*버전/,
+        /app.*version/i,
+        /프로그램.*버전/,
+        /소프트웨어.*버전/,
+        /업데이트.*버전/,
+        /최신.*버전/,
+        /iOS.*버전/,
+        /안드로이드.*버전/,
+        /android.*version/i,
+        /윈도우.*버전/,
+        /windows.*version/i
+    ];
+    const hasExcludePattern = excludePatterns.some(pattern => pattern.test(message));
+    
+    // 최종 판단: Claude 키워드와 버전 키워드가 있고, 질문 패턴에 맞으며, 제외 패턴이 아닌 경우
+    return (hasClaudeKeyword || hasQuestionPattern) && hasVersionKeyword && !hasExcludePattern;
+}
+
 // YouTube API로 영상 정보 가져오기
 async function getYouTubeVideoInfo(videoId) {
     try {
@@ -1342,8 +1394,8 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         else if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
             responseText = `안녕하세요! 현재 시간은 ${koreanTime.formatted}입니다. 무엇을 도와드릴까요?`;
         }
-        // Claude AI 버전 문의
-        else if (/버전|version|model|소넷|하이쿠|claude/i.test(userMessage) && (/무슨|뭔|어떤|몇|어느/.test(userMessage) || userMessage.includes('?'))) {
+        // Claude AI 버전 문의 - 더 정확한 패턴 매칭
+        else if (isClaudeVersionQuery(userMessage)) {
             responseText = `🤖 현재 Claude AI 정보\n\n📱 모델: Claude 3.5 Sonnet (2024-10-22)\n⚡ 성능: 최신 고성능 모델\n🧠 특징: 향상된 추론 능력과 빠른 응답 속도\n\n🕐 현재 시간: ${koreanTime.formatted}\n📅 오늘 날짜: ${koreanTime.date}`;
         }
         // 즉시 응답 가능한 간단한 질문들
