@@ -3,6 +3,7 @@ const axios = require('axios');
 const PlaywrightCrawler = require('./playwright-crawler');
 const KobisAPI = require('./kobis-api');
 const SupabaseClient = require('./supabase-client');
+const MovieAgentCoordinator = require('../agents/movie-agent-coordinator');
 
 class DataExtractor {
     constructor(naverConfig) {
@@ -11,6 +12,7 @@ class DataExtractor {
         this.crawler = new PlaywrightCrawler();
         this.kobis = new KobisAPI();
         this.supabase = new SupabaseClient(); // Supabase 클라이언트 추가
+        this.movieCoordinator = new MovieAgentCoordinator(); // 영화 서브에이전트 코디네이터 추가
     }
 
     // 메인 데이터 추출 함수
@@ -76,44 +78,31 @@ class DataExtractor {
             return this.createErrorResponse('영화 제목을 찾을 수 없습니다.');
         }
 
-        console.log(`🎬 영화 검색: "${title}" (리뷰 타입: ${reviewType})`);
+        console.log(`🎬 영화 검색 서브에이전트 시스템 시작: "${title}" (리뷰 타입: ${reviewType})`);
 
-        // 🎯 사용자가 원하는 상세한 형식의 영화평을 최우선으로 제공
-        console.log('🚀 종합 영화평 시스템 전용 실행 (뉴스 검색 fallback 비활성화)');
         try {
-            const movieReviewResult = await this.getComprehensiveMovieReview(title);
+            // 🚀 새로운 영화 서브에이전트 코디네이터 사용
+            console.log('🤖 영화 서브에이전트 코디네이터로 위임');
+            const movieReviewResult = await this.movieCoordinator.getMovieReview(title, { reviewType });
             
             if (movieReviewResult && movieReviewResult.success) {
-                console.log('✅ 종합 영화평 시스템 성공 - 상세 포맷 제공');
+                console.log('✅ 서브에이전트 시스템 성공 - movies 테이블 기반 상세 포맷 제공');
                 return movieReviewResult;
             } else {
-                console.log('⚠️ 종합 영화평 시스템에서 영화를 찾지 못함');
-                // 영화를 찾지 못해도 종합 포맷으로 응답 (뉴스 검색으로 fallback 안 함)
-                return {
-                    success: true,
-                    type: 'comprehensive_movie_review',
-                    data: {
-                        message: `🎬 "${title}" 영화평 종합\n\n📽️ 기본 정보\n영화 제목: ${title}\n\n⭐ 검색 결과\n요청하신 영화의 상세 정보를 찾고 있습니다.\n\n👨‍💼 평론가 평가:\n현재 평론가 리뷰를 수집 중입니다.\n\n👥 관객 실제 평가:\n관객 평점과 리뷰를 수집 중입니다.\n\n💡 정확한 영화 제목으로 다시 검색해주세요.\n예) "탑건 매버릭 평점", "기생충 영화평"`
-                    }
-                };
+                console.log('⚠️ 서브에이전트 시스템에서 영화를 찾지 못함');
+                return movieReviewResult; // 이미 적절한 오류 메시지 포함
             }
         } catch (error) {
-            console.log(`❌ 종합 영화평 시스템 오류: ${error.message}`);
-            // 오류가 발생해도 종합 포맷으로 응답
+            console.log(`❌ 서브에이전트 시스템 오류: ${error.message}`);
+            // 오류가 발생한 경우 fallback 메시지
             return {
-                success: true,
-                type: 'comprehensive_movie_review',
+                success: false,
+                type: 'movie_system_error',
                 data: {
-                    message: `🎬 "${title}" 영화평 종합\n\n📽️ 기본 정보\n영화 제목: ${title}\n\n⚠️ 일시적인 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.\n\n💡 다른 영화 제목으로 검색해보세요.\n예) "탑건 매버릭 평점", "기생충 영화평"`
+                    message: `🎬 "${title}" 영화평 검색 시스템 오류\n\n❌ 오류: ${error.message}\n\n🔄 잠시 후 다시 시도해주시거나, 다른 영화 제목으로 검색해보세요.\n\n💡 검색 팁:\n• 정확한 영화 제목 사용\n• 한글 또는 영어 제목으로 시도\n• 예) "기생충 영화평", "어벤져스 평점"`
                 }
             };
         }
-
-        // ⚠️ 이전 fallback 로직들은 모두 제거됨
-        // 영화 평가 요청은 오직 종합 영화평 시스템만 사용
-        console.log('❌ 이곳에 도달하면 안 됩니다 - 종합 영화평 시스템에서 이미 처리됨');
-        
-        return this.createErrorResponse(`🎬 "${title}" 영화 정보 처리 중 예상치 못한 오류가 발생했습니다.`);
     }
 
     async searchMovieReviewsInNews(title, reviewType) {
