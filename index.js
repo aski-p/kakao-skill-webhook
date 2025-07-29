@@ -72,7 +72,7 @@ async function callClaudeAI(userMessage, userId) {
         }
 
         const response = await axios.post(CLAUDE_API_URL, {
-            model: "claude-3-haiku-20240307",
+            model: "claude-3-5-sonnet-20241022",
             max_tokens: 1000,
             messages: [{
                 role: "user",
@@ -441,7 +441,7 @@ async function getYouTubeSummary(youtubeData) {
         const claudeResponse = await axios.post(
             'https://api.anthropic.com/v1/messages',
             {
-                model: "claude-3-haiku-20240307",
+                model: "claude-3-5-sonnet-20241022",
                 system: systemPrompt,
                 messages: [{
                     role: "user", 
@@ -558,8 +558,16 @@ function getKoreanDateTime() {
         hour12: false
     });
     
+    const date = now.toLocaleDateString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+    
     return {
-        formatted: formatted
+        formatted: formatted,
+        date: date
     };
 }
 
@@ -1333,6 +1341,10 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         // 간단한 인사나 기본 질문 처리
         else if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
             responseText = `안녕하세요! 현재 시간은 ${koreanTime.formatted}입니다. 무엇을 도와드릴까요?`;
+        }
+        // Claude AI 버전 문의
+        else if (/버전|version|model|소넷|하이쿠|claude/i.test(userMessage) && (/무슨|뭔|어떤|몇|어느/.test(userMessage) || userMessage.includes('?'))) {
+            responseText = `🤖 현재 Claude AI 정보\n\n📱 모델: Claude 3.5 Sonnet (2024-10-22)\n⚡ 성능: 최신 고성능 모델\n🧠 특징: 향상된 추론 능력과 빠른 응답 속도\n\n🕐 현재 시간: ${koreanTime.formatted}\n📅 오늘 날짜: ${koreanTime.date}`;
         }
         // 즉시 응답 가능한 간단한 질문들
         else if (/시간|몇시|지금/.test(userMessage)) {
