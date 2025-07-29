@@ -1,0 +1,25 @@
+[Unit]
+Description=Movie Data Auto Update Scheduler
+After=network.target
+
+[Service]
+Type=simple
+User=aski
+WorkingDirectory=/home/aski/kakao-skill-webhook
+ExecStart=/usr/bin/node start-scheduler.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+Environment=TZ=Asia/Seoul
+
+# 로그 설정
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=movie-scheduler
+
+# 리소스 제한
+MemoryLimit=512M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

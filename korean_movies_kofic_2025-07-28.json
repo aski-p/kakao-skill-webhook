@@ -1,0 +1,602 @@
+{
+  "collection_date": "2025-07-28T12:10:53.242Z",
+  "total_movies": 21,
+  "movies": [
+    {
+      "title": "전지적 독자 시점",
+      "english_title": "Omniscient Reader",
+      "director": "김병우",
+      "cast_members": [
+        "안효섭",
+        "이민호",
+        "채수빈",
+        "신승호",
+        "나나",
+        "지수",
+        "권은성"
+      ],
+      "genre": "Fantasy",
+      "release_year": 2025,
+      "runtime_minutes": 116,
+      "country": "한국",
+      "description": "판타지, 액션 영화. 김병우 감독 작품. 안효섭, 이민호, 채수빈 주연.",
+      "keywords": [
+        "전지적 독자 시점",
+        "Omniscient Reader",
+        "김병우",
+        "안효섭",
+        "이민호",
+        "채수빈",
+        "신승호",
+        "나나",
+        "판타지",
+        "액션"
+      ],
+      "kofic_movie_code": "20233227",
+      "collected_at": "2025-07-28T12:10:03.055Z"
+    },
+    {
+      "title": "킹 오브 킹스",
+      "english_title": "The King of Kings",
+      "director": "장성호",
+      "cast_members": [
+        "이병헌",
+        "진선규",
+        "이하늬",
+        "양동근",
+        "차인표",
+        "권오중",
+        "장광",
+        "피어스 브로스넌",
+        "오스카 아이삭",
+        "케네스 브래너"
+      ],
+      "genre": "Animation",
+      "release_year": 2025,
+      "runtime_minutes": 100,
+      "country": "한국",
+      "description": "애니메이션 영화. 장성호 감독 작품. 이병헌, 진선규, 이하늬 주연.",
+      "keywords": [
+        "킹 오브 킹스",
+        "The King of Kings",
+        "장성호",
+        "이병헌",
+        "진선규",
+        "이하늬",
+        "양동근",
+        "차인표",
+        "애니메이션"
+      ],
+      "kofic_movie_code": "20254275",
+      "collected_at": "2025-07-28T12:10:03.876Z"
+    },
+    {
+      "title": "노이즈",
+      "english_title": "Noise",
+      "director": "김수진",
+      "cast_members": [
+        "이선빈",
+        "김민석",
+        "한수아",
+        "류경수",
+        "전익령",
+        "백주희",
+        "안석현",
+        "이은미"
+      ],
+      "genre": "Horror",
+      "release_year": 2025,
+      "runtime_minutes": 93,
+      "country": "한국",
+      "description": "공포(호러), 스릴러 영화. 김수진 감독 작품. 이선빈, 김민석, 한수아 주연.",
+      "keywords": [
+        "노이즈",
+        "Noise",
+        "김수진",
+        "이선빈",
+        "김민석",
+        "한수아",
+        "류경수",
+        "전익령",
+        "공포(호러)",
+        "스릴러"
+      ],
+      "kofic_movie_code": "20233220",
+      "collected_at": "2025-07-28T12:10:04.778Z"
+    },
+    {
+      "title": "베베핀 극장판: 사라진 베베핀과 핑크퐁 대모험",
+      "english_title": "Bebefinn Sing-Along Movie: Into the Pinkfong World",
+      "director": "변희선",
+      "cast_members": [
+        "조경이",
+        "엠머슨브룩김",
+        "이현경",
+        "김해나",
+        "강은애"
+      ],
+      "genre": "Animation",
+      "release_year": 2025,
+      "runtime_minutes": 64,
+      "country": "한국",
+      "description": "애니메이션 영화. 변희선 감독 작품. 조경이, 엠머슨브룩김, 이현경 주연.",
+      "keywords": [
+        "베베핀 극장판: 사라진 베베핀과 핑크퐁 대모험",
+        "Bebefinn Sing-Along Movie: Into the Pinkfong World",
+        "변희선",
+        "조경이",
+        "엠머슨브룩김",
+        "이현경",
+        "김해나",
+        "강은애",
+        "애니메이션"
+      ],
+      "kofic_movie_code": "20254603",
+      "collected_at": "2025-07-28T12:10:05.472Z"
+    },
+    {
+      "title": "좀비딸",
+      "english_title": "My Daughter is a Zombie",
+      "director": "필감성",
+      "cast_members": [
+        "조정석",
+        "이정은",
+        "조여정",
+        "윤경호",
+        "최유리"
+      ],
+      "genre": "Comedy",
+      "release_year": 2025,
+      "runtime_minutes": 113,
+      "country": "한국",
+      "description": "코미디, 드라마 영화. 필감성 감독 작품. 조정석, 이정은, 조여정 주연.",
+      "keywords": [
+        "좀비딸",
+        "My Daughter is a Zombie",
+        "필감성",
+        "조정석",
+        "이정은",
+        "조여정",
+        "윤경호",
+        "최유리",
+        "코미디",
+        "드라마"
+      ],
+      "kofic_movie_code": "20241941",
+      "collected_at": "2025-07-28T12:10:08.742Z"
+    },
+    {
+      "title": "대탈출 : 더 스토리 특별판",
+      "english_title": "The Great Escape : The Story",
+      "director": null,
+      "cast_members": [],
+      "genre": "Adventure",
+      "release_year": 2025,
+      "runtime_minutes": 121,
+      "country": "한국",
+      "description": "어드벤처, 미스터리, 스릴러 영화. ",
+      "keywords": [
+        "대탈출 : 더 스토리 특별판",
+        "The Great Escape : The Story",
+        "어드벤처",
+        "미스터리",
+        "스릴러"
+      ],
+      "kofic_movie_code": "20256032",
+      "collected_at": "2025-07-28T12:10:11.485Z"
+    },
+    {
+      "title": "괴기열차",
+      "english_title": "Ghost Train",
+      "director": "탁세웅",
+      "cast_members": [
+        "주현영",
+        "전배수",
+        "최보민",
+        "김상혁",
+        "김상혁",
+        "이아율"
+      ],
+      "genre": "Horror",
+      "release_year": 2025,
+      "runtime_minutes": 94,
+      "country": "한국",
+      "description": "공포(호러) 영화. 탁세웅 감독 작품. 주현영, 전배수, 최보민 주연.",
+      "keywords": [
+        "괴기열차",
+        "Ghost Train",
+        "탁세웅",
+        "주현영",
+        "전배수",
+        "최보민",
+        "김상혁",
+        "김상혁",
+        "공포(호러)"
+      ],
+      "kofic_movie_code": "20247638",
+      "collected_at": "2025-07-28T12:10:13.056Z"
+    },
+    {
+      "title": "커미션",
+      "english_title": "Commission",
+      "director": "신재민",
+      "cast_members": [
+        "김현수",
+        "김용지",
+        "김진우"
+      ],
+      "genre": "Mystery",
+      "release_year": 2025,
+      "runtime_minutes": 112,
+      "country": "한국",
+      "description": "미스터리, 스릴러 영화. 신재민 감독 작품. 김현수, 김용지, 김진우 주연.",
+      "keywords": [
+        "커미션",
+        "Commission",
+        "신재민",
+        "김현수",
+        "김용지",
+        "김진우",
+        "미스터리",
+        "스릴러"
+      ],
+      "kofic_movie_code": "20242717",
+      "collected_at": "2025-07-28T12:10:13.644Z"
+    },
+    {
+      "title": "신명",
+      "english_title": "The Pact",
+      "director": null,
+      "cast_members": [
+        "김규리",
+        "안내상",
+        "동방우",
+        "박지서",
+        "이주미"
+      ],
+      "genre": "Drama",
+      "release_year": 2025,
+      "runtime_minutes": 117,
+      "country": "한국",
+      "description": "드라마, 미스터리 영화. 김규리, 안내상, 동방우 주연.",
+      "keywords": [
+        "신명",
+        "The Pact",
+        "김규리",
+        "안내상",
+        "동방우",
+        "박지서",
+        "이주미",
+        "드라마",
+        "미스터리"
+      ],
+      "kofic_movie_code": "20254722",
+      "collected_at": "2025-07-28T12:10:22.495Z"
+    },
+    {
+      "title": "무명 無名",
+      "english_title": "Nameless",
+      "director": "유진주",
+      "cast_members": [
+        "하정우",
+        "김중희"
+      ],
+      "genre": "Documentary",
+      "release_year": 2025,
+      "runtime_minutes": 89,
+      "country": "한국",
+      "description": "다큐멘터리 영화. 유진주 감독 작품. 하정우, 김중희 주연.",
+      "keywords": [
+        "무명 無名",
+        "Nameless",
+        "유진주",
+        "하정우",
+        "김중희",
+        "다큐멘터리"
+      ],
+      "kofic_movie_code": "20254237",
+      "collected_at": "2025-07-28T12:10:22.950Z"
+    },
+    {
+      "title": "세븐틴 월드 투어 '비 더 선'",
+      "english_title": "SEVENTEEN WORLD TOUR [BE THE SUN]",
+      "director": null,
+      "cast_members": [],
+      "genre": "Drama",
+      "release_year": 2025,
+      "runtime_minutes": 80,
+      "country": "한국",
+      "description": "공연 영화. ",
+      "keywords": [
+        "세븐틴 월드 투어 '비 더 선'",
+        "SEVENTEEN WORLD TOUR [BE THE SUN]",
+        "공연"
+      ],
+      "kofic_movie_code": "20255645",
+      "collected_at": "2025-07-28T12:10:26.860Z"
+    },
+    {
+      "title": "하이파이브",
+      "english_title": "HI-FIVE",
+      "director": "강형철",
+      "cast_members": [
+        "이재인",
+        "안재홍",
+        "유아인",
+        "라미란",
+        "김희원",
+        "김수혁",
+        "오정세",
+        "신구",
+        "박진영",
+        "진희경"
+      ],
+      "genre": "Comedy",
+      "release_year": 2025,
+      "runtime_minutes": 119,
+      "country": "한국",
+      "description": "코미디, 액션 영화. 강형철 감독 작품. 이재인, 안재홍, 유아인 주연.",
+      "keywords": [
+        "하이파이브",
+        "HI-FIVE",
+        "강형철",
+        "이재인",
+        "안재홍",
+        "유아인",
+        "라미란",
+        "김희원",
+        "코미디",
+        "액션"
+      ],
+      "kofic_movie_code": "20211791",
+      "collected_at": "2025-07-28T12:10:31.852Z"
+    },
+    {
+      "title": "파묘지관",
+      "english_title": "Tomb Making Notes",
+      "director": null,
+      "cast_members": [],
+      "genre": "Action",
+      "release_year": null,
+      "runtime_minutes": 75,
+      "country": "한국",
+      "description": "액션, 판타지 영화. ",
+      "keywords": [
+        "파묘지관",
+        "Tomb Making Notes",
+        "액션",
+        "판타지"
+      ],
+      "kofic_movie_code": "2025A108",
+      "collected_at": "2025-07-28T12:10:43.372Z"
+    },
+    {
+      "title": "제 2회 서울문화고 문화영상제 1학년 작품",
+      "english_title": null,
+      "director": null,
+      "cast_members": [],
+      "genre": "Drama",
+      "release_year": null,
+      "runtime_minutes": null,
+      "country": "한국",
+      "description": "기타 영화. ",
+      "keywords": [
+        "제 2회 서울문화고 문화영상제 1학년 작품",
+        "기타"
+      ],
+      "kofic_movie_code": "2023C645",
+      "collected_at": "2025-07-28T12:10:44.170Z"
+    },
+    {
+      "title": "서울의 봄",
+      "english_title": "12.12: THE DAY",
+      "director": "김성수",
+      "cast_members": [
+        "황정민",
+        "정우성",
+        "이성민",
+        "박해준",
+        "김성균",
+        "김의성",
+        "정동환",
+        "안내상",
+        "유성주",
+        "최병모"
+      ],
+      "genre": "Drama",
+      "release_year": 2023,
+      "runtime_minutes": 141,
+      "country": "한국",
+      "description": "드라마 영화. 김성수 감독 작품. 황정민, 정우성, 이성민 주연.",
+      "keywords": [
+        "서울의 봄",
+        "12.12: THE DAY",
+        "김성수",
+        "황정민",
+        "정우성",
+        "이성민",
+        "박해준",
+        "김성균",
+        "드라마"
+      ],
+      "kofic_movie_code": "20212866",
+      "collected_at": "2025-07-28T12:10:45.483Z"
+    },
+    {
+      "title": "콘크리트 유토피아",
+      "english_title": "Concrete Utopia",
+      "director": "엄태화",
+      "cast_members": [
+        "이병헌",
+        "박서준",
+        "박보영",
+        "김선영",
+        "김도윤",
+        "박지후",
+        "김학선",
+        "공민정",
+        "엄태구",
+        "정영기"
+      ],
+      "genre": "Drama",
+      "release_year": 2023,
+      "runtime_minutes": 129,
+      "country": "한국",
+      "description": "드라마, 기타 영화. 엄태화 감독 작품. 이병헌, 박서준, 박보영 주연.",
+      "keywords": [
+        "콘크리트 유토피아",
+        "Concrete Utopia",
+        "엄태화",
+        "이병헌",
+        "박서준",
+        "박보영",
+        "김선영",
+        "김도윤",
+        "드라마",
+        "기타"
+      ],
+      "kofic_movie_code": "20204264",
+      "collected_at": "2025-07-28T12:10:47.000Z"
+    },
+    {
+      "title": "잠 든 누나는 내 휴지 도둑",
+      "english_title": "NANANIWO TUKARETE",
+      "director": null,
+      "cast_members": [],
+      "genre": "Drama",
+      "release_year": 2025,
+      "runtime_minutes": 61,
+      "country": "한국",
+      "description": "성인물(에로), 드라마, 멜로/로맨스 영화. ",
+      "keywords": [
+        "잠 든 누나는 내 휴지 도둑",
+        "NANANIWO TUKARETE",
+        "성인물(에로)",
+        "드라마",
+        "멜로/로맨스"
+      ],
+      "kofic_movie_code": "20256334",
+      "collected_at": "2025-07-28T12:10:47.851Z"
+    },
+    {
+      "title": "기생충",
+      "english_title": "PARASITE",
+      "director": "봉준호",
+      "cast_members": [
+        "송강호",
+        "이선균",
+        "조여정",
+        "최우식",
+        "박소담",
+        "이정은",
+        "장혜진",
+        "박명훈",
+        "정지소",
+        "정현준"
+      ],
+      "genre": "Drama",
+      "release_year": 2019,
+      "runtime_minutes": 131,
+      "country": "한국",
+      "description": "드라마 영화. 봉준호 감독 작품. 송강호, 이선균, 조여정 주연.",
+      "keywords": [
+        "기생충",
+        "PARASITE",
+        "봉준호",
+        "송강호",
+        "이선균",
+        "조여정",
+        "최우식",
+        "박소담",
+        "드라마"
+      ],
+      "kofic_movie_code": "20183782",
+      "collected_at": "2025-07-28T12:10:49.264Z"
+    },
+    {
+      "title": "미나리",
+      "english_title": "Minari",
+      "director": "정이삭",
+      "cast_members": [
+        "스티븐 연",
+        "한예리",
+        "윤여정",
+        "앨런 김",
+        "노엘 조",
+        "윌 패튼"
+      ],
+      "genre": "Drama",
+      "release_year": 2021,
+      "runtime_minutes": 115,
+      "country": "한국",
+      "description": "드라마 영화. 정이삭 감독 작품. 스티븐 연, 한예리, 윤여정 주연.",
+      "keywords": [
+        "미나리",
+        "Minari",
+        "정이삭",
+        "스티븐 연",
+        "한예리",
+        "윤여정",
+        "앨런 김",
+        "노엘 조",
+        "드라마"
+      ],
+      "kofic_movie_code": "20205144",
+      "collected_at": "2025-07-28T12:10:50.195Z"
+    },
+    {
+      "title": "여성감독네트워크 WDN x 인디스페이스 상반기 기획전: 비연대기적 여성의 움직임 단편 3",
+      "english_title": null,
+      "director": null,
+      "cast_members": [],
+      "genre": "Drama",
+      "release_year": null,
+      "runtime_minutes": null,
+      "country": "한국",
+      "description": "드라마 영화. ",
+      "keywords": [
+        "여성감독네트워크 WDN x 인디스페이스 상반기 기획전: 비연대기적 여성의 움직임 단편 3",
+        "드라마"
+      ],
+      "kofic_movie_code": "20254190",
+      "collected_at": "2025-07-28T12:10:51.700Z"
+    },
+    {
+      "title": "모가디슈",
+      "english_title": "Escape from Mogadishu",
+      "director": "류승완",
+      "cast_members": [
+        "김윤석",
+        "조인성",
+        "허준호",
+        "구교환",
+        "김소진",
+        "정만식",
+        "김재화",
+        "박경혜",
+        "박명신",
+        "한철우"
+      ],
+      "genre": "Action",
+      "release_year": 2021,
+      "runtime_minutes": 121,
+      "country": "한국",
+      "description": "액션, 드라마 영화. 류승완 감독 작품. 김윤석, 조인성, 허준호 주연.",
+      "keywords": [
+        "모가디슈",
+        "Escape from Mogadishu",
+        "류승완",
+        "김윤석",
+        "조인성",
+        "허준호",
+        "구교환",
+        "김소진",
+        "액션",
+        "드라마"
+      ],
+      "kofic_movie_code": "20204117",
+      "collected_at": "2025-07-28T12:10:53.042Z"
+    }
+  ],
+  "errors": []
+}

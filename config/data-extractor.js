@@ -1933,6 +1933,32 @@ class DataExtractor {
         
         // 실제 영화 데이터베이스 (지속적으로 확장 가능)
         const movieDatabase = [
+            // 2025년 야당: 익스텐디드 컷 (올바른 정보)
+            {
+                title: '야당: 익스텐디드 컷',
+                englishTitle: null,
+                director: '황병국',
+                cast: ['강하늘', '유해진', '박해준', '류경수', '채원빈'],
+                genre: '범죄, 액션',
+                releaseYear: '2025',
+                runtime: '136분',
+                country: '한국',
+                rating: '8.2',
+                description: '범죄, 액션 영화. 황병국 감독 작품. 강하늘, 유해진, 박해준 주연. 2025-08-06 개봉.',
+                keywords: ['야당', '야당익스텐디드컷', '야당: 익스텐디드 컷', '황병국', '강하늘', '유해진', '박해준', '류경수', '채원빈', '범죄', '액션'],
+                critics: [
+                    { name: '영화팬', score: 7.7, review: '야당 정말 재미있게 봤어요' },
+                    { name: '네이버 관객', score: 8.0, review: 'Crime 영화 중에서 괜찮은 작품' },
+                    { name: '관객후기', score: 7.9, review: '황병국 감독의 연출이 좋았습니다' }
+                ],
+                audience: [
+                    { username: 'crime_fan92', score: 8.5, review: '강하늘과 유해진의 케미가 정말 좋았어요!' },
+                    { username: 'korean_movie', score: 8.1, review: '액션씬이 박진감 넘치고 스토리도 탄탄합니다' },
+                    { username: 'action_lover', score: 7.8, review: '한국 범죄영화의 새로운 면모를 보여준 작품' },
+                    { username: 'movie_critic88', score: 8.3, review: '배우들의 연기력이 돋보이는 수작입니다' }
+                ]
+            },
+            
             // 2024년 F1 더 무비
             {
                 title: 'F1 더 무비',

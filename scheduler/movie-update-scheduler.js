@@ -1,12 +1,16 @@
-// 매일 오전 12시 영화 데이터 자동 업데이트 스케줄러
+// 매일 오전 12시 영화 데이터 자동 업데이트 스케줄러 (KOFIC 통합)
 const cron = require('node-cron');
 const NaverMovieCrawler = require('../crawlers/naver-movie-crawler');
 const KoficMovieCrawler = require('../crawlers/kofic-movie-crawler');
+const KoficDailyUpdater = require('../kofic-daily-updater');
+const FinalDatabaseMovieUpdater = require('../final-db-movie-updater');
 
 class MovieUpdateScheduler {
     constructor() {
         this.naverCrawler = new NaverMovieCrawler();
         this.koficCrawler = new KoficMovieCrawler();
+        this.koficDailyUpdater = new KoficDailyUpdater();
+        this.dbUpdater = new FinalDatabaseMovieUpdater();
         this.isRunning = false;
     }
 
@@ -19,44 +23,50 @@ class MovieUpdateScheduler {
         // '0 0 0 * * *' = 매일 자정 (0시 0분 0초)
         this.dailyJob = cron.schedule('0 0 0 * * *', async () => {
             if (this.isRunning) {
-                console.log('⚠️ 이미 크롤링이 실행 중입니다. 스킵합니다.');
+                console.log('⚠️ 이미 업데이트가 실행 중입니다. 스킵합니다.');
                 return;
             }
 
             try {
                 this.isRunning = true;
-                console.log('🚀 매일 자동 영화 데이터 업데이트 시작:', new Date().toISOString());
+                console.log('🚀 매일 자동 영화 데이터 업데이트 시작:', new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}));
                 
-                // 1. 영화진흥위원회 전체 영화 데이터 수집 (주간)
-                console.log('📊 영화진흥위원회 전체 영화 데이터 수집...');
-                const koficResult = await this.koficCrawler.crawlAllMovies();
+                // 1. KOFIC API로 최신 박스오피스 영화 수집
+                console.log('🎬 KOFIC API 일일 업데이트 시작...');
+                await this.koficDailyUpdater.updateMovies();
                 
-                // 2. 네이버 API로 최신 영화 보완
-                console.log('🔍 네이버 API로 최신 영화 정보 보완...');
-                const naverResult = await this.naverCrawler.crawlAndUpdateMovies();
+                // 2. 수집된 데이터가 있다면 데이터베이스 업데이트
+                const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                const dailyFile = `daily_update_${today}.json`;
                 
-                const result = {
-                    success: koficResult.success && naverResult.success,
-                    koficData: koficResult,
-                    naverData: naverResult,
-                    totalNewMovies: koficResult.newMoviesAdded + naverResult.newMoviesAdded,
-                    totalProcessed: koficResult.totalProcessed + naverResult.totalProcessed
-                };
-                
-                if (result.success) {
-                    console.log(`✅ 크롤링 완료 - 새 영화 ${result.totalNewMovies}개 추가`);
-                    console.log(`📊 처리된 영화: ${result.totalProcessed}개`);
-                    console.log(`🎬 영화진흥위원회: ${result.koficData.newMoviesAdded}개 추가`);
-                    console.log(`🔍 네이버 API: ${result.naverData.newMoviesAdded}개 추가`);
-                } else {
-                    console.error('❌ 크롤링 실패:', result.error);
+                try {
+                    const fs = require('fs');
+                    if (fs.existsSync(dailyFile)) {
+                        console.log('📊 수집된 데이터를 데이터베이스에 업데이트 중...');
+                        await this.dbUpdater.run(dailyFile);
+                    } else {
+                        console.log('💡 오늘 새로운 한국 영화가 없습니다.');
+                    }
+                } catch (dbError) {
+                    console.error('❌ 데이터베이스 업데이트 오류:', dbError.message);
                 }
+                
+                // 3. 네이버 API로 추가 영화 정보 보완 (기존 크롤러)
+                console.log('🔍 네이버 API로 최신 영화 정보 보완...');
+                try {
+                    const naverResult = await this.naverCrawler.crawlAndUpdateMovies();
+                    console.log('✅ 네이버 API 업데이트 완료:', naverResult.newMoviesAdded || 0, '개 추가');
+                } catch (naverError) {
+                    console.error('❌ 네이버 API 업데이트 오류:', naverError.message);
+                }
+                
+                console.log('🎉 매일 자동 업데이트 완료!');
 
             } catch (error) {
                 console.error('❌ 스케줄러 실행 중 오류:', error);
             } finally {
                 this.isRunning = false;
-                console.log('🏁 크롤링 작업 완료');
+                console.log('🏁 일일 업데이트 작업 완료:', new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}));
             }
         }, {
             scheduled: true,
@@ -102,34 +112,63 @@ class MovieUpdateScheduler {
     // 즉시 실행 (수동 트리거)
     async runNow() {
         if (this.isRunning) {
-            console.log('⚠️ 이미 크롤링이 실행 중입니다.');
+            console.log('⚠️ 이미 업데이트가 실행 중입니다.');
             return { success: false, message: 'Already running' };
         }
 
         try {
             this.isRunning = true;
-            console.log('🚀 수동 크롤링 시작:', new Date().toISOString());
+            console.log('🚀 수동 영화 데이터 업데이트 시작:', new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}));
             
-            // 영화진흥위원회 + 네이버 API 통합 크롤링
-            console.log('📊 영화진흥위원회 전체 영화 데이터 수집...');
-            const koficResult = await this.koficCrawler.crawlAllMovies();
+            let koficMoviesAdded = 0;
+            let naverMoviesAdded = 0;
             
+            // 1. KOFIC API로 최신 박스오피스 영화 수집
+            console.log('🎬 KOFIC API 수동 업데이트 시작...');
+            try {
+                await this.koficDailyUpdater.updateMovies();
+                console.log('✅ KOFIC API 데이터 수집 완료');
+                
+                // 수집된 데이터 처리
+                const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                const dailyFile = `daily_update_${today}.json`;
+                
+                const fs = require('fs');
+                if (fs.existsSync(dailyFile)) {
+                    console.log('📊 수집된 데이터를 데이터베이스에 업데이트 중...');
+                    await this.dbUpdater.run(dailyFile);
+                    
+                    // 파일에서 추가된 영화 수 확인
+                    const dailyData = JSON.parse(fs.readFileSync(dailyFile, 'utf8'));
+                    koficMoviesAdded = dailyData.total_new_movies || 0;
+                }
+            } catch (koficError) {
+                console.error('❌ KOFIC 업데이트 오류:', koficError.message);
+            }
+            
+            // 2. 네이버 API로 추가 영화 정보 보완
             console.log('🔍 네이버 API로 최신 영화 정보 보완...');
-            const naverResult = await this.naverCrawler.crawlAndUpdateMovies();
+            try {
+                const naverResult = await this.naverCrawler.crawlAndUpdateMovies();
+                naverMoviesAdded = naverResult.newMoviesAdded || 0;
+                console.log('✅ 네이버 API 업데이트 완료');
+            } catch (naverError) {
+                console.error('❌ 네이버 API 업데이트 오류:', naverError.message);
+            }
             
             const result = {
-                success: koficResult.success && naverResult.success,
-                koficData: koficResult,
-                naverData: naverResult,
-                totalNewMovies: koficResult.newMoviesAdded + naverResult.newMoviesAdded,
-                totalProcessed: koficResult.totalProcessed + naverResult.totalProcessed
+                success: true,
+                koficMoviesAdded: koficMoviesAdded,
+                naverMoviesAdded: naverMoviesAdded,
+                totalNewMovies: koficMoviesAdded + naverMoviesAdded,
+                executedAt: new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'})
             };
-            console.log('✅ 수동 크롤링 완료:', result);
             
+            console.log('✅ 수동 업데이트 완료:', result);
             return result;
 
         } catch (error) {
-            console.error('❌ 수동 크롤링 오류:', error);
+            console.error('❌ 수동 업데이트 오류:', error);
             return { success: false, error: error.message };
         } finally {
             this.isRunning = false;

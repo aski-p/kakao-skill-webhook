@@ -1,0 +1,135 @@
+{
+  "update_date": "2025-07-28T12:36:24.638Z",
+  "target_date": "20250727",
+  "total_new_movies": 4,
+  "movies": [
+    {
+      "title": "전지적 독자 시점",
+      "english_title": "Omniscient Reader",
+      "director": "김병우",
+      "cast_members": [
+        "안효섭",
+        "이민호",
+        "채수빈",
+        "신승호",
+        "나나",
+        "지수",
+        "권은성"
+      ],
+      "genre": "Fantasy",
+      "release_year": 2025,
+      "runtime_minutes": 116,
+      "country": "한국",
+      "description": "판타지, 액션 영화. 김병우 감독 작품. 안효섭, 이민호, 채수빈 주연.",
+      "keywords": [
+        "전지적 독자 시점",
+        "Omniscient Reader",
+        "김병우",
+        "안효섭",
+        "이민호",
+        "채수빈",
+        "신승호",
+        "나나",
+        "판타지",
+        "액션"
+      ],
+      "kofic_movie_code": "20233227"
+    },
+    {
+      "title": "킹 오브 킹스",
+      "english_title": "The King of Kings",
+      "director": "장성호",
+      "cast_members": [
+        "이병헌",
+        "진선규",
+        "이하늬",
+        "양동근",
+        "차인표",
+        "권오중",
+        "장광",
+        "피어스 브로스넌",
+        "오스카 아이삭",
+        "케네스 브래너"
+      ],
+      "genre": "Animation",
+      "release_year": 2025,
+      "runtime_minutes": 100,
+      "country": "한국",
+      "description": "애니메이션 영화. 장성호 감독 작품. 이병헌, 진선규, 이하늬 주연.",
+      "keywords": [
+        "킹 오브 킹스",
+        "The King of Kings",
+        "장성호",
+        "이병헌",
+        "진선규",
+        "이하늬",
+        "양동근",
+        "차인표",
+        "애니메이션"
+      ],
+      "kofic_movie_code": "20254275"
+    },
+    {
+      "title": "노이즈",
+      "english_title": "Noise",
+      "director": "김수진",
+      "cast_members": [
+        "이선빈",
+        "김민석",
+        "한수아",
+        "류경수",
+        "전익령",
+        "백주희",
+        "안석현",
+        "이은미"
+      ],
+      "genre": "Horror",
+      "release_year": 2025,
+      "runtime_minutes": 93,
+      "country": "한국",
+      "description": "공포(호러), 스릴러 영화. 김수진 감독 작품. 이선빈, 김민석, 한수아 주연.",
+      "keywords": [
+        "노이즈",
+        "Noise",
+        "김수진",
+        "이선빈",
+        "김민석",
+        "한수아",
+        "류경수",
+        "전익령",
+        "공포(호러)",
+        "스릴러"
+      ],
+      "kofic_movie_code": "20233220"
+    },
+    {
+      "title": "베베핀 극장판: 사라진 베베핀과 핑크퐁 대모험",
+      "english_title": "Bebefinn Sing-Along Movie: Into the Pinkfong World",
+      "director": "변희선",
+      "cast_members": [
+        "조경이",
+        "엠머슨브룩김",
+        "이현경",
+        "김해나",
+        "강은애"
+      ],
+      "genre": "Animation",
+      "release_year": 2025,
+      "runtime_minutes": 64,
+      "country": "한국",
+      "description": "애니메이션 영화. 변희선 감독 작품. 조경이, 엠머슨브룩김, 이현경 주연.",
+      "keywords": [
+        "베베핀 극장판: 사라진 베베핀과 핑크퐁 대모험",
+        "Bebefinn Sing-Along Movie: Into the Pinkfong World",
+        "변희선",
+        "조경이",
+        "엠머슨브룩김",
+        "이현경",
+        "김해나",
+        "강은애",
+        "애니메이션"
+      ],
+      "kofic_movie_code": "20254603"
+    }
+  ]
+}

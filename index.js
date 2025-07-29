@@ -5,6 +5,7 @@ const https = require('https');
 const config = require('./config/keywords');
 const MessageClassifier = require('./config/message-classifier');
 const DataExtractor = require('./config/data-extractor');
+const SubAgentManager = require('./agents/sub-agent-manager');
 const movieScheduler = require('./scheduler/movie-update-scheduler');
 
 // HTTP Keep-Alive 최적화 및 연결 안정성 향상
@@ -133,6 +134,9 @@ const dataExtractor = new DataExtractor({
     clientId: NAVER_CLIENT_ID,
     clientSecret: NAVER_CLIENT_SECRET
 });
+
+// 🤖 서브에이전트 관리 시스템 초기화
+const subAgentManager = new SubAgentManager();
 
 // 사실 확인 요청 감지 함수
 function isFactCheckRequest(message) {
@@ -1383,38 +1387,34 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 responseText = '영화 정보 처리 중 오류가 발생했습니다.';
             }
         }
-        // 🧠 새로운 지능형 메시지 분류 시스템 적용
+        // 🤖 서브에이전트 시스템을 통한 지능형 메시지 처리
         else {
-            console.log('🧠 지능형 메시지 분류 시스템 시작');
+            console.log('🤖 서브에이전트 시스템 시작');
             
             try {
-                // 1단계: 메시지 분류
-                const classification = messageClassifier.classifyMessage(userMessage);
-                console.log('📊 분류 결과:', classification);
+                // 서브에이전트 매니저로 메시지 라우팅
+                const agentResult = await subAgentManager.routeToAgent(userMessage, userId, {
+                    previousCategory: conversationHistory.get(userId)?.slice(-1)[0]?.category || null
+                });
                 
-                // 2단계: 분류된 카테고리에 따른 데이터 추출
-                const extractionResult = await dataExtractor.extractData(classification);
-                console.log('📋 추출 결과:', extractionResult);
-                
-                // 3단계: 결과에 따른 응답 생성
-                if (extractionResult.needsAI || classification.category === 'UNKNOWN') {
-                    // Claude AI가 필요한 경우 (일상 대화, 일반 질문, 알 수 없는 카테고리)
-                    console.log('🤖 Claude AI 처리 필요:', extractionResult.needsAI ? '일반 질문/일상 대화' : '알 수 없는 카테고리');
-                    responseText = await callClaudeAI(userMessage, userId);
-                } else if (extractionResult.success) {
-                    responseText = extractionResult.data.message || '정보를 성공적으로 가져왔습니다.';
+                if (agentResult.success) {
+                    responseText = agentResult.data.message;
                     
-                    // 대화 히스토리에 분류 정보와 함께 저장
-                    addToConversationHistory(userId, userMessage, responseText, classification.category.toLowerCase());
+                    // 대화 히스토리에 에이전트 정보와 함께 저장
+                    addToConversationHistory(userId, userMessage, responseText, agentResult.data.category || 'agent_processed');
+                    
+                    console.log(`✅ ${agentResult.agent} 처리 완료`);
                 } else {
-                    // 데이터 추출 실패 시 폴백
-                    responseText = extractionResult.data?.message || '죄송합니다. 정보를 찾는 중 문제가 발생했습니다.';
+                    // 서브에이전트 처리 실패 시 기존 Claude AI로 폴백
+                    console.log('🔄 서브에이전트 실패, Claude AI 폴백');
+                    responseText = await callClaudeAI(userMessage, userId);
                 }
                 
             } catch (error) {
-                console.error('❌ 메시지 분류/추출 시스템 오류:', error);
+                console.error('❌ 서브에이전트 시스템 오류:', error);
                 
                 // 시스템 오류 시 기존 Claude AI로 폴백
+                console.log('🔄 시스템 오류, Claude AI 폴백');
                 responseText = await callClaudeAI(userMessage, userId);
             }
         }
