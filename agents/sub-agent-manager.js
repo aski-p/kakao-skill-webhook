@@ -106,8 +106,6 @@ class SubAgentManager {
     // 적절한 에이전트 선택
     selectTargetAgent(classification) {
         const agentMapping = {
-            'CONVERSATIONAL': 'information-agent',  // 자연스러운 대화는 정보 에이전트가 처리
-            'INFORMATION_QUERY': 'information-agent',
             'SHOPPING': 'shopping-agent',
             'RESTAURANT': 'restaurant-agent', 
             'NEWS': 'news-agent',
@@ -121,7 +119,7 @@ class SubAgentManager {
             'LOCATION_SEARCH': 'restaurant-agent'
         };
         
-        return agentMapping[classification.category] || 'information-agent';  // 기본값을 information-agent로
+        return agentMapping[classification.category] || null;
     }
     
     // 에이전트에게 작업 위임
@@ -146,7 +144,7 @@ class SubAgentManager {
     
     // === 에이전트 처리 함수들 ===
     
-    // 의도 분류 에이전트 (개선된 자연스러운 대화 분석)
+    // 의도 분류 에이전트
     async processIntentClassification(taskData) {
         const { message, userId, context } = taskData;
         
@@ -166,46 +164,19 @@ class SubAgentManager {
     async enhancedIntentClassification(message, context = {}) {
         console.log('🔍 향상된 의도 분류 시작');
         
-        // 1단계: 자연스러운 대화 분석 (안전한 처리)
-        let conversationalAnalysis;
-        try {
-            conversationalAnalysis = this.analyzeConversationalContext(message, context || {});
-        } catch (error) {
-            console.error('❌ 대화 분석 오류:', error);
-            conversationalAnalysis = {
-                isEmotionalExpression: false,
-                emotionType: null,
-                isContextualStatement: false,
-                needsEmpathyResponse: false,
-                topicShift: false
-            };
-        }
-        
-        // 2단계: 명확한 패턴 매칭
+        // 1단계: 명확한 패턴 매칭
         const explicitPatterns = {
-            // 일반 대화/상담 (문맥적 표현)
-            'CONVERSATIONAL': {
-                patterns: [
-                    /.*더위에.*어떻게.*해/, /.*추위에.*어떻게.*해/,
-                    /.*힘들어/, /.*괴로워/, /.*답답해/, /.*어려워/,
-                    /.*고민이야/, /.*걱정이야/, /.*스트레스/,
-                    /.*어떡하지/, /.*어쩌지/, /.*고민인데/,
-                    /.*힘든데/, /.*어려운데/, /.*모르겠어/
-                ],
-                weight: 0.9,
-                conversational: true
-            },
-            
-            // 정보성 질문 (명확한 질문)
+            // 정보성 질문 (쇼핑이 아닌)
             'INFORMATION_QUERY': {
                 patterns: [
-                    /.*운동.*방법.*알려/, /.*운동.*어떻게.*해/,
-                    /.*다이어트.*방법/, /.*헬스.*루틴/,
-                    /.*효과적인.*운동/, /.*좋은.*운동.*추천/,
-                    /.*운동.*종류/, /.*운동.*시간/,
-                    /.*방법.*알려.*줘/, /.*어떻게.*하는.*거/
+                    /^.*(어떻게|왜|무엇|뭐|방법|이유|원리|차이점|특징).*[가-힣]{2,}.*$/,
+                    /^(운동|헬스|건강|다이어트|음식|요리|학습|공부|기술|과학).*방법/,
+                    /^.*(효과|장점|단점|차이|비교|설명|정보).*알려.*$/,
+                    /^.*(가벼운|쉬운|간단한|좋은|효과적인).*운동.*뭐.*있.*$/,
+                    /^.*(운동|헬스|다이어트|건강).*추천.*해.*$/,
+                    /^.*(어떤|뭔|무슨).*운동.*좋.*$/
                 ],
-                weight: 0.8,
+                weight: 0.9,
                 exclusions: [
                     /구매|쇼핑|가격|할인|어디서.*사|주문|배송/,
                     /맛집|식당|카페|음식점/
@@ -237,61 +208,46 @@ class SubAgentManager {
             }
         };
         
-        // 2단계: 패턴 매칭 및 점수 계산 (안전한 처리)
+        // 2단계: 패턴 매칭 및 점수 계산
         let bestMatch = { category: 'GENERAL_QUESTION', confidence: 0.3 };
         
-        try {
-            for (const [category, config] of Object.entries(explicitPatterns)) {
-                let score = 0;
-                let matchCount = 0;
-                
-                // 긍정 패턴 체크 (안전한 처리)
-                if (config.patterns && Array.isArray(config.patterns)) {
-                    for (const pattern of config.patterns) {
-                        try {
-                            if (pattern && pattern.test && pattern.test(message)) {
-                                score += (config.weight || 0.5);
-                                matchCount++;
-                            }
-                        } catch (patternError) {
-                            console.log(`⚠️ 패턴 매칭 오류: ${patternError.message}`);
-                        }
-                    }
+        for (const [category, config] of Object.entries(explicitPatterns)) {
+            let score = 0;
+            let matchCount = 0;
+            
+            // 긍정 패턴 체크
+            for (const pattern of config.patterns) {
+                if (pattern.test(message)) {
+                    score += config.weight;
+                    matchCount++;
                 }
-                
-                // 제외 패턴 체크 (안전한 처리)
-                if (config.exclusions && Array.isArray(config.exclusions)) {
-                    for (const exclusion of config.exclusions) {
-                        try {
-                            if (exclusion && exclusion.test && exclusion.test(message)) {
-                                score -= 0.5; // 제외 패턴에 매칭되면 점수 감소
-                            }
-                        } catch (exclusionError) {
-                            console.log(`⚠️ 제외 패턴 매칭 오류: ${exclusionError.message}`);
-                        }
-                    }
-                }
-                
-                // 가중평균 계산
-                if (matchCount > 0 && config.patterns && config.patterns.length > 0) {
-                    const finalScore = (score / matchCount) * Math.min(matchCount / config.patterns.length + 0.5, 1.0);
-                    
-                    if (finalScore > bestMatch.confidence) {
-                        bestMatch = {
-                            category: category,
-                            confidence: finalScore,
-                            matchDetails: {
-                                patterns: matchCount,
-                                score: score,
-                                finalScore: finalScore
-                            }
-                        };
+            }
+            
+            // 제외 패턴 체크
+            if (config.exclusions) {
+                for (const exclusion of config.exclusions) {
+                    if (exclusion.test(message)) {
+                        score -= 0.5; // 제외 패턴에 매칭되면 점수 감소
                     }
                 }
             }
-        } catch (error) {
-            console.error('❌ 패턴 매칭 전체 오류:', error);
-            // 에러 발생 시 기본값 유지
+            
+            // 가중평균 계산
+            if (matchCount > 0) {
+                const finalScore = (score / matchCount) * Math.min(matchCount / config.patterns.length + 0.5, 1.0);
+                
+                if (finalScore > bestMatch.confidence) {
+                    bestMatch = {
+                        category: category,
+                        confidence: finalScore,
+                        matchDetails: {
+                            patterns: matchCount,
+                            score: score,
+                            finalScore: finalScore
+                        }
+                    };
+                }
+            }
         }
         
         // 3단계: 컨텍스트 기반 조정
@@ -307,74 +263,17 @@ class SubAgentManager {
             confidence: bestMatch.confidence,
             originalMessage: message,
             matchDetails: bestMatch.matchDetails || null,
-            conversationalContext: conversationalAnalysis,
             timestamp: new Date().toISOString()
         };
     }
     
-    // 자연스러운 대화 컨텍스트 분석
-    analyzeConversationalContext(message, context) {
-        const analysis = {
-            isEmotionalExpression: false,
-            emotionType: null,
-            isContextualStatement: false,
-            needsEmpathyResponse: false,
-            topicShift: false
-        };
-        
-        // 감정 표현 분석
-        const emotionPatterns = {
-            frustration: /힘들어|어려워|답답해|괴로워|스트레스|짜증/,
-            concern: /걱정|고민|불안|어떡하지|어쩌지/,
-            confusion: /모르겠어|헷갈려|애매해|확실하지/,
-            tiredness: /피곤해|지쳐|힘들어|못하겠어/
-        };
-        
-        for (const [emotion, pattern] of Object.entries(emotionPatterns)) {
-            if (pattern.test(message)) {
-                analysis.isEmotionalExpression = true;
-                analysis.emotionType = emotion;
-                analysis.needsEmpathyResponse = true;
-                break;
-            }
-        }
-        
-        // 문맥적 표현 분석 (단순 정보 요청이 아닌)
-        const contextualPatterns = [
-            /.*더위에.*어떻게.*해/, /.*추위에.*어떻게.*해/,
-            /.*이.*상황에서/, /.*이런.*때는/,
-            /.*어떻게.*하면.*좋을까/, /.*뭘.*해야.*할까/
-        ];
-        
-        analysis.isContextualStatement = contextualPatterns.some(pattern => pattern.test(message));
-        
-        // 주제 전환 감지
-        if (context.previousCategory && !message.includes('계속') && !message.includes('더')) {
-            analysis.topicShift = true;
-        }
-        
-        return analysis;
-    }
-    
-    // 정보성 질문 처리 에이전트 (자연스러운 대화 지원)
+    // 정보성 질문 처리 에이전트
     async processInformationQuery(taskData) {
         const { message, userId, classification } = taskData;
         
         console.log('📚 정보 에이전트 처리 시작');
         
-        // 대화형 분석이 있으면 감정적 응답 우선
-        if (classification.conversationalContext?.needsEmpathyResponse) {
-            console.log('💭 감정적 응답 모드 활성화');
-            return await this.generateEmpathyResponse(message, classification);
-        }
-        
-        // 문맥적 표현이면 대화식 조언 제공
-        if (classification.conversationalContext?.isContextualStatement) {
-            console.log('🗣️ 대화식 조언 모드 활성화');
-            return await this.generateConversationalAdvice(message, classification);
-        }
-        
-        // 일반적인 정보 질문 처리
+        // Claude AI 호출을 위한 향상된 프롬프트
         const enhancedPrompt = this.buildInformationPrompt(message, classification);
         
         try {
@@ -395,103 +294,31 @@ class SubAgentManager {
         }
     }
     
-    // 감정적 응답 생성
-    async generateEmpathyResponse(message, classification) {
-        const emotionType = classification.conversationalContext.emotionType;
-        
-        let response = '';
-        
-        switch (emotionType) {
-            case 'frustration':
-                if (message.includes('더위')) {
-                    response = `😓 정말 이 더위에 운동하기 힘들죠!\n\n🏠 **실내 운동 추천:**\n• 에어컨 있는 헬스장 이용\n• 집에서 요가나 스트레칭\n• 쇼핑몰 걷기 (시원하고 평평함)\n• 수영장 운동 (가장 시원!)\n\n⏰ **시간 조절:**\n• 새벽 6-7시 (해뜨기 전)\n• 저녁 8시 이후 (해진 후)\n\n💡 더위 때문에 포기하지 마세요! 방법은 있어요 😊`;
-                } else {
-                    response = `😊 힘든 상황이군요. 충분히 이해해요!\n\n💪 **작은 것부터 시작해보세요:**\n• 완벽하지 않아도 괜찮아요\n• 본인 페이스에 맞춰서\n• 조금씩이라도 꾸준히\n\n🤗 너무 스트레스 받지 마시고, 천천히 해보세요!`;
-                }
-                break;
-                
-            case 'concern':
-                response = `🤔 고민이 많으시군요. 함께 생각해봐요!\n\n💭 **걱정 해결 방법:**\n• 문제를 작게 나누어 보기\n• 할 수 있는 것부터 차근차근\n• 전문가나 주변에 조언 구하기\n\n😌 혼자 고민하지 마시고, 언제든 물어보세요!`;
-                break;
-                
-            case 'confusion':
-                response = `🤷‍♀️ 헷갈리는 게 당연해요!\n\n✨ **차근차근 정리해보세요:**\n• 모르는 게 있으면 구체적으로 질문\n• 한 번에 하나씩 해결\n• 급하게 결정하지 말고 천천히\n\n💡 더 구체적으로 어떤 부분이 궁금한지 말씀해주세요!`;
-                break;
-                
-            default:
-                response = `😊 이해해요! 때로는 이런 고민들이 생기죠.\n\n🤝 **함께 해결해봐요:**\n• 구체적으로 어떤 도움이 필요한지 말씀해주세요\n• 작은 것부터 차근차근 시작\n• 완벽하지 않아도 괜찮아요\n\n💪 포기하지 마시고 한 걸음씩 나아가요!`;
-        }
-        
-        return {
-            success: true,
-            data: {
-                message: response,
-                category: 'CONVERSATIONAL',
-                processedBy: 'information-agent',
-                responseType: 'empathy'
-            },
-            agent: 'information-agent'
-        };
-    }
-    
-    // 대화식 조언 생성
-    async generateConversationalAdvice(message, classification) {
-        let advice = '';
-        
-        if (message.includes('더위에') && message.includes('운동')) {
-            advice = `🌡️ 이 더위에 운동은 정말 고민이죠!\n\n❄️ **시원한 운동법:**\n• **수영** - 최고의 선택! 전신운동+시원함\n• **아침 6-7시 걷기** - 해뜨기 전이 가장 시원\n• **에어컨 헬스장** - 쾌적한 환경에서\n• **지하상가 걷기** - 시원하고 평지라 편함\n• **집에서 요가** - 에어컨 틀고 실내에서\n\n⚠️ **주의사항:**\n• 충분한 수분 섭취 필수\n• 어지럽거나 메스꺼우면 즉시 중단\n• 무리하지 말고 강도 낮춰서\n\n😎 더위를 피해서 운동하는 게 답이에요!`;
-        } else if (message.includes('어떻게') && message.includes('해')) {
-            advice = `🤔 상황에 따라 다르겠지만, 이런 방법들은 어떨까요?\n\n💡 **실용적인 해결책:**\n• 문제를 작게 나누어서 접근\n• 우선순위를 정해서 하나씩\n• 전문가나 경험자에게 조언 구하기\n• 온라인에서 비슷한 사례 찾아보기\n\n🎯 더 구체적으로 어떤 상황인지 말씀해주시면, 더 정확한 조언을 드릴 수 있어요!`;
-        } else {
-            advice = `😊 상황을 이해했어요!\n\n🛠️ **단계별 접근법:**\n1. 현재 상황 정확히 파악\n2. 가능한 옵션들 나열\n3. 각각의 장단점 비교\n4. 실행 가능한 것부터 시작\n\n💪 작은 변화부터 시작하면 분명 좋은 결과가 있을 거예요!`;
-        }
-        
-        return {
-            success: true,
-            data: {
-                message: advice,
-                category: 'CONVERSATIONAL',
-                processedBy: 'information-agent',
-                responseType: 'conversational_advice'
-            },
-            agent: 'information-agent'
-        };
-    }
-    
     // 정보성 질문을 위한 향상된 프롬프트 생성
     buildInformationPrompt(message, classification) {
-        const basePrompt = `당신은 친근하고 전문적인 정보 제공 전문가입니다. 사용자의 질문에 구체적이고 실용적인 정보를 즉시 제공하세요.
+        const basePrompt = `당신은 친근하고 전문적인 정보 제공 전문가입니다. 사용자의 질문에 정확하고 유용한 정보를 제공하세요.
 
 사용자 질문: "${message}"
 
 답변 가이드라인:
-- 절대 "흥미로운 질문이네요" 같은 대화형 표현 사용 금지
-- 질문에 대한 구체적이고 정확한 정보를 바로 제공하세요
-- 행정 절차, 법률 정보, 생활 정보, 건강, 취업, 교육 등 모든 분야 대응
-- 단계별로 명확하게 나열하여 실행 가능한 정보 제공
-- 필요한 서류, 비용, 기간, 장소 등 구체적 세부사항 포함
-- 주의사항이나 팁을 실용적으로 제시
-- 답변은 400자 이내로 간결하되 완전한 정보 제공
+- 질문이 운동, 건강, 다이어트 관련이면 안전하고 효과적인 방법을 제시하세요
+- 구체적이고 실용적인 정보를 제공하세요
+- 3-5개의 명확한 옵션이나 방법을 제시하세요
+- 초보자도 이해할 수 있도록 쉽게 설명하세요
+- 필요시 주의사항이나 팁을 포함하세요
+- 상품 구매나 쇼핑 정보는 제공하지 마세요
+- 답변은 300자 이내로 간결하게 작성하세요
 
-출산신고 질문 예시:
-"👶 출산신고 필수 절차
+예시 답변 형식:
+"🏃‍♀️ 가벼운 유산소 운동 추천
 
-📋 **신고 기한**: 출생일로부터 1개월 이내
-📍 **신고 장소**: 
-- 부모 주소지 관할 구청/시청/군청 민원실
-- 출생지 관할 관공서
+1. **걷기** - 하루 30분, 빠른 걸음으로
+2. **계단 오르기** - 일상에서 쉽게 실천 가능  
+3. **제자리 걷기** - 실내에서도 가능
+4. **스트레칭** - 관절 운동과 함께
+5. **자전거 타기** - 무릎에 부담 적음
 
-📄 **필요 서류**:
-1. 출생신고서 (의료기관에서 발급)
-2. 의사 출생증명서
-3. 부모 신분증
-4. 가족관계증명서
-5. 주민등록등본
-
-💰 **비용**: 무료
-⚠️ **주의**: 기한 초과 시 과태료 부과 가능
-
-💡 **팁**: 온라인 신고 시스템도 이용 가능"`;`
+💡 **팁**: 본인 체력에 맞춰 강도 조절하고, 꾸준히 하는 것이 가장 중요해요!"`;
 
         return basePrompt;
     }
@@ -502,7 +329,7 @@ class SubAgentManager {
         
         if (!process.env.CLAUDE_API_KEY) {
             console.log('⚠️ Claude API 키가 설정되지 않음 - 기본 응답 반환');
-            return "죄송합니다. 현재 AI 서비스가 일시적으로 사용할 수 없습니다.\n\n잠시 후 다시 시도해주세요.";
+            return `💬 죄송합니다. 현재 AI 서비스가 일시적으로 사용할 수 없습니다.\n\n🔧 잠시 후 다시 시도해주세요.`;
         }
         
         try {
@@ -530,10 +357,10 @@ class SubAgentManager {
             
             // 간단한 폴백 응답
             if (prompt.includes('운동') || prompt.includes('헬스')) {
-                return "가벼운 유산소 운동 추천\n\n1. **걷기** - 하루 30분, 빠른 걸음으로\n2. **계단 오르기** - 일상에서 쉽게 실천 가능\n3. **제자리 걷기** - 실내에서도 가능\n4. **스트레칭** - 관절 운동과 함께\n5. **자전거 타기** - 무릎에 부담 적음\n\n**팁**: 본인 체력에 맞춰 강도 조절하고, 꾸준히 하는 것이 가장 중요해요!";
+                return `🏃‍♀️ 가벼운 유산소 운동 추천\n\n1. **걷기** - 하루 30분, 빠른 걸음으로\n2. **계단 오르기** - 일상에서 쉽게 실천 가능\n3. **제자리 걷기** - 실내에서도 가능\n4. **스트레칭** - 관절 운동과 함께\n5. **자전거 타기** - 무릎에 부담 적음\n\n💡 **팁**: 본인 체력에 맞춰 강도 조절하고, 꾸준히 하는 것이 가장 중요해요!`;
             }
             
-            return "죄송합니다. 현재 일시적인 서비스 문제로 정확한 정보를 제공하기 어렵습니다.\n\n잠시 후 다시 질문해주시거나, 더 구체적인 키워드로 검색해보세요.";
+            return `💬 죄송합니다. 현재 일시적인 서비스 문제로 정확한 정보를 제공하기 어렵습니다.\n\n🔄 잠시 후 다시 질문해주시거나, 더 구체적인 키워드로 검색해보세요.`;
         }
     }
     
@@ -788,10 +615,10 @@ class SubAgentManager {
         // 기존 영화 평점 시스템 활용
         try {
             // 간단한 영화 검색 결과 반환 (실제로는 기존 시스템 호출)
-            return "🎬 \"" + movieTitle + "\" 영화 정보를 검색 중입니다...\n\n💡 더 정확한 정보를 위해 정확한 영화 제목으로 다시 검색해주세요.";
+            return `🎬 "${movieTitle}" 영화 정보를 검색 중입니다...\n\n💡 더 정확한 정보를 위해 정확한 영화 제목으로 다시 검색해주세요.`;
         } catch (error) {
             console.error('영화 API 오류:', error);
-            return "🎬 \"" + movieTitle + "\" 영화 정보를 찾을 수 없습니다.";
+            return `🎬 "${movieTitle}" 영화 정보를 찾을 수 없습니다.`;
         }
     }
 }
