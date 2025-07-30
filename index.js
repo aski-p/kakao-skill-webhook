@@ -54,6 +54,10 @@ const NAVER_NEWS_API_URL = 'https://openapi.naver.com/v1/search/news.json';
 const NAVER_SHOPPING_API_URL = 'https://openapi.naver.com/v1/search/shop.json';
 const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
 
+// 날씨 API 설정 (Open Weather Map)
+const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
+const WEATHER_API_URL = 'https://api.openweathermap.org/data/2.5/weather';
+
 // 설정 파일에서 타임아웃 설정 가져오기
 const TIMEOUT_CONFIG = config.timeouts;
 
@@ -61,14 +65,42 @@ const TIMEOUT_CONFIG = config.timeouts;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 
-// 🤖 Claude AI 호출 함수
+// 🤖 Claude AI 호출 함수 (네이버 검색 우선)
 async function callClaudeAI(userMessage, userId) {
     try {
         console.log(`🤖 Claude AI 호출 시작: "${userMessage}" (사용자: ${userId})`);
         
+        // 정보성 질문인지 확인
+        const isInformationQuery = /어떻게|뭐|무엇|언제|어디|왜|누구|얼마|몇|어느|설명|알려|정보|방법/.test(userMessage);
+        
+        if (isInformationQuery) {
+            console.log('📊 정보성 질문 감지 - 네이버 검색 우선 시도');
+            
+            // 네이버 뉴스 검색으로 최신 정보 확인
+            const searchResults = await getLatestNews(userMessage);
+            
+            if (searchResults && searchResults.length > 0) {
+                console.log('✅ 네이버 검색 결과 발견 - 확실한 정보 제공');
+                
+                let searchInfo = `🔍 "${userMessage}" 검색 결과\n\n📰 최신 정보:\n`;
+                searchResults.slice(0, 3).forEach((news, index) => {
+                    searchInfo += `${index + 1}. ${news.title}\n`;
+                    if (news.description) {
+                        searchInfo += `   ${news.description.substring(0, 100)}...\n`;
+                    }
+                    searchInfo += `\n`;
+                });
+                
+                const koreanTime = getKoreanDateTime();
+                searchInfo += `💡 더 자세한 정보는 네이버에서 "${userMessage}"를 검색해보세요.\n\n🕐 검색 시간: ${koreanTime.formatted}`;
+                
+                return searchInfo;
+            }
+        }
+        
         if (!CLAUDE_API_KEY) {
-            console.log('⚠️ Claude API 키가 설정되지 않음 - 기본 응답 반환');
-            return `💬 안녕하세요! 자연스러운 대화를 나누고 싶지만, 아직 Claude AI가 설정되지 않아서 간단한 응답만 드릴 수 있어요.\n\n🔧 관리자에게 Claude API 키 설정을 요청해주세요.\n\n임시로 이렇게 답변드려요: "${userMessage}"에 대해서는 더 자세히 알아봐야겠네요!`;
+            console.log('⚠️ Claude API 키가 설정되지 않음 - 네이버 검색 제안');
+            return `💬 안녕하세요! 정확한 정보를 위해 네이버 검색을 추천드려요.\n\n🔍 "${userMessage}"를 네이버에서 검색해보시면 최신 정보를 확인할 수 있습니다.\n\n💡 구체적인 질문이나 검색어로 다시 시도해주세요!`;
         }
 
         const response = await axios.post(CLAUDE_API_URL, {
@@ -76,18 +108,18 @@ async function callClaudeAI(userMessage, userId) {
             max_tokens: 1000,
             messages: [{
                 role: "user",
-                content: `당신은 친근하고 도움이 되는 한국어 AI 어시스턴트입니다. 사용자의 메시지에 자연스럽고 유용한 답변을 해주세요.
+                content: `당신은 신중하고 정확한 한국어 AI 어시스턴트입니다. 
 
 사용자 메시지: "${userMessage}"
 
 답변 가이드라인:
-- 한국어로 자연스럽게 대화하세요
-- 친근한 톤을 유지하세요  
-- 구체적이고 도움이 되는 정보를 제공하세요
-- 필요하면 이모지를 적절히 사용하세요
-- 답변은 200자 이내로 간결하게 해주세요`
+- 확실하지 않은 정보는 "정확하지 않을 수 있습니다"라고 명시
+- 최신 정보가 필요한 경우 네이버 검색을 추천
+- 간결하고 명확하게 답변 (200자 이내)
+- 추측이나 불확실한 정보는 제공하지 말 것
+- 필요시 "네이버에서 '키워드'를 검색해보세요" 권장`
             }],
-            temperature: 0.7
+            temperature: 0.3
         }, {
             headers: {
                 'Content-Type': 'application/json',
@@ -100,31 +132,19 @@ async function callClaudeAI(userMessage, userId) {
         const aiResponse = response.data.content[0].text;
         console.log(`✅ Claude AI 응답 성공: "${aiResponse.substring(0, 100)}..."`);
         
+        // AI 응답이 불확실해 보이면 네이버 검색 제안 추가
+        if (/모르겠|확실하지|정확하지|아마|~것 같|추측|불분명/.test(aiResponse)) {
+            console.log('🔍 불확실한 AI 응답 감지 - 네이버 검색 제안 추가');
+            return `${aiResponse}\n\n🔍 더 정확한 정보는 네이버에서 "${userMessage}"를 검색해보세요!`;
+        }
+        
         return aiResponse;
         
     } catch (error) {
         console.error('❌ Claude AI 호출 오류:', error.message);
         
-        // 폴백 응답 - 자연스러운 대화 시뮬레이션
-        const fallbackResponses = {
-            greeting: ['안녕하세요! 😊 좋은 하루 보내고 계신가요?', '안녕하세요! 반가워요! 🤗', '안녕하세요! 오늘은 어떤 하루인가요?'],
-            daily: ['오늘은 뭔가 특별한 걸 해보시면 어떨까요? 😄', '하루하루가 소중하니까, 뭔가 의미 있는 일을 찾아보세요! ✨', '오늘 하루도 화이팅이에요! 💪'],
-            emotion: ['기분이 어떠세요? 함께 이야기 나누어요! 😊', '감정을 표현하는 건 좋은 일이에요! 🤗', '힘든 일이 있으면 언제든 말씀해주세요! 💙'],
-            casual: ['네, 그렇군요! 더 자세히 얘기해주세요! 😊', '흥미롭네요! 어떻게 생각하세요? 🤔', '좋은 질문이에요! 함께 생각해봐요! 💭'],
-            default: ['죄송해요, 정확히 이해하지 못했어요. 다시 말씀해주시겠어요? 😅', '흥미로운 질문이네요! 더 구체적으로 설명해주실 수 있나요? 🤔', '좋은 대화 같아요! 계속 이야기해봐요! 😊']
-        };
-        
-        let responseType = 'default';
-        if (/안녕|hi|hello|반가워/i.test(userMessage)) responseType = 'greeting';
-        else if (/오늘.*뭐.*할|뭐.*하고.*있|심심해|지루해/.test(userMessage)) responseType = 'daily';
-        else if (/행복해|기뻐|슬퍼|우울해|화나|피곤해/.test(userMessage)) responseType = 'emotion';
-        else if (/뭐해|어디가|집에있어/.test(userMessage)) responseType = 'casual';
-        
-        const responses = fallbackResponses[responseType];
-        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-        
-        console.log(`🔄 폴백 응답 사용: "${randomResponse}"`);
-        return randomResponse;
+        // 에러 시 네이버 검색 제안
+        return `🔍 정확한 정보 제공을 위해 네이버 검색을 이용해보세요.\n\n💡 "${userMessage}"를 네이버에서 검색하시면:\n• 최신 뉴스와 정보\n• 전문가 의견\n• 공식 발표 내용\n\n을 확인할 수 있습니다!`;
     }
 }
 
@@ -150,6 +170,147 @@ function isFactCheckRequest(message) {
     ];
     
     return factCheckKeywords.some(keyword => message.includes(keyword));
+}
+
+// 출산 신고 요청 감지 함수
+function isBirthReportRequest(message) {
+    const birthKeywords = [
+        '출산', '출생', '신생아', '아기', '태어나', '출산신고', '출생신고', 
+        '신고', '등록', '호적', '주민등록', '병원', '분만', '의료진'
+    ];
+    
+    const actionKeywords = [
+        '신고', '등록', '해야할', '해야', '필요한', '준비', '서류', '절차', 
+        '방법', '어떻게', '언제', '어디서', '뭘', '무엇을', '알려줘', '알려주세요'
+    ];
+    
+    const hasBirthKeyword = birthKeywords.some(keyword => message.includes(keyword));
+    const hasActionKeyword = actionKeywords.some(keyword => message.includes(keyword));
+    
+    return hasBirthKeyword && hasActionKeyword;
+}
+
+// 출산 신고 정보 제공 함수
+function getBirthReportInfo() {
+    return `👶 출산 신고 안내\n\n📋 신고 기한:\n• 출생 후 1개월 이내 (30일)\n• 늦을 경우 과태료 부과 가능\n\n📄 필요 서류:\n• 출생증명서 (의료기관 발급)\n• 신고인 신분증\n• 가족관계등록부 (혼인관계증명서)\n• 인감도장 또는 서명\n\n🏢 신고 장소:\n• 주소지 주민센터 (구청/동사무소)\n• 출생지 주민센터\n• 본적지 주민센터\n\n⏰ 접수 시간:\n• 평일: 09:00~18:00\n• 점심시간: 12:00~13:00 제외\n\n💻 온라인 신고:\n• 대법원 전자가족관계등록시스템\n• www.efamily.scourt.go.kr\n\n📞 문의:\n• 해당 지역 주민센터\n• 국번없이 1365 (민원안내)\n\n⚠️ 주의사항:\n• 의료기관에서 바로 처리되지 않음\n• 반드시 본인이 직접 신고 필요\n• 서류 미비 시 재방문 필요`;
+}
+
+// 날씨 요청 감지 함수
+function isWeatherRequest(message) {
+    const weatherKeywords = [
+        '날씨', '기온', '온도', '비', '눈', '맑음', '흐림', '구름', 
+        '습도', '바람', '미세먼지', '황사', '우산', '날씨어때', 
+        '춥', '덥', '쌀쌀', '따뜻', '시원', '더위', '추위'
+    ];
+    
+    return weatherKeywords.some(keyword => message.includes(keyword));
+}
+
+// 도시명 추출 함수
+function extractCityFromMessage(message) {
+    const cityKeywords = {
+        '서울': 'Seoul',
+        '부산': 'Busan',
+        '대구': 'Daegu', 
+        '인천': 'Incheon',
+        '광주': 'Gwangju',
+        '대전': 'Daejeon',
+        '울산': 'Ulsan',
+        '세종': 'Sejong',
+        '수원': 'Suwon',
+        '용인': 'Yongin',
+        '고양': 'Goyang',
+        '창원': 'Changwon',
+        '성남': 'Seongnam',
+        '청주': 'Cheongju',
+        '안산': 'Ansan',
+        '전주': 'Jeonju',
+        '천안': 'Cheonan',
+        '안양': 'Anyang'
+    };
+    
+    for (const [korean, english] of Object.entries(cityKeywords)) {
+        if (message.includes(korean)) {
+            return { korean, english };
+        }
+    }
+    
+    // 기본값은 서울
+    return { korean: '서울', english: 'Seoul' };
+}
+
+// 날씨 정보 가져오기 함수 (네이버 뉴스 검색 활용)
+async function getWeatherInfo(cityKorean = '서울') {
+    try {
+        if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
+            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            return getWeatherFallback();
+        }
+        
+        // 네이버 뉴스 검색으로 날씨 정보 검색
+        const weatherQuery = `${cityKorean} 날씨 기온 온도`;
+        console.log(`🌤️ 네이버 뉴스에서 날씨 검색: ${weatherQuery}`);
+        
+        const weatherNews = await getLatestNews(weatherQuery);
+        
+        if (weatherNews && weatherNews.length > 0) {
+            const koreanTime = getKoreanDateTime();
+            
+            let weatherInfo = `🌤️ ${cityKorean} 날씨 정보\n\n📰 최신 날씨 뉴스:\n`;
+            
+            // 상위 3개 뉴스에서 날씨 정보 추출
+            weatherNews.slice(0, 3).forEach((news, index) => {
+                const title = news.title;
+                const description = news.description;
+                
+                weatherInfo += `${index + 1}. ${title}\n`;
+                if (description && description.length > 0) {
+                    weatherInfo += `   ${description.substring(0, 80)}...\n`;
+                }
+                weatherInfo += `\n`;
+            });
+            
+            weatherInfo += `💡 정확한 실시간 날씨:\n• 네이버 날씨: weather.naver.com\n• 기상청: weather.go.kr\n• 날씨 앱 확인\n\n🕐 검색 시간: ${koreanTime.formatted}`;
+            
+            return weatherInfo;
+        } else {
+            // 뉴스 검색 실패시 일반적인 날씨 안내
+            return getWeatherGeneralInfo(cityKorean);
+        }
+        
+    } catch (error) {
+        console.error('❌ 날씨 정보 검색 오류:', error.message);
+        return getWeatherFallback();
+    }
+}
+
+// 일반적인 날씨 안내 정보
+function getWeatherGeneralInfo(city) {
+    const koreanTime = getKoreanDateTime();
+    return `🌤️ ${city} 날씨 정보\n\n💡 실시간 날씨 확인 방법:\n• 네이버 날씨: weather.naver.com\n• 기상청: weather.go.kr\n• 휴대폰 날씨 앱\n• "날씨" 검색\n\n📱 추천 앱:\n• 날씨 (기본 앱)\n• 미세미세 (미세먼지)\n• WeatherBug\n\n🕐 안내 시간: ${koreanTime.formatted}\n\n🌡️ 정확한 기온, 습도, 바람 정보는 위 사이트를 확인해주세요.`;
+}
+
+// 날씨 아이콘 선택 함수
+function getWeatherIcon(mainWeather) {
+    const icons = {
+        'Clear': '☀️',
+        'Clouds': '☁️',
+        'Rain': '🌧️',
+        'Drizzle': '🌦️',
+        'Thunderstorm': '⛈️',
+        'Snow': '❄️',
+        'Mist': '🌫️',
+        'Fog': '🌫️',
+        'Haze': '🌫️'
+    };
+    
+    return icons[mainWeather] || '🌤️';
+}
+
+// 날씨 API 실패시 폴백 함수
+function getWeatherFallback() {
+    const koreanTime = getKoreanDateTime();
+    return `🌤️ 날씨 정보 서비스\n\n⚠️ 현재 날씨 API에 연결할 수 없습니다.\n\n💡 대안:\n• 네이버 날씨: weather.naver.com\n• 기상청: weather.go.kr\n• 휴대폰 날씨 앱 확인\n\n🕐 확인 시간: ${koreanTime.formatted}\n\n📱 정확한 날씨는 기상청이나 날씨 앱을 확인해주세요.`;
 }
 
 // 유튜브 URL 감지 함수
@@ -1226,6 +1387,7 @@ app.get('/', (req, res) => {
         <p><strong>네이버 검색 API:</strong> ${(hasNaverClientId && hasNaverClientSecret) ? '✅ 설정됨' : '❌ 미설정'}</p>
         <p><strong>Client ID:</strong> ${hasNaverClientId ? '✅ 설정됨' : '❌ 미설정'}</p>
         <p><strong>Client Secret:</strong> ${hasNaverClientSecret ? '✅ 설정됨' : '❌ 미설정'}</p>
+        <p><strong>날씨 정보 (네이버 뉴스):</strong> ${(hasNaverClientId && hasNaverClientSecret) ? '✅ 사용 가능' : '❌ 네이버 API 필요'}</p>
         <hr>
         <p><strong>카카오 스킬 URL:</strong> /kakao-skill-webhook</p>
         <hr>
@@ -1235,6 +1397,8 @@ app.get('/', (req, res) => {
             <li>📰 실시간 뉴스 제공 (예: "오늘 뉴스", "최신 뉴스")</li>
             <li>🛒 쇼핑 상품 검색 (예: "노트북 추천", "휴대폰 베스트")</li>
             <li>🍽️ 맛집 검색 (예: "강남역 맛집", "홍대 카페")</li>
+            <li>👶 출산 신고 안내 (예: "애기 태어나면 신고해야 할 부분")</li>
+            <li>🌤️ 날씨 정보 제공 (예: "서울 날씨", "부산 날씨")</li>
             <li>💬 긴 답변 자동 분할 및 "계속" 기능</li>
         </ul>
     `);
@@ -1321,6 +1485,8 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             isFactCheck: isFactCheckRequest(userMessage),
             isYouTubeSummary: isYouTubeSummaryRequest(userMessage),
             isMovieReview: isMovieReviewRequest(userMessage),
+            isBirthReport: isBirthReportRequest(userMessage),
+            isWeather: isWeatherRequest(userMessage),
             youtubeUrl: extractYouTubeUrl(userMessage),
             message: userMessage
         };
@@ -1419,6 +1585,18 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             ];
             responseText = praiseResponses[Math.floor(Math.random() * praiseResponses.length)];
         }
+        // 👶 출산 신고 정보 요청 처리
+        else if (debugInfo.isBirthReport) {
+            console.log('👶 출산 신고 정보 요청 감지');
+            responseText = getBirthReportInfo();
+        }
+        // 🌤️ 날씨 정보 요청 처리  
+        else if (debugInfo.isWeather) {
+            console.log('🌤️ 날씨 정보 요청 감지');
+            const city = extractCityFromMessage(userMessage);
+            console.log(`🏙️ 추출된 도시: ${city.korean} (${city.english})`);
+            responseText = await getWeatherInfo(city.korean);
+        }
         // 🎬 모든 영화평 요청을 새로운 종합 시스템에서 처리 (개선된 패턴)
         else if (/영화.*평점|평점.*영화|영화평|영화.*평가|평가.*영화|영화.*리뷰|리뷰.*영화|영화.*별점|별점.*영화|.*영화.*어때|.*평점.*어때|.*리뷰.*어때|.*별점.*어때|F1|더무비|평가|평점|별점|리뷰/.test(userMessage)) {
             console.log('🎬 영화평 요청 감지 - 새로운 종합 시스템 실행');
@@ -1458,7 +1636,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             try {
                 // 서브에이전트 매니저로 메시지 라우팅
                 const agentResult = await subAgentManager.routeToAgent(userMessage, userId, {
-                    previousCategory: conversationHistory.get(userId)?.slice(-1)[0]?.category || null
+                    previousCategory: conversationMemory.get(userId)?.history?.slice(-1)[0]?.intent || null
                 });
                 
                 if (agentResult.success) {
@@ -1541,8 +1719,9 @@ app.use('/api', require('./api/direct-crawling'));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`✅ 서버가 포트 ${PORT}에서 실행 중입니다.`);
-    console.log(`🔑 Claude API 키 상태: ${process.env.CLAUDE_API_KEY ? '설정됨 (' + process.env.CLAUDE_API_KEY.length + '자)' : '미설정'}`);
+    console.log(`🔑 Claude AI API 키 상태: ${process.env.CLAUDE_API_KEY ? '설정됨 (' + process.env.CLAUDE_API_KEY.length + '자)' : '미설정'}`);
     console.log(`📡 네이버 API 키 상태: ${(process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) ? '설정됨' : '미설정'}`);
+    console.log(`🌤️ 날씨 정보: 네이버 뉴스 검색 활용`);
     console.log(`🗄️ Supabase 상태: ${(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) ? '설정됨' : '미설정'}`);
     console.log(`🎬 영화진흥위원회 API 상태: ${process.env.KOFIC_API_KEY ? '설정됨' : '미설정'}`);
     
