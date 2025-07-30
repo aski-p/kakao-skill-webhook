@@ -7,6 +7,7 @@ const MessageClassifier = require('./config/message-classifier');
 const DataExtractor = require('./config/data-extractor');
 const SubAgentManager = require('./agents/sub-agent-manager');
 const movieScheduler = require('./scheduler/movie-update-scheduler');
+const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 // HTTP Keep-Alive 최적화 및 연결 안정성 향상
 const httpAgent = new http.Agent({ 
@@ -257,18 +258,28 @@ function extractCityFromMessage(message) {
     return { korean: '서울', english: 'Seoul' };
 }
 
-// 날씨 정보 가져오기 함수 (네이버 뉴스 검색 활용)
+// 날씨 정보 가져오기 함수 (네이버 날씨 크롤링)
 async function getWeatherInfo(cityKorean = '서울') {
     try {
+        console.log(`🌤️ 네이버 날씨 정보 조회: ${cityKorean}`);
+        
+        // 네이버 날씨 크롤러 사용
+        const weatherCrawler = new NaverWeatherCrawler();
+        const weatherInfo = await weatherCrawler.getWeatherInfo(cityKorean);
+        
+        if (weatherInfo) {
+            return weatherInfo;
+        }
+        
+        // 크롤링 실패시 네이버 뉴스 검색으로 폴백
+        console.log('⚠️ 날씨 크롤링 실패, 뉴스 검색으로 전환');
+        
         if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
             console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
             return getWeatherFallback();
         }
         
-        // 네이버 뉴스 검색으로 날씨 정보 검색
         const weatherQuery = `${cityKorean} 날씨 기온 온도`;
-        console.log(`🌤️ 네이버 뉴스에서 날씨 검색: ${weatherQuery}`);
-        
         const weatherNews = await getLatestNews(weatherQuery);
         
         if (weatherNews && weatherNews.length > 0) {
@@ -276,7 +287,6 @@ async function getWeatherInfo(cityKorean = '서울') {
             
             let weatherInfo = `🌤️ ${cityKorean} 날씨 정보\n\n📰 최신 날씨 뉴스:\n`;
             
-            // 상위 3개 뉴스에서 날씨 정보 추출
             weatherNews.slice(0, 3).forEach((news, index) => {
                 const title = news.title;
                 const description = news.description;
@@ -288,11 +298,10 @@ async function getWeatherInfo(cityKorean = '서울') {
                 weatherInfo += `\n`;
             });
             
-            weatherInfo += `💡 정확한 실시간 날씨:\n• 네이버 날씨: weather.naver.com\n• 기상청: weather.go.kr\n• 날씨 앱 확인\n\n🕐 검색 시간: ${koreanTime.formatted}`;
+            weatherInfo += `💡 정확한 실시간 날씨:\n• 네이버 날씨: weather.naver.com\n• 기상청: weather.go.kr\n\n🕐 검색 시간: ${koreanTime.formatted}`;
             
             return weatherInfo;
         } else {
-            // 뉴스 검색 실패시 일반적인 날씨 안내
             return getWeatherGeneralInfo(cityKorean);
         }
         
