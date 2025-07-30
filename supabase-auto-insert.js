@@ -12,10 +12,10 @@ const SUPABASE_URL = process.env.SUPABASE_URL || process.env.supabase_url;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.supabase_service_role_key;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    console.log('❌ Supabase 환경 변수가 설정되지 않았습니다:');
+    console.log('[ERROR] Supabase 환경 변수가 설정되지 않았습니다:');
     console.log('SUPABASE_URL:', SUPABASE_URL ? '설정됨' : '미설정');
     console.log('SUPABASE_SERVICE_ROLE_KEY:', SUPABASE_SERVICE_ROLE_KEY ? '설정됨' : '미설정');
-    console.log('\n💡 환경 변수를 먼저 설정해주세요:');
+    console.log('\n[TIP] 환경 변수를 먼저 설정해주세요:');
     console.log('export SUPABASE_URL="https://your-project.supabase.co"');
     console.log('export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"');
     process.exit(1);
@@ -44,7 +44,7 @@ class SupabaseAutoInserter {
     }
 
     async testConnection() {
-        console.log('🔌 Supabase 연결 테스트...');
+        console.log('[ELECTRIC] Supabase 연결 테스트...');
         
         try {
             const { data, error } = await supabase
@@ -53,14 +53,14 @@ class SupabaseAutoInserter {
                 .limit(1);
             
             if (error && error.code !== 'PGRST116') { // PGRST116 = table not found (정상)
-                console.log('❌ Supabase 연결 실패:', error.message);
+                console.log('[ERROR] Supabase 연결 실패:', error.message);
                 return false;
             }
             
-            console.log('✅ Supabase 연결 성공');
+            console.log('[SUCCESS] Supabase 연결 성공');
             return true;
         } catch (err) {
-            console.log('❌ Supabase 연결 오류:', err.message);
+            console.log('[ERROR] Supabase 연결 오류:', err.message);
             return false;
         }
     }
@@ -106,7 +106,7 @@ class SupabaseAutoInserter {
             });
             
             if (error) {
-                console.log(`❌ ${filename} 실행 실패:`, error.message);
+                console.log(`[ERROR] ${filename} 실행 실패:`, error.message);
                 this.stats.errors.push(`${filename}: ${error.message}`);
                 this.stats.failedFiles++;
                 
@@ -120,12 +120,12 @@ class SupabaseAutoInserter {
                 return false;
             }
             
-            console.log(`✅ ${filename} 실행 성공`);
+            console.log(`[SUCCESS] ${filename} 실행 성공`);
             this.stats.successFiles++;
             return true;
             
         } catch (err) {
-            console.log(`❌ ${filename} 파일 오류:`, err.message);
+            console.log(`[ERROR] ${filename} 파일 오류:`, err.message);
             this.stats.errors.push(`${filename}: ${err.message}`);
             this.stats.failedFiles++;
             return false;
@@ -143,7 +143,7 @@ class SupabaseAutoInserter {
         // 1. 연결 테스트
         const connected = await this.testConnection();
         if (!connected) {
-            console.log('❌ Supabase 연결 실패로 인해 프로세스를 중단합니다.');
+            console.log('[ERROR] Supabase 연결 실패로 인해 프로세스를 중단합니다.');
             return;
         }
         
@@ -153,17 +153,17 @@ class SupabaseAutoInserter {
             files = this.getFileList();
             this.stats.totalFiles = files.length;
         } catch (err) {
-            console.log('❌ 파일 목록 가져오기 실패:', err.message);
+            console.log('[ERROR] 파일 목록 가져오기 실패:', err.message);
             return;
         }
         
         if (files.length === 0) {
-            console.log('❌ 실행할 SQL 파일이 없습니다.');
+            console.log('[ERROR] 실행할 SQL 파일이 없습니다.');
             return;
         }
         
         // 3. 사용자 확인
-        console.log(`\n⚠️ ${files.length}개의 SQL 파일을 순서대로 실행합니다.`);
+        console.log(`\n[WARN] ${files.length}개의 SQL 파일을 순서대로 실행합니다.`);
         console.log('계속하시겠습니까? (ctrl+c로 중단 가능)');
         
         // 5초 대기
@@ -187,7 +187,7 @@ class SupabaseAutoInserter {
             
             // 실패 시 중단 여부 확인 (선택사항)
             if (!success && this.stats.failedFiles >= 5) {
-                console.log('\n⚠️ 실패한 파일이 5개 이상입니다. 계속하시겠습니까?');
+                console.log('\n[WARN] 실패한 파일이 5개 이상입니다. 계속하시겠습니까?');
                 console.log('(10초 대기 후 자동 계속, ctrl+c로 중단)');
                 await this.delay(10000);
             }
@@ -202,16 +202,16 @@ class SupabaseAutoInserter {
 
     printReport(totalTime) {
         console.log('\n' + '='.repeat(60));
-        console.log('📊 Supabase 자동 배치 인서트 완료 리포트');
+        console.log('[INFO] Supabase 자동 배치 인서트 완료 리포트');
         console.log('='.repeat(60));
         console.log(`⏱️ 총 실행 시간: ${totalTime}분`);
         console.log(`📄 총 파일: ${this.stats.totalFiles}개`);
-        console.log(`✅ 성공: ${this.stats.successFiles}개`);
-        console.log(`❌ 실패: ${this.stats.failedFiles}개`);
+        console.log(`[SUCCESS] 성공: ${this.stats.successFiles}개`);
+        console.log(`[ERROR] 실패: ${this.stats.failedFiles}개`);
         console.log(`📈 성공률: ${((this.stats.successFiles/this.stats.totalFiles)*100).toFixed(1)}%`);
         
         if (this.stats.errors.length > 0) {
-            console.log('\n❌ 오류 상세 (최대 10개):');
+            console.log('\n[ERROR] 오류 상세 (최대 10개):');
             this.stats.errors.slice(0, 10).forEach((error, index) => {
                 console.log(`   ${index + 1}. ${error}`);
             });
@@ -222,15 +222,15 @@ class SupabaseAutoInserter {
         }
         
         if (this.stats.successFiles === this.stats.totalFiles) {
-            console.log('\n🎉 모든 파일이 성공적으로 실행되었습니다!');
-            console.log('💡 Supabase 대시보드에서 데이터를 확인해보세요.');
+            console.log('\n[PARTY] 모든 파일이 성공적으로 실행되었습니다!');
+            console.log('[TIP] Supabase 대시보드에서 데이터를 확인해보세요.');
         } else {
-            console.log('\n⚠️ 일부 파일 실행이 실패했습니다.');
-            console.log('💡 failed_chunks/ 디렉토리에서 실패한 파일들을 확인하세요.');
+            console.log('\n[WARN] 일부 파일 실행이 실패했습니다.');
+            console.log('[TIP] failed_chunks/ 디렉토리에서 실패한 파일들을 확인하세요.');
         }
         
         // 데이터 검증 제안
-        console.log('\n🔍 데이터 검증 쿼리:');
+        console.log('\n[SEARCH] 데이터 검증 쿼리:');
         console.log('SELECT COUNT(*) FROM movies;');
         console.log('SELECT COUNT(*) FROM critic_reviews;');
     }

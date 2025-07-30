@@ -12,22 +12,22 @@ class NaverMovieCrawler {
 
     // 메인 크롤링 함수 (매일 12시에 실행)
     async crawlAndUpdateMovies() {
-        console.log('🎬 네이버 영화 크롤링 시작:', new Date().toISOString());
+        console.log('[MOVIE] 네이버 영화 크롤링 시작:', new Date().toISOString());
         
         if (!this.naverClientId || !this.naverClientSecret) {
-            console.error('❌ 네이버 API 키가 설정되지 않았습니다.');
+            console.error('[ERROR] 네이버 API 키가 설정되지 않았습니다.');
             return { success: false, error: 'Missing API keys' };
         }
 
         if (!this.supabase || !this.supabase.client) {
-            console.error('❌ Supabase 클라이언트가 초기화되지 않았습니다.');
+            console.error('[ERROR] Supabase 클라이언트가 초기화되지 않았습니다.');
             return { success: false, error: 'Supabase connection failed' };
         }
 
         try {
             // 1단계: 기존 영화 목록 조회
             const existingMovies = await this.supabase.getAllMovies();
-            console.log(`📊 기존 영화 수: ${existingMovies.length}개`);
+            console.log(`[INFO] 기존 영화 수: ${existingMovies.length}개`);
 
             // 2단계: 다양한 검색어로 영화 수집
             const searchQueries = this.generateSearchQueries();
@@ -35,14 +35,14 @@ class NaverMovieCrawler {
             let totalMoviesProcessed = 0;
 
             for (const query of searchQueries) {
-                console.log(`🔍 검색어 처리: "${query}"`);
+                console.log(`[SEARCH] 검색어 처리: "${query}"`);
                 
                 try {
                     // 네이버 영화 API 호출
                     const movies = await this.searchNaverMovies(query);
                     
                     if (movies && movies.length > 0) {
-                        console.log(`📽️ "${query}"로 ${movies.length}개 영화 발견`);
+                        console.log(`[PROJECTOR] "${query}"로 ${movies.length}개 영화 발견`);
                         
                         // 각 영화 처리
                         for (const movie of movies) {
@@ -59,10 +59,10 @@ class NaverMovieCrawler {
                                 const result = await this.addNewMovie(movie);
                                 if (result) {
                                     newMoviesAdded++;
-                                    console.log(`✅ 새 영화 추가: "${movie.title}" (${movie.pubDate})`);
+                                    console.log(`[SUCCESS] 새 영화 추가: "${movie.title}" (${movie.pubDate})`);
                                 }
                             } else {
-                                console.log(`⚠️ 중복 영화 스킵: "${movie.title}" (${movie.pubDate})`);
+                                console.log(`[WARN] 중복 영화 스킵: "${movie.title}" (${movie.pubDate})`);
                             }
                             
                             // API 요청 간격 조절
@@ -70,7 +70,7 @@ class NaverMovieCrawler {
                         }
                     }
                 } catch (error) {
-                    console.error(`❌ "${query}" 검색 중 오류:`, error.message);
+                    console.error(`[ERROR] "${query}" 검색 중 오류:`, error.message);
                 }
                 
                 // 검색어 간 대기
@@ -85,11 +85,11 @@ class NaverMovieCrawler {
                 timestamp: new Date().toISOString()
             };
 
-            console.log('🎉 크롤링 완료:', result);
+            console.log('[PARTY] 크롤링 완료:', result);
             return result;
 
         } catch (error) {
-            console.error('❌ 크롤링 중 전체 오류:', error);
+            console.error('[ERROR] 크롤링 중 전체 오류:', error);
             return { success: false, error: error.message };
         }
     }
@@ -135,7 +135,7 @@ class NaverMovieCrawler {
             return [];
 
         } catch (error) {
-            console.error('❌ 네이버 영화 API 오류:', error.message);
+            console.error('[ERROR] 네이버 영화 API 오류:', error.message);
             throw error;
         }
     }
@@ -173,7 +173,7 @@ class NaverMovieCrawler {
             return false;
 
         } catch (error) {
-            console.error(`❌ 영화 추가 실패 (${naverMovie.title}):`, error.message);
+            console.error(`[ERROR] 영화 추가 실패 (${naverMovie.title}):`, error.message);
             return false;
         }
     }
@@ -198,7 +198,7 @@ class NaverMovieCrawler {
             await this.supabase.addAudienceReviews(movieId, audienceReviews);
 
         } catch (error) {
-            console.error(`❌ 샘플 리뷰 추가 실패 (${title}):`, error.message);
+            console.error(`[ERROR] 샘플 리뷰 추가 실패 (${title}):`, error.message);
         }
     }
 

@@ -7,7 +7,7 @@ const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 async function checkTableStructure() {
-    console.log('🔍 movies 테이블 구조 확인 중...\n');
+    console.log('[SEARCH] movies 테이블 구조 확인 중...\n');
     
     try {
         // 첫 번째 행 가져와서 컬럼 확인
@@ -17,19 +17,19 @@ async function checkTableStructure() {
             .limit(1);
             
         if (error) {
-            console.error('❌ 테이블 조회 오류:', error);
+            console.error('[ERROR] 테이블 조회 오류:', error);
             return;
         }
         
         if (sampleData && sampleData.length > 0) {
-            console.log('📋 테이블 컬럼 목록:');
+            console.log('[FORM] 테이블 컬럼 목록:');
             console.log('='.repeat(50));
             const columns = Object.keys(sampleData[0]);
             columns.forEach((col, index) => {
                 console.log(`${index + 1}. ${col}`);
             });
             
-            console.log('\n📊 샘플 데이터:');
+            console.log('\n[INFO] 샘플 데이터:');
             console.log('='.repeat(100));
             console.log(JSON.stringify(sampleData[0], null, 2));
         }
@@ -41,7 +41,7 @@ async function checkTableStructure() {
             .limit(10);
             
         if (!moreError && moreMovies) {
-            console.log('\n🎬 샘플 영화 데이터 (10개):');
+            console.log('\n[MOVIE] 샘플 영화 데이터 (10개):');
             console.log('='.repeat(100));
             moreMovies.forEach((movie, index) => {
                 console.log(`\n${index + 1}. ID: ${movie.id}`);
@@ -52,7 +52,7 @@ async function checkTableStructure() {
         }
         
     } catch (error) {
-        console.error('❌ 오류 발생:', error);
+        console.error('[ERROR] 오류 발생:', error);
     }
 }
 

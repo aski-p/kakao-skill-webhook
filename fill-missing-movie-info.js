@@ -71,11 +71,11 @@ class MovieInfoFiller {
             }
         } catch (error) {
             if (error.response?.status === 429) {
-                console.log(`   ⚠️ API 제한, 잠시 대기...`);
+                console.log(`   [WARN] API 제한, 잠시 대기...`);
                 await this.delayMs(2000); // 2초 대기
                 return await this.searchNaverMovie(title, year); // 재시도
             }
-            console.log(`   ⚠️ 네이버 검색 실패: ${error.message}`);
+            console.log(`   [WARN] 네이버 검색 실패: ${error.message}`);
         }
         return null;
     }
@@ -151,20 +151,20 @@ class MovieInfoFiller {
             return false; // 이미 정보가 있음
         }
 
-        console.log(`🎬 [${this.processedCount + 1}] ${movie.title} 정보 업데이트 중...`);
-        console.log(`   📋 현재 - 감독: ${movie.director || '없음'}, 출연: ${movie.cast_members ? movie.cast_members.join(', ') : '없음'}`);
+        console.log(`[MOVIE] [${this.processedCount + 1}] ${movie.title} 정보 업데이트 중...`);
+        console.log(`   [FORM] 현재 - 감독: ${movie.director || '없음'}, 출연: ${movie.cast_members ? movie.cast_members.join(', ') : '없음'}`);
 
         // 네이버에서 영화 검색
         const naverMovie = await this.searchNaverMovie(movie.title, movie.release_year);
         
         if (!naverMovie) {
-            console.log(`   ❌ 네이버에서 찾을 수 없음`);
+            console.log(`   [ERROR] 네이버에서 찾을 수 없음`);
             this.failedCount++;
             return false;
         }
 
-        console.log(`   ✅ 네이버 정보 발견: ${naverMovie.title} (${naverMovie.pubDate})`);
-        console.log(`   📋 네이버 - 감독: ${naverMovie.director}, 출연: ${naverMovie.actor}`);
+        console.log(`   [SUCCESS] 네이버 정보 발견: ${naverMovie.title} (${naverMovie.pubDate})`);
+        console.log(`   [FORM] 네이버 - 감독: ${naverMovie.director}, 출연: ${naverMovie.actor}`);
 
         // 업데이트할 데이터 준비
         const updateData = {};
@@ -189,7 +189,7 @@ class MovieInfoFiller {
         }
 
         if (Object.keys(updateData).length === 0) {
-            console.log(`   ⚠️ 업데이트할 새로운 정보가 없음`);
+            console.log(`   [WARN] 업데이트할 새로운 정보가 없음`);
             this.skipCount++;
             return false;
         }
@@ -201,20 +201,20 @@ class MovieInfoFiller {
             .eq('id', movie.id);
 
         if (error) {
-            console.log(`   ❌ DB 업데이트 실패:`, error.message);
+            console.log(`   [ERROR] DB 업데이트 실패:`, error.message);
             this.failedCount++;
             return false;
         }
 
-        console.log(`   ✅ 업데이트 완료!`);
-        console.log(`   📝 새 정보 - 감독: ${updateData.director || movie.director}, 출연: ${updateData.cast_members ? updateData.cast_members.join(', ') : (movie.cast_members ? movie.cast_members.join(', ') : '없음')}`);
+        console.log(`   [SUCCESS] 업데이트 완료!`);
+        console.log(`   [MEMO] 새 정보 - 감독: ${updateData.director || movie.director}, 출연: ${updateData.cast_members ? updateData.cast_members.join(', ') : (movie.cast_members ? movie.cast_members.join(', ') : '없음')}`);
         
         this.updatedCount++;
         return true;
     }
 
     async loadMoviesWithMissingInfo() {
-        console.log('📋 정보가 비어있는 영화들 로드 중...');
+        console.log('[FORM] 정보가 비어있는 영화들 로드 중...');
         
         const { data, error } = await supabase
             .from('movies')
@@ -224,7 +224,7 @@ class MovieInfoFiller {
             .limit(1000); // 처음 1000개만
 
         if (error) {
-            console.log('❌ 영화 목록 로드 실패:', error.message);
+            console.log('[ERROR] 영화 목록 로드 실패:', error.message);
             return [];
         }
 
@@ -236,7 +236,7 @@ class MovieInfoFiller {
             return emptyDirector || emptyCast;
         });
 
-        console.log(`✅ ${filteredMovies.length}개 영화가 정보 업데이트 필요`);
+        console.log(`[SUCCESS] ${filteredMovies.length}개 영화가 정보 업데이트 필요`);
         return filteredMovies;
     }
 
@@ -244,21 +244,21 @@ class MovieInfoFiller {
         const startTime = Date.now();
         
         console.log('🚀 영화 정보 자동 채우기 시작...');
-        console.log('📝 네이버 검색 API로 감독과 출연진 정보를 찾아서 업데이트합니다.\n');
+        console.log('[MEMO] 네이버 검색 API로 감독과 출연진 정보를 찾아서 업데이트합니다.\n');
         
         const movies = await this.loadMoviesWithMissingInfo();
         if (movies.length === 0) {
-            console.log('✅ 모든 영화의 정보가 이미 채워져 있습니다!');
+            console.log('[SUCCESS] 모든 영화의 정보가 이미 채워져 있습니다!');
             return;
         }
 
-        console.log(`📊 총 ${movies.length}개 영화 정보 업데이트 예정\n`);
+        console.log(`[INFO] 총 ${movies.length}개 영화 정보 업데이트 예정\n`);
         
         // 배치 단위로 처리
         for (let i = 0; i < movies.length; i += this.batchSize) {
             const batch = movies.slice(i, i + this.batchSize);
             
-            console.log(`📦 배치 ${Math.floor(i/this.batchSize) + 1}/${Math.ceil(movies.length/this.batchSize)} 처리 중...`);
+            console.log(`[PACKAGE] 배치 ${Math.floor(i/this.batchSize) + 1}/${Math.ceil(movies.length/this.batchSize)} 처리 중...`);
             
             for (const movie of batch) {
                 try {
@@ -272,13 +272,13 @@ class MovieInfoFiller {
                     await this.delayMs(this.delay);
                     
                 } catch (error) {
-                    console.log(`❌ ${movie.title} 처리 중 오류:`, error.message);
+                    console.log(`[ERROR] ${movie.title} 처리 중 오류:`, error.message);
                     this.failedCount++;
                     this.processedCount++;
                 }
             }
             
-            console.log(`✅ 배치 ${Math.floor(i/this.batchSize) + 1} 완료\n`);
+            console.log(`[SUCCESS] 배치 ${Math.floor(i/this.batchSize) + 1} 완료\n`);
         }
         
         // 최종 통계
@@ -302,17 +302,17 @@ class MovieInfoFiller {
         const totalTime = ((endTime - startTime) / 1000 / 60).toFixed(1);
         
         console.log('='.repeat(70));
-        console.log('🎉 영화 정보 자동 채우기 완료!');
+        console.log('[PARTY] 영화 정보 자동 채우기 완료!');
         console.log('='.repeat(70));
         console.log(`⏱️ 총 실행 시간: ${totalTime}분`);
-        console.log(`🎬 전체 영화 수: ${totalMovies}개`);
-        console.log(`✅ 성공적으로 업데이트: ${this.updatedCount}개`);
-        console.log(`⚠️ 업데이트 실패: ${this.failedCount}개`);
+        console.log(`[MOVIE] 전체 영화 수: ${totalMovies}개`);
+        console.log(`[SUCCESS] 성공적으로 업데이트: ${this.updatedCount}개`);
+        console.log(`[WARN] 업데이트 실패: ${this.failedCount}개`);
         console.log(`⏭️ 이미 정보가 있어서 스킵: ${this.skipCount}개`);
-        console.log(`📊 성공률: ${Math.round((this.updatedCount / this.processedCount) * 100)}%`);
-        console.log(`🔍 아직 정보가 비어있는 영화: ${remainingEmpty}개`);
-        console.log('\n💡 네이버에서 찾은 정확한 감독과 출연진 정보로 업데이트되었습니다!');
-        console.log('🔍 이제 "파묘 감독", "기생충 출연진" 등을 정확하게 확인할 수 있습니다.');
+        console.log(`[INFO] 성공률: ${Math.round((this.updatedCount / this.processedCount) * 100)}%`);
+        console.log(`[SEARCH] 아직 정보가 비어있는 영화: ${remainingEmpty}개`);
+        console.log('\n[TIP] 네이버에서 찾은 정확한 감독과 출연진 정보로 업데이트되었습니다!');
+        console.log('[SEARCH] 이제 "파묘 감독", "기생충 출연진" 등을 정확하게 확인할 수 있습니다.');
     }
 }
 

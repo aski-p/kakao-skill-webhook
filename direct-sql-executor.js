@@ -102,7 +102,7 @@ class DirectSQLExecutor {
 
     async updateMovie(movieData) {
         try {
-            console.log(`\n🎬 "${movieData.title}" 업데이트 중...`);
+            console.log(`\n[MOVIE] "${movieData.title}" 업데이트 중...`);
 
             // 1. 영화 정보 업데이트
             const updateData = {
@@ -123,11 +123,11 @@ class DirectSQLExecutor {
                 .single();
 
             if (updateError) {
-                console.log(`   ❌ 영화 정보 업데이트 실패: ${updateError.message}`);
+                console.log(`   [ERROR] 영화 정보 업데이트 실패: ${updateError.message}`);
                 return false;
             }
 
-            console.log(`   ✅ 영화 정보 업데이트 완료`);
+            console.log(`   [SUCCESS] 영화 정보 업데이트 완료`);
             console.log(`      감독: ${movieData.director}`);
             console.log(`      출연: ${movieData.cast_members.slice(0, 3).join(', ')}`);
             console.log(`      평점: ${movieData.naver_rating}`);
@@ -139,7 +139,7 @@ class DirectSQLExecutor {
                 .eq('movie_id', updatedMovie.id);
 
             if (deleteError) {
-                console.log(`   ⚠️ 기존 리뷰 삭제 실패: ${deleteError.message}`);
+                console.log(`   [WARN] 기존 리뷰 삭제 실패: ${deleteError.message}`);
             } else {
                 console.log(`   🗑️ 기존 리뷰 삭제 완료`);
             }
@@ -156,17 +156,17 @@ class DirectSQLExecutor {
                 .select('id');
 
             if (reviewError) {
-                console.log(`   ❌ 리뷰 삽입 실패: ${reviewError.message}`);
+                console.log(`   [ERROR] 리뷰 삽입 실패: ${reviewError.message}`);
                 return false;
             }
 
-            console.log(`   📝 ${insertedReviews.length}개 리뷰 추가 완료`);
+            console.log(`   [MEMO] ${insertedReviews.length}개 리뷰 추가 완료`);
             console.log(`      예시: ${movieData.reviews[0].critic_name} - "${movieData.reviews[0].review_text.substring(0, 30)}..." (${movieData.reviews[0].score}점)`);
 
             return true;
 
         } catch (error) {
-            console.log(`   ❌ "${movieData.title}" 처리 중 오류: ${error.message}`);
+            console.log(`   [ERROR] "${movieData.title}" 처리 중 오류: ${error.message}`);
             return false;
         }
     }
@@ -189,7 +189,7 @@ class DirectSQLExecutor {
             }
 
             // 진행률 표시
-            console.log(`   📊 진행률: ${i + 1}/${this.movieUpdates.length} (${Math.round(((i + 1) / this.movieUpdates.length) * 100)}%)`);
+            console.log(`   [INFO] 진행률: ${i + 1}/${this.movieUpdates.length} (${Math.round(((i + 1) / this.movieUpdates.length) * 100)}%)`);
 
             // 다음 영화 처리 전 잠시 대기
             if (i < this.movieUpdates.length - 1) {
@@ -198,19 +198,19 @@ class DirectSQLExecutor {
         }
 
         console.log('\n' + '='.repeat(60));
-        console.log('🎉 영화 정보 업데이트 완료!');
+        console.log('[PARTY] 영화 정보 업데이트 완료!');
         console.log('='.repeat(60));
-        console.log(`✅ 성공: ${successCount}개`);
-        console.log(`❌ 실패: ${failCount}개`);
-        console.log(`📊 성공률: ${Math.round((successCount / this.movieUpdates.length) * 100)}%`);
+        console.log(`[SUCCESS] 성공: ${successCount}개`);
+        console.log(`[ERROR] 실패: ${failCount}개`);
+        console.log(`[INFO] 성공률: ${Math.round((successCount / this.movieUpdates.length) * 100)}%`);
 
         if (successCount > 0) {
-            console.log('\n💡 업데이트된 내용:');
-            console.log('   🎭 진짜 감독 이름으로 교체');
-            console.log('   👥 실제 출연진으로 교체');
-            console.log('   📝 가짜 평론가 → 실제 관객 리뷰로 교체');
-            console.log('   ⭐ 네이버 기준 평점 추가');
-            console.log('\n📱 이제 카카오 스킬에서 테스트해보세요:');
+            console.log('\n[TIP] 업데이트된 내용:');
+            console.log('   [DRAMA] 진짜 감독 이름으로 교체');
+            console.log('   [BUSTSINSILHOUETTE] 실제 출연진으로 교체');
+            console.log('   [MEMO] 가짜 평론가 → 실제 관객 리뷰로 교체');
+            console.log('   [FAVORITE] 네이버 기준 평점 추가');
+            console.log('\n[APP] 이제 카카오 스킬에서 테스트해보세요:');
             console.log('   • "파묘 감독은 누구야" → 장재현');
             console.log('   • "기생충 출연진 알려줘" → 송강호, 이선균, 조여정...');
             console.log('   • "아마추어 영화평" → 실제 관객 리뷰');

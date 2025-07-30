@@ -29,7 +29,7 @@ class KoficRecentCollector {
             }
             return [];
         } catch (error) {
-            console.error(`❌ ${date} 박스오피스 조회 오류:`, error.message);
+            console.error(`[ERROR] ${date} 박스오피스 조회 오류:`, error.message);
             return [];
         }
     }
@@ -48,7 +48,7 @@ class KoficRecentCollector {
             }
             return null;
         } catch (error) {
-            console.error(`❌ 영화 ${movieCd} 상세정보 조회 오류:`, error.message);
+            console.error(`[ERROR] 영화 ${movieCd} 상세정보 조회 오류:`, error.message);
             return null;
         }
     }
@@ -81,7 +81,7 @@ class KoficRecentCollector {
 
     // 최근 실제 데이터가 있는 날짜들로 수집
     async collectRecentMovies() {
-        console.log('🎬 KOFIC API 최근 한국 영화 데이터 수집 시작...\n');
+        console.log('[MOVIE] KOFIC API 최근 한국 영화 데이터 수집 시작...\n');
         
         const movieCodes = new Set();
         
@@ -113,11 +113,11 @@ class KoficRecentCollector {
             '2023-09-30', '2023-09-15', '2023-08-31', '2023-08-15', '2023-07-31', '2023-07-15'
         ];
         
-        console.log(`📅 ${dates.length}개 기간의 박스오피스 데이터 수집 중...`);
+        console.log(`[TOMORROW] ${dates.length}개 기간의 박스오피스 데이터 수집 중...`);
         
         for (let i = 0; i < dates.length; i++) {
             const date = this.formatDate(dates[i]);
-            console.log(`📊 ${i + 1}/${dates.length}: ${dates[i]} 박스오피스 조회 중...`);
+            console.log(`[INFO] ${i + 1}/${dates.length}: ${dates[i]} 박스오피스 조회 중...`);
             
             const boxOfficeList = await this.getDailyBoxOffice(date);
             
@@ -138,28 +138,28 @@ class KoficRecentCollector {
                     console.log(`      - ${movie.movieNm} (${movie.movieCd})`);
                 });
             } else {
-                console.log(`   📭 데이터 없음`);
+                console.log(`   [MAILBOXNOMAIL] 데이터 없음`);
             }
             
             await this.delay(200);
         }
         
-        console.log(`\n🎯 총 ${movieCodes.size}개의 고유한 한국 영화 코드 수집 완료`);
+        console.log(`\n[TARGET] 총 ${movieCodes.size}개의 고유한 한국 영화 코드 수집 완료`);
         
         if (movieCodes.size === 0) {
-            console.log('❌ 수집된 영화가 없습니다. 더 넓은 범위로 검색을 시도합니다...');
+            console.log('[ERROR] 수집된 영화가 없습니다. 더 넓은 범위로 검색을 시도합니다...');
             return await this.collectAllMoviesFromBoxOffice();
         }
         
         // 상세 정보 수집
-        console.log('\n🔍 영화 상세 정보 수집 중...');
+        console.log('\n[SEARCH] 영화 상세 정보 수집 중...');
         const movieCodesArray = Array.from(movieCodes);
         let successCount = 0;
         let failCount = 0;
         
         for (let i = 0; i < movieCodesArray.length; i++) {
             const movieCd = movieCodesArray[i];
-            console.log(`📽️ ${i + 1}/${movieCodesArray.length}: ${movieCd} 상세정보 조회 중...`);
+            console.log(`[PROJECTOR] ${i + 1}/${movieCodesArray.length}: ${movieCd} 상세정보 조회 중...`);
             
             try {
                 const movieDetail = await this.getMovieDetail(movieCd);
@@ -186,13 +186,13 @@ class KoficRecentCollector {
                     this.allMovies.push(normalizedMovie);
                     successCount++;
                     
-                    console.log(`   ✅ "${normalizedMovie.title}" - 감독: ${normalizedMovie.director}`);
+                    console.log(`   [SUCCESS] "${normalizedMovie.title}" - 감독: ${normalizedMovie.director}`);
                 } else {
                     failCount++;
                 }
                 
             } catch (error) {
-                console.error(`❌ ${movieCd} 처리 중 오류:`, error.message);
+                console.error(`[ERROR] ${movieCd} 처리 중 오류:`, error.message);
                 failCount++;
             }
         }
@@ -202,23 +202,23 @@ class KoficRecentCollector {
 
     // 박스오피스 전체에서 모든 영화 수집 (한국 영화 여부와 관계없이)
     async collectAllMoviesFromBoxOffice() {
-        console.log('🔍 모든 박스오피스 영화에서 한국 영화 찾기...');
+        console.log('[SEARCH] 모든 박스오피스 영화에서 한국 영화 찾기...');
         
         const movieCodes = new Set();
         const testDates = ['2024-07-27', '2024-07-26', '2024-07-25', '2024-07-20', '2024-07-15'];
         
         for (const dateStr of testDates) {
             const date = this.formatDate(dateStr);
-            console.log(`📊 ${dateStr} 전체 박스오피스 조회 중...`);
+            console.log(`[INFO] ${dateStr} 전체 박스오피스 조회 중...`);
             
             const boxOfficeList = await this.getDailyBoxOffice(date);
             
             if (boxOfficeList.length > 0) {
-                console.log(`   📋 전체 영화 ${boxOfficeList.length}개 발견`);
+                console.log(`   [FORM] 전체 영화 ${boxOfficeList.length}개 발견`);
                 
                 // 모든 영화의 상세정보를 확인해서 한국 영화 찾기
                 for (const movie of boxOfficeList) {
-                    console.log(`   🎬 "${movie.movieNm}" (${movie.movieCd}) 확인 중...`);
+                    console.log(`   [MOVIE] "${movie.movieNm}" (${movie.movieCd}) 확인 중...`);
                     
                     const detail = await this.getMovieDetail(movie.movieCd);
                     if (detail && detail.nations) {
@@ -228,7 +228,7 @@ class KoficRecentCollector {
                         
                         if (isKorean) {
                             movieCodes.add(movie.movieCd);
-                            console.log(`      ✅ 한국 영화 발견: "${detail.movieNm}"`);
+                            console.log(`      [SUCCESS] 한국 영화 발견: "${detail.movieNm}"`);
                         }
                     }
                 }
@@ -237,7 +237,7 @@ class KoficRecentCollector {
             await this.delay(500);
         }
         
-        console.log(`\n🎯 한국 영화 ${movieCodes.size}개 발견`);
+        console.log(`\n[TARGET] 한국 영화 ${movieCodes.size}개 발견`);
         
         // 상세 정보 재수집
         const movieCodesArray = Array.from(movieCodes);
@@ -272,10 +272,10 @@ class KoficRecentCollector {
     }
 
     saveResults(successCount, failCount) {
-        console.log(`\n✅ 데이터 수집 완료!`);
-        console.log(`📊 총 수집: ${this.allMovies.length}개`);
-        console.log(`✅ 성공: ${successCount}개`);
-        console.log(`❌ 실패: ${failCount}개`);
+        console.log(`\n[SUCCESS] 데이터 수집 완료!`);
+        console.log(`[INFO] 총 수집: ${this.allMovies.length}개`);
+        console.log(`[SUCCESS] 성공: ${successCount}개`);
+        console.log(`[ERROR] 실패: ${failCount}개`);
         
         const filename = `kofic_recent_movies_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.json`;
         fs.writeFileSync(filename, JSON.stringify({

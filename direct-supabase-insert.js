@@ -23,7 +23,7 @@ class DirectSupabaseInserter {
     }
 
     async testConnection() {
-        console.log('🔌 Supabase 연결 테스트...');
+        console.log('[ELECTRIC] Supabase 연결 테스트...');
         
         try {
             const { count, error } = await supabase
@@ -31,15 +31,15 @@ class DirectSupabaseInserter {
                 .select('*', { count: 'exact', head: true });
             
             if (error) {
-                console.log('❌ 연결 실패:', error.message);
+                console.log('[ERROR] 연결 실패:', error.message);
                 return false;
             }
             
-            console.log('✅ Supabase 연결 성공!');
-            console.log('📊 현재 movies 테이블 레코드 수:', count);
+            console.log('[SUCCESS] Supabase 연결 성공!');
+            console.log('[INFO] 현재 movies 테이블 레코드 수:', count);
             return true;
         } catch (err) {
-            console.log('❌ 연결 오류:', err.message);
+            console.log('[ERROR] 연결 오류:', err.message);
             return false;
         }
     }
@@ -140,7 +140,7 @@ class DirectSupabaseInserter {
     async insertMoviesBatch(movies) {
         if (movies.length === 0) return true;
         
-        console.log(`🎬 영화 ${movies.length}개 인서트 중...`);
+        console.log(`[MOVIE] 영화 ${movies.length}개 인서트 중...`);
         
         try {
             const { data, error } = await supabase
@@ -149,17 +149,17 @@ class DirectSupabaseInserter {
                 .select('id');
             
             if (error) {
-                console.log('❌ 영화 인서트 실패:', error.message);
+                console.log('[ERROR] 영화 인서트 실패:', error.message);
                 this.stats.errors.push(`Movies batch: ${error.message}`);
                 return false;
             }
             
             this.stats.moviesInserted += movies.length;
-            console.log(`✅ 영화 ${movies.length}개 인서트 성공 (총 ${this.stats.moviesInserted}개)`);
+            console.log(`[SUCCESS] 영화 ${movies.length}개 인서트 성공 (총 ${this.stats.moviesInserted}개)`);
             return true;
             
         } catch (err) {
-            console.log('❌ 영화 인서트 오류:', err.message);
+            console.log('[ERROR] 영화 인서트 오류:', err.message);
             this.stats.errors.push(`Movies batch error: ${err.message}`);
             return false;
         }
@@ -168,7 +168,7 @@ class DirectSupabaseInserter {
     async insertReviewsBatch(reviews) {
         if (reviews.length === 0) return true;
         
-        console.log(`📝 리뷰 ${reviews.length}개 인서트 중...`);
+        console.log(`[MEMO] 리뷰 ${reviews.length}개 인서트 중...`);
         
         try {
             const { data, error } = await supabase
@@ -177,17 +177,17 @@ class DirectSupabaseInserter {
                 .select('id');
             
             if (error) {
-                console.log('❌ 리뷰 인서트 실패:', error.message);
+                console.log('[ERROR] 리뷰 인서트 실패:', error.message);
                 this.stats.errors.push(`Reviews batch: ${error.message}`);
                 return false;
             }
             
             this.stats.reviewsInserted += reviews.length;
-            console.log(`✅ 리뷰 ${reviews.length}개 인서트 성공 (총 ${this.stats.reviewsInserted}개)`);
+            console.log(`[SUCCESS] 리뷰 ${reviews.length}개 인서트 성공 (총 ${this.stats.reviewsInserted}개)`);
             return true;
             
         } catch (err) {
-            console.log('❌ 리뷰 인서트 오류:', err.message);
+            console.log('[ERROR] 리뷰 인서트 오류:', err.message);
             this.stats.errors.push(`Reviews batch error: ${err.message}`);
             return false;
         }
@@ -210,7 +210,7 @@ class DirectSupabaseInserter {
         let movieBatch = [];
         let reviewBatch = [];
         
-        console.log('🔄 SQL 파싱 및 배치 인서트 시작...');
+        console.log('[LOADING] SQL 파싱 및 배치 인서트 시작...');
         
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
@@ -242,11 +242,11 @@ class DirectSupabaseInserter {
                 
                 // 진행 상황 출력
                 if (i % 10000 === 0 && i > 0) {
-                    console.log(`📊 진행 상황: ${i.toLocaleString()}/${lines.length.toLocaleString()} 줄 처리됨`);
+                    console.log(`[INFO] 진행 상황: ${i.toLocaleString()}/${lines.length.toLocaleString()} 줄 처리됨`);
                 }
                 
             } catch (err) {
-                console.log(`⚠️ 줄 ${i} 파싱 오류:`, err.message);
+                console.log(`[WARN] 줄 ${i} 파싱 오류:`, err.message);
             }
         }
         
@@ -266,7 +266,7 @@ class DirectSupabaseInserter {
         // 연결 테스트
         const connected = await this.testConnection();
         if (!connected) {
-            console.log('❌ Supabase 연결 실패');
+            console.log('[ERROR] Supabase 연결 실패');
             return;
         }
         
@@ -275,7 +275,7 @@ class DirectSupabaseInserter {
         try {
             await this.processSQL();
         } catch (err) {
-            console.log('❌ 처리 중 오류:', err.message);
+            console.log('[ERROR] 처리 중 오류:', err.message);
         }
         
         const endTime = Date.now();
@@ -283,19 +283,19 @@ class DirectSupabaseInserter {
         
         // 결과 리포트
         console.log('\n' + '='.repeat(50));
-        console.log('📊 배치 인서트 완료 리포트');
+        console.log('[INFO] 배치 인서트 완료 리포트');
         console.log('='.repeat(50));
         console.log(`⏱️ 총 실행 시간: ${totalTime}분`);
-        console.log(`🎬 영화 인서트: ${this.stats.moviesInserted}개`);
-        console.log(`📝 리뷰 인서트: ${this.stats.reviewsInserted}개`);
-        console.log(`❌ 오류: ${this.stats.errors.length}개`);
+        console.log(`[MOVIE] 영화 인서트: ${this.stats.moviesInserted}개`);
+        console.log(`[MEMO] 리뷰 인서트: ${this.stats.reviewsInserted}개`);
+        console.log(`[ERROR] 오류: ${this.stats.errors.length}개`);
         
         if (this.stats.errors.length > 0) {
-            console.log('\n❌ 오류 목록:');
+            console.log('\n[ERROR] 오류 목록:');
             this.stats.errors.slice(0, 5).forEach(error => console.log(`   ${error}`));
         }
         
-        console.log('\n🎉 배치 인서트 완료!');
+        console.log('\n[PARTY] 배치 인서트 완료!');
     }
 }
 

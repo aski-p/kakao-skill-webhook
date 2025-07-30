@@ -7,12 +7,12 @@ const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
 async function checkMovieTitles() {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    console.log('🔍 데이터베이스에서 영화 제목 검색 중...\n');
+    console.log('[SEARCH] 데이터베이스에서 영화 제목 검색 중...\n');
 
     const searchTitles = ['파묘', '기생충', '아마추어', '탑건', '매버릭', '범죄도시4', '범죄도시 4'];
 
     for (const searchTitle of searchTitles) {
-        console.log(`📽️ "${searchTitle}" 검색...`);
+        console.log(`[PROJECTOR] "${searchTitle}" 검색...`);
         
         const { data, error } = await supabase
             .from('movies')
@@ -21,20 +21,20 @@ async function checkMovieTitles() {
             .order('id');
 
         if (error) {
-            console.log(`   ❌ 검색 실패: ${error.message}`);
+            console.log(`   [ERROR] 검색 실패: ${error.message}`);
         } else if (data && data.length > 0) {
-            console.log(`   ✅ ${data.length}개 발견:`);
+            console.log(`   [SUCCESS] ${data.length}개 발견:`);
             data.forEach(movie => {
                 console.log(`      ID: ${movie.id} | 제목: "${movie.title}" | 감독: ${movie.director || '정보없음'}`);
             });
         } else {
-            console.log(`   ❌ 검색 결과 없음`);
+            console.log(`   [ERROR] 검색 결과 없음`);
         }
         console.log('');
     }
 
     // 가짜 평론가가 있는 영화들 찾기
-    console.log('🔍 가짜 평론가가 있는 영화들 찾기...\n');
+    console.log('[SEARCH] 가짜 평론가가 있는 영화들 찾기...\n');
     
     const { data: fakeReviews, error: fakeError } = await supabase
         .from('critic_reviews')
@@ -47,18 +47,18 @@ async function checkMovieTitles() {
         .or('critic_name.ilike.%김영화평론가%,critic_name.ilike.%박시네마리뷰%');
 
     if (fakeError) {
-        console.log(`❌ 가짜 평론가 검색 실패: ${fakeError.message}`);
+        console.log(`[ERROR] 가짜 평론가 검색 실패: ${fakeError.message}`);
     } else if (fakeReviews && fakeReviews.length > 0) {
-        console.log(`⚠️ 가짜 평론가 ${fakeReviews.length}개 발견:`);
+        console.log(`[WARN] 가짜 평론가 ${fakeReviews.length}개 발견:`);
         fakeReviews.forEach(review => {
             console.log(`   영화: "${review.movies.title}" | 평론가: ${review.critic_name}`);
         });
     } else {
-        console.log(`✅ 가짜 평론가 없음 - 모두 제거됨!`);
+        console.log(`[SUCCESS] 가짜 평론가 없음 - 모두 제거됨!`);
     }
 
     // "알 수 없음" 감독이나 출연진이 있는 영화들 찾기
-    console.log('\n🔍 "알 수 없음" 정보가 있는 영화들 찾기...\n');
+    console.log('\n[SEARCH] "알 수 없음" 정보가 있는 영화들 찾기...\n');
     
     const { data: unknownMovies, error: unknownError } = await supabase
         .from('movies')
@@ -68,14 +68,14 @@ async function checkMovieTitles() {
         .limit(10);
 
     if (unknownError) {
-        console.log(`❌ "알 수 없음" 검색 실패: ${unknownError.message}`);
+        console.log(`[ERROR] "알 수 없음" 검색 실패: ${unknownError.message}`);
     } else if (unknownMovies && unknownMovies.length > 0) {
-        console.log(`⚠️ "알 수 없음" 정보가 있는 영화 ${unknownMovies.length}개 발견:`);
+        console.log(`[WARN] "알 수 없음" 정보가 있는 영화 ${unknownMovies.length}개 발견:`);
         unknownMovies.forEach(movie => {
             console.log(`   ID: ${movie.id} | 제목: "${movie.title}" | 감독: ${movie.director || '정보없음'} | 출연진: ${movie.cast_members?.join(', ') || '정보없음'}`);
         });
     } else {
-        console.log(`✅ "알 수 없음" 정보 없음 - 모두 업데이트됨!`);
+        console.log(`[SUCCESS] "알 수 없음" 정보 없음 - 모두 업데이트됨!`);
     }
 }
 

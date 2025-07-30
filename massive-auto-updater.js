@@ -251,7 +251,7 @@ class MassiveAutoUpdater {
 
     async updateSingleMovie(movie) {
         try {
-            console.log(`\n🎬 ID ${movie.id}: "${movie.title}" 처리 중...`);
+            console.log(`\n[MOVIE] ID ${movie.id}: "${movie.title}" 처리 중...`);
 
             // 패턴 분석 및 정보 생성
             const pattern = this.analyzeMovieTitle(movie.title);
@@ -272,14 +272,14 @@ class MassiveAutoUpdater {
                 .eq('id', movie.id);
 
             if (updateError) {
-                console.log(`   ❌ 영화 정보 업데이트 실패: ${updateError.message}`);
+                console.log(`   [ERROR] 영화 정보 업데이트 실패: ${updateError.message}`);
                 return false;
             }
 
-            console.log(`   ✅ 영화 정보 업데이트 완료`);
-            console.log(`   🎭 감독: ${movieInfo.director}`);
-            console.log(`   👥 출연진: ${movieInfo.cast_members.slice(0, 3).join(', ')}`);
-            console.log(`   🎪 장르: ${movieInfo.genre}`);
+            console.log(`   [SUCCESS] 영화 정보 업데이트 완료`);
+            console.log(`   [DRAMA] 감독: ${movieInfo.director}`);
+            console.log(`   [BUSTSINSILHOUETTE] 출연진: ${movieInfo.cast_members.slice(0, 3).join(', ')}`);
+            console.log(`   [FUN] 장르: ${movieInfo.genre}`);
 
             // 기존 리뷰 삭제
             await this.supabase
@@ -307,11 +307,11 @@ class MassiveAutoUpdater {
                 }
             }
 
-            console.log(`   📝 리뷰 추가 완료`);
+            console.log(`   [MEMO] 리뷰 추가 완료`);
             return true;
 
         } catch (error) {
-            console.log(`   ❌ "${movie.title}" 처리 중 예외 발생: ${error.message}`);
+            console.log(`   [ERROR] "${movie.title}" 처리 중 예외 발생: ${error.message}`);
             return false;
         }
     }
@@ -325,7 +325,7 @@ class MassiveAutoUpdater {
             .range(offset, offset + limit - 1);
 
         if (error) {
-            console.log(`❌ 배치 조회 실패: ${error.message}`);
+            console.log(`[ERROR] 배치 조회 실패: ${error.message}`);
             return [];
         }
 
@@ -335,7 +335,7 @@ class MassiveAutoUpdater {
     async run() {
         console.log('🚀🚀🚀 4,280개 영화 대량 자동 업데이트 시작! 🚀🚀🚀');
         console.log('⏱️ 예상 소요 시간: 약 2-3시간');
-        console.log('🎯 목표: 모든 "알 수 없음" 영화를 실제 데이터로 교체\n');
+        console.log('[TARGET] 목표: 모든 "알 수 없음" 영화를 실제 데이터로 교체\n');
 
         const startTime = Date.now();
         let currentOffset = 0;
@@ -347,17 +347,17 @@ class MassiveAutoUpdater {
             .or('director.eq.알 수 없음,cast_members.cs.{"알 수 없음"}');
 
         this.totalMovies = totalData?.length || 0;
-        console.log(`📊 전체 처리 대상: ${this.totalMovies}개 영화\n`);
+        console.log(`[INFO] 전체 처리 대상: ${this.totalMovies}개 영화\n`);
 
         // 배치별 처리
         while (true) {
-            console.log(`\n📦 배치 ${Math.floor(currentOffset / this.batchSize) + 1} 시작 (${currentOffset + 1} ~ ${currentOffset + this.batchSize})`);
+            console.log(`\n[PACKAGE] 배치 ${Math.floor(currentOffset / this.batchSize) + 1} 시작 (${currentOffset + 1} ~ ${currentOffset + this.batchSize})`);
             console.log('='.repeat(60));
 
             const batch = await this.getMoviesBatch(currentOffset, this.batchSize);
             
             if (batch.length === 0) {
-                console.log('✅ 모든 영화 처리 완료!');
+                console.log('[SUCCESS] 모든 영화 처리 완료!');
                 break;
             }
 
@@ -368,7 +368,7 @@ class MassiveAutoUpdater {
 
                 if (success) {
                     this.successCount++;
-                    console.log(`   🎉 "${movie.title}" 성공! ✨`);
+                    console.log(`   [PARTY] "${movie.title}" 성공! [SPARKLE]`);
                 } else {
                     this.failCount++;
                     console.log(`   💥 "${movie.title}" 실패`);
@@ -381,7 +381,7 @@ class MassiveAutoUpdater {
                 const batchProgress = Math.round(((i + 1) / batch.length) * 100);
                 
                 console.log(`   📈 배치 진행률: ${i + 1}/${batch.length} (${batchProgress}%)`);
-                console.log(`   📊 전체 진행률: ${this.processedCount}/${this.totalMovies} (${totalProgress}%)`);
+                console.log(`   [INFO] 전체 진행률: ${this.processedCount}/${this.totalMovies} (${totalProgress}%)`);
                 
                 // 통계 표시
                 if (this.processedCount % 10 === 0) {
@@ -390,15 +390,15 @@ class MassiveAutoUpdater {
                     const estimatedRemaining = (this.totalMovies - this.processedCount) * avgTimePerMovie;
                     
                     console.log(`   ⏱️ 경과시간: ${elapsedTime.toFixed(1)}분`);
-                    console.log(`   🔮 예상 남은 시간: ${estimatedRemaining.toFixed(1)}분`);
-                    console.log(`   📊 성공률: ${Math.round((this.successCount / this.processedCount) * 100)}%`);
+                    console.log(`   [CRYSTAL] 예상 남은 시간: ${estimatedRemaining.toFixed(1)}분`);
+                    console.log(`   [INFO] 성공률: ${Math.round((this.successCount / this.processedCount) * 100)}%`);
                 }
 
                 // 서버 부하 방지
                 await this.delay(1000);
             }
 
-            console.log(`\n✅ 배치 ${Math.floor(currentOffset / this.batchSize) + 1} 완료!`);
+            console.log(`\n[SUCCESS] 배치 ${Math.floor(currentOffset / this.batchSize) + 1} 완료!`);
             console.log(`   성공: ${this.successCount}개, 실패: ${this.failCount}개`);
 
             currentOffset += this.batchSize;
@@ -413,24 +413,24 @@ class MassiveAutoUpdater {
         const totalTime = (endTime - startTime) / 1000 / 60; // 분
 
         console.log('\n' + '='.repeat(80));
-        console.log('🎉🎉🎉 4,280개 영화 대량 업데이트 완료! 🎉🎉🎉');
+        console.log('[PARTY][PARTY][PARTY] 4,280개 영화 대량 업데이트 완료! [PARTY][PARTY][PARTY]');
         console.log('='.repeat(80));
         console.log(`⏱️ 총 실행 시간: ${totalTime.toFixed(1)}분 (${(totalTime / 60).toFixed(1)}시간)`);
-        console.log(`🎬 처리된 영화: ${this.processedCount}개`);
-        console.log(`✅ 성공: ${this.successCount}개`);
-        console.log(`❌ 실패: ${this.failCount}개`);
-        console.log(`📊 최종 성공률: ${Math.round((this.successCount / this.processedCount) * 100)}%`);
+        console.log(`[MOVIE] 처리된 영화: ${this.processedCount}개`);
+        console.log(`[SUCCESS] 성공: ${this.successCount}개`);
+        console.log(`[ERROR] 실패: ${this.failCount}개`);
+        console.log(`[INFO] 최종 성공률: ${Math.round((this.successCount / this.processedCount) * 100)}%`);
 
-        console.log('\n🔥🔥🔥 역사적인 순간! 모든 "알 수 없음" 데이터 완전 소멸! 🔥🔥🔥');
-        console.log('✅ 이제 모든 영화가 실제 감독과 배우 정보를 가지고 있습니다!');
-        console.log('✅ 모든 가짜 평론가가 실제 관객 리뷰로 교체되었습니다!');
-        console.log('✅ 카카오 스킬이 완벽한 영화 정보로 답변할 수 있습니다!');
+        console.log('\n[FIRE][FIRE][FIRE] 역사적인 순간! 모든 "알 수 없음" 데이터 완전 소멸! [FIRE][FIRE][FIRE]');
+        console.log('[SUCCESS] 이제 모든 영화가 실제 감독과 배우 정보를 가지고 있습니다!');
+        console.log('[SUCCESS] 모든 가짜 평론가가 실제 관객 리뷰로 교체되었습니다!');
+        console.log('[SUCCESS] 카카오 스킬이 완벽한 영화 정보로 답변할 수 있습니다!');
 
-        console.log('\n📱 이제 어떤 영화든 물어보세요:');
-        console.log('   💬 "아무 영화나 감독 알려줘" → 실제 감독 이름');
-        console.log('   💬 "아무 영화나 출연진 알려줘" → 실제 배우들');
-        console.log('   💬 "아무 영화나 영화평" → 실제 관객 리뷰');
-        console.log('   💬 "아무 영화나 평점" → 실제 평점');
+        console.log('\n[APP] 이제 어떤 영화든 물어보세요:');
+        console.log('   [MSG] "아무 영화나 감독 알려줘" → 실제 감독 이름');
+        console.log('   [MSG] "아무 영화나 출연진 알려줘" → 실제 배우들');
+        console.log('   [MSG] "아무 영화나 영화평" → 실제 관객 리뷰');
+        console.log('   [MSG] "아무 영화나 평점" → 실제 평점');
     }
 }
 

@@ -5,7 +5,7 @@ const SUPABASE_URL = 'https://dpmoafgaysocfjxlmaum.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwbW9hZmdheXNvY2ZqeGxtYXVtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTQ2NDMzMSwiZXhwIjoyMDY3MDQwMzMxfQ.G2woWTLhGpc0FOEyfABZs7k1wYTSYCaDeYhYtpoY73c';
 
 async function quickMovieUpdate() {
-    console.log('🎬 빠른 영화 데이터 업데이트 테스트');
+    console.log('[MOVIE] 빠른 영화 데이터 업데이트 테스트');
     
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
@@ -17,14 +17,14 @@ async function quickMovieUpdate() {
             .limit(3);
         
         if (error) {
-            console.error('❌ 영화 조회 오류:', error.message);
+            console.error('[ERROR] 영화 조회 오류:', error.message);
             return;
         }
         
-        console.log(`📋 ${movies.length}개 영화 샘플 처리`);
+        console.log(`[FORM] ${movies.length}개 영화 샘플 처리`);
         
         for (const movie of movies) {
-            console.log(`\n🎬 "${movie.title}" 처리 중...`);
+            console.log(`\n[MOVIE] "${movie.title}" 처리 중...`);
             
             // 박평식, 이동진 필수 포함 평론가 리뷰 생성
             const criticReviews = [
@@ -63,20 +63,20 @@ async function quickMovieUpdate() {
                 .insert(criticReviews);
             
             if (insertError) {
-                console.log(`   ❌ 리뷰 추가 오류: ${insertError.message}`);
+                console.log(`   [ERROR] 리뷰 추가 오류: ${insertError.message}`);
             } else {
-                console.log(`   ✅ 평론가 리뷰 3개 추가 완료`);
+                console.log(`   [SUCCESS] 평론가 리뷰 3개 추가 완료`);
                 criticReviews.forEach((review, index) => {
                     console.log(`      ${index + 1}. ${review.critic_name}: ${review.score.toFixed(1)}/10`);
                 });
             }
         }
         
-        console.log('\n🎉 샘플 업데이트 완료!');
+        console.log('\n[PARTY] 샘플 업데이트 완료!');
         console.log('이제 "야당 영화평", "기생충 영화평" 등을 테스트해보세요.');
         
     } catch (error) {
-        console.error('❌ 전체 오류:', error.message);
+        console.error('[ERROR] 전체 오류:', error.message);
     }
 }
 

@@ -364,6 +364,74 @@ class SubAgentManager {
         }
     }
     
+    // 쇼핑 에이전트 처리
+    async processShoppingQuery(taskData) {
+        const { message, userId, classification } = taskData;
+        
+        console.log('쇼핑 에이전트 처리 시작');
+        
+        return {
+            success: true,
+            data: {
+                message: "죄송합니다. 쇼핑 기능은 현재 개발 중입니다.\n\n다른 질문이 있으시면 언제든 말씀해주세요!",
+                category: 'SHOPPING',
+                processedBy: 'shopping-agent'
+            },
+            agent: 'shopping-agent'
+        };
+    }
+    
+    // 레스토랑 에이전트 처리
+    async processRestaurantQuery(taskData) {
+        const { message, userId, classification } = taskData;
+        
+        console.log('레스토랑 에이전트 처리 시작');
+        
+        return {
+            success: true,
+            data: {
+                message: "죄송합니다. 맛집 추천 기능은 현재 개발 중입니다.\n\n다른 질문이 있으시면 언제든 말씀해주세요!",
+                category: 'RESTAURANT',
+                processedBy: 'restaurant-agent'
+            },
+            agent: 'restaurant-agent'
+        };
+    }
+    
+    // 뉴스 에이전트 처리
+    async processNewsQuery(taskData) {
+        const { message, userId, classification } = taskData;
+        
+        console.log('뉴스 에이전트 처리 시작');
+        
+        return {
+            success: true,
+            data: {
+                message: "죄송합니다. 뉴스 검색 기능은 현재 개발 중입니다.\n\n다른 질문이 있으시면 언제든 말씀해주세요!",
+                category: 'NEWS',
+                processedBy: 'news-agent'
+            },
+            agent: 'news-agent'
+        };
+    }
+    
+    // 엔터테인먼트 에이전트 처리
+    async processEntertainmentQuery(taskData) {
+        const { message, userId, classification } = taskData;
+        
+        console.log('엔터테인먼트 에이전트 처리 시작');
+        
+        return {
+            success: true,
+            data: {
+                message: "죄송합니다. 엔터테인먼트 기능은 현재 개발 중입니다.\n\n다른 질문이 있으시면 언제든 말씀해주세요!",
+                category: 'ENTERTAINMENT',
+                processedBy: 'entertainment-agent'
+            },
+            agent: 'entertainment-agent'
+        };
+    }
+    
     // === 헬퍼 함수들 ===
     
     createErrorResponse(message) {

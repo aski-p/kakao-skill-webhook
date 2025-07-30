@@ -19,7 +19,7 @@ class DataExtractor {
     async extractData(classification) {
         const { category, data } = classification;
         
-        console.log(`🔧 데이터 추출 시작: ${category}`, data);
+        console.log(`[TOOL] 데이터 추출 시작: ${category}`, data);
         
         try {
             switch (category) {
@@ -64,7 +64,7 @@ class DataExtractor {
                     };
             }
         } catch (error) {
-            console.error(`❌ 데이터 추출 실패 (${category}):`, error);
+            console.error(`[ERROR] 데이터 추출 실패 (${category}):`, error);
             return this.createErrorResponse('데이터 추출 중 오류가 발생했습니다.');
         }
     }
@@ -78,55 +78,55 @@ class DataExtractor {
             return this.createErrorResponse('영화 제목을 찾을 수 없습니다.');
         }
 
-        console.log(`🎬 영화 검색 서브에이전트 시스템 시작: "${title}" (리뷰 타입: ${reviewType})`);
+        console.log(`[MOVIE] 영화 검색 서브에이전트 시스템 시작: "${title}" (리뷰 타입: ${reviewType})`);
 
         try {
             // 🚀 새로운 영화 서브에이전트 코디네이터 사용
-            console.log('🤖 영화 서브에이전트 코디네이터로 위임');
+            console.log('[AI] 영화 서브에이전트 코디네이터로 위임');
             const movieReviewResult = await this.movieCoordinator.getMovieReview(title, { reviewType });
             
             if (movieReviewResult && movieReviewResult.success) {
-                console.log('✅ 서브에이전트 시스템 성공 - movies 테이블 기반 상세 포맷 제공');
+                console.log('[SUCCESS] 서브에이전트 시스템 성공 - movies 테이블 기반 상세 포맷 제공');
                 return movieReviewResult;
             } else {
-                console.log('⚠️ 서브에이전트 시스템에서 영화를 찾지 못함');
+                console.log('[WARN] 서브에이전트 시스템에서 영화를 찾지 못함');
                 return movieReviewResult; // 이미 적절한 오류 메시지 포함
             }
         } catch (error) {
-            console.log(`❌ 서브에이전트 시스템 오류: ${error.message}`);
+            console.log(`[ERROR] 서브에이전트 시스템 오류: ${error.message}`);
             // 오류가 발생한 경우 fallback 메시지
             return {
                 success: false,
                 type: 'movie_system_error',
                 data: {
-                    message: `🎬 "${title}" 영화평 검색 시스템 오류\n\n❌ 오류: ${error.message}\n\n🔄 잠시 후 다시 시도해주시거나, 다른 영화 제목으로 검색해보세요.\n\n💡 검색 팁:\n• 정확한 영화 제목 사용\n• 한글 또는 영어 제목으로 시도\n• 예) "기생충 영화평", "어벤져스 평점"`
+                    message: `[MOVIE] "${title}" 영화평 검색 시스템 오류\n\n[ERROR] 오류: ${error.message}\n\n[LOADING] 잠시 후 다시 시도해주시거나, 다른 영화 제목으로 검색해보세요.\n\n[TIP] 검색 팁:\n• 정확한 영화 제목 사용\n• 한글 또는 영어 제목으로 시도\n• 예) "기생충 영화평", "어벤져스 평점"`
                 }
             };
         }
     }
 
     async searchMovieReviewsInNews(title, reviewType) {
-        console.log(`🎬 영화 뉴스 검색: "${title}"`);
+        console.log(`[MOVIE] 영화 뉴스 검색: "${title}"`);
         
         const searchQueries = this.generateMovieSearchQueries(title, reviewType);
         
         // 첫 번째 검색 시도
         for (const query of searchQueries) {
             try {
-                console.log(`🔍 영화 검색: ${query}`);
+                console.log(`[SEARCH] 영화 검색: ${query}`);
                 const response = await this.searchNaver('news', query, 10);
                 if (response.items && response.items.length > 0) {
-                    console.log(`✅ 검색 결과 ${response.items.length}개 찾음`);
+                    console.log(`[SUCCESS] 검색 결과 ${response.items.length}개 찾음`);
                     return this.formatMovieNewsResponse(response.items, title, query);
                 }
             } catch (error) {
-                console.log(`⚠️ 영화 뉴스 검색 실패: ${query}`, error.message);
+                console.log(`[WARN] 영화 뉴스 검색 실패: ${query}`, error.message);
             }
         }
         
         // F1 관련 영화인 경우 확장 검색
         if (title.toLowerCase().includes('f1') || title.includes('더무비')) {
-            console.log('🏎️ F1 관련 영화 확장 검색 시도...');
+            console.log('[RACECAR] F1 관련 영화 확장 검색 시도...');
             const f1Queries = [
                 'F1 영화 평점',
                 '러쉬 영화 평점 크리스 헴스워스',
@@ -137,20 +137,20 @@ class DataExtractor {
             
             for (const query of f1Queries) {
                 try {
-                    console.log(`🔍 F1 확장 검색: ${query}`);
+                    console.log(`[SEARCH] F1 확장 검색: ${query}`);
                     const response = await this.searchNaver('news', query, 10);
                     if (response.items && response.items.length > 0) {
-                        console.log(`✅ F1 확장 검색 결과 ${response.items.length}개 찾음`);
+                        console.log(`[SUCCESS] F1 확장 검색 결과 ${response.items.length}개 찾음`);
                         // F1 관련 영화들 안내 메시지와 함께 결과 반환
                         return this.formatF1AlternativeResponse(response.items, title);
                     }
                 } catch (error) {
-                    console.log(`⚠️ F1 확장 검색 실패: ${query}`, error.message);
+                    console.log(`[WARN] F1 확장 검색 실패: ${query}`, error.message);
                 }
             }
         }
         
-        return this.createErrorResponse(`🎬 "${title}" 영화 정보를 찾을 수 없습니다.`);
+        return this.createErrorResponse(`[MOVIE] "${title}" 영화 정보를 찾을 수 없습니다.`);
     }
 
     generateMovieSearchQueries(title, reviewType) {
@@ -191,14 +191,14 @@ class DataExtractor {
     async extractWeatherData(data) {
         const { location, timeframe } = data;
         
-        console.log(`🌤️ 날씨 정보 요청: ${location} (${timeframe})`);
+        console.log(`[WEATHER] 날씨 정보 요청: ${location} (${timeframe})`);
         
         try {
             // 네이버 API로 날씨 정보 검색 (더 정확한 쿼리 사용)
             const weatherQueries = this.generateWeatherSearchQueries(location, timeframe);
             
             for (const query of weatherQueries) {
-                console.log(`🔍 날씨 검색: ${query}`);
+                console.log(`[SEARCH] 날씨 검색: ${query}`);
                 const response = await this.searchNaver('news', query, 5);
                 
                 if (response.items && response.items.length > 0) {
@@ -213,7 +213,7 @@ class DataExtractor {
             return this.createWeatherPlaceholder(location);
             
         } catch (error) {
-            console.error('❌ 날씨 정보 검색 실패:', error);
+            console.error('[ERROR] 날씨 정보 검색 실패:', error);
             return this.createWeatherPlaceholder(location);
         }
     }
@@ -231,27 +231,27 @@ class DataExtractor {
             const response = await this.searchNaver('local', query, 10);
             
             // 응답 데이터 확인 및 디버그 로그
-            console.log(`🔍 맛집 검색 쿼리: "${query}"`);
-            console.log(`📊 검색 결과 수: ${response.items ? response.items.length : 0}`);
+            console.log(`[SEARCH] 맛집 검색 쿼리: "${query}"`);
+            console.log(`[INFO] 검색 결과 수: ${response.items ? response.items.length : 0}`);
             
             if (response.items && response.items.length > 0) {
-                console.log(`✅ 맛집 검색 성공 - ${response.items.length}개 결과 발견`);
+                console.log(`[SUCCESS] 맛집 검색 성공 - ${response.items.length}개 결과 발견`);
                 return this.formatRestaurantResponse(response.items, location, foodType);
             } else {
-                console.log(`⚠️ 맛집 검색 결과 없음 - 다른 키워드로 재시도`);
+                console.log(`[WARN] 맛집 검색 결과 없음 - 다른 키워드로 재시도`);
                 // 다른 키워드로 재시도
                 const fallbackQuery = `${location} 맛집 추천`;
                 const fallbackResponse = await this.searchNaver('local', fallbackQuery, 10);
                 
                 if (fallbackResponse.items && fallbackResponse.items.length > 0) {
-                    console.log(`✅ 재검색 성공 - ${fallbackResponse.items.length}개 결과 발견`);
+                    console.log(`[SUCCESS] 재검색 성공 - ${fallbackResponse.items.length}개 결과 발견`);
                     return this.formatRestaurantResponse(fallbackResponse.items, location, foodType);
                 } else {
                     return this.createErrorResponse(`${location} 지역의 맛집 정보를 찾을 수 없습니다. 정확한 지역명을 입력해주세요.`);
                 }
             }
         } catch (error) {
-            console.error(`❌ 맛집 검색 API 오류:`, error);
+            console.error(`[ERROR] 맛집 검색 API 오류:`, error);
             return this.createErrorResponse('맛집 정보를 가져오는 중 오류가 발생했습니다.');
         }
     }
@@ -272,7 +272,7 @@ class DataExtractor {
             query += ' 인기';
         }
         
-        console.log(`🔍 최종 맛집 검색 쿼리: "${query}"`);
+        console.log(`[SEARCH] 최종 맛집 검색 쿼리: "${query}"`);
         return query;
     }
 
@@ -302,7 +302,7 @@ class DataExtractor {
     async extractNewsData(data) {
         const { topic, timeframe } = data;
         
-        console.log(`📰 뉴스 검색: ${topic} (시간: ${timeframe})`);
+        console.log(`[NEWS] 뉴스 검색: ${topic} (시간: ${timeframe})`);
         
         try {
             const response = await this.searchNaver('news', topic, 5);
@@ -319,7 +319,7 @@ class DataExtractor {
             return this.createErrorResponse('유튜브 URL을 찾을 수 없습니다.');
         }
         
-        console.log(`📺 유튜브 요약: ${url.videoId} (타입: ${summaryType})`);
+        console.log(`[TV] 유튜브 요약: ${url.videoId} (타입: ${summaryType})`);
         
         // 유튜브 요약 기능은 Claude AI 연동 필요
         return this.createErrorResponse('유튜브 요약 기능은 준비 중입니다.');
@@ -328,7 +328,7 @@ class DataExtractor {
     async extractFactCheckData(data) {
         const { claim } = data;
         
-        console.log(`🔍 사실 확인: ${claim}`);
+        console.log(`[SEARCH] 사실 확인: ${claim}`);
         
         try {
             const response = await this.searchNaver('news', `"${claim}" 사실`, 3);
@@ -355,7 +355,7 @@ class DataExtractor {
     async extractCasualConversationData(data) {
         const { conversationType, topic } = data;
         
-        console.log(`💬 일상 대화: ${conversationType} - ${topic}`);
+        console.log(`[MSG] 일상 대화: ${conversationType} - ${topic}`);
         
         // 일상 대화는 Claude AI로 위임 (메시지 없이 needsAI만 true로 설정)
         return {
@@ -464,13 +464,13 @@ class DataExtractor {
     
     extractWeatherCondition(text) {
         const conditions = [
-            { keywords: ['맑음', '맑은', '쾌청'], icon: '☀️', name: '맑음' },
-            { keywords: ['흐림', '흐린', '구름'], icon: '☁️', name: '흐림' },
-            { keywords: ['비', '강우', '비바람', '소나기'], icon: '🌧️', name: '비' },
-            { keywords: ['눈', '강설', '눈바람'], icon: '❄️', name: '눈' },
-            { keywords: ['안개', '박무'], icon: '🌫️', name: '안개' },
+            { keywords: ['맑음', '맑은', '쾌청'], icon: '[SUN]', name: '맑음' },
+            { keywords: ['흐림', '흐린', '구름'], icon: '[CLOUD]', name: '흐림' },
+            { keywords: ['비', '강우', '비바람', '소나기'], icon: '[RAIN]', name: '비' },
+            { keywords: ['눈', '강설', '눈바람'], icon: '[SNOW]', name: '눈' },
+            { keywords: ['안개', '박무'], icon: '[AIR]', name: '안개' },
             { keywords: ['바람', '강풍'], icon: '💨', name: '바람' },
-            { keywords: ['천둥', '번개'], icon: '⛈️', name: '뇌우' }
+            { keywords: ['천둥', '번개'], icon: '[STORM]', name: '뇌우' }
         ];
         
         for (const condition of conditions) {
@@ -543,14 +543,14 @@ class DataExtractor {
                 director: director,
                 actor: actor,
                 link: movie.link,
-                message: `🎬 "${title}" 영화 정보\n\n⭐ 평점: ${rating}/10\n🎭 감독: ${director}\n👥 주연: ${actor}\n\n🔗 상세정보: 네이버 영화`
+                message: `[MOVIE] "${title}" 영화 정보\n\n[FAVORITE] 평점: ${rating}/10\n[DRAMA] 감독: ${director}\n[BUSTSINSILHOUETTE] 주연: ${actor}\n\n[LINK] 상세정보: 네이버 영화`
             }
         };
     }
 
     formatMovieNewsResponse(items, title, query) {
         if (!items || items.length === 0) {
-            return this.createErrorResponse(`🎬 "${title}" 영화 평가 정보를 찾을 수 없습니다.`);
+            return this.createErrorResponse(`[MOVIE] "${title}" 영화 평가 정보를 찾을 수 없습니다.`);
         }
         
         // 요청된 영화 제목 그대로 사용
@@ -575,7 +575,7 @@ class DataExtractor {
             return (titleAndDesc.includes('평점') || titleAndDesc.includes('평가') || 
                    titleAndDesc.includes('리뷰') || titleAndDesc.includes('평론') ||
                    titleAndDesc.includes('별점') || titleAndDesc.includes('★') ||
-                   titleAndDesc.includes('⭐') || titleAndDesc.includes('후기')) &&
+                   titleAndDesc.includes('[FAVORITE]') || titleAndDesc.includes('후기')) &&
                    (titleAndDesc.includes('영화') || titleAndDesc.includes(title.toLowerCase()));
         });
 
@@ -599,7 +599,7 @@ class DataExtractor {
                    titleAndDesc.includes('네이버영화') || titleAndDesc.includes('왓챠') ||
                    titleAndDesc.includes('cgv')) && 
                    (titleAndDesc.includes('평점') || titleAndDesc.includes('별점') ||
-                    titleAndDesc.includes('★') || titleAndDesc.includes('⭐') ||
+                    titleAndDesc.includes('★') || titleAndDesc.includes('[FAVORITE]') ||
                     titleAndDesc.includes('후기') || titleAndDesc.includes('리뷰'));
         });
         
@@ -608,12 +608,12 @@ class DataExtractor {
             !expertReviews.includes(review) && !audienceReviews.includes(review)
         );
 
-        let reviewText = `${titlePrefix}🎬 "${title}" 영화평 종합\n\n`;
+        let reviewText = `${titlePrefix}[MOVIE] "${title}" 영화평 종합\n\n`;
         
         // 전문가 평론 섹션 (일반 리뷰로 부족한 부분 채우기)
         const allExpertReviews = [...expertReviews, ...generalReviews].slice(0, 5);
         if (allExpertReviews.length > 0) {
-            reviewText += `👨‍💼 평론가 평가:\n\n`;
+            reviewText += `[MAN]‍💼 평론가 평가:\n\n`;
             allExpertReviews.forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
                 const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
@@ -733,7 +733,7 @@ class DataExtractor {
                     !cleanDescription.includes('흥행')) {
                     
                     // 실제 평점만 추출
-                    const ratingMatch = cleanDescription.match(/평점\s*(\d+(?:\.\d+)?)\s*점|★{1,5}|⭐{1,5}|만점|(\d)\s*점(?:\s*만점)?/);
+                    const ratingMatch = cleanDescription.match(/평점\s*(\d+(?:\.\d+)?)\s*점|★{1,5}|[FAVORITE]{1,5}|만점|(\d)\s*점(?:\s*만점)?/);
                     
                     if (ratingMatch) {
                         const ratingText = ratingMatch[0];
@@ -750,7 +750,7 @@ class DataExtractor {
                                 const stars = Math.max(1, Math.min(5, Math.round(score / 2)));
                                 rating = '★'.repeat(stars) + '☆'.repeat(5 - stars);
                             }
-                        } else if (ratingText.includes('★') || ratingText.includes('⭐')) {
+                        } else if (ratingText.includes('★') || ratingText.includes('[FAVORITE]')) {
                             rating = ratingText;
                         }
                     }
@@ -834,13 +834,13 @@ class DataExtractor {
         const remainingReviews = generalReviews.filter(review => !allExpertReviews.includes(review));
         const allAudienceReviews = [...audienceReviews, ...remainingReviews].slice(0, 5);
         if (allAudienceReviews.length > 0) {
-            reviewText += `👥 관객 실제 평가:\n\n`;
+            reviewText += `[BUSTSINSILHOUETTE] 관객 실제 평가:\n\n`;
             allAudienceReviews.forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
                 const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
                 
                 // 별점 추출 및 변환 (전문가와 동일 로직)
-                const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}|만점|5점|4점|3점|2점|1점/);
+                const ratingMatch = cleanDescription.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|[FAVORITE]{1,5}|만점|5점|4점|3점|2점|1점/);
                 let rating = '';
                 if (ratingMatch) {
                     const ratingText = ratingMatch[0];
@@ -856,7 +856,7 @@ class DataExtractor {
                         }
                         stars = Math.max(1, Math.min(5, stars));
                         rating = '★'.repeat(stars) + '☆'.repeat(5 - stars);
-                    } else if (ratingText.includes('★') || ratingText.includes('⭐')) {
+                    } else if (ratingText.includes('★') || ratingText.includes('[FAVORITE]')) {
                         rating = ratingText;
                     } else {
                         rating = '★★★☆☆';
@@ -965,7 +965,7 @@ class DataExtractor {
         
         // 둘 다 없으면 일반 리뷰들
         if (expertReviews.length === 0 && audienceReviews.length === 0) {
-            reviewText += `📝 영화 관련 정보:\n\n`;
+            reviewText += `[MEMO] 영화 관련 정보:\n\n`;
             items.slice(0, 5).forEach((review, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(review.title);
                 const cleanDescription = this.cleanHtmlAndSpecialChars(review.description);
@@ -992,7 +992,7 @@ class DataExtractor {
     // F1 관련 대안 영화 응답 포맷
     formatF1AlternativeResponse(items, originalTitle) {
         if (!items || items.length === 0) {
-            return this.createErrorResponse(`🎬 "${originalTitle}" 관련 F1 영화 정보를 찾을 수 없습니다.`);
+            return this.createErrorResponse(`[MOVIE] "${originalTitle}" 관련 F1 영화 정보를 찾을 수 없습니다.`);
         }
 
         // F1 더무비가 실제 존재하는 영화인지 확인
@@ -1007,12 +1007,12 @@ class DataExtractor {
 
         if (hasRealF1Movie) {
             // 실제 F1 더무비 영화 정보가 있으면 정규 영화 리뷰 형식으로 처리
-            console.log('✅ F1 더무비 실제 영화 발견 - 정규 리뷰 형식으로 처리');
+            console.log('[SUCCESS] F1 더무비 실제 영화 발견 - 정규 리뷰 형식으로 처리');
             return this.formatMovieNewsResponse(items, originalTitle, 'F1 더무비 검색');
         }
 
         // 실제 영화가 아닌 경우에만 대안 추천
-        let message = `🏎️ "${originalTitle}" 대신 실제 F1 영화들을 찾았습니다!\n\n`;
+        let message = `[RACECAR] "${originalTitle}" 대신 실제 F1 영화들을 찾았습니다!\n\n`;
         
         // F1 관련 영화 정보 추출
         const f1Movies = [];
@@ -1048,13 +1048,13 @@ class DataExtractor {
         );
 
         if (uniqueMovies.length > 0) {
-            message += `🎬 추천 F1/레이싱 영화:\n\n`;
+            message += `[MOVIE] 추천 F1/레이싱 영화:\n\n`;
             uniqueMovies.slice(0, 3).forEach((movie, index) => {
                 message += `${index + 1}. ${movie.title}\n   ${movie.description}\n   ${movie.info}...\n\n`;
             });
         } else {
             // 일반 F1 관련 기사들
-            message += `📰 F1 관련 최신 정보:\n\n`;
+            message += `[NEWS] F1 관련 최신 정보:\n\n`;
             items.slice(0, 3).forEach((item, index) => {
                 const cleanTitle = this.cleanHtmlAndSpecialChars(item.title);
                 const cleanDescription = this.cleanHtmlAndSpecialChars(item.description);
@@ -1062,7 +1062,7 @@ class DataExtractor {
             });
         }
 
-        message += `💡 정확한 영화명으로 다시 검색해보세요!\n`;
+        message += `[TIP] 정확한 영화명으로 다시 검색해보세요!\n`;
         message += `예: "러쉬 영화평", "포드 vs 페라리 평점"`;
 
         return {
@@ -1089,14 +1089,14 @@ class DataExtractor {
             const telephone = item.telephone || '';
             const roadAddress = item.roadAddress || item.address || '';
             
-            let restaurantInfo = `${index + 1}. ${name}\n   📍 ${roadAddress}`;
+            let restaurantInfo = `${index + 1}. ${name}\n   [LOCATION] ${roadAddress}`;
             
             if (category) {
                 restaurantInfo += `\n   🍽️ ${category}`;
             }
             
             if (telephone) {
-                restaurantInfo += `\n   📞 ${telephone}`;
+                restaurantInfo += `\n   [CALL] ${telephone}`;
             }
             
             return restaurantInfo;
@@ -1110,7 +1110,7 @@ class DataExtractor {
             data: {
                 location: location,
                 foodType: foodType,
-                message: `🍽️ ${location}${foodTypeText} 맛집 추천\n\n${restaurants}\n\n💡 전화번호를 확인하여 예약하시기 바랍니다!`
+                message: `🍽️ ${location}${foodTypeText} 맛집 추천\n\n${restaurants}\n\n[TIP] 전화번호를 확인하여 예약하시기 바랍니다!`
             }
         };
     }
@@ -1126,7 +1126,7 @@ class DataExtractor {
             const price = parseInt(item.lprice).toLocaleString();
             const mallName = item.mallName || '쇼핑몰';
             const link = item.link;
-            return `${index + 1}. ${name}\n   💰 ${price}원 (${mallName})\n   🔗 ${link}`;
+            return `${index + 1}. ${name}\n   💰 ${price}원 (${mallName})\n   [LINK] ${link}`;
         }).join('\n\n');
 
         return {
@@ -1134,7 +1134,7 @@ class DataExtractor {
             type: 'shopping',
             data: {
                 productName: productName,
-                message: `🛒 "${productName}" 상품 검색 결과 (상위 10개)\n\n${products}\n\n💡 링크를 클릭하여 상품 상세정보를 확인하세요!`
+                message: `🛒 "${productName}" 상품 검색 결과 (상위 10개)\n\n${products}\n\n[TIP] 링크를 클릭하여 상품 상세정보를 확인하세요!`
             }
         };
     }
@@ -1148,7 +1148,7 @@ class DataExtractor {
             const title = item.title.replace(/<\/?[^>]+(>|$)/g, '');
             const description = item.description.replace(/<\/?[^>]+(>|$)/g, '').substring(0, 60);
             const pubDate = new Date(item.pubDate).toLocaleDateString('ko-KR');
-            return `${index + 1}. ${title}\n   ${description}...\n   📅 ${pubDate}`;
+            return `${index + 1}. ${title}\n   ${description}...\n   [TOMORROW] ${pubDate}`;
         }).join('\n\n');
 
         return {
@@ -1156,7 +1156,7 @@ class DataExtractor {
             type: 'news',
             data: {
                 topic: topic,
-                message: `📰 "${topic}" 관련 최신 뉴스\n\n${news}`
+                message: `[NEWS] "${topic}" 관련 최신 뉴스\n\n${news}`
             }
         };
     }
@@ -1177,7 +1177,7 @@ class DataExtractor {
             type: 'fact_check',
             data: {
                 claim: claim,
-                message: `🔍 "${claim}" 사실 확인 정보\n\n${facts}\n\n⚠️ 정확한 사실 확인은 공식 출처를 통해 검증해주세요.`
+                message: `[SEARCH] "${claim}" 사실 확인 정보\n\n${facts}\n\n[WARN] 정확한 사실 확인은 공식 출처를 통해 검증해주세요.`
             }
         };
     }
@@ -1197,7 +1197,7 @@ class DataExtractor {
             .replace(/&#39;/g, "'")
             .replace(/&nbsp;/g, ' ')
             // 특수문자 정리
-            .replace(/[^\w\s가-힣.,!?():'"★⭐-]/g, ' ')
+            .replace(/[^\w\s가-힣.,!?():'"★[FAVORITE]-]/g, ' ')
             // 여러 공백을 하나로
             .replace(/\s+/g, ' ')
             .trim();
@@ -1208,11 +1208,11 @@ class DataExtractor {
         const { temperature, condition, additional, source } = weatherInfo;
         
         const timeMessage = this.getTimeMessage(timeframe);
-        let message = `🌤️ "${location}" ${timeMessage} 날씨\n\n`;
+        let message = `[WEATHER] "${location}" ${timeMessage} 날씨\n\n`;
         
         // 기온 정보
         if (temperature !== null) {
-            message += `🌡️ 기온: ${temperature}°C\n`;
+            message += `[TEMP] 기온: ${temperature}°C\n`;
         }
         
         // 날씨 상태
@@ -1228,11 +1228,11 @@ class DataExtractor {
             message += `🌪️ 바람: ${additional.wind}m/s\n`;
         }
         if (additional.dust) {
-            message += `🌫️ 미세먼지: ${additional.dust}\n`;
+            message += `[AIR] 미세먼지: ${additional.dust}\n`;
         }
         
-        message += `\n📰 출처: ${source}\n`;
-        message += `📍 네이버 검색 기반 날씨 정보입니다!`;
+        message += `\n[NEWS] 출처: ${source}\n`;
+        message += `[LOCATION] 네이버 검색 기반 날씨 정보입니다!`;
         
         return {
             success: true,
@@ -1269,7 +1269,7 @@ class DataExtractor {
             const cleanTitle = this.cleanHtmlAndSpecialChars(item.title);
             const cleanDescription = this.cleanHtmlAndSpecialChars(item.description).substring(0, 100);
             const pubDate = new Date(item.pubDate).toLocaleDateString('ko-KR');
-            return `${index + 1}. ${cleanTitle}\n   ${cleanDescription}...\n   📅 ${pubDate}`;
+            return `${index + 1}. ${cleanTitle}\n   ${cleanDescription}...\n   [TOMORROW] ${pubDate}`;
         }).join('\n\n');
 
         return {
@@ -1278,7 +1278,7 @@ class DataExtractor {
             data: {
                 location: location,
                 timeframe: timeframe,
-                message: `🌤️ "${location}" 날씨 관련 최신 정보\n\n${weatherInfo}\n\n⚠️ 실시간 날씨 API 연결 실패로 뉴스 검색 결과입니다.`
+                message: `[WEATHER] "${location}" 날씨 관련 최신 정보\n\n${weatherInfo}\n\n[WARN] 실시간 날씨 API 연결 실패로 뉴스 검색 결과입니다.`
             }
         };
     }
@@ -1290,14 +1290,14 @@ class DataExtractor {
             type: 'weather',
             data: {
                 location: location,
-                message: `🌤️ "${location}" 날씨 정보\n\n⚠️ 현재 날씨 정보를 찾을 수 없습니다.\n\n💡 정확한 날씨 정보는:\n• 네이버 날씨 검색\n• 기상청 날씨누리\n• 스마트폰 날씨 앱\n\n에서 확인해주세요!`
+                message: `[WEATHER] "${location}" 날씨 정보\n\n[WARN] 현재 날씨 정보를 찾을 수 없습니다.\n\n[TIP] 정확한 날씨 정보는:\n• 네이버 날씨 검색\n• 기상청 날씨누리\n• 스마트폰 날씨 앱\n\n에서 확인해주세요!`
             }
         };
     }
 
     // 네이버 영화 API 직접 검색 (새로 구현)
     async searchNaverMovieDirect(title) {
-        console.log(`🎬 네이버 영화 API 직접 검색: "${title}"`);
+        console.log(`[MOVIE] 네이버 영화 API 직접 검색: "${title}"`);
         
         try {
             // 네이버 영화 API 검색
@@ -1312,7 +1312,7 @@ class DataExtractor {
             });
 
             if (!movieResponse.data.items || movieResponse.data.items.length === 0) {
-                console.log(`⚠️ "${title}" 영화 API 결과 없음`);
+                console.log(`[WARN] "${title}" 영화 API 결과 없음`);
                 return { success: false, reason: 'no_results' };
             }
 
@@ -1320,11 +1320,11 @@ class DataExtractor {
             const bestMatch = this.findBestMovieMatch(movieResponse.data.items, title);
             
             if (!bestMatch) {
-                console.log(`⚠️ "${title}" 적합한 영화 찾지 못함`);
+                console.log(`[WARN] "${title}" 적합한 영화 찾지 못함`);
                 return { success: false, reason: 'no_match' };
             }
 
-            console.log(`✅ 찾은 영화: ${bestMatch.title}`);
+            console.log(`[SUCCESS] 찾은 영화: ${bestMatch.title}`);
 
             // 영화 상세 정보와 함께 리뷰 검색
             const movieTitle = this.cleanHtmlAndSpecialChars(bestMatch.title);
@@ -1346,7 +1346,7 @@ class DataExtractor {
             };
 
         } catch (error) {
-            console.error(`❌ 네이버 영화 API 직접 검색 실패:`, error.message);
+            console.error(`[ERROR] 네이버 영화 API 직접 검색 실패:`, error.message);
             return { success: false, reason: 'api_error', error: error.message };
         }
     }
@@ -1405,7 +1405,7 @@ class DataExtractor {
                     allReviews.push(...reviews);
                 }
             } catch (error) {
-                console.log(`⚠️ 리뷰 검색 실패: ${query}`, error.message);
+                console.log(`[WARN] 리뷰 검색 실패: ${query}`, error.message);
             }
         }
 
@@ -1460,7 +1460,7 @@ class DataExtractor {
     // 텍스트에서 평점 추출
     extractRatingFromText(text) {
         // 별점 패턴
-        const starMatch = text.match(/★{1,5}|⭐{1,5}/);
+        const starMatch = text.match(/★{1,5}|[FAVORITE]{1,5}/);
         if (starMatch) {
             return starMatch[0];
         }
@@ -1524,22 +1524,22 @@ class DataExtractor {
         const director = this.cleanHtmlAndSpecialChars(movieInfo.director).replace(/\|/g, ', ');
         const actor = this.cleanHtmlAndSpecialChars(movieInfo.actor).replace(/\|/g, ', ').substring(0, 60);
 
-        let message = `🎬 "${cleanTitle}" 영화 정보\n\n`;
-        message += `⭐ 네이버 평점: ${rating}/10\n`;
-        message += `🎭 감독: ${director}\n`;
-        message += `👥 주연: ${actor}\n`;
-        message += `📅 개봉: ${movieInfo.pubDate}\n\n`;
+        let message = `[MOVIE] "${cleanTitle}" 영화 정보\n\n`;
+        message += `[FAVORITE] 네이버 평점: ${rating}/10\n`;
+        message += `[DRAMA] 감독: ${director}\n`;
+        message += `[BUSTSINSILHOUETTE] 주연: ${actor}\n`;
+        message += `[TOMORROW] 개봉: ${movieInfo.pubDate}\n\n`;
 
         if (reviewData.reviews && reviewData.reviews.length > 0) {
-            message += `📝 평가 모음:\n`;
+            message += `[MEMO] 평가 모음:\n`;
             reviewData.reviews.forEach((review, index) => {
                 message += `${index + 1}. ${review.reviewer}: ${review.rating}\n`;
                 message += `   "${review.content}"\n`;
                 if (index < reviewData.reviews.length - 1) message += '\n';
             });
-            message += `\n🎯 총 ${reviewData.count}개의 평가를 찾았습니다.`;
+            message += `\n[TARGET] 총 ${reviewData.count}개의 평가를 찾았습니다.`;
         } else {
-            message += `📝 리뷰 정보를 수집 중입니다.`;
+            message += `[MEMO] 리뷰 정보를 수집 중입니다.`;
         }
 
         return message;
@@ -1553,7 +1553,7 @@ class DataExtractor {
             const searchResult = await this.kobis.searchMovies(title);
             
             if (!searchResult.success || !searchResult.data.movieList || searchResult.data.movieList.length === 0) {
-                console.log('⚠️ KOBIS에서 영화를 찾을 수 없음');
+                console.log('[WARN] KOBIS에서 영화를 찾을 수 없음');
                 return { success: false };
             }
 
@@ -1561,11 +1561,11 @@ class DataExtractor {
             const bestMatch = this.findBestKobisMatch(searchResult.data.movieList, title);
             
             if (!bestMatch) {
-                console.log('⚠️ KOBIS에서 적합한 영화를 찾을 수 없음');
+                console.log('[WARN] KOBIS에서 적합한 영화를 찾을 수 없음');
                 return { success: false };
             }
 
-            console.log(`✅ KOBIS 영화 찾음: ${bestMatch.movieNm} (${bestMatch.movieCd})`);
+            console.log(`[SUCCESS] KOBIS 영화 찾음: ${bestMatch.movieNm} (${bestMatch.movieCd})`);
 
             // 영화 상세 정보 가져오기
             const movieDetail = await this.kobis.getMovieInfo(bestMatch.movieCd);
@@ -1586,7 +1586,7 @@ class DataExtractor {
             };
 
         } catch (error) {
-            console.error('❌ KOBIS 검색 실패:', error);
+            console.error('[ERROR] KOBIS 검색 실패:', error);
             return { success: false, error: error.message };
         }
     }
@@ -1644,7 +1644,7 @@ class DataExtractor {
 
             return null;
         } catch (error) {
-            console.log('⚠️ 박스오피스 정보 조회 실패:', error.message);
+            console.log('[WARN] 박스오피스 정보 조회 실패:', error.message);
             return null;
         }
     }
@@ -1658,7 +1658,7 @@ class DataExtractor {
             const reviewResult = await this.searchMovieReviewsInNews(title, reviewType);
             
             // KOBIS 정보와 네이버 리뷰를 결합한 응답 생성
-            let message = `🎬 "${movieInfo.movieNm}"`;
+            let message = `[MOVIE] "${movieInfo.movieNm}"`;
             
             if (movieInfo.movieNmEn) {
                 message += ` (${movieInfo.movieNmEn})`;
@@ -1667,41 +1667,41 @@ class DataExtractor {
 
             // 박스오피스 정보
             if (boxOffice) {
-                message += `🏆 박스오피스: ${boxOffice.rank}위`;
+                message += `[TROPHY] 박스오피스: ${boxOffice.rank}위`;
                 if (boxOffice.rankInten > 0) {
                     message += ` (▲${boxOffice.rankInten})`;
                 } else if (boxOffice.rankInten < 0) {
                     message += ` (▼${Math.abs(boxOffice.rankInten)})`;
                 }
                 message += '\n';
-                message += `👥 일일 관객: ${parseInt(boxOffice.audiCnt).toLocaleString()}명\n`;
-                message += `📊 누적 관객: ${parseInt(boxOffice.audiAcc).toLocaleString()}명\n\n`;
+                message += `[BUSTSINSILHOUETTE] 일일 관객: ${parseInt(boxOffice.audiCnt).toLocaleString()}명\n`;
+                message += `[INFO] 누적 관객: ${parseInt(boxOffice.audiAcc).toLocaleString()}명\n\n`;
             }
 
             // 영화 기본 정보
             if (movieInfo.openDt) {
                 const openDate = this.kobis.formatDateDisplay(movieInfo.openDt);
-                message += `📅 개봉일: ${openDate}\n`;
+                message += `[TOMORROW] 개봉일: ${openDate}\n`;
             }
             if (movieInfo.showTm) {
                 message += `⏱️ 상영시간: ${movieInfo.showTm}분\n`;
             }
             if (movieInfo.genres && movieInfo.genres.length > 0) {
                 const genres = movieInfo.genres.map(g => g.genreNm).join(', ');
-                message += `🎭 장르: ${genres}\n`;
+                message += `[DRAMA] 장르: ${genres}\n`;
             }
             if (movieInfo.watchGradeNm) {
-                message += `🔞 관람등급: ${movieInfo.watchGradeNm}\n`;
+                message += `[UNDERAGE] 관람등급: ${movieInfo.watchGradeNm}\n`;
             }
 
             // 제작진 정보
             if (movieInfo.directors && movieInfo.directors.length > 0) {
                 const directors = movieInfo.directors.map(d => d.peopleNm).join(', ');
-                message += `🎬 감독: ${directors}\n`;
+                message += `[MOVIE] 감독: ${directors}\n`;
             }
             if (movieInfo.actors && movieInfo.actors.length > 0) {
                 const actors = movieInfo.actors.slice(0, 5).map(a => a.peopleNm).join(', ');
-                message += `👥 주연: ${actors}\n`;
+                message += `[BUSTSINSILHOUETTE] 주연: ${actors}\n`;
             }
 
             message += '\n';
@@ -1710,7 +1710,7 @@ class DataExtractor {
             if (reviewResult && reviewResult.success) {
                 message += reviewResult.data.message;
             } else {
-                message += '📝 리뷰 정보를 찾는 중입니다...';
+                message += '[MEMO] 리뷰 정보를 찾는 중입니다...';
             }
 
             return {
@@ -1723,7 +1723,7 @@ class DataExtractor {
             };
 
         } catch (error) {
-            console.error('❌ KOBIS-네이버 결합 실패:', error);
+            console.error('[ERROR] KOBIS-네이버 결합 실패:', error);
             return { success: false, error: error.message };
         }
     }
@@ -1731,21 +1731,21 @@ class DataExtractor {
     // 사용자가 원하는 상세한 형식의 종합 영화평 생성
     async getComprehensiveMovieReview(movieTitle) {
         try {
-            console.log(`🎬 종합 영화평 요청: "${movieTitle}"`);
+            console.log(`[MOVIE] 종합 영화평 요청: "${movieTitle}"`);
             
-            // 🎯 1단계: Supabase DB에서 먼저 검색 (최우선)
+            // [TARGET] 1단계: Supabase DB에서 먼저 검색 (최우선)
             if (this.supabase && this.supabase.client) {
                 console.log('🗄️ Supabase DB에서 영화 검색 중...');
                 const supabaseMovie = await this.supabase.searchMovieByKeywords(movieTitle);
                 
                 if (supabaseMovie) {
-                    console.log(`✅ Supabase에서 "${supabaseMovie.title}" 발견 - DB 데이터 사용`);
+                    console.log(`[SUCCESS] Supabase에서 "${supabaseMovie.title}" 발견 - DB 데이터 사용`);
                     return this.generateSupabaseMovieReview(supabaseMovie);
                 }
                 
-                console.log('🔍 Supabase에서 영화를 찾지 못함 - 네이버 API로 검색 계속');
+                console.log('[SEARCH] Supabase에서 영화를 찾지 못함 - 네이버 API로 검색 계속');
             } else {
-                console.log('⚠️ Supabase 클라이언트 사용 불가 - 네이버 API 사용');
+                console.log('[WARN] Supabase 클라이언트 사용 불가 - 네이버 API 사용');
             }
             
             // 2단계: 네이버 영화 API로 기본 정보 수집 (Supabase에 없을 때만)
@@ -1760,7 +1760,7 @@ class DataExtractor {
             
             // F1 관련 영화인 경우 추가 검색어 확장
             if (movieTitle.toLowerCase().includes('f1') || movieTitle.includes('더무비')) {
-                console.log('🏎️ F1 관련 영화 - 검색어 확장');
+                console.log('[RACECAR] F1 관련 영화 - 검색어 확장');
                 searchVariations = [
                     'F1',                             // 단순 F1
                     'F1 더무비',                      // 정확한 제목
@@ -1777,21 +1777,21 @@ class DataExtractor {
                 ];
             }
             
-            console.log(`🔍 검색 시도할 키워드들: ${searchVariations.join(', ')}`);
+            console.log(`[SEARCH] 검색 시도할 키워드들: ${searchVariations.join(', ')}`);
             
             // 각 검색어로 순차적으로 시도
             for (const searchTerm of searchVariations) {
                 if (searchTerm && searchTerm.length > 0) {
                     movieResults = await this.getNaverMovieInfo(searchTerm);
                     if (movieResults && movieResults.length > 0) {
-                        console.log(`✅ "${searchTerm}"로 영화 발견됨`);
+                        console.log(`[SUCCESS] "${searchTerm}"로 영화 발견됨`);
                         break;
                     }
                 }
             }
             
             if (!movieResults || movieResults.length === 0) {
-                console.log('⚠️ 네이버 API에서 영화를 찾지 못함 - 공개 영화 DB 검색');
+                console.log('[WARN] 네이버 API에서 영화를 찾지 못함 - 공개 영화 DB 검색');
                 
                 // 공개 영화 데이터베이스에서 영화 정보 검색
                 const publicMovieData = await this.searchPublicMovieDatabase(movieTitle);
@@ -1802,20 +1802,20 @@ class DataExtractor {
                 return {
                     success: false,
                     data: { 
-                        message: `🎬 "${movieTitle}" 영화 정보를 찾을 수 없습니다.\n\n💡 다른 검색 방법을 시도하고 있습니다...` 
+                        message: `[MOVIE] "${movieTitle}" 영화 정보를 찾을 수 없습니다.\n\n[TIP] 다른 검색 방법을 시도하고 있습니다...` 
                     }
                 };
             }
             
             // 2단계: 최적 매치 영화로 상세 정보 생성
             const bestMatch = movieResults[0];
-            console.log(`🎭 선택된 영화: "${bestMatch.title}"`);
+            console.log(`[DRAMA] 선택된 영화: "${bestMatch.title}"`);
             
             // 3단계: 종합 영화평 텍스트 생성 (사용자가 원하는 포맷)
-            let movieReviewText = `🎬 "${bestMatch.title}" 영화평 종합\n\n`;
+            let movieReviewText = `[MOVIE] "${bestMatch.title}" 영화평 종합\n\n`;
             
             // 기본 정보
-            movieReviewText += `📽️ 기본 정보\n`;
+            movieReviewText += `[PROJECTOR] 기본 정보\n`;
             movieReviewText += `감독: ${bestMatch.director || '정보 없음'}\n`;
             movieReviewText += `출연: ${bestMatch.actor ? bestMatch.actor.substring(0, 50) + '...' : '정보 없음'}\n`;
             movieReviewText += `장르: ${bestMatch.genre || '정보 없음'}\n`;
@@ -1824,29 +1824,29 @@ class DataExtractor {
             if (bestMatch.userRating && bestMatch.userRating !== '0.00') {
                 const rating = parseFloat(bestMatch.userRating);
                 const stars = this.convertToStars(rating);
-                movieReviewText += `\n⭐ 네이버 전체 평점: ${rating}/10 ${stars}\n`;
+                movieReviewText += `\n[FAVORITE] 네이버 전체 평점: ${rating}/10 ${stars}\n`;
                 
                 // 평점 해석
                 if (rating >= 8.0) {
                     movieReviewText += `💫 매우 높은 평점! 강력 추천작\n`;
                 } else if (rating >= 7.0) {
-                    movieReviewText += `👍 좋은 평점의 추천작\n`;
+                    movieReviewText += `[THUMBSUP] 좋은 평점의 추천작\n`;
                 } else if (rating >= 6.0) {
-                    movieReviewText += `😊 무난한 평점의 볼만한 작품\n`;
+                    movieReviewText += `[SMILE] 무난한 평점의 볼만한 작품\n`;
                 } else if (rating >= 5.0) {
                     movieReviewText += `😐 평범한 평점\n`;
                 } else {
                     movieReviewText += `😕 아쉬운 평점\n`;
                 }
             } else {
-                movieReviewText += `\n⭐ 네이버 전체 평점: 정보 없음\n`;
+                movieReviewText += `\n[FAVORITE] 네이버 전체 평점: 정보 없음\n`;
             }
             
             // 4단계: 실제 평론가 평가 수집 (네이버 뉴스 API 활용)
-            console.log(`🔍 실제 평론가 리뷰 검색 중: "${bestMatch.title}"`);
+            console.log(`[SEARCH] 실제 평론가 리뷰 검색 중: "${bestMatch.title}"`);
             const criticReviews = await this.getRealCriticReviews(bestMatch.title);
             
-            movieReviewText += `\n👨‍💼 평론가 평가:\n`;
+            movieReviewText += `\n[MAN]‍💼 평론가 평가:\n`;
             if (criticReviews && criticReviews.length > 0) {
                 criticReviews.forEach((critic, index) => {
                     const stars = this.convertToStars(parseFloat(critic.score));
@@ -1869,10 +1869,10 @@ class DataExtractor {
             }
             
             // 5단계: 실제 관객 평가 수집 (네이버 뉴스 API 활용)
-            console.log(`🔍 실제 관객 리뷰 검색 중: "${bestMatch.title}"`);
+            console.log(`[SEARCH] 실제 관객 리뷰 검색 중: "${bestMatch.title}"`);
             const audienceReviews = await this.getRealAudienceReviews(bestMatch.title);
             
-            movieReviewText += `👥 관객 실제 평가:\n`;
+            movieReviewText += `[BUSTSINSILHOUETTE] 관객 실제 평가:\n`;
             if (audienceReviews && audienceReviews.length > 0) {
                 audienceReviews.forEach((user, index) => {
                     const stars = this.convertToStars(parseFloat(user.score));
@@ -1895,8 +1895,8 @@ class DataExtractor {
                 });
             }
             
-            movieReviewText += `🕐 실시간 수집: ${new Date().toLocaleString('ko-KR')}\n`;
-            movieReviewText += `📊 네이버 영화 API에서 수집한 실제 데이터`;
+            movieReviewText += `[TIME] 실시간 수집: ${new Date().toLocaleString('ko-KR')}\n`;
+            movieReviewText += `[INFO] 네이버 영화 API에서 수집한 실제 데이터`;
             
             return {
                 success: true,
@@ -1908,17 +1908,17 @@ class DataExtractor {
             };
             
         } catch (error) {
-            console.log(`❌ 종합 영화평 생성 오류: ${error.message}`);
+            console.log(`[ERROR] 종합 영화평 생성 오류: ${error.message}`);
             return {
                 success: false,
-                data: { message: `🎬 영화 정보를 가져올 수 없습니다.\n\n❌ 오류 발생\n💡 다시 시도해주세요:\n• "영화제목 + 영화평" 형식으로 질문\n• 정확한 영화 제목으로 검색` }
+                data: { message: `[MOVIE] 영화 정보를 가져올 수 없습니다.\n\n[ERROR] 오류 발생\n[TIP] 다시 시도해주세요:\n• "영화제목 + 영화평" 형식으로 질문\n• 정확한 영화 제목으로 검색` }
             };
         }
     }
     
     // 공개 영화 데이터베이스 검색 함수
     async searchPublicMovieDatabase(movieTitle) {
-        console.log(`🎬 공개 영화 DB 검색: "${movieTitle}"`);
+        console.log(`[MOVIE] 공개 영화 DB 검색: "${movieTitle}"`);
         
         // 실제 영화 데이터베이스 (지속적으로 확장 가능)
         const movieDatabase = [
@@ -2087,7 +2087,7 @@ class DataExtractor {
             // 제목 매칭
             if (movie.title.toLowerCase().replace(/\s+/g, '').includes(normalizedSearch) ||
                 normalizedSearch.includes(movie.title.toLowerCase().replace(/\s+/g, ''))) {
-                console.log(`✅ 제목 매칭: "${movie.title}"`);
+                console.log(`[SUCCESS] 제목 매칭: "${movie.title}"`);
                 return movie;
             }
             
@@ -2095,7 +2095,7 @@ class DataExtractor {
             for (const keyword of movie.keywords) {
                 if (normalizedSearch.includes(keyword.toLowerCase()) || 
                     keyword.toLowerCase().includes(normalizedSearch)) {
-                    console.log(`✅ 키워드 매칭: "${movie.title}" (키워드: ${keyword})`);
+                    console.log(`[SUCCESS] 키워드 매칭: "${movie.title}" (키워드: ${keyword})`);
                     return movie;
                 }
             }
@@ -2105,24 +2105,24 @@ class DataExtractor {
                 const normalizedActor = actor.toLowerCase().replace(/\s+/g, '');
                 if (normalizedSearch.includes(normalizedActor) || 
                     normalizedActor.includes(normalizedSearch)) {
-                    console.log(`✅ 배우 매칭: "${movie.title}" (배우: ${actor})`);
+                    console.log(`[SUCCESS] 배우 매칭: "${movie.title}" (배우: ${actor})`);
                     return movie;
                 }
             }
         }
         
-        console.log('❌ 공개 영화 DB에서 매칭되는 영화 없음');
+        console.log('[ERROR] 공개 영화 DB에서 매칭되는 영화 없음');
         return null;
     }
     
     // 종합 영화평 생성 함수
     generateComprehensiveReview(movieData) {
-        console.log(`🎬 종합 영화평 생성: "${movieData.title}"`);
+        console.log(`[MOVIE] 종합 영화평 생성: "${movieData.title}"`);
         
-        let review = `🎬 "${movieData.title}" 영화평 종합\n\n`;
+        let review = `[MOVIE] "${movieData.title}" 영화평 종합\n\n`;
         
         // 기본 정보
-        review += `📽️ 기본 정보\n`;
+        review += `[PROJECTOR] 기본 정보\n`;
         review += `감독: ${movieData.director}\n`;
         review += `출연: ${movieData.cast.join(', ')}\n`;
         review += `장르: ${movieData.genre}\n`;
@@ -2133,17 +2133,17 @@ class DataExtractor {
         // 네이버 평점
         const rating = parseFloat(movieData.rating);
         let ratingEmoji = '';
-        if (rating >= 9.0) ratingEmoji = '🌟 완벽한 걸작!';
+        if (rating >= 9.0) ratingEmoji = '[STAR] 완벽한 걸작!';
         else if (rating >= 8.0) ratingEmoji = '💫 매우 높은 평점! 강력 추천작';
-        else if (rating >= 7.0) ratingEmoji = '👍 좋은 평점의 추천작';
-        else if (rating >= 6.0) ratingEmoji = '⭐ 평범한 작품';
+        else if (rating >= 7.0) ratingEmoji = '[THUMBSUP] 좋은 평점의 추천작';
+        else if (rating >= 6.0) ratingEmoji = '[FAVORITE] 평범한 작품';
         else ratingEmoji = '😐 아쉬운 평점';
         
         const stars = this.convertToStars(rating);
-        review += `⭐ 네이버 전체 평점: ${rating}/10 ${stars}\n${ratingEmoji}\n\n`;
+        review += `[FAVORITE] 네이버 전체 평점: ${rating}/10 ${stars}\n${ratingEmoji}\n\n`;
         
         // 평론가 평가
-        review += `👨‍💼 평론가 평가:\n`;
+        review += `[MAN]‍💼 평론가 평가:\n`;
         movieData.critics.forEach((critic, index) => {
             const criticStars = this.convertToStars(critic.score);
             review += `${index + 1}. ${critic.name} ${criticStars} (${critic.score}/10)\n`;
@@ -2151,14 +2151,14 @@ class DataExtractor {
         });
         
         // 관객 실제 평가
-        review += `👥 관객 실제 평가:\n`;
+        review += `[BUSTSINSILHOUETTE] 관객 실제 평가:\n`;
         movieData.audience.forEach((user, index) => {
             const userStars = this.convertToStars(user.score);
             review += `${index + 1}. ${user.username} ${userStars} (${user.score}/10)\n`;
             review += `   "${user.review}"\n\n`;
         });
         
-        review += `📊 공개 영화 데이터베이스에서 수집한 실제 정보`;
+        review += `[INFO] 공개 영화 데이터베이스에서 수집한 실제 정보`;
         
         return {
             success: true,
@@ -2174,7 +2174,7 @@ class DataExtractor {
     async getNaverMovieInfo(searchTerm) {
         try {
             if (!this.naverConfig.clientId || this.naverConfig.clientId === 'test') {
-                console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+                console.log('[WARN] 네이버 API 키가 설정되지 않았습니다.');
                 return null; // 테스트 데이터 없이 null 반환하여 실제 fallback 시스템 테스트
             }
             
@@ -2203,7 +2203,7 @@ class DataExtractor {
             }));
             
         } catch (error) {
-            console.error('❌ 네이버 영화 API 오류:', error.response?.data || error.message);
+            console.error('[ERROR] 네이버 영화 API 오류:', error.response?.data || error.message);
             return null;
         }
     }
@@ -2212,7 +2212,7 @@ class DataExtractor {
     async getRealCriticReviews(movieTitle) {
         try {
             if (!this.naverConfig.clientId || this.naverConfig.clientId === 'test') {
-                console.log('⚠️ 네이버 API 키가 설정되지 않음 - 평론가 리뷰 수집 불가');
+                console.log('[WARN] 네이버 API 키가 설정되지 않음 - 평론가 리뷰 수집 불가');
                 return null;
             }
             
@@ -2231,7 +2231,7 @@ class DataExtractor {
             
             for (const query of criticSearchQueries) {
                 try {
-                    console.log(`🔍 평론가 검색: ${query}`);
+                    console.log(`[SEARCH] 평론가 검색: ${query}`);
                     const response = await this.searchNaver('news', query, 5);
                     
                     if (response.items && response.items.length > 0) {
@@ -2239,7 +2239,7 @@ class DataExtractor {
                         allCriticData = allCriticData.concat(extractedCritics);
                     }
                 } catch (error) {
-                    console.log(`⚠️ 평론가 검색 실패: ${query}`);
+                    console.log(`[WARN] 평론가 검색 실패: ${query}`);
                 }
             }
             
@@ -2248,7 +2248,7 @@ class DataExtractor {
             return uniqueCritics.slice(0, 3);
             
         } catch (error) {
-            console.error('❌ 평론가 리뷰 수집 오류:', error.message);
+            console.error('[ERROR] 평론가 리뷰 수집 오류:', error.message);
             return null;
         }
     }
@@ -2257,7 +2257,7 @@ class DataExtractor {
     async getRealAudienceReviews(movieTitle) {
         try {
             if (!this.naverConfig.clientId || this.naverConfig.clientId === 'test') {
-                console.log('⚠️ 네이버 API 키가 설정되지 않음 - 관객 리뷰 수집 불가');
+                console.log('[WARN] 네이버 API 키가 설정되지 않음 - 관객 리뷰 수집 불가');
                 return null;
             }
             
@@ -2276,7 +2276,7 @@ class DataExtractor {
             
             for (const query of audienceSearchQueries) {
                 try {
-                    console.log(`🔍 관객 리뷰 검색: ${query}`);
+                    console.log(`[SEARCH] 관객 리뷰 검색: ${query}`);
                     const response = await this.searchNaver('news', query, 5);
                     
                     if (response.items && response.items.length > 0) {
@@ -2284,7 +2284,7 @@ class DataExtractor {
                         allAudienceData = allAudienceData.concat(extractedAudience);
                     }
                 } catch (error) {
-                    console.log(`⚠️ 관객 리뷰 검색 실패: ${query}`);
+                    console.log(`[WARN] 관객 리뷰 검색 실패: ${query}`);
                 }
             }
             
@@ -2293,7 +2293,7 @@ class DataExtractor {
             return uniqueAudience.slice(0, 4);
             
         } catch (error) {
-            console.error('❌ 관객 리뷰 수집 오류:', error.message);
+            console.error('[ERROR] 관객 리뷰 수집 오류:', error.message);
             return null;
         }
     }
@@ -2312,14 +2312,14 @@ class DataExtractor {
             for (const criticName of knownCritics) {
                 if (fullText.includes(criticName)) {
                     // 점수 추출
-                    const scoreMatch = fullText.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}/);
+                    const scoreMatch = fullText.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|[FAVORITE]{1,5}/);
                     let score = '8.0'; // 기본값
                     
                     if (scoreMatch) {
                         if (scoreMatch[1]) {
                             score = parseFloat(scoreMatch[1]) > 10 ? (parseFloat(scoreMatch[1]) / 10).toFixed(1) : scoreMatch[1];
-                        } else if (scoreMatch[0].includes('★') || scoreMatch[0].includes('⭐')) {
-                            const starCount = (scoreMatch[0].match(/★|⭐/g) || []).length;
+                        } else if (scoreMatch[0].includes('★') || scoreMatch[0].includes('[FAVORITE]')) {
+                            const starCount = (scoreMatch[0].match(/★|[FAVORITE]/g) || []).length;
                             score = (starCount * 2).toFixed(1);
                         }
                     }
@@ -2355,14 +2355,14 @@ class DataExtractor {
             let username = userMatches ? userMatches[0].replace('님', '') : `viewer_${Date.now() % 1000}${index}`;
             
             // 점수 추출
-            const scoreMatch = fullText.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|⭐{1,5}/);
+            const scoreMatch = fullText.match(/(\d+(?:\.\d+)?)\s*(?:점|\/10)|★{1,5}|[FAVORITE]{1,5}/);
             let score = '8.2'; // 관객은 보통 후한 점수
             
             if (scoreMatch) {
                 if (scoreMatch[1]) {
                     score = parseFloat(scoreMatch[1]) > 10 ? (parseFloat(scoreMatch[1]) / 10).toFixed(1) : scoreMatch[1];
-                } else if (scoreMatch[0].includes('★') || scoreMatch[0].includes('⭐')) {
-                    const starCount = (scoreMatch[0].match(/★|⭐/g) || []).length;
+                } else if (scoreMatch[0].includes('★') || scoreMatch[0].includes('[FAVORITE]')) {
+                    const starCount = (scoreMatch[0].match(/★|[FAVORITE]/g) || []).length;
                     score = (starCount * 2).toFixed(1);
                 }
             }
@@ -2455,12 +2455,12 @@ class DataExtractor {
     
     // Supabase 데이터로 종합 영화평 생성
     generateSupabaseMovieReview(movieData) {
-        console.log(`🎬 Supabase 데이터로 영화평 생성: "${movieData.title}"`);
+        console.log(`[MOVIE] Supabase 데이터로 영화평 생성: "${movieData.title}"`);
         
-        let review = `🎬 "${movieData.title}" 영화평 종합\n\n`;
+        let review = `[MOVIE] "${movieData.title}" 영화평 종합\n\n`;
         
         // 기본 정보
-        review += `📽️ 기본 정보\n`;
+        review += `[PROJECTOR] 기본 정보\n`;
         review += `감독: ${movieData.director || '정보 없음'}\n`;
         review += `출연: ${movieData.cast_members ? movieData.cast_members.join(', ') : '정보 없음'}\n`;
         review += `장르: ${movieData.genre || '정보 없음'}\n`;
@@ -2472,18 +2472,18 @@ class DataExtractor {
         if (movieData.naver_rating) {
             const rating = parseFloat(movieData.naver_rating);
             let ratingEmoji = '';
-            if (rating >= 9.0) ratingEmoji = '🌟 완벽한 걸작!';
+            if (rating >= 9.0) ratingEmoji = '[STAR] 완벽한 걸작!';
             else if (rating >= 8.0) ratingEmoji = '💫 매우 높은 평점! 강력 추천작';
-            else if (rating >= 7.0) ratingEmoji = '👍 좋은 평점의 추천작';
-            else if (rating >= 6.0) ratingEmoji = '⭐ 평범한 작품';
+            else if (rating >= 7.0) ratingEmoji = '[THUMBSUP] 좋은 평점의 추천작';
+            else if (rating >= 6.0) ratingEmoji = '[FAVORITE] 평범한 작품';
             else ratingEmoji = '😐 아쉬운 평점';
             
             const stars = this.convertToStars(rating);
-            review += `\n⭐ 네이버 전체 평점: ${rating}/10 ${stars}\n${ratingEmoji}\n`;
+            review += `\n[FAVORITE] 네이버 전체 평점: ${rating}/10 ${stars}\n${ratingEmoji}\n`;
         }
         
         // 평론가 평가
-        review += `\n👨‍💼 평론가 평가:\n`;
+        review += `\n[MAN]‍💼 평론가 평가:\n`;
         if (movieData.critic_reviews && movieData.critic_reviews.length > 0) {
             movieData.critic_reviews.forEach((critic, index) => {
                 const criticStars = this.convertToStars(critic.score);
@@ -2496,7 +2496,7 @@ class DataExtractor {
         }
         
         // 관객 실제 평가
-        review += `👥 관객 실제 평가:\n`;
+        review += `[BUSTSINSILHOUETTE] 관객 실제 평가:\n`;
         if (movieData.audience_reviews && movieData.audience_reviews.length > 0) {
             movieData.audience_reviews.forEach((user, index) => {
                 const userStars = this.convertToStars(user.score);
@@ -2508,8 +2508,8 @@ class DataExtractor {
             review += `더 많은 관객 리뷰는 네이버 영화에서 확인하세요.\n\n`;
         }
         
-        review += `🕐 실시간 수집: ${new Date().toLocaleString('ko-KR')}\n`;
-        review += `📊 Supabase 영화 데이터베이스에서 수집한 실제 정보`;
+        review += `[TIME] 실시간 수집: ${new Date().toLocaleString('ko-KR')}\n`;
+        review += `[INFO] Supabase 영화 데이터베이스에서 수집한 실제 정보`;
         
         return {
             success: true,

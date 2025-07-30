@@ -78,7 +78,7 @@ class AmateurMovieRealUpdater {
 
     async findAmateurMovie() {
         try {
-            console.log('🔍 아마추어 영화 검색 중...');
+            console.log('[SEARCH] 아마추어 영화 검색 중...');
             
             const { data, error } = await this.supabase
                 .from('movies')
@@ -86,18 +86,18 @@ class AmateurMovieRealUpdater {
                 .eq('title', '아마추어');
 
             if (error) {
-                console.log('❌ 검색 실패:', error.message);
+                console.log('[ERROR] 검색 실패:', error.message);
                 return null;
             }
 
             if (!data || data.length === 0) {
-                console.log('❌ 아마추어 영화를 찾을 수 없습니다.');
+                console.log('[ERROR] 아마추어 영화를 찾을 수 없습니다.');
                 return null;
             }
 
             const movie = data[0];
-            console.log(`✅ 아마추어 영화 발견 (ID: ${movie.id})`);
-            console.log(`📋 현재 정보:`);
+            console.log(`[SUCCESS] 아마추어 영화 발견 (ID: ${movie.id})`);
+            console.log(`[FORM] 현재 정보:`);
             console.log(`   감독: ${movie.director || '없음'}`);
             console.log(`   출연진: ${movie.cast_members ? movie.cast_members.join(', ') : '없음'}`);
             console.log(`   설명: ${movie.description ? movie.description.substring(0, 50) + '...' : '없음'}`);
@@ -105,14 +105,14 @@ class AmateurMovieRealUpdater {
             return movie;
 
         } catch (error) {
-            console.log('❌ 영화 검색 중 오류:', error.message);
+            console.log('[ERROR] 영화 검색 중 오류:', error.message);
             return null;
         }
     }
 
     async updateMovieInfo(movieId) {
         try {
-            console.log('\n📝 영화 정보 업데이트 중...');
+            console.log('\n[MEMO] 영화 정보 업데이트 중...');
             
             const { error } = await this.supabase
                 .from('movies')
@@ -123,15 +123,15 @@ class AmateurMovieRealUpdater {
                 .eq('id', movieId);
 
             if (error) {
-                console.log('❌ 영화 정보 업데이트 실패:', error.message);
+                console.log('[ERROR] 영화 정보 업데이트 실패:', error.message);
                 return false;
             }
 
-            console.log('✅ 영화 정보 업데이트 완료');
+            console.log('[SUCCESS] 영화 정보 업데이트 완료');
             return true;
 
         } catch (error) {
-            console.log('❌ 영화 정보 업데이트 중 오류:', error.message);
+            console.log('[ERROR] 영화 정보 업데이트 중 오류:', error.message);
             return false;
         }
     }
@@ -146,22 +146,22 @@ class AmateurMovieRealUpdater {
                 .eq('movie_id', movieId);
 
             if (error) {
-                console.log('⚠️ 기존 리뷰 삭제 실패:', error.message);
+                console.log('[WARN] 기존 리뷰 삭제 실패:', error.message);
                 return false;
             }
 
-            console.log('✅ 기존 리뷰 삭제 완료');
+            console.log('[SUCCESS] 기존 리뷰 삭제 완료');
             return true;
 
         } catch (error) {
-            console.log('❌ 리뷰 삭제 중 오류:', error.message);
+            console.log('[ERROR] 리뷰 삭제 중 오류:', error.message);
             return false;
         }
     }
 
     async insertNewReviews(movieId) {
         try {
-            console.log('\n📝 실제 리뷰 생성 및 삽입 중...');
+            console.log('\n[MEMO] 실제 리뷰 생성 및 삽입 중...');
             
             const reviews = this.generateRealReviews();
             const reviewsWithMovieId = reviews.map(review => ({
@@ -175,22 +175,22 @@ class AmateurMovieRealUpdater {
                 .select('id');
 
             if (error) {
-                console.log('❌ 리뷰 삽입 실패:', error.message);
+                console.log('[ERROR] 리뷰 삽입 실패:', error.message);
                 return 0;
             }
 
-            console.log(`✅ ${data.length}개 실제 리뷰 생성 완료`);
+            console.log(`[SUCCESS] ${data.length}개 실제 리뷰 생성 완료`);
             return data.length;
 
         } catch (error) {
-            console.log('❌ 리뷰 삽입 중 오류:', error.message);
+            console.log('[ERROR] 리뷰 삽입 중 오류:', error.message);
             return 0;
         }
     }
 
     async verifyUpdate(movieId) {
         try {
-            console.log('\n🔍 업데이트 결과 확인...');
+            console.log('\n[SEARCH] 업데이트 결과 확인...');
             
             // 영화 정보 확인
             const { data: movie, error: movieError } = await this.supabase.client
@@ -200,11 +200,11 @@ class AmateurMovieRealUpdater {
                 .single();
 
             if (movieError) {
-                console.log('❌ 영화 확인 실패:', movieError.message);
+                console.log('[ERROR] 영화 확인 실패:', movieError.message);
                 return;
             }
 
-            console.log('📋 업데이트된 영화 정보:');
+            console.log('[FORM] 업데이트된 영화 정보:');
             console.log(`   제목: ${movie.title}`);
             console.log(`   감독: ${movie.director}`);
             console.log(`   출연진: ${movie.cast_members.join(', ')}`);
@@ -221,16 +221,16 @@ class AmateurMovieRealUpdater {
                 .limit(5);
 
             if (reviewError) {
-                console.log('❌ 리뷰 확인 실패:', reviewError.message);
+                console.log('[ERROR] 리뷰 확인 실패:', reviewError.message);
             } else {
-                console.log(`\n📝 생성된 리뷰 샘플 (5개):`);
+                console.log(`\n[MEMO] 생성된 리뷰 샘플 (5개):`);
                 reviews.forEach((review, index) => {
                     console.log(`   ${index + 1}. ${review.critic_name}: "${review.review_text}" (${review.score}점)`);
                 });
             }
 
         } catch (error) {
-            console.log('❌ 확인 중 오류:', error.message);
+            console.log('[ERROR] 확인 중 오류:', error.message);
         }
     }
 
@@ -238,26 +238,26 @@ class AmateurMovieRealUpdater {
         console.log('🚀 아마추어 영화 실제 데이터로 업데이트 시작...\n');
         
         // Supabase 연결 테스트
-        console.log('🔗 Supabase 연결 테스트 중...');
+        console.log('[LINK] Supabase 연결 테스트 중...');
         try {
             const { count } = await this.supabase.from('movies').select('*', { count: 'exact', head: true });
-            console.log(`✅ Supabase 연결 성공 - 총 ${count}개 영화`);
+            console.log(`[SUCCESS] Supabase 연결 성공 - 총 ${count}개 영화`);
         } catch (error) {
-            console.log('❌ Supabase 연결 실패:', error.message);
+            console.log('[ERROR] Supabase 연결 실패:', error.message);
             return;
         }
 
         // 1. 아마추어 영화 찾기
         const movie = await this.findAmateurMovie();
         if (!movie) {
-            console.log('❌ 아마추어 영화를 찾을 수 없어 작업을 중단합니다.');
+            console.log('[ERROR] 아마추어 영화를 찾을 수 없어 작업을 중단합니다.');
             return;
         }
 
         // 2. 영화 정보 업데이트
         const movieUpdated = await this.updateMovieInfo(movie.id);
         if (!movieUpdated) {
-            console.log('❌ 영화 정보 업데이트 실패');
+            console.log('[ERROR] 영화 정보 업데이트 실패');
             return;
         }
 
@@ -271,12 +271,12 @@ class AmateurMovieRealUpdater {
         await this.verifyUpdate(movie.id);
 
         console.log('\n' + '='.repeat(70));
-        console.log('🎉 아마추어 영화 업데이트 완료!');
+        console.log('[PARTY] 아마추어 영화 업데이트 완료!');
         console.log('='.repeat(70));
-        console.log('💡 이제 아마추어 영화는 실제 2018년 신아가 감독 작품 정보를 가지고 있습니다.');
-        console.log('🎭 주연: 유지태, 감독: 신아가');
-        console.log(`📝 총 ${reviewCount}개의 실제 리뷰어 이름으로 교체되었습니다.`);
-        console.log('\n📱 테스트해보세요:');
+        console.log('[TIP] 이제 아마추어 영화는 실제 2018년 신아가 감독 작품 정보를 가지고 있습니다.');
+        console.log('[DRAMA] 주연: 유지태, 감독: 신아가');
+        console.log(`[MEMO] 총 ${reviewCount}개의 실제 리뷰어 이름으로 교체되었습니다.`);
+        console.log('\n[APP] 테스트해보세요:');
         console.log('   • "아마추어 영화평" - 실제 정보와 리뷰');
         console.log('   • "아마추어 감독" - 신아가 감독');
         console.log('   • "아마추어 출연진" - 유지태, 전수지 등');

@@ -60,12 +60,12 @@ class ImprovedNaverCrawler {
 
     async searchNaverMovie(movieTitle) {
         try {
-            console.log(`\n🔍 네이버 검색: "${movieTitle}"`);
+            console.log(`\n[SEARCH] 네이버 검색: "${movieTitle}"`);
             
             const encodedTitle = encodeURIComponent(`영화 ${movieTitle}`);
             const searchUrl = `https://search.naver.com/search.naver?where=nexearch&sm=tab_etc&mra=bkEw&pkid=68&os=32764045&qvt=0&query=${encodedTitle}`;
             
-            console.log(`📡 요청 URL: ${searchUrl}`);
+            console.log(`[SATELLITE] 요청 URL: ${searchUrl}`);
 
             const response = await axios.get(searchUrl, {
                 headers: {
@@ -78,7 +78,7 @@ class ImprovedNaverCrawler {
                 timeout: 15000
             });
 
-            console.log(`✅ HTTP 응답: ${response.status}`);
+            console.log(`[SUCCESS] HTTP 응답: ${response.status}`);
 
             const $ = cheerio.load(response.data);
             
@@ -99,23 +99,23 @@ class ImprovedNaverCrawler {
             };
 
             // 결과 출력
-            console.log('📋 최종 정보:');
-            console.log(`   🎭 감독: ${finalInfo.director}`);
-            console.log(`   👥 출연: ${finalInfo.cast.slice(0, 3).join(', ')}`);
-            console.log(`   🎪 장르: ${finalInfo.genre}`);
-            console.log(`   📅 개봉: ${finalInfo.releaseYear || '정보없음'}`);
-            console.log(`   ⭐ 평점: ${finalInfo.rating}`);
-            console.log(`   📝 리뷰: ${finalInfo.reviews.length}개`);
+            console.log('[FORM] 최종 정보:');
+            console.log(`   [DRAMA] 감독: ${finalInfo.director}`);
+            console.log(`   [BUSTSINSILHOUETTE] 출연: ${finalInfo.cast.slice(0, 3).join(', ')}`);
+            console.log(`   [FUN] 장르: ${finalInfo.genre}`);
+            console.log(`   [TOMORROW] 개봉: ${finalInfo.releaseYear || '정보없음'}`);
+            console.log(`   [FAVORITE] 평점: ${finalInfo.rating}`);
+            console.log(`   [MEMO] 리뷰: ${finalInfo.reviews.length}개`);
 
             return finalInfo;
 
         } catch (error) {
-            console.log(`❌ 네이버 검색 실패: ${error.message}`);
+            console.log(`[ERROR] 네이버 검색 실패: ${error.message}`);
             
             // 실패시 알려진 정보 사용
             const knownInfo = this.knownMovies[movieTitle];
             if (knownInfo) {
-                console.log('💡 알려진 정보 사용');
+                console.log('[TIP] 알려진 정보 사용');
                 return {
                     director: knownInfo.director,
                     cast: knownInfo.cast,
@@ -226,7 +226,7 @@ class ImprovedNaverCrawler {
             }
 
         } catch (error) {
-            console.log(`⚠️ 정보 추출 중 오류: ${error.message}`);
+            console.log(`[WARN] 정보 추출 중 오류: ${error.message}`);
         }
 
         return info;
@@ -299,23 +299,23 @@ class ImprovedNaverCrawler {
 
     async run() {
         console.log('🚀 개선된 네이버 검색 크롤링 테스트 시작...\n');
-        console.log(`📋 테스트 영화: ${this.testMovies.join(', ')}\n`);
+        console.log(`[FORM] 테스트 영화: ${this.testMovies.join(', ')}\n`);
 
         const results = [];
 
         for (let i = 0; i < this.testMovies.length; i++) {
             const movie = this.testMovies[i];
             
-            console.log(`\n📽️ [${i + 1}/${this.testMovies.length}] ${movie} 처리 중...`);
+            console.log(`\n[PROJECTOR] [${i + 1}/${this.testMovies.length}] ${movie} 처리 중...`);
             console.log('='.repeat(60));
             
             const result = await this.searchNaverMovie(movie);
             
             if (result) {
-                console.log('✅ 정보 수집 성공');
+                console.log('[SUCCESS] 정보 수집 성공');
                 results.push({ movie, result });
             } else {
-                console.log('❌ 정보 수집 실패');
+                console.log('[ERROR] 정보 수집 실패');
             }
             
             // 다음 요청 전 대기
@@ -326,11 +326,11 @@ class ImprovedNaverCrawler {
         }
 
         console.log('\n' + '='.repeat(80));
-        console.log('🎉 테스트 완료! 수집된 정보 요약');
+        console.log('[PARTY] 테스트 완료! 수집된 정보 요약');
         console.log('='.repeat(80));
 
         results.forEach(({ movie, result }) => {
-            console.log(`\n🎬 ${movie}:`);
+            console.log(`\n[MOVIE] ${movie}:`);
             console.log(`   감독: ${result.director}`);
             console.log(`   출연: ${result.cast.slice(0, 3).join(', ')}`);
             console.log(`   장르: ${result.genre}`);
@@ -339,8 +339,8 @@ class ImprovedNaverCrawler {
             console.log(`   리뷰: ${result.reviews.length}개`);
         });
 
-        console.log('\n💡 이 정보들을 실제 Supabase 데이터베이스에 업데이트할 수 있습니다!');
-        console.log('📋 각 영화마다 정확한 감독, 출연진, 평점, 실제 관람평이 준비되었습니다.');
+        console.log('\n[TIP] 이 정보들을 실제 Supabase 데이터베이스에 업데이트할 수 있습니다!');
+        console.log('[FORM] 각 영화마다 정확한 감독, 출연진, 평점, 실제 관람평이 준비되었습니다.');
     }
 }
 

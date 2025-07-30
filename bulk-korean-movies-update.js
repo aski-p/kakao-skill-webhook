@@ -16,10 +16,10 @@ class BulkKoreanMovieUpdater {
     log(message, type = 'info') {
         const timestamp = new Date().toISOString();
         const prefix = {
-            info: '📌',
-            success: '✅',
-            error: '❌',
-            warning: '⚠️'
+            info: '[PIN]',
+            success: '[SUCCESS]',
+            error: '[ERROR]',
+            warning: '[WARN]'
         };
         console.log(`[${timestamp}] ${prefix[type]} ${message}`);
     }

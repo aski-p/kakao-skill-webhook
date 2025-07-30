@@ -14,7 +14,7 @@ async function showFullResult() {
     const classification = messageClassifier.classifyMessage(userMessage);
     const extractionResult = await dataExtractor.extractData(classification);
     
-    console.log('🎬 완전한 영화평 결과:');
+    console.log('[MOVIE] 완전한 영화평 결과:');
     console.log('='.repeat(80));
     console.log(extractionResult.data.message);
     console.log('='.repeat(80));

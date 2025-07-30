@@ -73,19 +73,19 @@ class AllCriticReviewsUpdater {
     }
     
     async run() {
-        console.log('🎬🎬🎬 전체 영화 실제 평론가 리뷰 업데이트 시작! 🎬🎬🎬');
-        console.log('👥 실제 평론가: 박평식, 이동진, 김혜리, 허지웅, 황진미');
-        console.log('🎯 목표: 모든 영화에 적절한 평론가 평가 적용');
+        console.log('[MOVIE][MOVIE][MOVIE] 전체 영화 실제 평론가 리뷰 업데이트 시작! [MOVIE][MOVIE][MOVIE]');
+        console.log('[BUSTSINSILHOUETTE] 실제 평론가: 박평식, 이동진, 김혜리, 허지웅, 황진미');
+        console.log('[TARGET] 목표: 모든 영화에 적절한 평론가 평가 적용');
         
         const startTime = Date.now();
         
         try {
             // 전체 영화 목록 조회
             const movies = await this.getAllMovies();
-            console.log(`\n📋 총 ${movies.length}개 영화 발견`);
+            console.log(`\n[FORM] 총 ${movies.length}개 영화 발견`);
             
             if (movies.length === 0) {
-                console.log('❌ 처리할 영화가 없습니다.');
+                console.log('[ERROR] 처리할 영화가 없습니다.');
                 return;
             }
             
@@ -96,7 +96,7 @@ class AllCriticReviewsUpdater {
             this.generateFinalReport(startTime);
             
         } catch (error) {
-            console.error('❌ 전체 작업 오류:', error.message);
+            console.error('[ERROR] 전체 작업 오류:', error.message);
         }
     }
     
@@ -110,22 +110,22 @@ class AllCriticReviewsUpdater {
                 .limit(300); // 첫 300개만 처리 (테스트용)
             
             if (error) {
-                console.error('❌ 영화 목록 조회 오류:', error.message);
+                console.error('[ERROR] 영화 목록 조회 오류:', error.message);
                 return [];
             }
             
-            console.log(`✅ ${data.length}개 영화 조회 완료`);
+            console.log(`[SUCCESS] ${data.length}개 영화 조회 완료`);
             return data;
             
         } catch (error) {
-            console.error('❌ 영화 목록 조회 예외:', error.message);
+            console.error('[ERROR] 영화 목록 조회 예외:', error.message);
             return [];
         }
     }
     
     // 배치별 영화 처리
     async processBatches(movies) {
-        console.log(`\n🔄 ${movies.length}개 영화를 ${this.batchSize}개씩 배치 처리`);
+        console.log(`\n[LOADING] ${movies.length}개 영화를 ${this.batchSize}개씩 배치 처리`);
         
         const totalBatches = Math.ceil(movies.length / this.batchSize);
         
@@ -134,7 +134,7 @@ class AllCriticReviewsUpdater {
             const endIdx = Math.min(startIdx + this.batchSize, movies.length);
             const batch = movies.slice(startIdx, endIdx);
             
-            console.log(`\n📦 배치 ${batchIndex + 1}/${totalBatches} 처리 중 (${startIdx + 1}-${endIdx})`);
+            console.log(`\n[PACKAGE] 배치 ${batchIndex + 1}/${totalBatches} 처리 중 (${startIdx + 1}-${endIdx})`);
             console.log('='.repeat(60));
             
             // 배치 내 각 영화 처리
@@ -145,7 +145,7 @@ class AllCriticReviewsUpdater {
             
             // 진행률 표시
             const progress = Math.round(((batchIndex + 1) / totalBatches) * 100);
-            console.log(`\n📊 전체 진행률: ${batchIndex + 1}/${totalBatches} 배치 (${progress}%)`);
+            console.log(`\n[INFO] 전체 진행률: ${batchIndex + 1}/${totalBatches} 배치 (${progress}%)`);
             console.log(`📈 통계: 성공 ${this.successCount}개, 실패 ${this.failCount}개, 건너뜀 ${this.skipCount}개`);
             
             // 배치 간 휴식
@@ -158,7 +158,7 @@ class AllCriticReviewsUpdater {
     
     // 개별 영화 처리
     async processMovie(movie) {
-        console.log(`\n🎬 "${movie.title}" (ID: ${movie.id}) 처리 중...`);
+        console.log(`\n[MOVIE] "${movie.title}" (ID: ${movie.id}) 처리 중...`);
         this.processedCount++;
         
         try {
@@ -172,7 +172,7 @@ class AllCriticReviewsUpdater {
             const newReviews = await this.generateCriticReviews(movie, existingCritics);
             
             if (newReviews.length === 0) {
-                console.log(`   ⚠️ 이미 충분한 평론가 평가 존재 - 건너뜀`);
+                console.log(`   [WARN] 이미 충분한 평론가 평가 존재 - 건너뜀`);
                 this.skipCount++;
                 return;
             }
@@ -180,7 +180,7 @@ class AllCriticReviewsUpdater {
             // 4단계: 데이터베이스에 추가
             await this.addCriticReviews(movie.id, newReviews);
             
-            console.log(`   🎉 "${movie.title}" 평론가 평가 ${newReviews.length}개 추가 완료! ✨`);
+            console.log(`   [PARTY] "${movie.title}" 평론가 평가 ${newReviews.length}개 추가 완료! [SPARKLE]`);
             this.successCount++;
             
         } catch (error) {
@@ -206,11 +206,11 @@ class AllCriticReviewsUpdater {
                 .in('critic_name', fakeNames);
             
             if (error) {
-                console.log(`   ⚠️ 가짜 리뷰 정리 오류: ${error.message}`);
+                console.log(`   [WARN] 가짜 리뷰 정리 오류: ${error.message}`);
             }
             
         } catch (error) {
-            console.log(`   ⚠️ 가짜 리뷰 정리 예외: ${error.message}`);
+            console.log(`   [WARN] 가짜 리뷰 정리 예외: ${error.message}`);
         }
     }
     
@@ -224,14 +224,14 @@ class AllCriticReviewsUpdater {
                 .in('critic_name', this.realCritics);
             
             if (error) {
-                console.log(`   ⚠️ 기존 평론가 확인 오류: ${error.message}`);
+                console.log(`   [WARN] 기존 평론가 확인 오류: ${error.message}`);
                 return [];
             }
             
             return data.map(r => r.critic_name);
             
         } catch (error) {
-            console.log(`   ⚠️ 기존 평론가 확인 예외: ${error.message}`);
+            console.log(`   [WARN] 기존 평론가 확인 예외: ${error.message}`);
             return [];
         }
     }
@@ -308,14 +308,14 @@ class AllCriticReviewsUpdater {
                 .select('id, critic_name, score');
             
             if (error) {
-                console.log(`   ❌ 리뷰 추가 오류: ${error.message}`);
+                console.log(`   [ERROR] 리뷰 추가 오류: ${error.message}`);
                 return false;
             }
             
             return true;
             
         } catch (error) {
-            console.log(`   ❌ 리뷰 추가 예외: ${error.message}`);
+            console.log(`   [ERROR] 리뷰 추가 예외: ${error.message}`);
             return false;
         }
     }
@@ -341,30 +341,30 @@ class AllCriticReviewsUpdater {
         const totalTime = (endTime - startTime) / 1000 / 60;
         
         console.log('\n' + '='.repeat(80));
-        console.log('🎉🎉🎉 전체 영화 실제 평론가 리뷰 업데이트 완료! 🎉🎉🎉');
+        console.log('[PARTY][PARTY][PARTY] 전체 영화 실제 평론가 리뷰 업데이트 완료! [PARTY][PARTY][PARTY]');
         console.log('='.repeat(80));
         console.log(`⏱️ 총 실행 시간: ${totalTime.toFixed(1)}분`);
-        console.log(`🎬 처리된 영화: ${this.processedCount}개`);
-        console.log(`✅ 성공: ${this.successCount}개`);
-        console.log(`❌ 실패: ${this.failCount}개`);
+        console.log(`[MOVIE] 처리된 영화: ${this.processedCount}개`);
+        console.log(`[SUCCESS] 성공: ${this.successCount}개`);
+        console.log(`[ERROR] 실패: ${this.failCount}개`);
         console.log(`⏭️ 건너뜀: ${this.skipCount}개 (이미 평가 존재)`);
         
         if (this.processedCount > this.skipCount) {
-            console.log(`📊 성공률: ${Math.round((this.successCount / (this.processedCount - this.skipCount)) * 100)}%`);
+            console.log(`[INFO] 성공률: ${Math.round((this.successCount / (this.processedCount - this.skipCount)) * 100)}%`);
         }
         
-        console.log('\n🔥🔥🔥 업데이트 완료된 데이터 🔥🔥🔥');
-        console.log('✅ 실제 평론가 이름 사용 (박평식, 이동진, 김혜리, 허지웅, 황진미)');
-        console.log('✅ 평론가별 특성에 맞는 리뷰 스타일 적용');
-        console.log('✅ 적절한 점수 범위로 평가 생성');
-        console.log('✅ 기존 가짜 관객 리뷰 정리 완료');
+        console.log('\n[FIRE][FIRE][FIRE] 업데이트 완료된 데이터 [FIRE][FIRE][FIRE]');
+        console.log('[SUCCESS] 실제 평론가 이름 사용 (박평식, 이동진, 김혜리, 허지웅, 황진미)');
+        console.log('[SUCCESS] 평론가별 특성에 맞는 리뷰 스타일 적용');
+        console.log('[SUCCESS] 적절한 점수 범위로 평가 생성');
+        console.log('[SUCCESS] 기존 가짜 관객 리뷰 정리 완료');
         
-        console.log('\n📱 카카오 스킬에서 모든 영화가 실제 평론가 평가로 응답합니다!');
-        console.log('   🎬 "아무 영화나 영화평" → 박평식, 이동진 포함 전문가 평가');
-        console.log('   🎬 "기생충 영화평" → 실제 평론가들의 평가');
-        console.log('   🎬 "발레리나 평점" → 전문 평론가 리뷰');
+        console.log('\n[APP] 카카오 스킬에서 모든 영화가 실제 평론가 평가로 응답합니다!');
+        console.log('   [MOVIE] "아무 영화나 영화평" → 박평식, 이동진 포함 전문가 평가');
+        console.log('   [MOVIE] "기생충 영화평" → 실제 평론가들의 평가');
+        console.log('   [MOVIE] "발레리나 평점" → 전문 평론가 리뷰');
         
-        console.log('\n🎯 추천 테스트:');
+        console.log('\n[TARGET] 추천 테스트:');
         console.log('카카오 챗봇에서 다양한 영화를 검색해보세요!');
         console.log('모든 영화에 실제 평론가 평가가 포함되어 있을 것입니다.');
     }

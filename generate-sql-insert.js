@@ -56,7 +56,7 @@ class SQLGenerator {
             const data = JSON.parse(fs.readFileSync(jsonFilename, 'utf8'));
             const movies = data.movies;
 
-            console.log(`📊 총 ${movies.length}개 영화 데이터 발견\n`);
+            console.log(`[INFO] 총 ${movies.length}개 영화 데이터 발견\n`);
 
             let sqlContent = `-- KOFIC 한국 영화 데이터 INSERT 스크립트
 -- 생성일: ${new Date().toLocaleString('ko-KR')}
@@ -109,11 +109,11 @@ ORDER BY created_at DESC;
             const sqlFilename = `kofic_movies_insert_${new Date().toISOString().slice(0, 10)}.sql`;
             fs.writeFileSync(sqlFilename, sqlContent, 'utf8');
 
-            console.log('\n📊 SQL 스크립트 생성 완료!');
+            console.log('\n[INFO] SQL 스크립트 생성 완료!');
             console.log('='.repeat(60));
             console.log(`📄 파일명: ${sqlFilename}`);
-            console.log(`📍 위치: ${__dirname}/${sqlFilename}`);
-            console.log(`📝 총 라인 수: ${sqlContent.split('\n').length}줄`);
+            console.log(`[LOCATION] 위치: ${__dirname}/${sqlFilename}`);
+            console.log(`[MEMO] 총 라인 수: ${sqlContent.split('\n').length}줄`);
             console.log('='.repeat(60));
             
             console.log('\n🚀 사용 방법:');
@@ -121,12 +121,12 @@ ORDER BY created_at DESC;
             console.log('2. SQL Editor 메뉴로 이동');
             console.log('3. 생성된 SQL 파일 내용을 복사하여 붙여넣기');
             console.log('4. 실행 버튼 클릭');
-            console.log('\n✅ 중복 방지 로직이 포함되어 있어 안전하게 실행할 수 있습니다.');
+            console.log('\n[SUCCESS] 중복 방지 로직이 포함되어 있어 안전하게 실행할 수 있습니다.');
 
             return sqlFilename;
 
         } catch (error) {
-            console.error('❌ SQL 생성 실패:', error.message);
+            console.error('[ERROR] SQL 생성 실패:', error.message);
             return null;
         }
     }

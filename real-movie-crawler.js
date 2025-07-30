@@ -70,7 +70,7 @@ class RealMovieCrawler {
 
             return response.data;
         } catch (error) {
-            console.error(`❌ 네이버 API 오류 (${query}):`, error.message);
+            console.error(`[ERROR] 네이버 API 오류 (${query}):`, error.message);
             this.errors.push({ query, error: error.message });
             return { items: [] };
         }
@@ -182,16 +182,16 @@ class RealMovieCrawler {
     // 포괄적 크롤링 수행
     async performComprehensiveCrawling() {
         console.log('🕸️ 포괄적 영화 크롤링 시작...');
-        console.log('📅 대상 기간: 2010-2025년');
+        console.log('[TOMORROW] 대상 기간: 2010-2025년');
         
         const searchQueries = this.generateSearchQueries();
-        console.log(`🔍 총 ${searchQueries.length}개 검색 쿼리 생성됨`);
+        console.log(`[SEARCH] 총 ${searchQueries.length}개 검색 쿼리 생성됨`);
         
         let processedQueries = 0;
         
         for (const query of searchQueries) {
             try {
-                console.log(`\n🔍 검색 중: "${query}" (${++processedQueries}/${searchQueries.length})`);
+                console.log(`\n[SEARCH] 검색 중: "${query}" (${++processedQueries}/${searchQueries.length})`);
                 
                 // 첫 번째 페이지 검색 (100개)
                 const result1 = await this.searchNaverMovies(query, 100, 1);
@@ -209,20 +209,20 @@ class RealMovieCrawler {
                 
                 // 진행 상황 표시
                 if (processedQueries % 10 === 0) {
-                    console.log(`\n📊 진행 상황: ${processedQueries}/${searchQueries.length} (${Math.round(processedQueries/searchQueries.length*100)}%)`);
-                    console.log(`✅ 수집된 영화: ${this.movies.size}개`);
-                    console.log(`❌ 오류 발생: ${this.errors.length}개`);
+                    console.log(`\n[INFO] 진행 상황: ${processedQueries}/${searchQueries.length} (${Math.round(processedQueries/searchQueries.length*100)}%)`);
+                    console.log(`[SUCCESS] 수집된 영화: ${this.movies.size}개`);
+                    console.log(`[ERROR] 오류 발생: ${this.errors.length}개`);
                 }
                 
             } catch (error) {
-                console.error(`❌ 쿼리 처리 오류 (${query}):`, error.message);
+                console.error(`[ERROR] 쿼리 처리 오류 (${query}):`, error.message);
                 this.errors.push({ query, error: error.message });
             }
         }
         
-        console.log(`\n🎉 크롤링 완료!`);
-        console.log(`📊 총 수집 영화: ${this.movies.size}개`);
-        console.log(`❌ 총 오류: ${this.errors.length}개`);
+        console.log(`\n[PARTY] 크롤링 완료!`);
+        console.log(`[INFO] 총 수집 영화: ${this.movies.size}개`);
+        console.log(`[ERROR] 총 오류: ${this.errors.length}개`);
         
         return Array.from(this.movies.values());
     }
@@ -310,7 +310,7 @@ class RealMovieCrawler {
 
     // 전문가 리뷰 생성
     generateReviews(movies) {
-        console.log('📝 전문가 리뷰 생성 중...');
+        console.log('[MEMO] 전문가 리뷰 생성 중...');
         const reviews = [];
         
         movies.forEach(movie => {
@@ -405,9 +405,9 @@ class RealMovieCrawler {
         
         sql += `\nCOMMIT;\n\n`;
         sql += `-- 크롤링 완료\n`;
-        sql += `-- 📊 크롤링 영화: ${movies.length}개\n`;
-        sql += `-- 📝 전문가 리뷰: ${reviews.length}개\n`;
-        sql += `-- ❌ 크롤링 오류: ${this.errors.length}개\n`;
+        sql += `-- [INFO] 크롤링 영화: ${movies.length}개\n`;
+        sql += `-- [MEMO] 전문가 리뷰: ${reviews.length}개\n`;
+        sql += `-- [ERROR] 크롤링 오류: ${this.errors.length}개\n`;
         
         return { sql, movies, reviews };
     }
@@ -430,18 +430,18 @@ class RealMovieCrawler {
                 fs.writeFileSync(errorLogPath, JSON.stringify(this.errors, null, 2));
             }
             
-            console.log(`\n🎉 실제 크롤링 완료!`);
+            console.log(`\n[PARTY] 실제 크롤링 완료!`);
             console.log(`📁 파일명: ${filename}`);
-            console.log(`📊 크롤링 영화: ${movies.length}개`);
-            console.log(`📝 전문가 리뷰: ${reviews.length}개`);
+            console.log(`[INFO] 크롤링 영화: ${movies.length}개`);
+            console.log(`[MEMO] 전문가 리뷰: ${reviews.length}개`);
             console.log(`💾 파일 크기: ${Math.round(sql.length / 1024)}KB`);
-            console.log(`❌ 크롤링 오류: ${this.errors.length}개`);
+            console.log(`[ERROR] 크롤링 오류: ${this.errors.length}개`);
             
             if (this.errors.length > 0) {
-                console.log(`📋 오류 로그: crawling_errors_${timestamp}.json`);
+                console.log(`[FORM] 오류 로그: crawling_errors_${timestamp}.json`);
             }
             
-            console.log(`\n💡 사용법:`);
+            console.log(`\n[TIP] 사용법:`);
             console.log(`1. ./open-sql.sh (VS Code로 파일 열기)`);
             console.log(`2. Supabase SQL 에디터에서 실행`);
             console.log(`3. 실제 네이버에서 크롤링한 영화 데이터가 추가됩니다`);
@@ -449,7 +449,7 @@ class RealMovieCrawler {
             return filename;
             
         } catch (error) {
-            console.error('❌ 크롤링 실행 오류:', error);
+            console.error('[ERROR] 크롤링 실행 오류:', error);
             throw error;
         }
     }

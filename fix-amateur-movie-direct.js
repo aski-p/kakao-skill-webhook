@@ -1,8 +1,8 @@
 // 아마추어 영화 정보를 실제 2018년 영화 정보로 직접 교체
 // 네이버 API가 중단되었으므로 실제 영화 정보를 직접 사용
 
-console.log('🎬 아마추어 영화 정보 교체 시작...');
-console.log('💡 2018년 신아가 감독의 실제 영화 "아마추어"로 교체합니다.\n');
+console.log('[MOVIE] 아마추어 영화 정보 교체 시작...');
+console.log('[TIP] 2018년 신아가 감독의 실제 영화 "아마추어"로 교체합니다.\n');
 
 // 실제 아마추어 영화 정보 (검증된 정보)
 const realAmateurMovie = {
@@ -76,7 +76,7 @@ function generateRealReviews() {
 
 // SQL 업데이트 쿼리 생성
 function generateUpdateSQL() {
-    console.log('📝 SQL 업데이트 쿼리 생성 중...\n');
+    console.log('[MEMO] SQL 업데이트 쿼리 생성 중...\n');
 
     const reviews = generateRealReviews();
     
@@ -151,13 +151,13 @@ WHERE movie_id = (SELECT id FROM movies WHERE title = '아마추어' LIMIT 1);`;
 // 실행
 const updateSQL = generateUpdateSQL();
 
-console.log('✅ SQL 쿼리 생성 완료!\n');
-console.log('📋 업데이트 내용:');
-console.log(`   🎬 영화: ${realAmateurMovie.title} (${realAmateurMovie.release_year})`);
-console.log(`   🎭 감독: ${realAmateurMovie.director}`);
-console.log(`   👥 주연: ${realAmateurMovie.cast_members.slice(0, 3).join(', ')}`);
-console.log(`   ⭐ 평점: ${realAmateurMovie.naver_rating}`);
-console.log(`   📝 리뷰: 실제 관객 이름으로 ${15 + Math.floor(Math.random() * 8)}개 생성`);
+console.log('[SUCCESS] SQL 쿼리 생성 완료!\n');
+console.log('[FORM] 업데이트 내용:');
+console.log(`   [MOVIE] 영화: ${realAmateurMovie.title} (${realAmateurMovie.release_year})`);
+console.log(`   [DRAMA] 감독: ${realAmateurMovie.director}`);
+console.log(`   [BUSTSINSILHOUETTE] 주연: ${realAmateurMovie.cast_members.slice(0, 3).join(', ')}`);
+console.log(`   [FAVORITE] 평점: ${realAmateurMovie.naver_rating}`);
+console.log(`   [MEMO] 리뷰: 실제 관객 이름으로 ${15 + Math.floor(Math.random() * 8)}개 생성`);
 
 console.log('\n💾 파일 저장 중...');
 
@@ -168,17 +168,17 @@ const filename = `amateur_movie_update_${timestamp}.sql`;
 
 fs.writeFileSync(filename, updateSQL);
 
-console.log(`✅ SQL 파일 저장 완료: ${filename}`);
-console.log('\n🔧 실행 방법:');
+console.log(`[SUCCESS] SQL 파일 저장 완료: ${filename}`);
+console.log('\n[TOOL] 실행 방법:');
 console.log('1. Supabase SQL Editor에서 파일 내용을 복사하여 실행');
 console.log('2. 또는 psql 명령으로 직접 실행:');
 console.log(`   psql <connection_string> -f ${filename}`);
 
-console.log('\n📱 업데이트 후 테스트해보세요:');
+console.log('\n[APP] 업데이트 후 테스트해보세요:');
 console.log('   • "아마추어 영화평" - 실제 정보와 리뷰');
 console.log('   • "아마추어 감독은 누구야" - 신아가 감독');
 console.log('   • "아마추어 출연진" - 유지태, 전수지 등');
 console.log('   • "아마추어 줄거리" - 권투 휴먼드라마');
 
-console.log('\n🎉 아마추어 영화가 실제 정보로 교체됩니다!');
-console.log('💡 더 이상 가짜 평론가가 아닌 실제 관객 리뷰를 볼 수 있습니다.');
+console.log('\n[PARTY] 아마추어 영화가 실제 정보로 교체됩니다!');
+console.log('[TIP] 더 이상 가짜 평론가가 아닌 실제 관객 리뷰를 볼 수 있습니다.');

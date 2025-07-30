@@ -10,15 +10,15 @@ class PlaywrightCrawler {
 
     async init() {
         try {
-            console.log('🎭 Playwright 브라우저 초기화 중...');
+            console.log('[DRAMA] Playwright 브라우저 초기화 중...');
             this.browser = await chromium.launch({ 
                 headless: true,
                 args: ['--no-sandbox', '--disable-setuid-sandbox']
             });
-            console.log('✅ Playwright 브라우저 준비 완료');
+            console.log('[SUCCESS] Playwright 브라우저 준비 완료');
             return true;
         } catch (error) {
-            console.error('❌ Playwright 초기화 실패:', error.message);
+            console.error('[ERROR] Playwright 초기화 실패:', error.message);
             return false;
         }
     }
@@ -40,7 +40,7 @@ class PlaywrightCrawler {
         const page = await this.browser.newPage();
         
         try {
-            console.log(`🎬 네이버 영화 검색: ${movieTitle}`);
+            console.log(`[MOVIE] 네이버 영화 검색: ${movieTitle}`);
             
             // 네이버 영화 검색
             const searchUrl = `https://movie.naver.com/movie/search/result.naver?query=${encodeURIComponent(movieTitle)}&section=all&ie=utf8`;
@@ -54,16 +54,16 @@ class PlaywrightCrawler {
                 
                 // 영화 상세 정보 추출
                 const movieData = await this.extractMovieDetails(page);
-                console.log(`✅ ${movieTitle} 실시간 데이터 수집 완료`);
+                console.log(`[SUCCESS] ${movieTitle} 실시간 데이터 수집 완료`);
                 
                 return movieData;
             } else {
-                console.log(`⚠️ ${movieTitle} 검색 결과 없음`);
+                console.log(`[WARN] ${movieTitle} 검색 결과 없음`);
                 return null;
             }
             
         } catch (error) {
-            console.error(`❌ ${movieTitle} 크롤링 실패:`, error.message);
+            console.error(`[ERROR] ${movieTitle} 크롤링 실패:`, error.message);
             return null;
         } finally {
             await page.close();
@@ -116,7 +116,7 @@ class PlaywrightCrawler {
     // 전문가 평점 크롤링 (개선된 버전)
     async crawlExpertReviews(page, movieInfo) {
         try {
-            console.log('🎯 전문가 평점 크롤링 시작...');
+            console.log('[TARGET] 전문가 평점 크롤링 시작...');
             
             // 평론가/전문가 평점 섹션 찾기
             const expertSelectors = [
@@ -129,10 +129,10 @@ class PlaywrightCrawler {
             for (const selector of expertSelectors) {
                 const expertSection = await page.locator(selector);
                 if (await expertSection.count() > 0) {
-                    console.log(`📝 전문가 섹션 발견: ${selector}`);
+                    console.log(`[MEMO] 전문가 섹션 발견: ${selector}`);
                     
                     const expertItems = await expertSection.locator('.star_score').all();
-                    console.log(`👨‍💼 발견된 전문가 리뷰: ${expertItems.length}개`);
+                    console.log(`[MAN]‍💼 발견된 전문가 리뷰: ${expertItems.length}개`);
                     
                     for (let i = 0; i < Math.min(expertItems.length, 5); i++) {
                         const item = expertItems[i];
@@ -170,10 +170,10 @@ class PlaywrightCrawler {
                                     score: score.trim(),
                                     review: review.trim().substring(0, 120)
                                 });
-                                console.log(`✅ 전문가 ${i + 1}: ${critic.trim()} - ${score.trim()}`);
+                                console.log(`[SUCCESS] 전문가 ${i + 1}: ${critic.trim()} - ${score.trim()}`);
                             }
                         } catch (itemError) {
-                            console.log(`⚠️ 전문가 리뷰 ${i + 1} 추출 실패:`, itemError.message);
+                            console.log(`[WARN] 전문가 리뷰 ${i + 1} 추출 실패:`, itemError.message);
                         }
                     }
                     
@@ -181,17 +181,17 @@ class PlaywrightCrawler {
                 }
             }
             
-            console.log(`📊 전문가 리뷰 수집 완료: ${movieInfo.expertReviews.length}개`);
+            console.log(`[INFO] 전문가 리뷰 수집 완료: ${movieInfo.expertReviews.length}개`);
             
         } catch (error) {
-            console.log('❌ 전문가 리뷰 크롤링 실패:', error.message);
+            console.log('[ERROR] 전문가 리뷰 크롤링 실패:', error.message);
         }
     }
 
     // 관객 평점 크롤링 (개선된 버전 - 실제 아이디와 한줄평 수집)
     async crawlAudienceReviews(page, movieInfo) {
         try {
-            console.log('👥 관객 평점 크롤링 시작...');
+            console.log('[BUSTSINSILHOUETTE] 관객 평점 크롤링 시작...');
             
             // 네티즌/관객 평점 섹션 찾기
             const audienceSelectors = [
@@ -205,10 +205,10 @@ class PlaywrightCrawler {
             for (const selector of audienceSelectors) {
                 const audienceSection = await page.locator(selector);
                 if (await audienceSection.count() > 0) {
-                    console.log(`👤 관객 섹션 발견: ${selector}`);
+                    console.log(`[BUSTINSILHOUETTE] 관객 섹션 발견: ${selector}`);
                     
                     const audienceItems = await audienceSection.locator('.star_score, .review_item').all();
-                    console.log(`👥 발견된 관객 평가: ${audienceItems.length}개`);
+                    console.log(`[BUSTSINSILHOUETTE] 발견된 관객 평가: ${audienceItems.length}개`);
                     
                     for (let i = 0; i < Math.min(audienceItems.length, 8); i++) {
                         const item = audienceItems[i];
@@ -273,10 +273,10 @@ class PlaywrightCrawler {
                                     review: cleanedReview
                                 });
                                 
-                                console.log(`✅ 관객 ${i + 1}: ${cleanedUsername} - ${cleanedScore} - "${cleanedReview.substring(0, 30)}..."`);
+                                console.log(`[SUCCESS] 관객 ${i + 1}: ${cleanedUsername} - ${cleanedScore} - "${cleanedReview.substring(0, 30)}..."`);
                             }
                         } catch (itemError) {
-                            console.log(`⚠️ 관객 리뷰 ${i + 1} 추출 실패:`, itemError.message);
+                            console.log(`[WARN] 관객 리뷰 ${i + 1} 추출 실패:`, itemError.message);
                         }
                     }
                     
@@ -284,10 +284,10 @@ class PlaywrightCrawler {
                 }
             }
             
-            console.log(`📊 관객 평가 수집 완료: ${movieInfo.audienceReviews.length}개`);
+            console.log(`[INFO] 관객 평가 수집 완료: ${movieInfo.audienceReviews.length}개`);
             
         } catch (error) {
-            console.log('❌ 관객 리뷰 크롤링 실패:', error.message);
+            console.log('[ERROR] 관객 리뷰 크롤링 실패:', error.message);
         }
     }
 
@@ -301,7 +301,7 @@ class PlaywrightCrawler {
         const page = await this.browser.newPage();
         
         try {
-            console.log(`🎬 CGV 영화 검색: ${movieTitle}`);
+            console.log(`[MOVIE] CGV 영화 검색: ${movieTitle}`);
             
             const searchUrl = `http://www.cgv.co.kr/search/?query=${encodeURIComponent(movieTitle)}`;
             await page.goto(searchUrl, { waitUntil: 'networkidle' });
@@ -317,7 +317,7 @@ class PlaywrightCrawler {
             };
             
         } catch (error) {
-            console.error(`❌ CGV ${movieTitle} 크롤링 실패:`, error.message);
+            console.error(`[ERROR] CGV ${movieTitle} 크롤링 실패:`, error.message);
             return null;
         } finally {
             await page.close();
@@ -361,18 +361,18 @@ class PlaywrightCrawler {
             return {
                 success: false,
                 type: 'error',
-                data: { message: `🎬 "${movieTitle}" 영화 정보를 찾을 수 없습니다.` }
+                data: { message: `[MOVIE] "${movieTitle}" 영화 정보를 찾을 수 없습니다.` }
             };
         }
 
-        let message = `🎬 "${movieTitle}" 영화평 종합\n\n`;
+        let message = `[MOVIE] "${movieTitle}" 영화평 종합\n\n`;
         
         // 네이버 영화 정보
         if (crawlResults.naver) {
             const naver = crawlResults.naver;
             
             // 기본 정보
-            message += `📽️ 기본 정보\n`;
+            message += `[PROJECTOR] 기본 정보\n`;
             if (naver.basicInfo.director) message += `감독: ${naver.basicInfo.director}\n`;
             if (naver.basicInfo.actors) message += `출연: ${naver.basicInfo.actors.substring(0, 50)}...\n`;
             if (naver.basicInfo.genre) message += `장르: ${naver.basicInfo.genre}\n`;
@@ -381,19 +381,19 @@ class PlaywrightCrawler {
             if (naver.rating) {
                 const ratingNum = parseFloat(naver.rating);
                 const stars = this.convertToStars(naver.rating);
-                message += `\n⭐ 네이버 전체 평점: ${naver.rating}/10 ${stars}\n`;
+                message += `\n[FAVORITE] 네이버 전체 평점: ${naver.rating}/10 ${stars}\n`;
                 
                 // 평점 해석
                 if (ratingNum >= 8.0) message += `💫 매우 높은 평점! 강력 추천작\n`;
-                else if (ratingNum >= 7.0) message += `👍 좋은 평점의 추천작\n`;
-                else if (ratingNum >= 6.0) message += `😊 무난한 평점의 볼만한 작품\n`;
+                else if (ratingNum >= 7.0) message += `[THUMBSUP] 좋은 평점의 추천작\n`;
+                else if (ratingNum >= 6.0) message += `[SMILE] 무난한 평점의 볼만한 작품\n`;
                 else if (ratingNum >= 5.0) message += `😐 평범한 평점\n`;
                 else message += `😕 아쉬운 평점\n`;
             }
             
             // 전문가(평론가) 평가
             if (naver.expertReviews.length > 0) {
-                message += `\n👨‍💼 평론가 평가:\n`;
+                message += `\n[MAN]‍💼 평론가 평가:\n`;
                 naver.expertReviews.forEach((review, index) => {
                     const stars = this.convertToStars(review.score);
                     message += `${index + 1}. ${review.critic} ${stars} (${review.score}/10)\n`;
@@ -405,7 +405,7 @@ class PlaywrightCrawler {
             
             // 관객 평가 (실제 아이디와 한줄평)
             if (naver.audienceReviews.length > 0) {
-                message += `\n👥 관객 실제 평가:\n`;
+                message += `\n[BUSTSINSILHOUETTE] 관객 실제 평가:\n`;
                 naver.audienceReviews.forEach((review, index) => {
                     const stars = this.convertToStars(review.score);
                     message += `${index + 1}. ${review.username} ${stars} (${review.score}/10)\n`;
@@ -416,8 +416,8 @@ class PlaywrightCrawler {
             }
         }
 
-        message += `\n🕐 실시간 수집: ${new Date(crawlResults.timestamp).toLocaleString('ko-KR')}`;
-        message += `\n📊 네이버 영화에서 실시간 크롤링한 최신 데이터`;
+        message += `\n[TIME] 실시간 수집: ${new Date(crawlResults.timestamp).toLocaleString('ko-KR')}`;
+        message += `\n[INFO] 네이버 영화에서 실시간 크롤링한 최신 데이터`;
 
         return {
             success: true,

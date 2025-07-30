@@ -80,7 +80,7 @@ class ImprovedDataVerifier {
     }
 
     async findActualProblems() {
-        console.log('🔍 실제 문제 데이터 재분석 시작...\n');
+        console.log('[SEARCH] 실제 문제 데이터 재분석 시작...\n');
 
         // 이전에 식별된 "문제" 영화들 다시 분석
         const previousProblems = [
@@ -96,14 +96,14 @@ class ImprovedDataVerifier {
             { id: 21470, title: "인터스텔라", director: "크리스토퍼 놀란" }
         ];
 
-        console.log('📊 이전 "문제" 영화들 재분석 결과:');
+        console.log('[INFO] 이전 "문제" 영화들 재분석 결과:');
         console.log('='.repeat(60));
 
         for (const movie of previousProblems) {
             const classification = this.classifyMovie(movie.title, movie.director, []);
             const isActualProblem = classification !== 'foreign';
             
-            console.log(`${isActualProblem ? '❌' : '✅'} ID ${movie.id}: "${movie.title}"`);
+            console.log(`${isActualProblem ? '[ERROR]' : '[SUCCESS]'} ID ${movie.id}: "${movie.title}"`);
             console.log(`   감독: ${movie.director}`);
             console.log(`   분류: ${classification === 'foreign' ? '외국 영화' : '한국 영화'}`);
             console.log(`   판정: ${isActualProblem ? '실제 문제 (한국 영화에 외국 감독)' : '정상 (외국 영화에 외국 감독)'}`);
@@ -115,15 +115,15 @@ class ImprovedDataVerifier {
         }
 
         console.log('='.repeat(60));
-        console.log(`🎯 실제 문제 영화: ${this.realProblems.length}개`);
-        console.log(`✅ 정상 영화: ${previousProblems.length - this.realProblems.length}개`);
+        console.log(`[TARGET] 실제 문제 영화: ${this.realProblems.length}개`);
+        console.log(`[SUCCESS] 정상 영화: ${previousProblems.length - this.realProblems.length}개`);
 
         if (this.realProblems.length === 0) {
-            console.log('\n🎉 축하합니다! 실제로는 문제가 없습니다!');
+            console.log('\n[PARTY] 축하합니다! 실제로는 문제가 없습니다!');
             console.log('모든 영화가 올바른 감독/배우 정보를 가지고 있습니다.');
-            console.log('\n✅ 데이터베이스 상태: 완벽함 (99.84% → 100%)');
+            console.log('\n[SUCCESS] 데이터베이스 상태: 완벽함 (99.84% → 100%)');
         } else {
-            console.log('\\n🔧 수정이 필요한 실제 문제 영화들:');
+            console.log('\\n[TOOL] 수정이 필요한 실제 문제 영화들:');
             this.realProblems.forEach(movie => {
                 console.log(`   - ID ${movie.id}: "${movie.title}" (감독: ${movie.director})`);
             });
@@ -134,7 +134,7 @@ class ImprovedDataVerifier {
     }
 
     async checkUnknownData() {
-        console.log('\\n🔍 "알 수 없음" 데이터 현황 체크...');
+        console.log('\\n[SEARCH] "알 수 없음" 데이터 현황 체크...');
 
         const { data: unknownMovies, error } = await this.supabase
             .from('movies')
@@ -143,7 +143,7 @@ class ImprovedDataVerifier {
             .limit(10);
 
         if (error) {
-            console.log(`❌ 조회 실패: ${error.message}`);
+            console.log(`[ERROR] 조회 실패: ${error.message}`);
             return;
         }
 
@@ -154,23 +154,23 @@ class ImprovedDataVerifier {
 
         const unknownCount = totalUnknown?.length || 0;
         
-        console.log(`📊 "알 수 없음" 데이터: ${unknownCount}개`);
+        console.log(`[INFO] "알 수 없음" 데이터: ${unknownCount}개`);
         
         if (unknownCount > 0) {
-            console.log('📋 예시:');
+            console.log('[FORM] 예시:');
             unknownMovies?.slice(0, 5).forEach(movie => {
                 console.log(`   - ID ${movie.id}: "${movie.title}" (감독: ${movie.director})`);
             });
             
-            console.log('\\n💡 권장사항:');
+            console.log('\\n[TIP] 권장사항:');
             console.log('이 "알 수 없음" 영화들을 실제 데이터로 채우면');
             console.log('카카오 스킬이 더 많은 영화 정보를 제공할 수 있습니다.');
         }
     }
 
     async run() {
-        console.log('🔧 데이터 분류 로직 수정 및 재검증 시작!');
-        console.log('🎯 목표: 실제 문제와 가짜 문제 구분하기\\n');
+        console.log('[TOOL] 데이터 분류 로직 수정 및 재검증 시작!');
+        console.log('[TARGET] 목표: 실제 문제와 가짜 문제 구분하기\\n');
         
         await this.findActualProblems();
         

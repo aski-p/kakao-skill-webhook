@@ -7,13 +7,13 @@ const fs = require('fs');
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-console.log('🔑 환경 변수 상태:');
-console.log('SUPABASE_URL:', SUPABASE_URL ? '✅ 설정됨' : '❌ 미설정');
-console.log('SUPABASE_SERVICE_ROLE_KEY:', SUPABASE_SERVICE_ROLE_KEY ? '✅ 설정됨' : '❌ 미설정');
+console.log('[KEY] 환경 변수 상태:');
+console.log('SUPABASE_URL:', SUPABASE_URL ? '[SUCCESS] 설정됨' : '[ERROR] 미설정');
+console.log('SUPABASE_SERVICE_ROLE_KEY:', SUPABASE_SERVICE_ROLE_KEY ? '[SUCCESS] 설정됨' : '[ERROR] 미설정');
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    console.log('\n❌ Supabase 환경 변수가 설정되지 않았습니다.');
-    console.log('💡 환경 변수를 설정하고 다시 실행해주세요:');
+    console.log('\n[ERROR] Supabase 환경 변수가 설정되지 않았습니다.');
+    console.log('[TIP] 환경 변수를 설정하고 다시 실행해주세요:');
     console.log('export SUPABASE_URL="https://your-project.supabase.co"');
     console.log('export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"');
     process.exit(1);
@@ -35,7 +35,7 @@ class SimpleBatchInserter {
     }
 
     async testConnection() {
-        console.log('🔌 Supabase 연결 테스트...');
+        console.log('[ELECTRIC] Supabase 연결 테스트...');
         
         try {
             // 간단한 쿼리로 연결 테스트
@@ -45,14 +45,14 @@ class SimpleBatchInserter {
                 .limit(1);
             
             if (error) {
-                console.log('❌ Supabase 연결 실패:', error.message);
+                console.log('[ERROR] Supabase 연결 실패:', error.message);
                 return false;
             }
             
-            console.log('✅ Supabase 연결 성공');
+            console.log('[SUCCESS] Supabase 연결 성공');
             return true;
         } catch (err) {
-            console.log('❌ Supabase 연결 오류:', err.message);
+            console.log('[ERROR] Supabase 연결 오류:', err.message);
             return false;
         }
     }
@@ -67,7 +67,7 @@ class SimpleBatchInserter {
         const sqlContent = fs.readFileSync(this.sqlFile, 'utf8');
         const lines = sqlContent.split('\n');
         
-        console.log(`📊 총 ${lines.length.toLocaleString()}줄의 SQL 파일`);
+        console.log(`[INFO] 총 ${lines.length.toLocaleString()}줄의 SQL 파일`);
         
         // 의미있는 줄만 필터링
         const meaningfulLines = lines.filter(line => {
@@ -78,7 +78,7 @@ class SimpleBatchInserter {
                    trimmed !== '';
         });
         
-        console.log(`📊 의미있는 줄: ${meaningfulLines.length.toLocaleString()}줄`);
+        console.log(`[INFO] 의미있는 줄: ${meaningfulLines.length.toLocaleString()}줄`);
         
         // 청크로 분할
         const chunks = [];
@@ -87,13 +87,13 @@ class SimpleBatchInserter {
             chunks.push(chunk.join('\n'));
         }
         
-        console.log(`📦 ${chunks.length}개의 청크로 분할됨 (청크당 최대 ${this.chunkSize}줄)`);
+        console.log(`[PACKAGE] ${chunks.length}개의 청크로 분할됨 (청크당 최대 ${this.chunkSize}줄)`);
         
         return chunks;
     }
 
     async executeChunk(chunkIndex, chunk) {
-        console.log(`\n🔄 청크 ${chunkIndex + 1} 실행 중... (크기: ${chunk.length.toLocaleString()}자)`);
+        console.log(`\n[LOADING] 청크 ${chunkIndex + 1} 실행 중... (크기: ${chunk.length.toLocaleString()}자)`);
         
         try {
             // Supabase SQL 실행
@@ -102,7 +102,7 @@ class SimpleBatchInserter {
             });
             
             if (error) {
-                console.log(`❌ 청크 ${chunkIndex + 1} 실행 실패:`, error.message);
+                console.log(`[ERROR] 청크 ${chunkIndex + 1} 실행 실패:`, error.message);
                 
                 // 파일로 실패한 청크 저장
                 const failedChunkFile = `failed_chunk_${chunkIndex + 1}.sql`;
@@ -112,11 +112,11 @@ class SimpleBatchInserter {
                 return false;
             }
             
-            console.log(`✅ 청크 ${chunkIndex + 1} 실행 성공`);
+            console.log(`[SUCCESS] 청크 ${chunkIndex + 1} 실행 성공`);
             return true;
             
         } catch (err) {
-            console.log(`❌ 청크 ${chunkIndex + 1} 실행 오류:`, err.message);
+            console.log(`[ERROR] 청크 ${chunkIndex + 1} 실행 오류:`, err.message);
             return false;
         }
     }
@@ -131,7 +131,7 @@ class SimpleBatchInserter {
         // 1. 연결 테스트
         const connected = await this.testConnection();
         if (!connected) {
-            console.log('❌ Supabase 연결 실패로 인해 프로세스를 중단합니다.');
+            console.log('[ERROR] Supabase 연결 실패로 인해 프로세스를 중단합니다.');
             return;
         }
         
@@ -140,7 +140,7 @@ class SimpleBatchInserter {
         try {
             chunks = this.splitSqlFile();
         } catch (err) {
-            console.log('❌ SQL 파일 분할 실패:', err.message);
+            console.log('[ERROR] SQL 파일 분할 실패:', err.message);
             return;
         }
         
@@ -166,16 +166,16 @@ class SimpleBatchInserter {
         
         // 4. 결과 리포트
         console.log('\n' + '='.repeat(50));
-        console.log('📊 배치 인서트 완료 리포트');
+        console.log('[INFO] 배치 인서트 완료 리포트');
         console.log('='.repeat(50));
-        console.log(`✅ 성공: ${successCount}/${chunks.length} 청크`);
-        console.log(`❌ 실패: ${failCount}/${chunks.length} 청크`);
+        console.log(`[SUCCESS] 성공: ${successCount}/${chunks.length} 청크`);
+        console.log(`[ERROR] 실패: ${failCount}/${chunks.length} 청크`);
         console.log(`📈 성공률: ${((successCount/chunks.length)*100).toFixed(1)}%`);
         
         if (successCount === chunks.length) {
-            console.log('\n🎉 모든 청크가 성공적으로 실행되었습니다!');
+            console.log('\n[PARTY] 모든 청크가 성공적으로 실행되었습니다!');
         } else {
-            console.log('\n⚠️ 일부 청크 실행이 실패했습니다. failed_chunk_*.sql 파일을 확인해주세요.');
+            console.log('\n[WARN] 일부 청크 실행이 실패했습니다. failed_chunk_*.sql 파일을 확인해주세요.');
         }
     }
 }

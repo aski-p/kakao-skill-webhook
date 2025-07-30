@@ -38,11 +38,11 @@ class MovieInsertGenerator {
     }
 
     async generateMovieInserts() {
-        console.log('🎬 네이버 API로 영화 데이터 수집 및 INSERT문 생성 시작\n');
-        console.log(`📊 대상 영화: ${this.movieList.length}개`);
+        console.log('[MOVIE] 네이버 API로 영화 데이터 수집 및 INSERT문 생성 시작\n');
+        console.log(`[INFO] 대상 영화: ${this.movieList.length}개`);
         
         if (!this.clientId || !this.clientSecret) {
-            console.log('❌ 네이버 API 키가 없어서 샘플 데이터로 진행합니다.');
+            console.log('[ERROR] 네이버 API 키가 없어서 샘플 데이터로 진행합니다.');
             return this.generateSampleInserts();
         }
 
@@ -50,7 +50,7 @@ class MovieInsertGenerator {
 
         for (const movieTitle of this.movieList) {
             try {
-                console.log(`🔍 "${movieTitle}" 검색 중...`);
+                console.log(`[SEARCH] "${movieTitle}" 검색 중...`);
                 
                 const movieData = await this.searchNaverMovie(movieTitle);
                 
@@ -58,10 +58,10 @@ class MovieInsertGenerator {
                     const insertSQL = this.generateInsertSQL(movieData);
                     this.sqlInserts.push(insertSQL);
                     
-                    console.log(`✅ "${movieData.title}" SQL 생성 완료`);
+                    console.log(`[SUCCESS] "${movieData.title}" SQL 생성 완료`);
                     this.results.successCount++;
                 } else {
-                    console.log(`⚠️ "${movieTitle}" 검색 결과 없음`);
+                    console.log(`[WARN] "${movieTitle}" 검색 결과 없음`);
                     this.results.errorCount++;
                     this.results.errors.push(`${movieTitle}: 검색 결과 없음`);
                 }
@@ -72,7 +72,7 @@ class MovieInsertGenerator {
                 await new Promise(resolve => setTimeout(resolve, 120));
                 
             } catch (error) {
-                console.error(`❌ "${movieTitle}" 처리 오류:`, error.message);
+                console.error(`[ERROR] "${movieTitle}" 처리 오류:`, error.message);
                 this.results.errorCount++;
                 this.results.errors.push(`${movieTitle}: ${error.message}`);
                 this.results.totalProcessed++;
@@ -81,10 +81,10 @@ class MovieInsertGenerator {
 
         const duration = Math.round((Date.now() - startTime) / 1000);
         
-        console.log('\n🎉 영화 데이터 수집 완료!');
-        console.log(`📊 총 처리: ${this.results.totalProcessed}개`);
-        console.log(`✅ 성공: ${this.results.successCount}개`);
-        console.log(`❌ 실패: ${this.results.errorCount}개`);
+        console.log('\n[PARTY] 영화 데이터 수집 완료!');
+        console.log(`[INFO] 총 처리: ${this.results.totalProcessed}개`);
+        console.log(`[SUCCESS] 성공: ${this.results.successCount}개`);
+        console.log(`[ERROR] 실패: ${this.results.errorCount}개`);
         console.log(`⏱️ 소요시간: ${duration}초`);
 
         // SQL 파일 생성
@@ -271,8 +271,8 @@ class MovieInsertGenerator {
         fs.writeFileSync(filepath, sqlContent, 'utf8');
         
         console.log(`\n📄 SQL 파일 생성 완료: ${filename}`);
-        console.log(`📍 파일 위치: ${filepath}`);
-        console.log(`📊 총 INSERT문: ${this.sqlInserts.length}개`);
+        console.log(`[LOCATION] 파일 위치: ${filepath}`);
+        console.log(`[INFO] 총 INSERT문: ${this.sqlInserts.length}개`);
         
         // 간단한 텍스트 파일도 생성
         const txtFilename = `movie_inserts_${timestamp}.txt`;
@@ -314,7 +314,7 @@ class MovieInsertGenerator {
 
     // API 키가 없을 때 샘플 데이터 생성
     generateSampleInserts() {
-        console.log('📝 샘플 영화 데이터로 INSERT문 생성');
+        console.log('[MEMO] 샘플 영화 데이터로 INSERT문 생성');
         
         const sampleMovies = [
             {
@@ -385,7 +385,7 @@ class MovieInsertGenerator {
 
 // 실행 함수
 async function main() {
-    console.log('🎬 영화 데이터 수집 및 SQL INSERT문 생성기');
+    console.log('[MOVIE] 영화 데이터 수집 및 SQL INSERT문 생성기');
     console.log('='.repeat(50));
     
     const generator = new MovieInsertGenerator();
@@ -394,15 +394,15 @@ async function main() {
         const result = await generator.generateMovieInserts();
         
         if (result.success) {
-            console.log('\n🎉 SQL 파일 생성 완료!');
-            console.log('📋 사용 방법:');
+            console.log('\n[PARTY] SQL 파일 생성 완료!');
+            console.log('[FORM] 사용 방법:');
             console.log('1. 생성된 .sql 파일을 Supabase SQL 에디터에 복사');
             console.log('2. 또는 Railway에서 직접 실행');
             console.log('3. 또는 PostgreSQL 클라이언트에서 실행');
         }
         
     } catch (error) {
-        console.error('❌ 실행 오류:', error);
+        console.error('[ERROR] 실행 오류:', error);
     }
 }
 

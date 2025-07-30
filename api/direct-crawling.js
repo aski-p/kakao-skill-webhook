@@ -6,7 +6,7 @@ const router = express.Router();
 
 // 네이버 직접 크롤링 실행 API
 router.post('/direct-naver-crawling', async (req, res) => {
-    console.log('🎬 네이버 직접 크롤링 API 호출');
+    console.log('[MOVIE] 네이버 직접 크롤링 API 호출');
     
     const startTime = Date.now();
     
@@ -52,7 +52,7 @@ router.post('/direct-naver-crawling', async (req, res) => {
         }
         
     } catch (error) {
-        console.error('❌ 네이버 직접 크롤링 API 오류:', error);
+        console.error('[ERROR] 네이버 직접 크롤링 API 오류:', error);
         
         const duration = Date.now() - startTime;
         
@@ -70,7 +70,7 @@ router.post('/direct-naver-crawling', async (req, res) => {
 
 // 테스트용 단일 영화 추가 API
 router.post('/add-single-movie', async (req, res) => {
-    console.log('🎬 단일 영화 추가 API 호출');
+    console.log('[MOVIE] 단일 영화 추가 API 호출');
     
     const { movieTitle } = req.body;
     
@@ -85,7 +85,7 @@ router.post('/add-single-movie', async (req, res) => {
     try {
         const crawler = new DirectNaverMovieCrawler();
         
-        console.log(`🔍 "${movieTitle}" 검색 중...`);
+        console.log(`[SEARCH] "${movieTitle}" 검색 중...`);
         
         // 네이버에서 영화 검색
         const movieData = await crawler.searchNaverMovie(movieTitle);
@@ -138,7 +138,7 @@ router.post('/add-single-movie', async (req, res) => {
         }
         
     } catch (error) {
-        console.error('❌ 단일 영화 추가 오류:', error);
+        console.error('[ERROR] 단일 영화 추가 오류:', error);
         res.status(500).json({
             success: false,
             message: '서버 오류',

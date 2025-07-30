@@ -195,35 +195,35 @@ async function uploadRealMovies() {
     
     try {
         // 1. 영화 데이터 삽입
-        console.log('🎬 영화 데이터 삽입 중...');
+        console.log('[MOVIE] 영화 데이터 삽입 중...');
         const { data: movieData, error: movieError } = await supabase
             .from('movies')
             .insert(realMovies)
             .select('id, title');
         
         if (movieError) {
-            console.error('❌ 영화 데이터 삽입 실패:', movieError);
+            console.error('[ERROR] 영화 데이터 삽입 실패:', movieError);
             return;
         }
         
-        console.log(`✅ ${movieData.length}개 영화 데이터 삽입 완료!`);
+        console.log(`[SUCCESS] ${movieData.length}개 영화 데이터 삽입 완료!`);
         movieData.forEach(movie => {
-            console.log(`   📽️ ${movie.title} (ID: ${movie.id})`);
+            console.log(`   [PROJECTOR] ${movie.title} (ID: ${movie.id})`);
         });
         
         // 2. 리뷰 데이터 삽입
-        console.log('\n📝 리뷰 데이터 삽입 중...');
+        console.log('\n[MEMO] 리뷰 데이터 삽입 중...');
         const { data: reviewData, error: reviewError } = await supabase
             .from('critic_reviews')
             .insert(realReviews)
             .select('id');
         
         if (reviewError) {
-            console.error('❌ 리뷰 데이터 삽입 실패:', reviewError);
+            console.error('[ERROR] 리뷰 데이터 삽입 실패:', reviewError);
             return;
         }
         
-        console.log(`✅ ${reviewData.length}개 리뷰 데이터 삽입 완료!`);
+        console.log(`[SUCCESS] ${reviewData.length}개 리뷰 데이터 삽입 완료!`);
         
         // 3. 최종 확인
         const { count: movieCount } = await supabase
@@ -235,11 +235,11 @@ async function uploadRealMovies() {
             .select('*', { count: 'exact', head: true });
         
         console.log('\n' + '='.repeat(50));
-        console.log('🎉 실제 영화 데이터 업로드 완료!');
+        console.log('[PARTY] 실제 영화 데이터 업로드 완료!');
         console.log('='.repeat(50));
-        console.log(`🎬 총 영화: ${movieCount}개`);
-        console.log(`📝 총 리뷰: ${reviewCount}개`);
-        console.log('\n💡 이제 다음 영화들을 검색할 수 있습니다:');
+        console.log(`[MOVIE] 총 영화: ${movieCount}개`);
+        console.log(`[MEMO] 총 리뷰: ${reviewCount}개`);
+        console.log('\n[TIP] 이제 다음 영화들을 검색할 수 있습니다:');
         console.log('   • 파묘 - 2024년 최고의 한국 호러 영화');
         console.log('   • 기생충 - 아카데미 작품상 수상작');
         console.log('   • 범죄도시4 - 마동석 주연 액션 영화');
@@ -248,7 +248,7 @@ async function uploadRealMovies() {
         console.log('   • 올드보이 - 박찬욱 감독의 칸 영화제 황금종려상 수상작');
         
     } catch (error) {
-        console.error('❌ 업로드 중 오류 발생:', error);
+        console.error('[ERROR] 업로드 중 오류 발생:', error);
     }
 }
 

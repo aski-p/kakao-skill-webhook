@@ -22,11 +22,11 @@ class SQLExecutor {
             }
 
             const sqlContent = fs.readFileSync(filePath, 'utf8');
-            console.log(`📊 SQL 파일 크기: ${sqlContent.length} bytes`);
+            console.log(`[INFO] SQL 파일 크기: ${sqlContent.length} bytes`);
             
             // SQL을 개별 쿼리로 분할 (BEGIN/COMMIT 제거)
             const queries = this.parseSQL(sqlContent);
-            console.log(`🔧 실행할 쿼리 수: ${queries.length}개`);
+            console.log(`[TOOL] 실행할 쿼리 수: ${queries.length}개`);
 
             let successCount = 0;
             let errorCount = 0;
@@ -38,7 +38,7 @@ class SQLExecutor {
                 
                 if (query.trim() === '') continue;
                 
-                console.log(`📝 [${i + 1}/${queries.length}] 실행 중...`);
+                console.log(`[MEMO] [${i + 1}/${queries.length}] 실행 중...`);
                 console.log(`   쿼리: ${query.substring(0, 50)}...`);
                 
                 try {
@@ -51,23 +51,23 @@ class SQLExecutor {
                         await this.executeIndividualQuery(query);
                     }
                     
-                    console.log(`   ✅ 성공`);
+                    console.log(`   [SUCCESS] 성공`);
                     successCount++;
                     
                 } catch (error) {
-                    console.log(`   ❌ 실패: ${error.message}`);
+                    console.log(`   [ERROR] 실패: ${error.message}`);
                     errorCount++;
                     
                     // 중요한 쿼리는 다시 시도
                     if (query.includes('UPDATE movies')) {
-                        console.log(`   🔄 재시도 중...`);
+                        console.log(`   [LOADING] 재시도 중...`);
                         try {
                             await this.executeMovieUpdate(query);
-                            console.log(`   ✅ 재시도 성공`);
+                            console.log(`   [SUCCESS] 재시도 성공`);
                             successCount++;
                             errorCount--;
                         } catch (retryError) {
-                            console.log(`   ❌ 재시도 실패: ${retryError.message}`);
+                            console.log(`   [ERROR] 재시도 실패: ${retryError.message}`);
                         }
                     }
                 }
@@ -77,17 +77,17 @@ class SQLExecutor {
             }
 
             console.log('\n' + '='.repeat(60));
-            console.log('🎉 SQL 실행 완료!');
+            console.log('[PARTY] SQL 실행 완료!');
             console.log('='.repeat(60));
-            console.log(`✅ 성공: ${successCount}개`);
-            console.log(`❌ 실패: ${errorCount}개`);
-            console.log(`📊 성공률: ${Math.round((successCount / (successCount + errorCount)) * 100)}%`);
+            console.log(`[SUCCESS] 성공: ${successCount}개`);
+            console.log(`[ERROR] 실패: ${errorCount}개`);
+            console.log(`[INFO] 성공률: ${Math.round((successCount / (successCount + errorCount)) * 100)}%`);
 
             // 업데이트 확인
             await this.verifyUpdates();
 
         } catch (error) {
-            console.log(`❌ SQL 파일 실행 중 오류: ${error.message}`);
+            console.log(`[ERROR] SQL 파일 실행 중 오류: ${error.message}`);
         }
     }
 
@@ -214,7 +214,7 @@ class SQLExecutor {
     }
 
     async verifyUpdates() {
-        console.log('\n🔍 업데이트 결과 확인 중...\n');
+        console.log('\n[SEARCH] 업데이트 결과 확인 중...\n');
 
         const movies = ['파묘', '기생충', '아마추어', '탑건: 매버릭', '범죄도시4', '서울의 봄', '범죄도시3', '올드보이', '부산행', '극한직업'];
 
@@ -231,7 +231,7 @@ class SQLExecutor {
                 .eq('movie_id', movie?.id || 0);
 
             if (movie) {
-                console.log(`🎬 ${title}:`);
+                console.log(`[MOVIE] ${title}:`);
                 console.log(`   감독: ${movie.director || '정보없음'}`);
                 console.log(`   출연: ${movie.cast_members?.slice(0, 3).join(', ') || '정보없음'}`);
                 console.log(`   평점: ${movie.naver_rating || '정보없음'}`);

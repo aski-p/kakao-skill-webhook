@@ -18,11 +18,11 @@ class MassiveKoreanMoviesCollector {
     log(message, type = 'info') {
         const timestamp = new Date().toISOString();
         const prefix = {
-            info: '📌',
-            success: '✅',
-            error: '❌',
-            warning: '⚠️',
-            progress: '🔄'
+            info: '[PIN]',
+            success: '[SUCCESS]',
+            error: '[ERROR]',
+            warning: '[WARN]',
+            progress: '[LOADING]'
         };
         console.log(`[${timestamp}] ${prefix[type]} ${message}`);
     }

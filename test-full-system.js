@@ -19,38 +19,38 @@ async function testFullSystem() {
     ];
     
     for (const testMessage of testCases) {
-        console.log(`📝 테스트: "${testMessage}"`);
+        console.log(`[MEMO] 테스트: "${testMessage}"`);
         console.log('='.repeat(60));
         
         try {
             // 1단계: 메시지 분류
             const classification = classifier.classifyMessage(testMessage);
-            console.log(`✅ 분류: ${classification.category} (점수: ${classification.score})`);
-            console.log(`📋 추출 데이터:`, classification.data);
+            console.log(`[SUCCESS] 분류: ${classification.category} (점수: ${classification.score})`);
+            console.log(`[FORM] 추출 데이터:`, classification.data);
             
             // 2단계: 데이터 추출
             if (classification.category === 'MOVIE_REVIEW') {
                 const result = await extractor.extractData(classification);
                 
                 if (result.success) {
-                    console.log(`\n✅ 추출 성공! 응답 길이: ${result.data.message.length}자`);
-                    console.log('\n📝 실제 응답:');
+                    console.log(`\n[SUCCESS] 추출 성공! 응답 길이: ${result.data.message.length}자`);
+                    console.log('\n[MEMO] 실제 응답:');
                     console.log(result.data.message);
                 } else {
-                    console.log(`❌ 추출 실패:`, result.data.message);
+                    console.log(`[ERROR] 추출 실패:`, result.data.message);
                 }
             } else {
-                console.log(`⚠️ 영화평이 아닌 다른 카테고리: ${classification.category}`);
+                console.log(`[WARN] 영화평이 아닌 다른 카테고리: ${classification.category}`);
             }
             
         } catch (error) {
-            console.error(`❌ 테스트 실패:`, error.message);
+            console.error(`[ERROR] 테스트 실패:`, error.message);
         }
         
         console.log('\n' + '='.repeat(60) + '\n');
     }
     
-    console.log('🎉 전체 시스템 통합 테스트 완료!');
+    console.log('[PARTY] 전체 시스템 통합 테스트 완료!');
 }
 
 // 테스트 실행

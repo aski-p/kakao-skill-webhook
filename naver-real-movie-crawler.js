@@ -30,7 +30,7 @@ class NaverRealMovieCrawler {
 
     async loadExistingMovies() {
         try {
-            console.log('📋 기존 영화 목록 로드 중...');
+            console.log('[FORM] 기존 영화 목록 로드 중...');
             const { data, error } = await supabase
                 .from('movies')
                 .select('title, release_year, naver_movie_id')
@@ -42,11 +42,11 @@ class NaverRealMovieCrawler {
                     year: movie.release_year,
                     naverMovieId: movie.naver_movie_id
                 }));
-                console.log(`✅ ${this.movieTitles.length}개 영화 목록 로드 완료`);
+                console.log(`[SUCCESS] ${this.movieTitles.length}개 영화 목록 로드 완료`);
                 return this.movieTitles;
             }
         } catch (error) {
-            console.log('❌ 영화 목록 로드 실패:', error.message);
+            console.log('[ERROR] 영화 목록 로드 실패:', error.message);
         }
         return [];
     }
@@ -81,7 +81,7 @@ class NaverRealMovieCrawler {
                 }
             }
         } catch (error) {
-            console.log(`⚠️ 네이버 검색 실패 (${title}):`, error.message);
+            console.log(`[WARN] 네이버 검색 실패 (${title}):`, error.message);
         }
         return null;
     }
@@ -117,7 +117,7 @@ class NaverRealMovieCrawler {
 
             return details;
         } catch (error) {
-            console.log(`⚠️ 영화 상세정보 크롤링 실패 (${movieCode}):`, error.message);
+            console.log(`[WARN] 영화 상세정보 크롤링 실패 (${movieCode}):`, error.message);
             return null;
         }
     }
@@ -184,7 +184,7 @@ class NaverRealMovieCrawler {
             });
 
         } catch (error) {
-            console.log(`⚠️ 리뷰 크롤링 실패 (${movieCode}):`, error.message);
+            console.log(`[WARN] 리뷰 크롤링 실패 (${movieCode}):`, error.message);
         }
 
         return reviews;
@@ -231,11 +231,11 @@ class NaverRealMovieCrawler {
     }
 
     async processMoviesInBatches() {
-        console.log('🎬 네이버 실제 영화 데이터 크롤링 시작...');
+        console.log('[MOVIE] 네이버 실제 영화 데이터 크롤링 시작...');
         
         const existingMovies = await this.loadExistingMovies();
         if (existingMovies.length === 0) {
-            console.log('❌ 기존 영화 데이터가 없습니다.');
+            console.log('[ERROR] 기존 영화 데이터가 없습니다.');
             return;
         }
 
@@ -246,7 +246,7 @@ class NaverRealMovieCrawler {
         // 배치 단위로 처리
         for (let i = 0; i < existingMovies.length; i += this.batchSize) {
             const batch = existingMovies.slice(i, i + this.batchSize);
-            console.log(`\n📦 배치 ${Math.floor(i/this.batchSize) + 1}/${Math.ceil(existingMovies.length/this.batchSize)} 처리 중...`);
+            console.log(`\n[PACKAGE] 배치 ${Math.floor(i/this.batchSize) + 1}/${Math.ceil(existingMovies.length/this.batchSize)} 처리 중...`);
 
             for (const movie of batch) {
                 try {
@@ -268,16 +268,16 @@ class NaverRealMovieCrawler {
                         });
 
                         processedCount++;
-                        console.log(`✅ [${processedCount}] ${movie.title} (${movie.year}) - ${reviews.length}개 리뷰 수집`);
+                        console.log(`[SUCCESS] [${processedCount}] ${movie.title} (${movie.year}) - ${reviews.length}개 리뷰 수집`);
                     }
 
                     if (processedCount >= 10000) {
-                        console.log('\n🎯 목표 10,000개 도달!');
+                        console.log('\n[TARGET] 목표 10,000개 도달!');
                         break;
                     }
 
                 } catch (error) {
-                    console.log(`❌ ${movie.title} 처리 실패:`, error.message);
+                    console.log(`[ERROR] ${movie.title} 처리 실패:`, error.message);
                 }
 
                 await this.delayMs(this.delay);
@@ -293,13 +293,13 @@ class NaverRealMovieCrawler {
             if (processedCount >= 10000) break;
         }
 
-        console.log(`\n🎉 크롤링 완료! 총 ${processedCount}개 영화 처리`);
+        console.log(`\n[PARTY] 크롤링 완료! 총 ${processedCount}개 영화 처리`);
     }
 
     async uploadBatch(movies, reviews) {
         if (reviews.length > 0) {
             try {
-                console.log(`📤 ${reviews.length}개 리뷰 업로드 중...`);
+                console.log(`[OUTBOX] ${reviews.length}개 리뷰 업로드 중...`);
                 
                 // 리뷰를 작은 배치로 나누어 업로드
                 const reviewBatchSize = 100;
@@ -312,7 +312,7 @@ class NaverRealMovieCrawler {
                         .select('id');
                     
                     if (error) {
-                        console.log('⚠️ 리뷰 업로드 일부 실패:', error.message);
+                        console.log('[WARN] 리뷰 업로드 일부 실패:', error.message);
                         // 개별 업로드 시도
                         for (const review of reviewBatch) {
                             try {
@@ -324,13 +324,13 @@ class NaverRealMovieCrawler {
                             }
                         }
                     } else {
-                        console.log(`✅ 리뷰 배치 업로드 성공: ${data.length}개`);
+                        console.log(`[SUCCESS] 리뷰 배치 업로드 성공: ${data.length}개`);
                     }
                     
                     await this.delayMs(200);
                 }
             } catch (error) {
-                console.log('❌ 리뷰 업로드 오류:', error.message);
+                console.log('[ERROR] 리뷰 업로드 오류:', error.message);
             }
         }
     }
@@ -354,15 +354,15 @@ class NaverRealMovieCrawler {
                 .select('*', { count: 'exact', head: true });
             
             console.log('\n' + '='.repeat(60));
-            console.log('🎉 네이버 실제 영화 데이터 크롤링 완료!');
+            console.log('[PARTY] 네이버 실제 영화 데이터 크롤링 완료!');
             console.log('='.repeat(60));
             console.log(`⏱️ 총 실행 시간: ${totalTime}분`);
-            console.log(`🎬 총 영화: ${movieCount}개`);
-            console.log(`📝 총 리뷰: ${reviewCount}개`);
-            console.log('\n💡 이제 실제 네이버 리뷰가 포함된 영화 검색이 가능합니다!');
+            console.log(`[MOVIE] 총 영화: ${movieCount}개`);
+            console.log(`[MEMO] 총 리뷰: ${reviewCount}개`);
+            console.log('\n[TIP] 이제 실제 네이버 리뷰가 포함된 영화 검색이 가능합니다!');
             
         } catch (error) {
-            console.error('❌ 크롤링 중 오류 발생:', error.message);
+            console.error('[ERROR] 크롤링 중 오류 발생:', error.message);
         }
     }
 }
@@ -372,7 +372,7 @@ const checkDependencies = async () => {
     try {
         require('cheerio');
     } catch (error) {
-        console.log('📦 cheerio 설치 중...');
+        console.log('[PACKAGE] cheerio 설치 중...');
         const { execSync } = require('child_process');
         execSync('npm install cheerio', { stdio: 'inherit' });
     }

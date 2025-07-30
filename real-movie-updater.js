@@ -146,7 +146,7 @@ class RealMovieUpdater {
 
     // 잘못된 데이터 롤백 (이전 랜덤 업데이트 되돌리기)
     async rollbackIncorrectData() {
-        console.log('🔄 잘못된 랜덤 데이터 롤백 시작...\n');
+        console.log('[LOADING] 잘못된 랜덤 데이터 롤백 시작...\n');
 
         // 최근 업데이트된 잘못된 영화들 찾기
         const { data: incorrectMovies, error } = await this.supabase
@@ -157,11 +157,11 @@ class RealMovieUpdater {
             .limit(100);
 
         if (error) {
-            console.log(`❌ 잘못된 영화 조회 실패: ${error.message}`);
+            console.log(`[ERROR] 잘못된 영화 조회 실패: ${error.message}`);
             return;
         }
 
-        console.log(`🎯 잘못된 데이터 ${incorrectMovies.length}개 롤백 중...`);
+        console.log(`[TARGET] 잘못된 데이터 ${incorrectMovies.length}개 롤백 중...`);
 
         for (const movie of incorrectMovies) {
             // 실제 데이터가 있는 영화는 건드리지 않음
@@ -185,19 +185,19 @@ class RealMovieUpdater {
                 .delete()
                 .eq('movie_id', movie.id);
 
-            console.log(`   🔄 "${movie.title}" 롤백 완료`);
+            console.log(`   [LOADING] "${movie.title}" 롤백 완료`);
             await this.delay(100);
         }
 
-        console.log('✅ 잘못된 데이터 롤백 완료!\n');
+        console.log('[SUCCESS] 잘못된 데이터 롤백 완료!\n');
     }
 
     async updateWithRealData() {
-        console.log('🎬 실제 영화 정보로 정확히 업데이트 시작!\n');
+        console.log('[MOVIE] 실제 영화 정보로 정확히 업데이트 시작!\n');
 
         const movieTitles = Object.keys(this.verifiedRealMovies);
-        console.log(`📊 업데이트할 실제 영화: ${movieTitles.length}개`);
-        console.log('📋 목록:', movieTitles.join(', '));
+        console.log(`[INFO] 업데이트할 실제 영화: ${movieTitles.length}개`);
+        console.log('[FORM] 목록:', movieTitles.join(', '));
         console.log('');
 
         for (const title of movieTitles) {
@@ -209,7 +209,7 @@ class RealMovieUpdater {
                     .eq('title', title);
 
                 if (error || !movies || movies.length === 0) {
-                    console.log(`⚠️ "${title}" 영화를 찾을 수 없음`);
+                    console.log(`[WARN] "${title}" 영화를 찾을 수 없음`);
                     continue;
                 }
 
@@ -217,7 +217,7 @@ class RealMovieUpdater {
 
                 // 모든 동일한 제목의 영화 업데이트
                 for (const movie of movies) {
-                    console.log(`\\n🎬 ID ${movie.id}: "${title}" 실제 정보로 업데이트...`);
+                    console.log(`\\n[MOVIE] ID ${movie.id}: "${title}" 실제 정보로 업데이트...`);
 
                     // 1. 영화 정보 업데이트
                     const { error: updateError } = await this.supabase
@@ -234,15 +234,15 @@ class RealMovieUpdater {
                         .eq('id', movie.id);
 
                     if (updateError) {
-                        console.log(`   ❌ 업데이트 실패: ${updateError.message}`);
+                        console.log(`   [ERROR] 업데이트 실패: ${updateError.message}`);
                         this.failCount++;
                         continue;
                     }
 
-                    console.log(`   ✅ 영화 정보 업데이트 완료`);
-                    console.log(`   🎭 실제 감독: ${realData.director}`);
-                    console.log(`   👥 실제 출연진: ${realData.cast_members.slice(0, 3).join(', ')}`);
-                    console.log(`   🎪 정확한 장르: ${realData.genre} (${realData.release_year})`);
+                    console.log(`   [SUCCESS] 영화 정보 업데이트 완료`);
+                    console.log(`   [DRAMA] 실제 감독: ${realData.director}`);
+                    console.log(`   [BUSTSINSILHOUETTE] 실제 출연진: ${realData.cast_members.slice(0, 3).join(', ')}`);
+                    console.log(`   [FUN] 정확한 장르: ${realData.genre} (${realData.release_year})`);
 
                     // 2. 기존 가짜 리뷰 삭제
                     await this.supabase
@@ -264,31 +264,31 @@ class RealMovieUpdater {
                         await this.delay(100);
                     }
 
-                    console.log(`   📝 실제 관객 리뷰 ${realReviews.length}개 추가`);
+                    console.log(`   [MEMO] 실제 관객 리뷰 ${realReviews.length}개 추가`);
                     this.successCount++;
                 }
 
                 await this.delay(1000);
 
             } catch (error) {
-                console.log(`❌ "${title}" 처리 중 오류: ${error.message}`);
+                console.log(`[ERROR] "${title}" 처리 중 오류: ${error.message}`);
                 this.failCount++;
             }
         }
 
         // 최종 결과
         console.log('\\n' + '='.repeat(70));
-        console.log('🎉 실제 영화 데이터 업데이트 완료!');
+        console.log('[PARTY] 실제 영화 데이터 업데이트 완료!');
         console.log('='.repeat(70));
-        console.log(`✅ 성공: ${this.successCount}개`);
-        console.log(`❌ 실패: ${this.failCount}개`);
-        console.log(`📊 성공률: ${Math.round((this.successCount / (this.successCount + this.failCount)) * 100)}%`);
+        console.log(`[SUCCESS] 성공: ${this.successCount}개`);
+        console.log(`[ERROR] 실패: ${this.failCount}개`);
+        console.log(`[INFO] 성공률: ${Math.round((this.successCount / (this.successCount + this.failCount)) * 100)}%`);
 
-        console.log('\\n🔥 100% 검증된 실제 영화 정보로 업데이트 완료! 🔥');
-        console.log('✅ 가짜 감독/배우 → 실제 감독/배우');
-        console.log('✅ 가짜 평론가 → 실제 관객');
-        console.log('✅ 잘못된 장르 → 정확한 장르');
-        console.log('✅ 틀린 개봉년도 → 실제 개봉년도');
+        console.log('\\n[FIRE] 100% 검증된 실제 영화 정보로 업데이트 완료! [FIRE]');
+        console.log('[SUCCESS] 가짜 감독/배우 → 실제 감독/배우');
+        console.log('[SUCCESS] 가짜 평론가 → 실제 관객');
+        console.log('[SUCCESS] 잘못된 장르 → 정확한 장르');
+        console.log('[SUCCESS] 틀린 개봉년도 → 실제 개봉년도');
     }
 
     generateRealReviews(movieTitle, movieData) {
@@ -319,7 +319,7 @@ class RealMovieUpdater {
 
     async run() {
         console.log('🚨 잘못된 랜덤 데이터 문제 해결 시작! 🚨');
-        console.log('🎯 목표: 100% 검증된 실제 영화 정보로 정확히 교체\\n');
+        console.log('[TARGET] 목표: 100% 검증된 실제 영화 정보로 정확히 교체\\n');
 
         // 1단계: 잘못된 데이터 롤백
         await this.rollbackIncorrectData();
@@ -327,11 +327,11 @@ class RealMovieUpdater {
         // 2단계: 실제 데이터로 업데이트
         await this.updateWithRealData();
 
-        console.log('\\n📱 이제 카카오 스킬에서 100% 정확한 답변 가능:');
-        console.log('   💬 "기생충 감독은 누구야" → "봉준호입니다" ✅');
-        console.log('   💬 "해리 포터 감독은 누구야" → "크리스 콜럼버스입니다" ✅');
-        console.log('   💬 "컨저링 감독은 누구야" → "제임스 완입니다" ✅');
-        console.log('   💬 "파묘 출연진 알려줘" → "최민식, 김고은, 유해진, 이도현" ✅');
+        console.log('\\n[APP] 이제 카카오 스킬에서 100% 정확한 답변 가능:');
+        console.log('   [MSG] "기생충 감독은 누구야" → "봉준호입니다" [SUCCESS]');
+        console.log('   [MSG] "해리 포터 감독은 누구야" → "크리스 콜럼버스입니다" [SUCCESS]');
+        console.log('   [MSG] "컨저링 감독은 누구야" → "제임스 완입니다" [SUCCESS]');
+        console.log('   [MSG] "파묘 출연진 알려줘" → "최민식, 김고은, 유해진, 이도현" [SUCCESS]');
     }
 }
 

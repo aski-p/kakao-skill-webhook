@@ -5,11 +5,11 @@ const KOFIC_API_KEY = '504ec8ff56d6c888399e9b9c1f719f03';
 const BASE_URL = 'http://kobis.or.kr/kobisopenapi/webservice/rest';
 
 async function testKoficAPI() {
-    console.log('🎬 KOFIC API 테스트 시작\n');
+    console.log('[MOVIE] KOFIC API 테스트 시작\n');
 
     try {
         // 1. 일별 박스오피스 테스트
-        console.log('📊 일별 박스오피스 조회...');
+        console.log('[INFO] 일별 박스오피스 조회...');
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         const targetDt = yesterday.toISOString().slice(0, 10).replace(/-/g, '');
@@ -23,7 +23,7 @@ async function testKoficAPI() {
 
         if (boxOfficeResponse.data.boxOfficeResult) {
             const result = boxOfficeResponse.data.boxOfficeResult;
-            console.log(`✅ 박스오피스 조회 성공 - ${result.showRange}`);
+            console.log(`[SUCCESS] 박스오피스 조회 성공 - ${result.showRange}`);
             console.log('Top 3 영화:');
             result.dailyBoxOfficeList.slice(0, 3).forEach(movie => {
                 console.log(`  ${movie.rank}위: ${movie.movieNm} (${parseInt(movie.audiCnt).toLocaleString()}명)`);
@@ -31,7 +31,7 @@ async function testKoficAPI() {
         }
 
         // 2. 한국 영화 목록 조회 (최근 영화)
-        console.log('\n🔍 한국 영화 목록 조회...');
+        console.log('\n[SEARCH] 한국 영화 목록 조회...');
         const currentYear = new Date().getFullYear();
         const movieListResponse = await axios.get(`${BASE_URL}/movie/searchMovieList.json`, {
             params: {
@@ -45,12 +45,12 @@ async function testKoficAPI() {
 
         if (movieListResponse.data.movieListResult) {
             const movies = movieListResponse.data.movieListResult.movieList;
-            console.log(`✅ 한국 영화 ${movies.length}개 조회 성공`);
+            console.log(`[SUCCESS] 한국 영화 ${movies.length}개 조회 성공`);
             
             // 첫 번째 영화의 상세 정보 조회
             if (movies.length > 0) {
                 const firstMovie = movies[0];
-                console.log(`\n📽️ "${firstMovie.movieNm}" 상세 정보 조회...`);
+                console.log(`\n[PROJECTOR] "${firstMovie.movieNm}" 상세 정보 조회...`);
                 
                 const movieInfoResponse = await axios.get(`${BASE_URL}/movie/searchMovieInfo.json`, {
                     params: {
@@ -72,7 +72,7 @@ async function testKoficAPI() {
         }
 
         // 3. 영화인 검색 테스트
-        console.log('\n👥 영화인 검색 테스트 (봉준호)...');
+        console.log('\n[BUSTSINSILHOUETTE] 영화인 검색 테스트 (봉준호)...');
         const peopleResponse = await axios.get(`${BASE_URL}/people/searchPeopleList.json`, {
             params: {
                 key: KOFIC_API_KEY,
@@ -82,14 +82,14 @@ async function testKoficAPI() {
 
         if (peopleResponse.data.peopleListResult) {
             const people = peopleResponse.data.peopleListResult.peopleList;
-            console.log(`✅ ${people.length}명 검색됨`);
+            console.log(`[SUCCESS] ${people.length}명 검색됨`);
             people.forEach(person => {
                 console.log(`- ${person.peopleNm} (${person.repRoleNm})`);
             });
         }
 
     } catch (error) {
-        console.error('❌ API 테스트 실패:', error.message);
+        console.error('[ERROR] API 테스트 실패:', error.message);
         if (error.response) {
             console.error('응답 데이터:', error.response.data);
         }

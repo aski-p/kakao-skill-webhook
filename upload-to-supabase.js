@@ -15,10 +15,10 @@ class SupabaseUploader {
     log(message, type = 'info') {
         const timestamp = new Date().toISOString();
         const prefix = {
-            info: '📌',
-            success: '✅',
-            error: '❌',
-            warning: '⚠️'
+            info: '[PIN]',
+            success: '[SUCCESS]',
+            error: '[ERROR]',
+            warning: '[WARN]'
         };
         console.log(`[${timestamp}] ${prefix[type]} ${message}`);
     }
@@ -205,7 +205,7 @@ class SupabaseUploader {
             const movie = await this.supabase.searchMovieByKeywords(title);
             
             if (movie) {
-                this.log(`✅ "${title}" 발견!`, 'success');
+                this.log(`[SUCCESS] "${title}" 발견!`, 'success');
                 this.log(`감독: ${movie.director}`);
                 this.log(`출연: ${movie.cast_members.slice(0, 3).join(', ')}`);
                 this.log(`장르: ${movie.genre} (${movie.genres_korean})`);
@@ -213,7 +213,7 @@ class SupabaseUploader {
                 this.log(`KOFIC 코드: ${movie.kofic_movie_code}`);
                 return movie;
             } else {
-                this.log(`❌ "${title}" 찾을 수 없음`, 'warning');
+                this.log(`[ERROR] "${title}" 찾을 수 없음`, 'warning');
                 return null;
             }
         } catch (error) {

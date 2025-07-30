@@ -155,7 +155,7 @@ function generateMovieData(template) {
 
 async function uploadExtendedMovies() {
     console.log('🚀 확장된 영화 데이터베이스 업로드 시작...');
-    console.log(`📊 총 ${extendedMovies.length}개 영화 처리 예정`);
+    console.log(`[INFO] 총 ${extendedMovies.length}개 영화 처리 예정`);
     
     const batchSize = 50;
     let totalInserted = 0;
@@ -165,7 +165,7 @@ async function uploadExtendedMovies() {
         const movieData = batch.map(generateMovieData);
         
         try {
-            console.log(`🎬 배치 ${Math.floor(i/batchSize) + 1}/${Math.ceil(extendedMovies.length/batchSize)} 업로드 중... (${movieData.length}개)`);
+            console.log(`[MOVIE] 배치 ${Math.floor(i/batchSize) + 1}/${Math.ceil(extendedMovies.length/batchSize)} 업로드 중... (${movieData.length}개)`);
             
             const { data, error } = await supabase
                 .from('movies')
@@ -173,7 +173,7 @@ async function uploadExtendedMovies() {
                 .select('id, title');
             
             if (error) {
-                console.error(`❌ 배치 업로드 실패:`, error.message);
+                console.error(`[ERROR] 배치 업로드 실패:`, error.message);
                 // 개별 삽입 시도
                 for (const movie of movieData) {
                     try {
@@ -184,22 +184,22 @@ async function uploadExtendedMovies() {
                         
                         if (!singleError && singleData.length > 0) {
                             totalInserted++;
-                            console.log(`   ✅ ${singleData[0].title} (${movie.release_year})`);
+                            console.log(`   [SUCCESS] ${singleData[0].title} (${movie.release_year})`);
                         }
                     } catch (err) {
-                        console.log(`   ⚠️ ${movie.title} 스킵: 중복 또는 오류`);
+                        console.log(`   [WARN] ${movie.title} 스킵: 중복 또는 오류`);
                     }
                 }
             } else {
                 totalInserted += data.length;
-                console.log(`✅ 배치 ${Math.floor(i/batchSize) + 1} 완료: ${data.length}개 삽입`);
+                console.log(`[SUCCESS] 배치 ${Math.floor(i/batchSize) + 1} 완료: ${data.length}개 삽입`);
             }
             
             // API 제한을 위한 대기
             await new Promise(resolve => setTimeout(resolve, 500));
             
         } catch (err) {
-            console.error(`❌ 배치 처리 오류:`, err.message);
+            console.error(`[ERROR] 배치 처리 오류:`, err.message);
         }
     }
     
@@ -213,16 +213,16 @@ async function uploadExtendedMovies() {
         .select('*', { count: 'exact', head: true });
     
     console.log('\n' + '='.repeat(60));
-    console.log('🎉 확장된 영화 데이터베이스 구축 완료!');
+    console.log('[PARTY] 확장된 영화 데이터베이스 구축 완료!');
     console.log('='.repeat(60));
-    console.log(`🎬 총 영화: ${movieCount}개`);
-    console.log(`📝 총 리뷰: ${reviewCount}개`);
-    console.log(`✅ 새로 추가된 영화: ${totalInserted}개`);
-    console.log('\n💡 검색 가능한 영화들:');
+    console.log(`[MOVIE] 총 영화: ${movieCount}개`);
+    console.log(`[MEMO] 총 리뷰: ${reviewCount}개`);
+    console.log(`[SUCCESS] 새로 추가된 영화: ${totalInserted}개`);
+    console.log('\n[TIP] 검색 가능한 영화들:');
     console.log('   🇰🇷 한국 영화: 파묘, 기생충, 범죄도시4, 서울의 봄, 올드보이, 아가씨, 곡성');
-    console.log('   🎬 할리우드: 톰크루즈, 아바타, 스파이더맨, 어벤져스, 배트맨, 조커');
+    console.log('   [MOVIE] 할리우드: 톰크루즈, 아바타, 스파이더맨, 어벤져스, 배트맨, 조커');
     console.log('   🎞️ 애니메이션: 스즈메의 문단속, 겨울왕국2, 토이스토리4, 라이온킹');
-    console.log('   🎭 장르별: 액션, 드라마, 코미디, 로맨스, 호러, SF, 애니메이션');
+    console.log('   [DRAMA] 장르별: 액션, 드라마, 코미디, 로맨스, 호러, SF, 애니메이션');
 }
 
 // 실행

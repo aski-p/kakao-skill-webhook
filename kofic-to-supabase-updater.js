@@ -43,7 +43,7 @@ class KoficToSupabaseUpdater {
             }
             return null;
         } catch (error) {
-            console.error(`❌ 영화 목록 조회 실패 (${year}년, 페이지 ${page}):`, error.message);
+            console.error(`[ERROR] 영화 목록 조회 실패 (${year}년, 페이지 ${page}):`, error.message);
             return null;
         }
     }
@@ -63,7 +63,7 @@ class KoficToSupabaseUpdater {
             }
             return null;
         } catch (error) {
-            console.error(`❌ 영화 상세 정보 조회 실패 (${movieCd}):`, error.message);
+            console.error(`[ERROR] 영화 상세 정보 조회 실패 (${movieCd}):`, error.message);
             return null;
         }
     }
@@ -206,7 +206,7 @@ class KoficToSupabaseUpdater {
 
                 if (updateError) throw updateError;
                 
-                console.log(`✅ 업데이트: ${movieData.title} (${movieData.release_year})`);
+                console.log(`[SUCCESS] 업데이트: ${movieData.title} (${movieData.release_year})`);
                 this.updatedCount++;
             } else {
                 // 삽입
@@ -216,13 +216,13 @@ class KoficToSupabaseUpdater {
 
                 if (insertError) throw insertError;
                 
-                console.log(`✅ 신규 추가: ${movieData.title} (${movieData.release_year})`);
+                console.log(`[SUCCESS] 신규 추가: ${movieData.title} (${movieData.release_year})`);
                 this.insertedCount++;
             }
 
             return true;
         } catch (error) {
-            console.error(`❌ DB 저장 실패 (${movieData.title}):`, error.message);
+            console.error(`[ERROR] DB 저장 실패 (${movieData.title}):`, error.message);
             this.errorCount++;
             return false;
         }
@@ -230,7 +230,7 @@ class KoficToSupabaseUpdater {
 
     // 특정 연도의 영화 처리
     async processYear(year) {
-        console.log(`\n📅 ${year}년 한국 영화 처리 시작...`);
+        console.log(`\n[TOMORROW] ${year}년 한국 영화 처리 시작...`);
         let currentPage = 1;
         let totalPages = 1;
 
@@ -265,7 +265,7 @@ class KoficToSupabaseUpdater {
             currentPage++;
         } while (currentPage <= totalPages);
 
-        console.log(`✅ ${year}년 처리 완료`);
+        console.log(`[SUCCESS] ${year}년 처리 완료`);
     }
 
     // 딜레이 함수
@@ -275,9 +275,9 @@ class KoficToSupabaseUpdater {
 
     // 메인 실행 함수
     async run() {
-        console.log('🎬 KOFIC → Supabase 영화 데이터 업데이트 시작\n');
-        console.log(`📌 대상: 한국 영화 (2020년 ~ 2025년)`);
-        console.log(`🔑 KOFIC API 키: ${KOFIC_API_KEY.substring(0, 8)}...`);
+        console.log('[MOVIE] KOFIC → Supabase 영화 데이터 업데이트 시작\n');
+        console.log(`[PIN] 대상: 한국 영화 (2020년 ~ 2025년)`);
+        console.log(`[KEY] KOFIC API 키: ${KOFIC_API_KEY.substring(0, 8)}...`);
         console.log(`🗄️ Supabase URL: ${SUPABASE_URL}\n`);
 
         const startTime = Date.now();
@@ -290,15 +290,15 @@ class KoficToSupabaseUpdater {
 
             const elapsedTime = ((Date.now() - startTime) / 1000 / 60).toFixed(2);
 
-            console.log('\n📊 처리 결과:');
-            console.log(`✅ 총 처리: ${this.processedCount}개`);
-            console.log(`📥 신규 추가: ${this.insertedCount}개`);
-            console.log(`🔄 업데이트: ${this.updatedCount}개`);
-            console.log(`❌ 오류: ${this.errorCount}개`);
+            console.log('\n[INFO] 처리 결과:');
+            console.log(`[SUCCESS] 총 처리: ${this.processedCount}개`);
+            console.log(`[INBOX] 신규 추가: ${this.insertedCount}개`);
+            console.log(`[LOADING] 업데이트: ${this.updatedCount}개`);
+            console.log(`[ERROR] 오류: ${this.errorCount}개`);
             console.log(`⏱️ 소요 시간: ${elapsedTime}분`);
 
         } catch (error) {
-            console.error('\n❌ 치명적 오류 발생:', error.message);
+            console.error('\n[ERROR] 치명적 오류 발생:', error.message);
         }
     }
 }

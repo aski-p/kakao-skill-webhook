@@ -37,7 +37,7 @@ class NaverWeatherCrawler {
     async getWeatherInfo(cityKorean = '서울') {
         try {
             const query = this.formatCityQuery(cityKorean);
-            console.log(`🌤️ 네이버 날씨 크롤링 시작: ${query}`);
+            console.log(`[WEATHER] 네이버 날씨 크롤링 시작: ${query}`);
             
             const response = await axios.get(this.baseUrl, {
                 params: { where: 'nexearch', sm: 'top_hty', ie: 'utf8', query: query },
@@ -123,29 +123,29 @@ class NaverWeatherCrawler {
             return this.formatWeatherResponse(cityKorean, weatherData);
             
         } catch (error) {
-            console.error('❌ 네이버 날씨 크롤링 오류:', error.message);
+            console.error('[ERROR] 네이버 날씨 크롤링 오류:', error.message);
             return null;
         }
     }
 
     formatWeatherResponse(city, data) {
-        let response = `🌤️ ${city} 날씨 정보\n\n`;
+        let response = `[WEATHER] ${city} 날씨 정보\n\n`;
         
         // 현재 날씨
         if (data.temperature) {
-            response += `🌡️ 현재 기온: ${data.temperature}\n`;
+            response += `[TEMP] 현재 기온: ${data.temperature}\n`;
             if (data.feels_like) {
-                response += `🤒 체감 온도: ${data.feels_like}\n`;
+                response += `[FEEL] 체감 온도: ${data.feels_like}\n`;
             }
             if (data.condition) {
-                response += `☁️ 날씨 상태: ${data.condition}\n`;
+                response += `[CLOUD] 날씨 상태: ${data.condition}\n`;
             }
             response += `\n`;
         }
         
         // 대기 정보
         if (data.fineDust || data.ultraFineDust) {
-            response += `🌫️ 대기 정보\n`;
+            response += `[AIR] 대기 정보\n`;
             if (data.fineDust) response += `• 미세먼지: ${data.fineDust}\n`;
             if (data.ultraFineDust) response += `• 초미세먼지: ${data.ultraFineDust}\n`;
             response += `\n`;
@@ -153,7 +153,7 @@ class NaverWeatherCrawler {
         
         // 상세 정보
         if (data.humidity || data.wind || data.rainfall) {
-            response += `📊 상세 정보\n`;
+            response += `[INFO] 상세 정보\n`;
             if (data.humidity) response += `• 습도: ${data.humidity}\n`;
             if (data.wind) response += `• 바람: ${data.wind}\n`;
             if (data.rainfall) response += `• 강수: ${data.rainfall}\n`;
@@ -162,15 +162,15 @@ class NaverWeatherCrawler {
         
         // 내일 날씨
         if (data.tomorrow && data.tomorrow.day) {
-            response += `📅 내일 날씨\n`;
+            response += `[TOMORROW] 내일 날씨\n`;
             response += `• ${data.tomorrow.day}: ${data.tomorrow.condition}\n`;
             response += `• 최고/최저: ${data.tomorrow.tempHigh}/${data.tomorrow.tempLow}\n\n`;
         }
         
         // 안내 메시지
         const koreanTime = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-        response += `🕐 조회 시간: ${koreanTime}\n`;
-        response += `💡 자세한 정보: weather.naver.com`;
+        response += `[TIME] 조회 시간: ${koreanTime}\n`;
+        response += `[TIP] 자세한 정보: weather.naver.com`;
         
         return response;
     }

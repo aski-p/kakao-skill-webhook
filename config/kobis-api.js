@@ -35,7 +35,7 @@ class KobisAPI {
             };
 
         } catch (error) {
-            console.error('❌ KOBIS 일별 박스오피스 조회 실패:', error.message);
+            console.error('[ERROR] KOBIS 일별 박스오피스 조회 실패:', error.message);
             return {
                 success: false,
                 error: error.message
@@ -71,7 +71,7 @@ class KobisAPI {
             };
 
         } catch (error) {
-            console.error('❌ KOBIS 주간 박스오피스 조회 실패:', error.message);
+            console.error('[ERROR] KOBIS 주간 박스오피스 조회 실패:', error.message);
             return {
                 success: false,
                 error: error.message
@@ -103,7 +103,7 @@ class KobisAPI {
             };
 
         } catch (error) {
-            console.error('❌ KOBIS 영화 상세정보 조회 실패:', error.message);
+            console.error('[ERROR] KOBIS 영화 상세정보 조회 실패:', error.message);
             return {
                 success: false,
                 error: error.message
@@ -146,7 +146,7 @@ class KobisAPI {
             };
 
         } catch (error) {
-            console.error('❌ KOBIS 영화 검색 실패:', error.message);
+            console.error('[ERROR] KOBIS 영화 검색 실패:', error.message);
             return {
                 success: false,
                 error: error.message
@@ -179,7 +179,7 @@ class KobisAPI {
             };
 
         } catch (error) {
-            console.error('❌ KOBIS 영화인 검색 실패:', error.message);
+            console.error('[ERROR] KOBIS 영화인 검색 실패:', error.message);
             return {
                 success: false,
                 error: error.message
@@ -212,7 +212,7 @@ class KobisAPI {
             };
 
         } catch (error) {
-            console.error('❌ KOBIS 영화사 검색 실패:', error.message);
+            console.error('[ERROR] KOBIS 영화사 검색 실패:', error.message);
             return {
                 success: false,
                 error: error.message
@@ -245,7 +245,7 @@ class KobisAPI {
         }
 
         const typeText = type === 'daily' ? '일별' : '주간';
-        let message = `🎬 ${typeText} 박스오피스 TOP 10\n\n`;
+        let message = `[MOVIE] ${typeText} 박스오피스 TOP 10\n\n`;
 
         boxOfficeList.slice(0, 10).forEach(movie => {
             const rank = movie.rank;
@@ -282,7 +282,7 @@ class KobisAPI {
             return '영화 정보를 찾을 수 없습니다.';
         }
 
-        let message = `🎬 ${movieInfo.movieNm}`;
+        let message = `[MOVIE] ${movieInfo.movieNm}`;
         
         if (movieInfo.movieNmEn) {
             message += ` (${movieInfo.movieNmEn})`;
@@ -291,27 +291,27 @@ class KobisAPI {
 
         // 기본 정보
         if (movieInfo.openDt) {
-            message += `📅 개봉일: ${this.formatDateDisplay(movieInfo.openDt)}\n`;
+            message += `[TOMORROW] 개봉일: ${this.formatDateDisplay(movieInfo.openDt)}\n`;
         }
         if (movieInfo.showTm) {
             message += `⏱️ 상영시간: ${movieInfo.showTm}분\n`;
         }
         if (movieInfo.genres && movieInfo.genres.length > 0) {
             const genres = movieInfo.genres.map(g => g.genreNm).join(', ');
-            message += `🎭 장르: ${genres}\n`;
+            message += `[DRAMA] 장르: ${genres}\n`;
         }
         if (movieInfo.watchGradeNm) {
-            message += `🔞 관람등급: ${movieInfo.watchGradeNm}\n`;
+            message += `[UNDERAGE] 관람등급: ${movieInfo.watchGradeNm}\n`;
         }
 
         // 제작진 정보
         if (movieInfo.directors && movieInfo.directors.length > 0) {
             const directors = movieInfo.directors.map(d => d.peopleNm).join(', ');
-            message += `🎬 감독: ${directors}\n`;
+            message += `[MOVIE] 감독: ${directors}\n`;
         }
         if (movieInfo.actors && movieInfo.actors.length > 0) {
             const actors = movieInfo.actors.slice(0, 5).map(a => a.peopleNm).join(', ');
-            message += `👥 주연: ${actors}\n`;
+            message += `[BUSTSINSILHOUETTE] 주연: ${actors}\n`;
         }
 
         // 제작 정보
@@ -321,7 +321,7 @@ class KobisAPI {
                 .map(c => c.companyNm)
                 .join(', ');
             if (prodCompanies) {
-                message += `🏢 제작사: ${prodCompanies}\n`;
+                message += `[OFFICE] 제작사: ${prodCompanies}\n`;
             }
         }
 

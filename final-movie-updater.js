@@ -117,7 +117,7 @@ class FinalMovieUpdater {
             cast_members: []
         }));
         
-        console.log(`📋 테스트용 영화 목록: ${testMovies.length}개`);
+        console.log(`[FORM] 테스트용 영화 목록: ${testMovies.length}개`);
         testMovies.forEach(movie => {
             console.log(`   ${movie.id}. ${movie.title}`);
         });
@@ -127,12 +127,12 @@ class FinalMovieUpdater {
 
     // 2. 영화 정보 수집 (네이버 크롤링 + 알려진 정보 결합)
     async collectMovieInfo(movieTitle) {
-        console.log(`\n🔍 "${movieTitle}" 정보 수집 중...`);
+        console.log(`\n[SEARCH] "${movieTitle}" 정보 수집 중...`);
         
         // 알려진 정보 우선 사용
         const knownInfo = this.knownMovies[movieTitle];
         if (knownInfo) {
-            console.log(`✅ 알려진 정보 사용`);
+            console.log(`[SUCCESS] 알려진 정보 사용`);
             return {
                 director: knownInfo.director,
                 cast: knownInfo.cast,
@@ -145,18 +145,18 @@ class FinalMovieUpdater {
         }
 
         // 알려진 정보가 없으면 네이버 크롤링 시도
-        console.log(`🔍 네이버 검색 시도...`);
+        console.log(`[SEARCH] 네이버 검색 시도...`);
         try {
             const naverInfo = await this.searchNaverMovie(movieTitle);
             if (naverInfo) {
                 return naverInfo;
             }
         } catch (error) {
-            console.log(`⚠️ 네이버 검색 실패: ${error.message}`);
+            console.log(`[WARN] 네이버 검색 실패: ${error.message}`);
         }
 
         // 기본 정보 생성
-        console.log(`💡 기본 정보 생성`);
+        console.log(`[TIP] 기본 정보 생성`);
         return {
             director: '알 수 없음',
             cast: ['알 수 없음'],
@@ -199,7 +199,7 @@ class FinalMovieUpdater {
             };
 
         } catch (error) {
-            console.log(`❌ 네이버 검색 실패: ${error.message}`);
+            console.log(`[ERROR] 네이버 검색 실패: ${error.message}`);
             return null;
         }
     }
@@ -283,16 +283,16 @@ ${reviewInserts};
         const startTime = Date.now();
         
         console.log('🚀 최종 영화 정보 업데이트 시작...');
-        console.log('📝 알려진 영화 정보 + 네이버 크롤링 + Supabase 업데이트\n');
+        console.log('[MEMO] 알려진 영화 정보 + 네이버 크롤링 + Supabase 업데이트\n');
 
         // 1. 영화 목록 가져오기
         const movies = await this.getTestMovieList();
         if (movies.length === 0) {
-            console.log('❌ 처리할 영화가 없습니다.');
+            console.log('[ERROR] 처리할 영화가 없습니다.');
             return;
         }
 
-        console.log(`📊 총 ${movies.length}개 영화 처리 예정\n`);
+        console.log(`[INFO] 총 ${movies.length}개 영화 처리 예정\n`);
 
         // 2. SQL 파일 시작
         let allSQL = `-- 영화 정보 일괄 업데이트 SQL
@@ -307,7 +307,7 @@ BEGIN;
         for (let i = 0; i < movies.length; i++) {
             const movie = movies[i];
             
-            console.log(`\n📽️ [${i + 1}/${movies.length}] ${movie.title} 처리 중...`);
+            console.log(`\n[PROJECTOR] [${i + 1}/${movies.length}] ${movie.title} 처리 중...`);
             console.log('='.repeat(50));
             
             try {
@@ -319,7 +319,7 @@ BEGIN;
                     const sql = this.generateUpdateSQL(movie.title, movieInfo);
                     allSQL += sql + '\n';
                     
-                    console.log(`✅ 정보 수집 완료`);
+                    console.log(`[SUCCESS] 정보 수집 완료`);
                     console.log(`   감독: ${movieInfo.director}`);
                     console.log(`   출연: ${movieInfo.cast.slice(0, 3).join(', ')}`);
                     console.log(`   평점: ${movieInfo.rating}`);
@@ -327,7 +327,7 @@ BEGIN;
                     
                     this.updatedCount++;
                 } else {
-                    console.log(`❌ 정보 수집 실패`);
+                    console.log(`[ERROR] 정보 수집 실패`);
                     this.failedCount++;
                 }
                 
@@ -343,7 +343,7 @@ BEGIN;
                 }
                 
             } catch (error) {
-                console.log(`❌ ${movie.title} 처리 중 오류: ${error.message}`);
+                console.log(`[ERROR] ${movie.title} 처리 중 오류: ${error.message}`);
                 this.failedCount++;
                 this.processedCount++;
             }
@@ -382,26 +382,26 @@ ORDER BY m.title;
         const totalTime = ((endTime - startTime) / 1000 / 60).toFixed(1);
 
         console.log('\n' + '='.repeat(80));
-        console.log('🎉 영화 정보 수집 및 SQL 생성 완료!');
+        console.log('[PARTY] 영화 정보 수집 및 SQL 생성 완료!');
         console.log('='.repeat(80));
         console.log(`⏱️ 총 실행 시간: ${totalTime}분`);
-        console.log(`🎬 처리된 영화: ${this.processedCount}개`);
-        console.log(`✅ 성공적으로 수집: ${this.updatedCount}개`);
-        console.log(`❌ 수집 실패: ${this.failedCount}개`);
-        console.log(`📊 성공률: ${Math.round((this.updatedCount / this.processedCount) * 100)}%`);
+        console.log(`[MOVIE] 처리된 영화: ${this.processedCount}개`);
+        console.log(`[SUCCESS] 성공적으로 수집: ${this.updatedCount}개`);
+        console.log(`[ERROR] 수집 실패: ${this.failedCount}개`);
+        console.log(`[INFO] 성공률: ${Math.round((this.updatedCount / this.processedCount) * 100)}%`);
         console.log(`💾 SQL 파일: ${filename}`);
         
-        console.log('\n🔧 실행 방법:');
+        console.log('\n[TOOL] 실행 방법:');
         console.log('1. Supabase SQL Editor에서 파일 내용을 복사하여 실행');
         console.log(`2. 또는 psql 명령: psql <connection_string> -f ${filename}`);
         
-        console.log('\n💡 이제 모든 영화에 다음 정보가 포함됩니다:');
-        console.log('   🎭 정확한 감독 정보');
-        console.log('   👥 실제 출연진 정보');
-        console.log('   ⭐ 네이버 평점 정보');
-        console.log('   📝 실제 관람객 리뷰 (가짜 평론가 제거)');
+        console.log('\n[TIP] 이제 모든 영화에 다음 정보가 포함됩니다:');
+        console.log('   [DRAMA] 정확한 감독 정보');
+        console.log('   [BUSTSINSILHOUETTE] 실제 출연진 정보');
+        console.log('   [FAVORITE] 네이버 평점 정보');
+        console.log('   [MEMO] 실제 관람객 리뷰 (가짜 평론가 제거)');
         
-        console.log('\n📱 업데이트 후 테스트해보세요:');
+        console.log('\n[APP] 업데이트 후 테스트해보세요:');
         console.log('   • "파묘 감독은 누구야" → 장재현');
         console.log('   • "기생충 출연진 알려줘" → 송강호, 이선균 등');
         console.log('   • "아마추어 영화평" → 실제 관객 리뷰');

@@ -414,7 +414,7 @@ class MassiveVerifiedUpdater {
 
     async updateSingleMovie(movie) {
         try {
-            console.log(`\\n🎬 ID ${movie.id}: "${movie.title}" 처리 중...`);
+            console.log(`\\n[MOVIE] ID ${movie.id}: "${movie.title}" 처리 중...`);
 
             // 1. 실제 검증된 데이터 우선 사용
             let movieData = this.findRealMovieData(movie.title);
@@ -441,14 +441,14 @@ class MassiveVerifiedUpdater {
                 .eq('id', movie.id);
 
             if (updateError) {
-                console.log(`   ❌ 업데이트 실패: ${updateError.message}`);
+                console.log(`   [ERROR] 업데이트 실패: ${updateError.message}`);
                 return false;
             }
 
-            console.log(`   ✅ 영화 정보 업데이트 완료 (${dataSource})`);
-            console.log(`   🎭 감독: ${movieData.director}`);
-            console.log(`   👥 출연진: ${movieData.cast_members.slice(0, 3).join(', ')}`);
-            console.log(`   🎪 장르: ${movieData.genre} (${movieData.release_year})`);
+            console.log(`   [SUCCESS] 영화 정보 업데이트 완료 (${dataSource})`);
+            console.log(`   [DRAMA] 감독: ${movieData.director}`);
+            console.log(`   [BUSTSINSILHOUETTE] 출연진: ${movieData.cast_members.slice(0, 3).join(', ')}`);
+            console.log(`   [FUN] 장르: ${movieData.genre} (${movieData.release_year})`);
 
             // 4. 리뷰 추가
             await this.supabase
@@ -469,11 +469,11 @@ class MassiveVerifiedUpdater {
                 await this.delay(50);
             }
 
-            console.log(`   📝 리뷰 ${reviews.length}개 추가`);
+            console.log(`   [MEMO] 리뷰 ${reviews.length}개 추가`);
             return true;
 
         } catch (error) {
-            console.log(`   ❌ "${movie.title}" 처리 중 오류: ${error.message}`);
+            console.log(`   [ERROR] "${movie.title}" 처리 중 오류: ${error.message}`);
             return false;
         }
     }
@@ -492,7 +492,7 @@ class MassiveVerifiedUpdater {
     }
 
     async processBatch(offset, limit) {
-        console.log(`\\n📦 배치 처리 (${offset + 1} ~ ${offset + limit})`);
+        console.log(`\\n[PACKAGE] 배치 처리 (${offset + 1} ~ ${offset + limit})`);
         console.log('='.repeat(60));
 
         const { data: unknownMovies, error } = await this.supabase
@@ -503,16 +503,16 @@ class MassiveVerifiedUpdater {
             .range(offset, offset + limit - 1);
 
         if (error) {
-            console.log(`❌ 배치 조회 실패: ${error.message}`);
+            console.log(`[ERROR] 배치 조회 실패: ${error.message}`);
             return 0;
         }
 
         if (!unknownMovies || unknownMovies.length === 0) {
-            console.log('✅ 더 이상 처리할 영화가 없습니다.');
+            console.log('[SUCCESS] 더 이상 처리할 영화가 없습니다.');
             return 0;
         }
 
-        console.log(`🎯 이번 배치: ${unknownMovies.length}개 영화`);
+        console.log(`[TARGET] 이번 배치: ${unknownMovies.length}개 영화`);
 
         let batchSuccessCount = 0;
         for (let i = 0; i < unknownMovies.length; i++) {
@@ -538,14 +538,14 @@ class MassiveVerifiedUpdater {
             await this.delay(500);
         }
 
-        console.log(`\\n✅ 배치 완료: 성공 ${batchSuccessCount}개, 실패 ${unknownMovies.length - batchSuccessCount}개`);
+        console.log(`\\n[SUCCESS] 배치 완료: 성공 ${batchSuccessCount}개, 실패 ${unknownMovies.length - batchSuccessCount}개`);
         return unknownMovies.length;
     }
 
     async run() {
         console.log('🚀🚀🚀 남은 4,274개 "알 수 없음" 영화 대량 업데이트 시작! 🚀🚀🚀');
-        console.log('🎯 목표: 모든 영화를 실제/검증된 데이터로 채우기');
-        console.log('📊 데이터 소스: 검증된 실제 데이터 + 플러서블한 생성 데이터\\n');
+        console.log('[TARGET] 목표: 모든 영화를 실제/검증된 데이터로 채우기');
+        console.log('[INFO] 데이터 소스: 검증된 실제 데이터 + 플러서블한 생성 데이터\\n');
 
         const startTime = Date.now();
 
@@ -556,8 +556,8 @@ class MassiveVerifiedUpdater {
             .eq('director', '알 수 없음');
 
         this.totalTargetMovies = totalData?.length || 0;
-        console.log(`📊 총 처리 대상: ${this.totalTargetMovies}개 영화`);
-        console.log(`📋 검증된 실제 데이터: ${Object.keys(this.verifiedMovieDatabase).length}개`);
+        console.log(`[INFO] 총 처리 대상: ${this.totalTargetMovies}개 영화`);
+        console.log(`[FORM] 검증된 실제 데이터: ${Object.keys(this.verifiedMovieDatabase).length}개`);
         console.log(`⏱️ 예상 소요 시간: 약 ${Math.round(this.totalTargetMovies / 120)}분\\n`);
 
         // 배치별 처리
@@ -583,13 +583,13 @@ class MassiveVerifiedUpdater {
         const totalTime = (endTime - startTime) / 1000 / 60;
 
         console.log('\\n' + '='.repeat(80));
-        console.log('🎉🎉🎉 대량 업데이트 완료! 🎉🎉🎉');
+        console.log('[PARTY][PARTY][PARTY] 대량 업데이트 완료! [PARTY][PARTY][PARTY]');
         console.log('='.repeat(80));
         console.log(`⏱️ 총 실행 시간: ${totalTime.toFixed(1)}분`);
-        console.log(`🎬 처리된 영화: ${this.processedCount}개`);
-        console.log(`✅ 성공: ${this.successCount}개`);
-        console.log(`❌ 실패: ${this.failCount}개`);
-        console.log(`📊 성공률: ${Math.round((this.successCount / this.processedCount) * 100)}%`);
+        console.log(`[MOVIE] 처리된 영화: ${this.processedCount}개`);
+        console.log(`[SUCCESS] 성공: ${this.successCount}개`);
+        console.log(`[ERROR] 실패: ${this.failCount}개`);
+        console.log(`[INFO] 성공률: ${Math.round((this.successCount / this.processedCount) * 100)}%`);
 
         // 최종 상태 확인
         const { data: finalUnknown } = await this.supabase
@@ -600,22 +600,22 @@ class MassiveVerifiedUpdater {
         const remainingUnknown = finalUnknown?.length || 0;
         const completionRate = Math.round(((6240 - remainingUnknown) / 6240) * 100);
 
-        console.log('\\n📊 최종 데이터베이스 상태:');
+        console.log('\\n[INFO] 최종 데이터베이스 상태:');
         console.log(`   완성된 영화: ${6240 - remainingUnknown}개`);
         console.log(`   남은 "알 수 없음": ${remainingUnknown}개`);
         console.log(`   전체 완성도: ${completionRate}%`);
 
-        console.log('\\n🔥🔥🔥 역사적 순간! 카카오 스킬 데이터베이스 완전 변화! 🔥🔥🔥');
-        console.log('✅ 모든 영화가 실제 또는 검증된 정보를 보유!');
-        console.log('✅ "알 수 없음" 데이터 대폭 감소!');
-        console.log('✅ 가짜 평론가 완전 제거!');
+        console.log('\\n[FIRE][FIRE][FIRE] 역사적 순간! 카카오 스킬 데이터베이스 완전 변화! [FIRE][FIRE][FIRE]');
+        console.log('[SUCCESS] 모든 영화가 실제 또는 검증된 정보를 보유!');
+        console.log('[SUCCESS] "알 수 없음" 데이터 대폭 감소!');
+        console.log('[SUCCESS] 가짜 평론가 완전 제거!');
 
-        console.log('\\n📱 이제 카카오 스킬이 답변할 수 있는 영화:');
-        console.log('   💬 "어벤져스 감독은 누구야" → "조스 웨던입니다"');
-        console.log('   💬 "겨울왕국 출연진 알려줘" → "크리스틴 벨, 이디나 멘젤..."');
-        console.log('   💬 "극한직업 영화평" → 실제 관객 리뷰');
-        console.log('   💬 "쥬라기 공원 평점" → "8.2점입니다"');
-        console.log('   💬 그리고 수천 개의 다른 영화들!');
+        console.log('\\n[APP] 이제 카카오 스킬이 답변할 수 있는 영화:');
+        console.log('   [MSG] "어벤져스 감독은 누구야" → "조스 웨던입니다"');
+        console.log('   [MSG] "겨울왕국 출연진 알려줘" → "크리스틴 벨, 이디나 멘젤..."');
+        console.log('   [MSG] "극한직업 영화평" → 실제 관객 리뷰');
+        console.log('   [MSG] "쥬라기 공원 평점" → "8.2점입니다"');
+        console.log('   [MSG] 그리고 수천 개의 다른 영화들!');
     }
 }
 

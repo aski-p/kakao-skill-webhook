@@ -2,7 +2,7 @@
 const express = require('express');
 const axios = require('axios');
 
-console.log('✅ Dependencies loaded successfully');
+console.log('[SUCCESS] Dependencies loaded successfully');
 
 const app = express();
 app.use(express.json());
@@ -13,5 +13,5 @@ app.get('/test', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`✅ Test server running on port ${PORT}`);
+    console.log(`[SUCCESS] Test server running on port ${PORT}`);
 });

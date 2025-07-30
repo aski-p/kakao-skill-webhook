@@ -5,13 +5,13 @@ const SUPABASE_URL = 'https://dpmoafgaysocfjxlmaum.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwbW9hZmdheXNvY2ZqeGxtYXVtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTQ2NDMzMSwiZXhwIjoyMDY3MDQwMzMxfQ.G2woWTLhGpc0FOEyfABZs7k1wYTSYCaDeYhYtpoY73c';
 
 async function fixYadangMovie() {
-    console.log('🔧 야당 영화 정보 Supabase 직접 수정 시작');
+    console.log('[TOOL] 야당 영화 정보 Supabase 직접 수정 시작');
     
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
     try {
         // 1. 현재 야당 영화 데이터 확인
-        console.log('📋 1단계: 현재 야당 영화 데이터 확인');
+        console.log('[FORM] 1단계: 현재 야당 영화 데이터 확인');
         const { data: currentData, error: selectError } = await supabase
             .from('movies')
             .select('*')
@@ -19,12 +19,12 @@ async function fixYadangMovie() {
             .limit(1);
         
         if (selectError) {
-            console.error('❌ 데이터 조회 오류:', selectError.message);
+            console.error('[ERROR] 데이터 조회 오류:', selectError.message);
             return;
         }
         
         if (!currentData || currentData.length === 0) {
-            console.log('⚠️ 야당 영화가 테이블에 없습니다. 새로 추가합니다.');
+            console.log('[WARN] 야당 영화가 테이블에 없습니다. 새로 추가합니다.');
             
             // 야당 영화 새로 추가
             const { data: insertData, error: insertError } = await supabase
@@ -47,22 +47,22 @@ async function fixYadangMovie() {
                 .select();
             
             if (insertError) {
-                console.error('❌ 데이터 삽입 오류:', insertError.message);
+                console.error('[ERROR] 데이터 삽입 오류:', insertError.message);
                 return;
             }
             
-            console.log('✅ 야당 영화 데이터 새로 추가 완료');
-            console.log('📊 추가된 데이터:', insertData[0]);
+            console.log('[SUCCESS] 야당 영화 데이터 새로 추가 완료');
+            console.log('[INFO] 추가된 데이터:', insertData[0]);
             
         } else {
-            console.log('📊 current 야당 데이터:');
+            console.log('[INFO] current 야당 데이터:');
             console.log(`• 감독: ${currentData[0].director}`);
             console.log(`• 출연진: ${JSON.stringify(currentData[0].cast_members)}`);
             console.log(`• 장르: ${currentData[0].genre}`);
             console.log(`• 개봉년도: ${currentData[0].release_year}`);
             
             // 2. 야당 영화 정정된 정보로 업데이트
-            console.log('\n🔄 2단계: 올바른 정보로 업데이트');
+            console.log('\n[LOADING] 2단계: 올바른 정보로 업데이트');
             const { data: updateData, error: updateError } = await supabase
                 .from('movies')
                 .update({
@@ -81,12 +81,12 @@ async function fixYadangMovie() {
                 .select();
             
             if (updateError) {
-                console.error('❌ 데이터 업데이트 오류:', updateError.message);
+                console.error('[ERROR] 데이터 업데이트 오류:', updateError.message);
                 return;
             }
             
-            console.log('✅ 야당 영화 정보 업데이트 완료');
-            console.log('📊 업데이트된 데이터:');
+            console.log('[SUCCESS] 야당 영화 정보 업데이트 완료');
+            console.log('[INFO] 업데이트된 데이터:');
             console.log(`• 감독: ${updateData[0].director}`);
             console.log(`• 출연진: ${JSON.stringify(updateData[0].cast_members)}`);
             console.log(`• 장르: ${updateData[0].genre}`);
@@ -95,7 +95,7 @@ async function fixYadangMovie() {
         }
         
         // 3. 기존 잘못된 리뷰 삭제 및 새 리뷰 추가
-        console.log('\n🔄 3단계: 평론가 리뷰 업데이트');
+        console.log('\n[LOADING] 3단계: 평론가 리뷰 업데이트');
         
         // 야당 영화 ID 가져오기
         const { data: movieData, error: movieError } = await supabase
@@ -105,12 +105,12 @@ async function fixYadangMovie() {
             .limit(1);
         
         if (movieError || !movieData || movieData.length === 0) {
-            console.error('❌ 야당 영화 ID 조회 실패');
+            console.error('[ERROR] 야당 영화 ID 조회 실패');
             return;
         }
         
         const movieId = movieData[0].id;
-        console.log(`🎬 야당 영화 ID: ${movieId}`);
+        console.log(`[MOVIE] 야당 영화 ID: ${movieId}`);
         
         // 기존 리뷰 삭제
         const { error: deleteError } = await supabase
@@ -119,9 +119,9 @@ async function fixYadangMovie() {
             .eq('movie_id', movieId);
         
         if (deleteError) {
-            console.error('❌ 기존 리뷰 삭제 오류:', deleteError.message);
+            console.error('[ERROR] 기존 리뷰 삭제 오류:', deleteError.message);
         } else {
-            console.log('✅ 기존 리뷰 삭제 완료');
+            console.log('[SUCCESS] 기존 리뷰 삭제 완료');
         }
         
         // 새 리뷰 추가
@@ -158,16 +158,16 @@ async function fixYadangMovie() {
             .select();
         
         if (reviewError) {
-            console.error('❌ 리뷰 추가 오류:', reviewError.message);
+            console.error('[ERROR] 리뷰 추가 오류:', reviewError.message);
         } else {
-            console.log(`✅ 새 리뷰 ${reviewData.length}개 추가 완료`);
+            console.log(`[SUCCESS] 새 리뷰 ${reviewData.length}개 추가 완료`);
             reviewData.forEach((review, index) => {
                 console.log(`  ${index + 1}. ${review.critic_name}: "${review.review_text}" (${review.score}/10)`);
             });
         }
         
         // 4. 최종 확인
-        console.log('\n✅ 4단계: 최종 확인');
+        console.log('\n[SUCCESS] 4단계: 최종 확인');
         const { data: finalData, error: finalError } = await supabase
             .from('movies')
             .select(`
@@ -178,10 +178,10 @@ async function fixYadangMovie() {
             .limit(1);
         
         if (finalError) {
-            console.error('❌ 최종 확인 오류:', finalError.message);
+            console.error('[ERROR] 최종 확인 오류:', finalError.message);
         } else {
-            console.log('🎉 야당 영화 정보 수정 완료!');
-            console.log('📊 최종 데이터:');
+            console.log('[PARTY] 야당 영화 정보 수정 완료!');
+            console.log('[INFO] 최종 데이터:');
             const movie = finalData[0];
             console.log(`• 제목: ${movie.title}`);
             console.log(`• 감독: ${movie.director}`);
@@ -192,14 +192,14 @@ async function fixYadangMovie() {
             console.log(`• 리뷰 수: ${movie.critic_reviews.length}개`);
         }
         
-        console.log('\n🎯 이제 챗봇에서 "야당 영화평"을 검색하면 올바른 정보가 나올 것입니다!');
+        console.log('\n[TARGET] 이제 챗봇에서 "야당 영화평"을 검색하면 올바른 정보가 나올 것입니다!');
         console.log('• 감독: 황병국');
         console.log('• 주연: 강하늘, 유해진, 박해준');
         console.log('• 장르: 범죄, 액션');
         console.log('• 개봉: 2025년');
         
     } catch (error) {
-        console.error('❌ 전체 작업 오류:', error.message);
+        console.error('[ERROR] 전체 작업 오류:', error.message);
     }
 }
 

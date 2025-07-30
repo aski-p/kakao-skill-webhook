@@ -255,7 +255,7 @@ class ManualMovieInfoUpdater {
 
     async updateMovie(movieInfo) {
         try {
-            console.log(`🎬 ${movieInfo.title} 정보 업데이트 중...`);
+            console.log(`[MOVIE] ${movieInfo.title} 정보 업데이트 중...`);
             
             // 해당 제목의 영화 찾기
             const { data: existingMovies, error: findError } = await supabase
@@ -264,18 +264,18 @@ class ManualMovieInfoUpdater {
                 .eq('title', movieInfo.title);
             
             if (findError) {
-                console.log(`   ⚠️ 검색 실패:`, findError.message);
+                console.log(`   [WARN] 검색 실패:`, findError.message);
                 return false;
             }
             
             if (!existingMovies || existingMovies.length === 0) {
-                console.log(`   ❌ 영화를 찾을 수 없음`);
+                console.log(`   [ERROR] 영화를 찾을 수 없음`);
                 return false;
             }
             
             const movie = existingMovies[0];
-            console.log(`   📍 영화 ID: ${movie.id}`);
-            console.log(`   📋 기존 정보 - 감독: ${movie.director || '없음'}, 출연: ${movie.cast_members ? movie.cast_members.join(', ') : '없음'}`);
+            console.log(`   [LOCATION] 영화 ID: ${movie.id}`);
+            console.log(`   [FORM] 기존 정보 - 감독: ${movie.director || '없음'}, 출연: ${movie.cast_members ? movie.cast_members.join(', ') : '없음'}`);
             
             // 업데이트할 정보 준비
             const updateData = {};
@@ -303,24 +303,24 @@ class ManualMovieInfoUpdater {
                 .eq('id', movie.id);
             
             if (updateError) {
-                console.log(`   ❌ 업데이트 실패:`, updateError.message);
+                console.log(`   [ERROR] 업데이트 실패:`, updateError.message);
                 return false;
             }
             
-            console.log(`   ✅ 업데이트 완료!`);
-            console.log(`   📝 새 정보 - 감독: ${updateData.director || movie.director}, 출연: ${updateData.cast_members ? updateData.cast_members.join(', ') : movie.cast_members.join(', ')}`);
+            console.log(`   [SUCCESS] 업데이트 완료!`);
+            console.log(`   [MEMO] 새 정보 - 감독: ${updateData.director || movie.director}, 출연: ${updateData.cast_members ? updateData.cast_members.join(', ') : movie.cast_members.join(', ')}`);
             
             return true;
             
         } catch (error) {
-            console.log(`   ❌ 오류 발생:`, error.message);
+            console.log(`   [ERROR] 오류 발생:`, error.message);
             return false;
         }
     }
 
     async run() {
         console.log('🚀 영화 정보 수동 업데이트 시작...');
-        console.log(`📊 총 ${this.movieData.length}개 영화 정보 업데이트 예정\n`);
+        console.log(`[INFO] 총 ${this.movieData.length}개 영화 정보 업데이트 예정\n`);
         
         let updatedCount = 0;
         let skippedCount = 0;
@@ -355,18 +355,18 @@ class ManualMovieInfoUpdater {
             .select('*', { count: 'exact', head: true });
         
         console.log('='.repeat(60));
-        console.log('🎉 영화 정보 수동 업데이트 완료!');
+        console.log('[PARTY] 영화 정보 수동 업데이트 완료!');
         console.log('='.repeat(60));
-        console.log(`🎬 전체 영화 수: ${totalMovies}개`);
-        console.log(`✅ 성공적으로 업데이트: ${updatedCount}개`);
+        console.log(`[MOVIE] 전체 영화 수: ${totalMovies}개`);
+        console.log(`[SUCCESS] 성공적으로 업데이트: ${updatedCount}개`);
         console.log(`⏭️ 이미 정보가 있어서 스킵: ${skippedCount}개`);
-        console.log(`❌ 업데이트 실패: ${failedCount}개`);
-        console.log(`📊 성공률: ${Math.round(((updatedCount + skippedCount) / this.movieData.length) * 100)}%`);
-        console.log('\n💡 주요 영화들의 감독과 출연진 정보가 정확하게 업데이트되었습니다!');
-        console.log('🔍 이제 "파묘 감독은 누구야?", "기생충 출연진 알려줘" 등을 정확하게 확인할 수 있습니다.');
+        console.log(`[ERROR] 업데이트 실패: ${failedCount}개`);
+        console.log(`[INFO] 성공률: ${Math.round(((updatedCount + skippedCount) / this.movieData.length) * 100)}%`);
+        console.log('\n[TIP] 주요 영화들의 감독과 출연진 정보가 정확하게 업데이트되었습니다!');
+        console.log('[SEARCH] 이제 "파묘 감독은 누구야?", "기생충 출연진 알려줘" 등을 정확하게 확인할 수 있습니다.');
         
         // 샘플 확인
-        console.log('\n📝 업데이트된 영화 샘플 확인:');
+        console.log('\n[MEMO] 업데이트된 영화 샘플 확인:');
         const sampleTitles = ['파묘', '기생충', '탑건: 매버릭'];
         
         for (const title of sampleTitles) {
@@ -378,7 +378,7 @@ class ManualMovieInfoUpdater {
             
             if (movie && movie.length > 0) {
                 const m = movie[0];
-                console.log(`   ✅ ${m.title}: ${m.director} 감독, 출연진: ${m.cast_members ? m.cast_members.join(', ') : '정보없음'}`);
+                console.log(`   [SUCCESS] ${m.title}: ${m.director} 감독, 출연진: ${m.cast_members ? m.cast_members.join(', ') : '정보없음'}`);
             }
         }
     }

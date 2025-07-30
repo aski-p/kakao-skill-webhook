@@ -142,7 +142,7 @@ class MessageClassifier {
 
     // 메인 분류 함수
     classifyMessage(message) {
-        console.log('🔍 메시지 분류 시작:', message);
+        console.log('[SEARCH] 메시지 분류 시작:', message);
         
         const results = [];
         
@@ -165,7 +165,7 @@ class MessageClassifier {
             return a.priority - b.priority;
         });
         
-        console.log('📊 분류 결과:', results);
+        console.log('[INFO] 분류 결과:', results);
         
         return results.length > 0 ? results[0] : {
             category: 'UNKNOWN',
@@ -214,7 +214,7 @@ class MessageClassifier {
                 try {
                     data[key] = extractor(message);
                 } catch (error) {
-                    console.error(`❌ 데이터 추출 실패 (${key}):`, error);
+                    console.error(`[ERROR] 데이터 추출 실패 (${key}):`, error);
                     data[key] = null;
                 }
             }
@@ -226,7 +226,7 @@ class MessageClassifier {
     // === 데이터 추출 함수들 ===
 
     extractMovieTitle(message) {
-        console.log(`🎬 영화 제목 추출 시작: "${message}"`);
+        console.log(`[MOVIE] 영화 제목 추출 시작: "${message}"`);
         
         // 특별한 패턴으로 영화 제목 먼저 추출
         const moviePatterns = [
@@ -243,7 +243,7 @@ class MessageClassifier {
             const match = message.match(pattern);
             if (match) {
                 const extracted = match[1].trim();
-                console.log(`✅ 패턴 매칭 성공: "${extracted}"`);
+                console.log(`[SUCCESS] 패턴 매칭 성공: "${extracted}"`);
                 return this.cleanMovieTitle(extracted);
             }
         }
@@ -258,7 +258,7 @@ class MessageClassifier {
                 .replace(/\s+/g, ' ')  // 여러 공백을 하나로
                 .trim();
             
-            console.log(`🏎️ F1 영화 특별 처리: "${f1Title}"`);
+            console.log(`[RACECAR] F1 영화 특별 처리: "${f1Title}"`);
             return f1Title;
         }
         
@@ -276,7 +276,7 @@ class MessageClassifier {
         }
         
         const result = this.cleanMovieTitle(cleanMessage || message);
-        console.log(`🎯 최종 영화 제목: "${result}"`);
+        console.log(`[TARGET] 최종 영화 제목: "${result}"`);
         return result;
     }
     

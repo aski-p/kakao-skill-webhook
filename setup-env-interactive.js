@@ -8,7 +8,7 @@ const rl = readline.createInterface({
     output: process.stdout
 });
 
-console.log('🔧 대화형 환경변수 설정 도구');
+console.log('[TOOL] 대화형 환경변수 설정 도구');
 console.log('=====================================');
 console.log('Railway에서 복사한 환경변수를 입력하세요.');
 console.log('(Enter를 눌러서 건너뛸 수 있습니다)');
@@ -19,32 +19,32 @@ const envVars = {};
 const questions = [
     {
         key: 'SUPABASE_URL',
-        question: '📋 SUPABASE_URL을 입력하세요: ',
+        question: '[FORM] SUPABASE_URL을 입력하세요: ',
         required: true
     },
     {
         key: 'SUPABASE_SERVICE_ROLE_KEY', 
-        question: '📋 SUPABASE_SERVICE_ROLE_KEY를 입력하세요: ',
+        question: '[FORM] SUPABASE_SERVICE_ROLE_KEY를 입력하세요: ',
         required: true
     },
     {
         key: 'NAVER_CLIENT_ID',
-        question: '🔍 NAVER_CLIENT_ID를 입력하세요 (선택사항): ',
+        question: '[SEARCH] NAVER_CLIENT_ID를 입력하세요 (선택사항): ',
         required: false
     },
     {
         key: 'NAVER_CLIENT_SECRET',
-        question: '🔍 NAVER_CLIENT_SECRET를 입력하세요 (선택사항): ',
+        question: '[SEARCH] NAVER_CLIENT_SECRET를 입력하세요 (선택사항): ',
         required: false
     },
     {
         key: 'CLAUDE_API_KEY',
-        question: '🤖 CLAUDE_API_KEY를 입력하세요 (선택사항): ',
+        question: '[AI] CLAUDE_API_KEY를 입력하세요 (선택사항): ',
         required: false
     },
     {
         key: 'KOFIC_API_KEY',
-        question: '🎬 KOFIC_API_KEY를 입력하세요 (선택사항): ',
+        question: '[MOVIE] KOFIC_API_KEY를 입력하세요 (선택사항): ',
         required: false
     }
 ];
@@ -62,9 +62,9 @@ function askQuestion() {
     rl.question(q.question, (answer) => {
         if (answer.trim()) {
             envVars[q.key] = answer.trim();
-            console.log(`✅ ${q.key} 설정됨`);
+            console.log(`[SUCCESS] ${q.key} 설정됨`);
         } else if (q.required) {
-            console.log(`❌ ${q.key}는 필수 항목입니다. 다시 입력해주세요.`);
+            console.log(`[ERROR] ${q.key}는 필수 항목입니다. 다시 입력해주세요.`);
             askQuestion();
             return;
         } else {
@@ -108,11 +108,11 @@ function generateEnvFile() {
     const envPath = path.join(__dirname, '.env');
     fs.writeFileSync(envPath, envContent);
     
-    console.log('✅ .env 파일이 생성되었습니다!');
+    console.log('[SUCCESS] .env 파일이 생성되었습니다!');
     console.log('');
-    console.log('📋 설정된 환경변수:');
+    console.log('[FORM] 설정된 환경변수:');
     Object.keys(envVars).forEach(key => {
-        console.log(`   ✅ ${key}: ${envVars[key].substring(0, 20)}...`);
+        console.log(`   [SUCCESS] ${key}: ${envVars[key].substring(0, 20)}...`);
     });
     
     console.log('');

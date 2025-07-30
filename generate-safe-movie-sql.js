@@ -184,8 +184,8 @@ class SafeMovieSQLGenerator {
         
         sql += `\nCOMMIT;\n\n`;
         sql += `-- INSERT 완료\n`;
-        sql += `-- 📊 총 ${this.movies.length}개 영화 + ${this.reviews.length}개 전문가 리뷰 추가됨\n`;
-        sql += `-- ✅ Foreign Key 제약조건 준수 확인됨\n`;
+        sql += `-- [INFO] 총 ${this.movies.length}개 영화 + ${this.reviews.length}개 전문가 리뷰 추가됨\n`;
+        sql += `-- [SUCCESS] Foreign Key 제약조건 준수 확인됨\n`;
         
         return sql;
     }
@@ -199,11 +199,11 @@ class SafeMovieSQLGenerator {
         
         fs.writeFileSync(filepath, sql);
         
-        console.log(`✅ 안전한 영화 데이터베이스 SQL 생성 완료: ${filename}`);
-        console.log(`📊 영화: ${this.movies.length}개`);
-        console.log(`📝 리뷰: ${this.reviews.length}개`);
+        console.log(`[SUCCESS] 안전한 영화 데이터베이스 SQL 생성 완료: ${filename}`);
+        console.log(`[INFO] 영화: ${this.movies.length}개`);
+        console.log(`[MEMO] 리뷰: ${this.reviews.length}개`);
         console.log(`📁 파일 크기: ${Math.round(sql.length / 1024)}KB`);
-        console.log(`\n💡 사용법:`);
+        console.log(`\n[TIP] 사용법:`);
         console.log(`1. Supabase SQL 에디터에서 실행`);
         console.log(`2. 또는 ./open-sql.sh 로 VS Code에서 열기`);
         

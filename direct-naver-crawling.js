@@ -26,15 +26,15 @@ class DirectNaverMovieCrawler {
     }
 
     async crawlAndInsertMovies() {
-        console.log('🎬 네이버 API 직접 크롤링으로 영화 데이터 수집 시작\n');
+        console.log('[MOVIE] 네이버 API 직접 크롤링으로 영화 데이터 수집 시작\n');
         
         if (!this.clientId || !this.clientSecret) {
-            console.log('❌ 네이버 API 키가 설정되지 않았습니다.');
+            console.log('[ERROR] 네이버 API 키가 설정되지 않았습니다.');
             return { success: false, message: 'API 키 미설정' };
         }
 
         if (!this.supabase.client) {
-            console.log('❌ Supabase 연결이 되지 않았습니다.');
+            console.log('[ERROR] Supabase 연결이 되지 않았습니다.');
             return { success: false, message: 'Supabase 연결 실패' };
         }
 
@@ -45,17 +45,17 @@ class DirectNaverMovieCrawler {
             errors: []
         };
 
-        console.log(`📊 검색 대상 영화: ${this.popularMovies.length}개`);
+        console.log(`[INFO] 검색 대상 영화: ${this.popularMovies.length}개`);
         
         for (const movieTitle of this.popularMovies) {
             try {
-                console.log(`\n🔍 "${movieTitle}" 검색 중...`);
+                console.log(`\n[SEARCH] "${movieTitle}" 검색 중...`);
                 
                 // 1. 네이버 영화 API 검색
                 const movieData = await this.searchNaverMovie(movieTitle);
                 
                 if (!movieData) {
-                    console.log(`⚠️ "${movieTitle}" 검색 결과 없음`);
+                    console.log(`[WARN] "${movieTitle}" 검색 결과 없음`);
                     continue;
                 }
 
@@ -65,7 +65,7 @@ class DirectNaverMovieCrawler {
                 const exists = await this.checkMovieExists(movieData.title, movieData.pubDate);
                 
                 if (exists) {
-                    console.log(`🔄 "${movieData.title}" 이미 존재함`);
+                    console.log(`[LOADING] "${movieData.title}" 이미 존재함`);
                     results.existingMovies++;
                     continue;
                 }
@@ -74,10 +74,10 @@ class DirectNaverMovieCrawler {
                 const inserted = await this.insertMovieToSupabase(movieData);
                 
                 if (inserted) {
-                    console.log(`✅ "${movieData.title}" (${movieData.pubDate}) 저장 완료`);
+                    console.log(`[SUCCESS] "${movieData.title}" (${movieData.pubDate}) 저장 완료`);
                     results.newMoviesAdded++;
                 } else {
-                    console.log(`❌ "${movieData.title}" 저장 실패`);
+                    console.log(`[ERROR] "${movieData.title}" 저장 실패`);
                     results.errors.push(`${movieTitle}: 저장 실패`);
                 }
 
@@ -85,16 +85,16 @@ class DirectNaverMovieCrawler {
                 await new Promise(resolve => setTimeout(resolve, 150));
 
             } catch (error) {
-                console.error(`❌ "${movieTitle}" 처리 중 오류:`, error.message);
+                console.error(`[ERROR] "${movieTitle}" 처리 중 오류:`, error.message);
                 results.errors.push(`${movieTitle}: ${error.message}`);
             }
         }
 
-        console.log('\n🎉 네이버 크롤링 완료!');
-        console.log(`📊 총 처리: ${results.totalProcessed}개`);
-        console.log(`✅ 새로 추가: ${results.newMoviesAdded}개`);
-        console.log(`🔄 기존 영화: ${results.existingMovies}개`);
-        console.log(`❌ 오류: ${results.errors.length}개`);
+        console.log('\n[PARTY] 네이버 크롤링 완료!');
+        console.log(`[INFO] 총 처리: ${results.totalProcessed}개`);
+        console.log(`[SUCCESS] 새로 추가: ${results.newMoviesAdded}개`);
+        console.log(`[LOADING] 기존 영화: ${results.existingMovies}개`);
+        console.log(`[ERROR] 오류: ${results.errors.length}개`);
 
         return {
             success: true,
@@ -242,15 +242,15 @@ async function executeDirectCrawling() {
     
     // 현재 상태 확인
     const initialCount = await crawler.checkDatabaseStatus();
-    console.log(`📊 크롤링 시작 전 영화 수: ${initialCount}개\n`);
+    console.log(`[INFO] 크롤링 시작 전 영화 수: ${initialCount}개\n`);
     
     // 크롤링 실행
     const result = await crawler.crawlAndInsertMovies();
     
     // 최종 상태 확인
     const finalCount = await crawler.checkDatabaseStatus();
-    console.log(`\n📊 크롤링 완료 후 영화 수: ${finalCount}개`);
-    console.log(`✅ 실제 추가된 영화: ${finalCount - initialCount}개`);
+    console.log(`\n[INFO] 크롤링 완료 후 영화 수: ${finalCount}개`);
+    console.log(`[SUCCESS] 실제 추가된 영화: ${finalCount - initialCount}개`);
     
     return result;
 }
@@ -258,7 +258,7 @@ async function executeDirectCrawling() {
 // 스크립트로 실행시
 if (require.main === module) {
     executeDirectCrawling().catch(error => {
-        console.error('❌ 크롤링 실행 오류:', error);
+        console.error('[ERROR] 크롤링 실행 오류:', error);
         process.exit(1);
     });
 }

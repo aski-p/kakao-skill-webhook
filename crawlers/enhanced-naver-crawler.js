@@ -9,13 +9,13 @@ class EnhancedNaverCrawler {
         this.supabase = new SupabaseClient();
         
         if (!this.clientId || !this.clientSecret) {
-            console.warn('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            console.warn('[WARN] 네이버 API 키가 설정되지 않았습니다.');
         }
     }
 
     // 영화별 상세 평점 및 리뷰 데이터 수집
     async enhanceMovieData(movieId, title) {
-        console.log(`🎬 "${title}" 상세 정보 수집 시작`);
+        console.log(`[MOVIE] "${title}" 상세 정보 수집 시작`);
         
         if (!this.clientId || !this.clientSecret) {
             console.warn('네이버 API 키 없음 - 스킵');
@@ -27,7 +27,7 @@ class EnhancedNaverCrawler {
             const movieData = await this.searchMovieDetails(title);
             
             if (!movieData) {
-                console.log(`⚠️ "${title}" 네이버에서 찾을 수 없음`);
+                console.log(`[WARN] "${title}" 네이버에서 찾을 수 없음`);
                 return { success: false, message: '영화 정보 없음' };
             }
 
@@ -40,7 +40,7 @@ class EnhancedNaverCrawler {
             // 4. 리뷰 데이터 수집 및 저장 (시뮬레이션)
             const reviewData = await this.collectReviewData(movieId, title);
 
-            console.log(`✅ "${title}" 데이터 수집 완료`);
+            console.log(`[SUCCESS] "${title}" 데이터 수집 완료`);
             return {
                 success: true,
                 data: {
@@ -51,7 +51,7 @@ class EnhancedNaverCrawler {
             };
 
         } catch (error) {
-            console.error(`❌ "${title}" 데이터 수집 오류:`, error.message);
+            console.error(`[ERROR] "${title}" 데이터 수집 오류:`, error.message);
             return { success: false, error: error.message };
         }
     }
@@ -168,7 +168,7 @@ class EnhancedNaverCrawler {
                     .update(updateData)
                     .eq('id', movieId);
 
-                console.log(`📊 영화 ${movieId} 기본 정보 업데이트 완료`);
+                console.log(`[INFO] 영화 ${movieId} 기본 정보 업데이트 완료`);
             }
 
         } catch (error) {
@@ -217,7 +217,7 @@ class EnhancedNaverCrawler {
                     .insert([ratingData]);
             }
 
-            console.log(`⭐ "${title}" 평점 데이터 저장 완료`);
+            console.log(`[FAVORITE] "${title}" 평점 데이터 저장 완료`);
             return ratingData;
 
         } catch (error) {
@@ -266,7 +266,7 @@ class EnhancedNaverCrawler {
                     .from('movie_reviews')
                     .insert(sampleReviews);
 
-                console.log(`💬 "${title}" 리뷰 데이터 저장 완료 (${sampleReviews.length}개)`);
+                console.log(`[MSG] "${title}" 리뷰 데이터 저장 완료 (${sampleReviews.length}개)`);
             }
 
             return sampleReviews;
@@ -282,7 +282,7 @@ class EnhancedNaverCrawler {
         console.log(`🚀 전체 영화 데이터 일괄 수집 시작 (최대 ${limit}개)`);
 
         if (!this.supabase.client) {
-            console.log('❌ Supabase 연결 없음');
+            console.log('[ERROR] Supabase 연결 없음');
             return { success: false, message: 'Database connection failed' };
         }
 
@@ -298,7 +298,7 @@ class EnhancedNaverCrawler {
                 return { success: true, message: '처리할 영화 없음', data: { processedCount: 0 } };
             }
 
-            console.log(`📊 처리 대상 영화: ${movies.length}개`);
+            console.log(`[INFO] 처리 대상 영화: ${movies.length}개`);
 
             const results = {
                 processedCount: 0,
@@ -327,14 +327,14 @@ class EnhancedNaverCrawler {
                     results.processedCount++;
                     results.errorCount++;
                     results.errors.push(`${movie.title}: ${error.message}`);
-                    console.error(`❌ "${movie.title}" 처리 중 오류:`, error.message);
+                    console.error(`[ERROR] "${movie.title}" 처리 중 오류:`, error.message);
                 }
             }
 
-            console.log('🎉 일괄 데이터 수집 완료!');
-            console.log(`📊 처리: ${results.processedCount}개`);
-            console.log(`✅ 성공: ${results.successCount}개`);
-            console.log(`❌ 실패: ${results.errorCount}개`);
+            console.log('[PARTY] 일괄 데이터 수집 완료!');
+            console.log(`[INFO] 처리: ${results.processedCount}개`);
+            console.log(`[SUCCESS] 성공: ${results.successCount}개`);
+            console.log(`[ERROR] 실패: ${results.errorCount}개`);
 
             return {
                 success: true,
@@ -343,7 +343,7 @@ class EnhancedNaverCrawler {
             };
 
         } catch (error) {
-            console.error('❌ 일괄 데이터 수집 오류:', error);
+            console.error('[ERROR] 일괄 데이터 수집 오류:', error);
             return { success: false, error: error.message };
         }
     }

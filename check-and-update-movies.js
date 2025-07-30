@@ -5,22 +5,22 @@ const SUPABASE_URL = 'https://dpmoafgaysocfjxlmaum.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwbW9hZmdheXNvY2ZqeGxtYXVtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTQ2NDMzMSwiZXhwIjoyMDY3MDQwMzMxfQ.G2woWTLhGpc0FOEyfABZs7k1wYTSYCaDeYhYtpoY73c';
 
 async function checkAndUpdateMovies() {
-    console.log('🔍 테이블 구조 확인 및 영화 데이터 업데이트');
+    console.log('[SEARCH] 테이블 구조 확인 및 영화 데이터 업데이트');
     
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
     try {
         // 1. critic_reviews 테이블 구조 확인
-        console.log('\n📊 1단계: critic_reviews 테이블 샘플 데이터 확인');
+        console.log('\n[INFO] 1단계: critic_reviews 테이블 샘플 데이터 확인');
         const { data: reviewSample, error: reviewError } = await supabase
             .from('critic_reviews')
             .select('*')
             .limit(3);
         
         if (reviewError) {
-            console.error('❌ critic_reviews 조회 오류:', reviewError.message);
+            console.error('[ERROR] critic_reviews 조회 오류:', reviewError.message);
         } else if (reviewSample && reviewSample.length > 0) {
-            console.log('✅ critic_reviews 테이블 구조:');
+            console.log('[SUCCESS] critic_reviews 테이블 구조:');
             console.log('필드:', Object.keys(reviewSample[0]).join(', '));
             console.log('샘플 데이터:');
             reviewSample.forEach((review, index) => {
@@ -29,27 +29,27 @@ async function checkAndUpdateMovies() {
         }
         
         // 2. movies 테이블에서 몇 개 영화 선택
-        console.log('\n📋 2단계: movies 테이블에서 샘플 영화 선택');
+        console.log('\n[FORM] 2단계: movies 테이블에서 샘플 영화 선택');
         const { data: movies, error: moviesError } = await supabase
             .from('movies')
             .select('id, title, director, release_year')
             .limit(5);
         
         if (moviesError) {
-            console.error('❌ movies 조회 오류:', moviesError.message);
+            console.error('[ERROR] movies 조회 오류:', moviesError.message);
             return;
         }
         
-        console.log(`✅ ${movies.length}개 영화 선택:`);
+        console.log(`[SUCCESS] ${movies.length}개 영화 선택:`);
         movies.forEach((movie, index) => {
             console.log(`  ${index + 1}. ID: ${movie.id}, 제목: "${movie.title}", 감독: ${movie.director}`);
         });
         
         // 3. 각 영화에 대해 박평식, 이동진 평론가 리뷰 업데이트
-        console.log('\n🔄 3단계: 평론가 리뷰 업데이트 (박평식, 이동진 필수 포함)');
+        console.log('\n[LOADING] 3단계: 평론가 리뷰 업데이트 (박평식, 이동진 필수 포함)');
         
         for (const movie of movies) {
-            console.log(`\n🎬 "${movie.title}" (ID: ${movie.id}) 처리 중...`);
+            console.log(`\n[MOVIE] "${movie.title}" (ID: ${movie.id}) 처리 중...`);
             
             // 기존 해당 영화 리뷰 삭제
             const { error: deleteError } = await supabase
@@ -58,11 +58,11 @@ async function checkAndUpdateMovies() {
                 .eq('movie_id', movie.id);
             
             if (deleteError) {
-                console.log(`   ❌ 기존 리뷰 삭제 오류: ${deleteError.message}`);
+                console.log(`   [ERROR] 기존 리뷰 삭제 오류: ${deleteError.message}`);
                 continue;
             }
             
-            console.log('   ✅ 기존 리뷰 삭제 완료');
+            console.log('   [SUCCESS] 기존 리뷰 삭제 완료');
             
             // 새 평론가 리뷰 생성 (ID 없이 - 자동 생성되도록)
             const newReviews = [
@@ -99,9 +99,9 @@ async function checkAndUpdateMovies() {
                 .select('id, critic_name, score');
             
             if (insertError) {
-                console.log(`   ❌ 새 리뷰 추가 오류: ${insertError.message}`);
+                console.log(`   [ERROR] 새 리뷰 추가 오류: ${insertError.message}`);
             } else {
-                console.log(`   ✅ 평론가 리뷰 ${insertedReviews.length}개 추가 완료:`);
+                console.log(`   [SUCCESS] 평론가 리뷰 ${insertedReviews.length}개 추가 완료:`);
                 insertedReviews.forEach((review, index) => {
                     console.log(`      ${index + 1}. ${review.critic_name}: ${review.score}/10 (ID: ${review.id})`);
                 });
@@ -112,7 +112,7 @@ async function checkAndUpdateMovies() {
         }
         
         // 4. 업데이트 결과 확인
-        console.log('\n✅ 4단계: 업데이트 결과 확인');
+        console.log('\n[SUCCESS] 4단계: 업데이트 결과 확인');
         const { data: finalCheck, error: finalError } = await supabase
             .from('movies')
             .select(`
@@ -122,9 +122,9 @@ async function checkAndUpdateMovies() {
             .in('id', movies.map(m => m.id));
         
         if (finalError) {
-            console.log('❌ 최종 확인 오류:', finalError.message);
+            console.log('[ERROR] 최종 확인 오류:', finalError.message);
         } else {
-            console.log('🎉 최종 업데이트 결과:');
+            console.log('[PARTY] 최종 업데이트 결과:');
             finalCheck.forEach((movie, index) => {
                 console.log(`\n${index + 1}. "${movie.title}" (ID: ${movie.id})`);
                 console.log(`   감독: ${movie.director}`);
@@ -135,14 +135,14 @@ async function checkAndUpdateMovies() {
             });
         }
         
-        console.log('\n🎯 테스트 방법:');
+        console.log('\n[TARGET] 테스트 방법:');
         console.log('카카오 챗봇에서 다음과 같이 테스트해보세요:');
         movies.forEach((movie, index) => {
             console.log(`${index + 1}. "${movie.title} 영화평"`);
         });
         
     } catch (error) {
-        console.error('❌ 전체 작업 오류:', error.message);
+        console.error('[ERROR] 전체 작업 오류:', error.message);
     }
 }
 

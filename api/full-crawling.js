@@ -9,7 +9,7 @@ const router = express.Router();
 
 // 전체 크롤링 실행 API
 router.post('/execute-full-crawling', async (req, res) => {
-    console.log('🎬 전체 영화 데이터베이스 구축 API 호출');
+    console.log('[MOVIE] 전체 영화 데이터베이스 구축 API 호출');
     
     const startTime = Date.now();
     let results = {
@@ -45,7 +45,7 @@ router.post('/execute-full-crawling', async (req, res) => {
             .select('*', { count: 'exact', head: true });
             
         results.data.initialMovieCount = initialCount || 0;
-        console.log(`📊 초기 영화 수: ${results.data.initialMovieCount}개`);
+        console.log(`[INFO] 초기 영화 수: ${results.data.initialMovieCount}개`);
         
         // 2. 영화진흥위원회 크롤링
         console.log('2️⃣ 영화진흥위원회 크롤링 시작');
@@ -56,13 +56,13 @@ router.post('/execute-full-crawling', async (req, res) => {
             results.data.koficResults = koficResult;
             
             if (koficResult.success) {
-                console.log(`✅ KOFIC 크롤링 성공: ${koficResult.newMoviesAdded}개 추가`);
+                console.log(`[SUCCESS] KOFIC 크롤링 성공: ${koficResult.newMoviesAdded}개 추가`);
             } else {
-                console.log('⚠️ KOFIC 크롤링 실패:', koficResult.error);
+                console.log('[WARN] KOFIC 크롤링 실패:', koficResult.error);
                 results.data.errors.push(`KOFIC 크롤링: ${koficResult.error}`);
             }
         } catch (error) {
-            console.error('❌ KOFIC 크롤링 예외:', error);
+            console.error('[ERROR] KOFIC 크롤링 예외:', error);
             results.data.errors.push(`KOFIC 예외: ${error.message}`);
         }
         
@@ -74,17 +74,17 @@ router.post('/execute-full-crawling', async (req, res) => {
             
             if (enhancementResult.success) {
                 results.data.naverEnhancementCount = enhancementResult.data.successCount;
-                console.log(`✅ 향상된 크롤링 완료: ${enhancementResult.data.successCount}개 성공`);
+                console.log(`[SUCCESS] 향상된 크롤링 완료: ${enhancementResult.data.successCount}개 성공`);
                 
                 if (enhancementResult.data.errors.length > 0) {
                     results.data.errors.push(...enhancementResult.data.errors.slice(0, 5)); // 최대 5개 오류만 저장
                 }
             } else {
-                console.log('⚠️ 향상된 크롤링 실패:', enhancementResult.error);
+                console.log('[WARN] 향상된 크롤링 실패:', enhancementResult.error);
                 results.data.errors.push(`향상된 크롤링: ${enhancementResult.error}`);
             }
         } catch (error) {
-            console.error('❌ 향상된 크롤링 오류:', error);
+            console.error('[ERROR] 향상된 크롤링 오류:', error);
             results.data.errors.push(`향상된 크롤링: ${error.message}`);
         }
         
@@ -120,16 +120,16 @@ router.post('/execute-full-crawling', async (req, res) => {
         results.success = true;
         results.message = `전체 크롤링 완료! ${moviesAdded}개 영화 추가됨`;
         
-        console.log('🎉 전체 크롤링 완료!');
-        console.log(`📊 최종 영화 수: ${results.data.finalMovieCount}개`);
-        console.log(`📸 포스터: ${results.data.posterCount}개`);
-        console.log(`⭐ 평점: ${results.data.ratingCount}개`);
-        console.log(`💬 리뷰: ${results.data.reviewCount}개`);
+        console.log('[PARTY] 전체 크롤링 완료!');
+        console.log(`[INFO] 최종 영화 수: ${results.data.finalMovieCount}개`);
+        console.log(`[FLASHCAMERA] 포스터: ${results.data.posterCount}개`);
+        console.log(`[FAVORITE] 평점: ${results.data.ratingCount}개`);
+        console.log(`[MSG] 리뷰: ${results.data.reviewCount}개`);
         
         res.json(results);
         
     } catch (error) {
-        console.error('❌ 전체 크롤링 오류:', error);
+        console.error('[ERROR] 전체 크롤링 오류:', error);
         results.data.duration = Date.now() - startTime;
         results.data.errors.push(error.message);
         
@@ -205,7 +205,7 @@ router.get('/crawling-status', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ 상태 확인 오류:', error);
+        console.error('[ERROR] 상태 확인 오류:', error);
         res.status(500).json({
             success: false,
             message: '상태 확인 실패',

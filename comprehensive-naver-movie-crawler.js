@@ -135,17 +135,17 @@ class ComprehensiveNaverMovieCrawler {
         ];
         this.searchKeywords.push(...generalKeywords);
 
-        console.log(`📊 생성된 검색 키워드: ${this.searchKeywords.length}개`);
+        console.log(`[INFO] 생성된 검색 키워드: ${this.searchKeywords.length}개`);
     }
 
     async crawlAllMovies() {
-        console.log('🎬 2010-2025년 모든 영화 네이버 크롤링 시작');
-        console.log(`📊 검색 키워드: ${this.searchKeywords.length}개`);
-        console.log('⏰ 예상 소요 시간: 1-2시간 (API 제한 준수)\n');
+        console.log('[MOVIE] 2010-2025년 모든 영화 네이버 크롤링 시작');
+        console.log(`[INFO] 검색 키워드: ${this.searchKeywords.length}개`);
+        console.log('[CLOCK] 예상 소요 시간: 1-2시간 (API 제한 준수)\n');
         
         // API 키 체크
         if (!this.naverClientId || this.naverClientId === 'YOUR_CLIENT_ID') {
-            console.log('⚠️ 네이버 API 키가 없어서 샘플 데이터로 진행합니다.');
+            console.log('[WARN] 네이버 API 키가 없어서 샘플 데이터로 진행합니다.');
             return this.generateSampleDatabase();
         }
 
@@ -163,11 +163,11 @@ class ComprehensiveNaverMovieCrawler {
 
             const duration = Math.round((Date.now() - startTime) / 1000);
             
-            console.log('\n🎉 네이버 영화 크롤링 완료!');
-            console.log(`📊 총 검색 수행: ${this.results.totalSearched}회`);
-            console.log(`🎬 수집된 영화: ${this.results.totalMovies}개`);
-            console.log(`✅ 성공: ${this.results.successCount}개`);
-            console.log(`❌ 실패: ${this.results.errorCount}개`);
+            console.log('\n[PARTY] 네이버 영화 크롤링 완료!');
+            console.log(`[INFO] 총 검색 수행: ${this.results.totalSearched}회`);
+            console.log(`[MOVIE] 수집된 영화: ${this.results.totalMovies}개`);
+            console.log(`[SUCCESS] 성공: ${this.results.successCount}개`);
+            console.log(`[ERROR] 실패: ${this.results.errorCount}개`);
             console.log(`⏱️ 소요시간: ${Math.floor(duration / 60)}분 ${duration % 60}초`);
 
             return {
@@ -177,7 +177,7 @@ class ComprehensiveNaverMovieCrawler {
             };
 
         } catch (error) {
-            console.error('❌ 크롤링 실패:', error);
+            console.error('[ERROR] 크롤링 실패:', error);
             return {
                 success: false,
                 error: error.message,
@@ -188,13 +188,13 @@ class ComprehensiveNaverMovieCrawler {
 
     // 키워드별 영화 검색
     async searchMoviesByKeywords() {
-        console.log('🔍 키워드별 영화 검색 시작');
+        console.log('[SEARCH] 키워드별 영화 검색 시작');
         
         for (let i = 0; i < this.searchKeywords.length; i++) {
             const keyword = this.searchKeywords[i];
             
             try {
-                console.log(`🔍 [${i + 1}/${this.searchKeywords.length}] "${keyword}" 검색 중...`);
+                console.log(`[SEARCH] [${i + 1}/${this.searchKeywords.length}] "${keyword}" 검색 중...`);
                 
                 // 각 키워드당 10페이지씩 검색 (100개 영화)
                 for (let page = 1; page <= 10; page++) {
@@ -212,31 +212,31 @@ class ComprehensiveNaverMovieCrawler {
                     
                     // 진행 상황 출력
                     if (this.results.totalMovies % 200 === 0 && this.results.totalMovies > 0) {
-                        console.log(`📊 진행 상황: ${this.results.totalMovies}개 영화 수집됨`);
+                        console.log(`[INFO] 진행 상황: ${this.results.totalMovies}개 영화 수집됨`);
                     }
                 }
                 
                 await this.sleep(200); // 키워드 간 대기
 
             } catch (error) {
-                console.error(`❌ "${keyword}" 검색 오류:`, error.message);
+                console.error(`[ERROR] "${keyword}" 검색 오류:`, error.message);
                 this.results.errors.push(`${keyword}: ${error.message}`);
             }
         }
 
-        console.log(`🔍 키워드 검색 완료: ${this.results.totalMovies}개 영화 수집`);
+        console.log(`[SEARCH] 키워드 검색 완료: ${this.results.totalMovies}개 영화 수집`);
     }
 
     // 추가 페이지네이션 검색
     async searchAdditionalPages() {
-        console.log('\n🎯 추가 페이지네이션 검색 시작');
+        console.log('\n[TARGET] 추가 페이지네이션 검색 시작');
         
         // 주요 키워드들에 대해 더 깊은 페이지 검색
         const deepSearchKeywords = ['영화', 'movie', '한국영화', '미국영화', '최신영화', '인기영화'];
 
         for (const keyword of deepSearchKeywords) {
             try {
-                console.log(`🎯 "${keyword}" 깊은 검색 중...`);
+                console.log(`[TARGET] "${keyword}" 깊은 검색 중...`);
                 
                 // 20페이지까지 검색
                 for (let page = 11; page <= 20; page++) {
@@ -256,11 +256,11 @@ class ComprehensiveNaverMovieCrawler {
                 await this.sleep(300);
 
             } catch (error) {
-                console.error(`❌ 깊은 검색 오류 (${keyword}):`, error.message);
+                console.error(`[ERROR] 깊은 검색 오류 (${keyword}):`, error.message);
             }
         }
 
-        console.log(`🎯 추가 검색 완료: 총 ${this.results.totalMovies}개 영화`);
+        console.log(`[TARGET] 추가 검색 완료: 총 ${this.results.totalMovies}개 영화`);
     }
 
     // 네이버 영화 검색 API 호출
@@ -327,7 +327,7 @@ class ComprehensiveNaverMovieCrawler {
                 this.results.totalMovies++;
                 
                 if (this.results.totalMovies % 100 === 0) {
-                    console.log(`📊 현재까지 ${this.results.totalMovies}개 영화 수집됨`);
+                    console.log(`[INFO] 현재까지 ${this.results.totalMovies}개 영화 수집됨`);
                 }
             }
 
@@ -395,7 +395,7 @@ class ComprehensiveNaverMovieCrawler {
 
     // 샘플 데이터베이스 생성 (API 키가 없을 때)
     generateSampleDatabase() {
-        console.log('📝 샘플 데이터베이스 생성 시작');
+        console.log('[MEMO] 샘플 데이터베이스 생성 시작');
         
         // 2010-2025년 대표 영화들을 연도별로 생성
         const sampleMovies = [];
@@ -458,7 +458,7 @@ class ComprehensiveNaverMovieCrawler {
         this.results.totalMovies = sampleMovies.length;
         this.results.successCount = sampleMovies.length;
         
-        console.log(`📊 샘플 영화 생성 완료: ${sampleMovies.length}개`);
+        console.log(`[INFO] 샘플 영화 생성 완료: ${sampleMovies.length}개`);
         
         return this.generateSQLInserts();
     }
@@ -629,8 +629,8 @@ class ComprehensiveNaverMovieCrawler {
 
     // SQL INSERT문 생성
     async generateSQLInserts() {
-        console.log('\n📝 SQL INSERT문 생성 시작');
-        console.log(`📊 대상 영화: ${this.movies.length}개`);
+        console.log('\n[MEMO] SQL INSERT문 생성 시작');
+        console.log(`[INFO] 대상 영화: ${this.movies.length}개`);
         
         let movieId = 1;
         
@@ -651,7 +651,7 @@ class ComprehensiveNaverMovieCrawler {
                 this.results.successCount++;
                 
             } catch (error) {
-                console.error(`❌ SQL 생성 오류 (${movie.title}):`, error.message);
+                console.error(`[ERROR] SQL 생성 오류 (${movie.title}):`, error.message);
                 this.results.errorCount++;
             }
         });
@@ -659,9 +659,9 @@ class ComprehensiveNaverMovieCrawler {
         // SQL 파일 저장
         await this.saveSQLFile();
         
-        console.log(`✅ SQL INSERT문 생성 완료:`);
-        console.log(`   📽️ 영화: ${this.movieInserts.length}개`);
-        console.log(`   📝 전문가 리뷰: ${this.reviewInserts.length}개`);
+        console.log(`[SUCCESS] SQL INSERT문 생성 완료:`);
+        console.log(`   [PROJECTOR] 영화: ${this.movieInserts.length}개`);
+        console.log(`   [MEMO] 전문가 리뷰: ${this.reviewInserts.length}개`);
     }
 
     // 영화 INSERT문 생성
@@ -805,9 +805,9 @@ VALUES (${values.join(', ')});`;
         
         sqlContent += `\nCOMMIT;\n\n`;
         sqlContent += `-- INSERT 완료\n`;
-        sqlContent += `-- 📊 총 ${this.movieInserts.length}개 영화 + ${this.reviewInserts.length}개 전문가 리뷰 추가됨\n`;
+        sqlContent += `-- [INFO] 총 ${this.movieInserts.length}개 영화 + ${this.reviewInserts.length}개 전문가 리뷰 추가됨\n`;
         sqlContent += `-- \n`;
-        sqlContent += `-- 💡 사용법:\n`;
+        sqlContent += `-- [TIP] 사용법:\n`;
         sqlContent += `-- 1. Supabase SQL 에디터에서 실행\n`;
         sqlContent += `-- 2. 카카오 스킬에서 영화 검색 시 전문가 리뷰도 함께 제공\n`;
         sqlContent += `-- 3. 예: "기생충 영화평", "2019년 영화", "봉준호 감독", "액션 영화 추천" 등\n`;
@@ -817,13 +817,13 @@ VALUES (${values.join(', ')});`;
         fs.writeFileSync(filepath, sqlContent, 'utf8');
         
         console.log(`\n📄 SQL 파일 생성 완료: ${filename}`);
-        console.log(`📍 파일 위치: ${filepath}`);
-        console.log(`📊 총 INSERT문: ${this.movieInserts.length + this.reviewInserts.length}개`);
+        console.log(`[LOCATION] 파일 위치: ${filepath}`);
+        console.log(`[INFO] 총 INSERT문: ${this.movieInserts.length + this.reviewInserts.length}개`);
         
         // 통계 출력
-        console.log('\n📊 최종 통계:');
-        console.log(`🎬 영화: ${this.movieInserts.length}개`);
-        console.log(`📝 전문가 리뷰: ${this.reviewInserts.length}개`);
+        console.log('\n[INFO] 최종 통계:');
+        console.log(`[MOVIE] 영화: ${this.movieInserts.length}개`);
+        console.log(`[MEMO] 전문가 리뷰: ${this.reviewInserts.length}개`);
         Object.entries(stats).forEach(([country, count]) => {
             console.log(`   ${country}: ${count}개 영화`);
         });
@@ -943,10 +943,10 @@ VALUES (${values.join(', ')});`;
 
 // 실행 함수
 async function main() {
-    console.log('🎬 2010-2025년 전체 영화 네이버 크롤링 + 전문가 평점 생성기');
+    console.log('[MOVIE] 2010-2025년 전체 영화 네이버 크롤링 + 전문가 평점 생성기');
     console.log('='.repeat(80));
-    console.log('📊 이동진, 박평식 고정 + 랜덤 전문가 2명 리뷰 포함');
-    console.log('⏰ 예상 소요 시간: 1-2시간 (네이버 API 사용시)\n');
+    console.log('[INFO] 이동진, 박평식 고정 + 랜덤 전문가 2명 리뷰 포함');
+    console.log('[CLOCK] 예상 소요 시간: 1-2시간 (네이버 API 사용시)\n');
     
     const crawler = new ComprehensiveNaverMovieCrawler();
     
@@ -954,17 +954,17 @@ async function main() {
         const result = await crawler.crawlAllMovies();
         
         if (result.success) {
-            console.log('\n🎉 전체 프로세스 완료!');
-            console.log('📋 다음 단계:');
+            console.log('\n[PARTY] 전체 프로세스 완료!');
+            console.log('[FORM] 다음 단계:');
             console.log('1. 생성된 .sql 파일을 Supabase SQL 에디터에 복사');
             console.log('2. Run 버튼으로 실행');
             console.log('3. 수천 개의 영화 + 전문가 리뷰 데이터 저장');
             console.log('4. 카카오 스킬에서 풍부한 영화 정보 + 전문가 평점 제공');
-            console.log('\n🎯 이제 2010-2025년 모든 영화에 대해 전문가 리뷰까지 제공 가능!');
+            console.log('\n[TARGET] 이제 2010-2025년 모든 영화에 대해 전문가 리뷰까지 제공 가능!');
         }
         
     } catch (error) {
-        console.error('❌ 실행 오류:', error);
+        console.error('[ERROR] 실행 오류:', error);
     }
 }
 

@@ -43,7 +43,7 @@ class RealMovieDatabaseGenerator {
 
     // 실제 영화 데이터베이스 생성
     generateRealMovieDatabase() {
-        console.log('🎬 실제 영화 데이터베이스 생성 시작...');
+        console.log('[MOVIE] 실제 영화 데이터베이스 생성 시작...');
         
         // 한국 영화 (2010-2025)
         this.addKoreanMovies();
@@ -60,7 +60,7 @@ class RealMovieDatabaseGenerator {
         // 애니메이션 영화
         this.addAnimationMovies();
         
-        console.log(`✅ 총 ${this.movies.size}개 실제 영화 생성 완료`);
+        console.log(`[SUCCESS] 총 ${this.movies.size}개 실제 영화 생성 완료`);
         return Array.from(this.movies.values());
     }
 
@@ -229,7 +229,7 @@ class RealMovieDatabaseGenerator {
 
     // 애니메이션 영화
     addAnimationMovies() {
-        console.log('🎨 실제 애니메이션 영화 데이터 추가 중...');
+        console.log('[ART] 실제 애니메이션 영화 데이터 추가 중...');
         
         const realAnimationMovies = [
             { title: '겨울왕국', english_title: 'Frozen', director: '크리스 벅', cast_members: ['크리스틴 벨', '이디나 멘젤'], genre: '애니메이션, 뮤지컬', release_year: 2013, runtime_minutes: 102, country: '미국', naver_rating: 8.2 },
@@ -244,7 +244,7 @@ class RealMovieDatabaseGenerator {
 
     // 전문가 리뷰 생성
     generateReviews(movies) {
-        console.log('📝 전문가 리뷰 생성 중...');
+        console.log('[MEMO] 전문가 리뷰 생성 중...');
         const reviews = [];
         
         movies.forEach(movie => {
@@ -347,8 +347,8 @@ class RealMovieDatabaseGenerator {
         
         sql += `\nCOMMIT;\n\n`;
         sql += `-- INSERT 완료\n`;
-        sql += `-- 📊 총 ${movies.length}개 실제 영화 + ${reviews.length}개 전문가 리뷰 추가됨\n`;
-        sql += `-- 🎯 기존 9개 영화 + 새로운 ${movies.length}개 = 총 ${9 + movies.length}개 영화\n`;
+        sql += `-- [INFO] 총 ${movies.length}개 실제 영화 + ${reviews.length}개 전문가 리뷰 추가됨\n`;
+        sql += `-- [TARGET] 기존 9개 영화 + 새로운 ${movies.length}개 = 총 ${9 + movies.length}개 영화\n`;
         
         return { sql, movieCount: movies.length, reviewCount: reviews.length };
     }
@@ -364,13 +364,13 @@ class RealMovieDatabaseGenerator {
         
         fs.writeFileSync(filepath, sql);
         
-        console.log(`\n🎉 실제 영화 데이터베이스 생성 완료!`);
+        console.log(`\n[PARTY] 실제 영화 데이터베이스 생성 완료!`);
         console.log(`📁 파일명: ${filename}`);
-        console.log(`📊 실제 영화: ${movieCount}개`);
-        console.log(`📝 전문가 리뷰: ${reviewCount}개`);
+        console.log(`[INFO] 실제 영화: ${movieCount}개`);
+        console.log(`[MEMO] 전문가 리뷰: ${reviewCount}개`);
         console.log(`📈 총 영화 수: ${9 + movieCount}개 (기존 9개 + 신규 ${movieCount}개)`);
         console.log(`💾 파일 크기: ${Math.round(sql.length / 1024)}KB`);
-        console.log(`\n💡 사용법:`);
+        console.log(`\n[TIP] 사용법:`);
         console.log(`1. ./open-sql.sh (VS Code로 파일 열기)`);
         console.log(`2. Supabase SQL 에디터에서 실행`);
         console.log(`3. 기존 9개 영화는 유지되고 실제 영화들이 추가됩니다`);

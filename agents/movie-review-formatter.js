@@ -14,7 +14,7 @@ class MovieReviewFormatter {
         const startTime = Date.now();
         this.formatStats.totalFormats++;
         
-        console.log(`📝 영화 리뷰 포맷팅 시작: "${movieData.title}"`);
+        console.log(`[MEMO] 영화 리뷰 포맷팅 시작: "${movieData.title}"`);
         
         try {
             if (!movieData) {
@@ -27,7 +27,7 @@ class MovieReviewFormatter {
             const processingTime = Date.now() - startTime;
             this.updateProcessingTime(processingTime);
             
-            console.log(`✅ 리뷰 포맷팅 완료 (${processingTime}ms)`);
+            console.log(`[SUCCESS] 리뷰 포맷팅 완료 (${processingTime}ms)`);
             
             return {
                 success: true,
@@ -41,14 +41,14 @@ class MovieReviewFormatter {
             };
             
         } catch (error) {
-            console.error(`❌ 리뷰 포맷팅 오류: ${error.message}`);
+            console.error(`[ERROR] 리뷰 포맷팅 오류: ${error.message}`);
             return this.createErrorResponse(searchTerm, error.message);
         }
     }
     
     // 종합 영화평 생성
     async generateComprehensiveReview(movieData) {
-        let review = `🎬 "${movieData.title}" 영화평 종합\n\n`;
+        let review = `[MOVIE] "${movieData.title}" 영화평 종합\n\n`;
         
         // 1. 기본 정보 섹션
         review += this.formatBasicInfo(movieData);
@@ -70,27 +70,27 @@ class MovieReviewFormatter {
     
     // 기본 정보 포맷팅
     formatBasicInfo(movieData) {
-        let info = `📽️ 기본 정보\n`;
+        let info = `[PROJECTOR] 기본 정보\n`;
         
         if (movieData.director) {
-            info += `🎭 감독: ${movieData.director}\n`;
+            info += `[DRAMA] 감독: ${movieData.director}\n`;
         }
         
         if (movieData.cast && movieData.cast.length > 0) {
             const castList = movieData.cast.slice(0, 5).join(', ');
-            info += `👥 출연: ${castList}${movieData.cast.length > 5 ? ' 외' : ''}\n`;
+            info += `[BUSTSINSILHOUETTE] 출연: ${castList}${movieData.cast.length > 5 ? ' 외' : ''}\n`;
         }
         
         if (movieData.genre) {
-            info += `🎪 장르: ${movieData.genre}\n`;
+            info += `[FUN] 장르: ${movieData.genre}\n`;
         }
         
         if (movieData.releaseYear) {
-            info += `📅 개봉: ${movieData.releaseYear}년\n`;
+            info += `[TOMORROW] 개봉: ${movieData.releaseYear}년\n`;
         }
         
         if (movieData.runtime && movieData.runtime > 0) {
-            info += `⏰ 상영시간: ${movieData.runtime}분\n`;
+            info += `[CLOCK] 상영시간: ${movieData.runtime}분\n`;
         }
         
         if (movieData.country) {
@@ -109,18 +109,18 @@ class MovieReviewFormatter {
             const rating = parseFloat(movieData.rating);
             const stars = this.convertToStars(rating);
             
-            ratingSection += `⭐ 네이버 평점: ${rating}/10 ${stars}\n`;
+            ratingSection += `[FAVORITE] 네이버 평점: ${rating}/10 ${stars}\n`;
             
             // 평점 해석
             const interpretation = this.interpretRating(rating);
             ratingSection += `${interpretation.emoji} ${interpretation.message}\n\n`;
         } else {
-            ratingSection += `⭐ 네이버 평점: 정보 수집 중\n\n`;
+            ratingSection += `[FAVORITE] 네이버 평점: 정보 수집 중\n\n`;
         }
         
         // 종합 평점 (여러 소스 평균)
         if (movieData.overallRating && movieData.overallRating !== movieData.rating) {
-            ratingSection += `🎯 종합 평점: ${movieData.overallRating}/10\n\n`;
+            ratingSection += `[TARGET] 종합 평점: ${movieData.overallRating}/10\n\n`;
         }
         
         return ratingSection;
@@ -128,7 +128,7 @@ class MovieReviewFormatter {
     
     // 평론가 리뷰 포맷팅
     formatCriticReviews(movieData) {
-        let criticSection = `👨‍💼 평론가 평가:\n`;
+        let criticSection = `[MAN]‍💼 평론가 평가:\n`;
         
         if (movieData.criticReviews && movieData.criticReviews.length > 0) {
             movieData.criticReviews.slice(0, 3).forEach((critic, index) => {
@@ -159,7 +159,7 @@ class MovieReviewFormatter {
     
     // 관객 평가 포맷팅
     formatAudienceReviews(movieData) {
-        let audienceSection = `👥 관객 실제 평가:\n`;
+        let audienceSection = `[BUSTSINSILHOUETTE] 관객 실제 평가:\n`;
         
         // 기본 관객 평가 생성 (실제 데이터가 없으므로)
         const audienceReviews = this.generateAudienceReviews(movieData);
@@ -174,18 +174,18 @@ class MovieReviewFormatter {
     
     // 요약 정보 섹션
     formatSummarySection(movieData) {
-        let summary = `📊 영화 정보 요약:\n`;
+        let summary = `[INFO] 영화 정보 요약:\n`;
         
         if (movieData.description) {
             let desc = movieData.description;
             if (desc.length > 100) {
                 desc = desc.substring(0, 100) + '...';
             }
-            summary += `📖 ${desc}\n\n`;
+            summary += `[OPENBOOK] ${desc}\n\n`;
         }
         
-        summary += `🕐 정보 수집: ${new Date().toLocaleString('ko-KR')}\n`;
-        summary += `📍 movies 테이블에서 수집한 실제 데이터`;
+        summary += `[TIME] 정보 수집: ${new Date().toLocaleString('ko-KR')}\n`;
+        summary += `[LOCATION] movies 테이블에서 수집한 실제 데이터`;
         
         return summary;
     }
@@ -204,13 +204,13 @@ class MovieReviewFormatter {
     // 평점 해석
     interpretRating(rating) {
         if (rating >= 9.0) {
-            return { emoji: '🏆', message: '최고 수준의 명작! 반드시 감상해야 할 작품' };
+            return { emoji: '[TROPHY]', message: '최고 수준의 명작! 반드시 감상해야 할 작품' };
         } else if (rating >= 8.0) {
             return { emoji: '💫', message: '매우 높은 평점! 강력 추천작' };
         } else if (rating >= 7.0) {
-            return { emoji: '👍', message: '좋은 평점의 추천작' };
+            return { emoji: '[THUMBSUP]', message: '좋은 평점의 추천작' };
         } else if (rating >= 6.0) {
-            return { emoji: '😊', message: '무난한 평점의 볼만한 작품' };
+            return { emoji: '[SMILE]', message: '무난한 평점의 볼만한 작품' };
         } else if (rating >= 5.0) {
             return { emoji: '😐', message: '평범한 평점' };
         } else {
@@ -340,7 +340,7 @@ class MovieReviewFormatter {
             success: false,
             type: 'movie_not_found',
             data: {
-                message: `🎬 "${searchTerm}" 영화평 검색 결과\n\n❌ 해당 영화를 찾을 수 없습니다.\n\n💡 검색 팁:\n• 정확한 영화 제목으로 검색해주세요\n• 한글 또는 영어 제목으로 시도해보세요\n• 띄어쓰기나 특수문자를 확인해주세요\n\n예시:\n• "기생충 영화평"\n• "어벤져스 평점"\n• "탑건 매버릭 리뷰"`
+                message: `[MOVIE] "${searchTerm}" 영화평 검색 결과\n\n[ERROR] 해당 영화를 찾을 수 없습니다.\n\n[TIP] 검색 팁:\n• 정확한 영화 제목으로 검색해주세요\n• 한글 또는 영어 제목으로 시도해보세요\n• 띄어쓰기나 특수문자를 확인해주세요\n\n예시:\n• "기생충 영화평"\n• "어벤져스 평점"\n• "탑건 매버릭 리뷰"`
             }
         };
     }
@@ -351,7 +351,7 @@ class MovieReviewFormatter {
             success: false,
             type: 'movie_review_error',
             data: {
-                message: `🎬 "${searchTerm}" 영화평 처리 중 오류 발생\n\n❌ 오류: ${errorMessage}\n\n🔄 잠시 후 다시 시도해주시거나, 다른 영화 제목으로 검색해보세요.`
+                message: `[MOVIE] "${searchTerm}" 영화평 처리 중 오류 발생\n\n[ERROR] 오류: ${errorMessage}\n\n[LOADING] 잠시 후 다시 시도해주시거나, 다른 영화 제목으로 검색해보세요.`
             }
         };
     }

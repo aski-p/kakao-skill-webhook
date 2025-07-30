@@ -9,13 +9,13 @@ class KoficMovieCrawler {
         this.supabase = new SupabaseClient();
         
         if (!this.apiKey) {
-            console.warn('⚠️ KOFIC_API_KEY 환경변수가 설정되지 않았습니다.');
+            console.warn('[WARN] KOFIC_API_KEY 환경변수가 설정되지 않았습니다.');
         }
     }
 
     // 전체 영화 목록 수집 (박스오피스 + 영화 상세정보)
     async crawlAllMovies() {
-        console.log('🎬 영화진흥위원회 전체 영화 데이터 수집 시작');
+        console.log('[MOVIE] 영화진흥위원회 전체 영화 데이터 수집 시작');
         
         if (!this.apiKey) {
             throw new Error('KOFIC_API_KEY가 설정되지 않았습니다.');
@@ -33,17 +33,17 @@ class KoficMovieCrawler {
             const currentYear = new Date().getFullYear();
             const startYear = currentYear - 10;
 
-            console.log(`📅 ${startYear}년 ~ ${currentYear}년 영화 데이터 수집`);
+            console.log(`[TOMORROW] ${startYear}년 ~ ${currentYear}년 영화 데이터 수집`);
 
             for (let year = startYear; year <= currentYear; year++) {
-                console.log(`\n📊 ${year}년 영화 수집 중...`);
+                console.log(`\n[INFO] ${year}년 영화 수집 중...`);
                 
                 try {
                     await this.crawlMoviesByYear(year, results);
                     // API 호출 간격 조절 (과부하 방지)
                     await this.sleep(500);
                 } catch (error) {
-                    console.error(`❌ ${year}년 데이터 수집 오류:`, error.message);
+                    console.error(`[ERROR] ${year}년 데이터 수집 오류:`, error.message);
                     results.errors.push(`${year}년: ${error.message}`);
                 }
             }
@@ -51,13 +51,13 @@ class KoficMovieCrawler {
             // 2. 영화 상세 정보 보완
             await this.enrichMovieDetails(results);
 
-            console.log('\n🎉 영화진흥위원회 데이터 수집 완료');
-            console.log(`📊 총 처리: ${results.totalProcessed}개`);
-            console.log(`✅ 신규 추가: ${results.newMoviesAdded}개`);
-            console.log(`🔄 기존 영화: ${results.existingMovies}개`);
+            console.log('\n[PARTY] 영화진흥위원회 데이터 수집 완료');
+            console.log(`[INFO] 총 처리: ${results.totalProcessed}개`);
+            console.log(`[SUCCESS] 신규 추가: ${results.newMoviesAdded}개`);
+            console.log(`[LOADING] 기존 영화: ${results.existingMovies}개`);
 
             if (results.errors.length > 0) {
-                console.log(`⚠️ 오류 발생: ${results.errors.length}건`);
+                console.log(`[WARN] 오류 발생: ${results.errors.length}건`);
             }
 
             return {
@@ -66,7 +66,7 @@ class KoficMovieCrawler {
             };
 
         } catch (error) {
-            console.error('❌ 영화진흥위원회 크롤링 실패:', error);
+            console.error('[ERROR] 영화진흥위원회 크롤링 실패:', error);
             return {
                 success: false,
                 error: error.message,
@@ -91,7 +91,7 @@ class KoficMovieCrawler {
                 }
 
             } catch (error) {
-                console.error(`❌ ${year}년 ${month}월 데이터 오류:`, error.message);
+                console.error(`[ERROR] ${year}년 ${month}월 데이터 오류:`, error.message);
                 results.errors.push(`${year}-${month}: ${error.message}`);
             }
         }
@@ -119,7 +119,7 @@ class KoficMovieCrawler {
             return [];
 
         } catch (error) {
-            console.error(`❌ 박스오피스 API 오류 (${targetDate}):`, error.message);
+            console.error(`[ERROR] 박스오피스 API 오류 (${targetDate}):`, error.message);
             return [];
         }
     }
@@ -133,7 +133,7 @@ class KoficMovieCrawler {
             const movieDetail = await this.getMovieDetail(boxOfficeMovie.movieCd);
             
             if (!movieDetail) {
-                console.log(`⚠️ 영화 상세 정보 없음: ${boxOfficeMovie.movieNm}`);
+                console.log(`[WARN] 영화 상세 정보 없음: ${boxOfficeMovie.movieNm}`);
                 return;
             }
 
@@ -153,11 +153,11 @@ class KoficMovieCrawler {
             
             if (success) {
                 results.newMoviesAdded++;
-                console.log(`✅ 저장 완료: ${movieDetail.movieNm} (${movieDetail.prdtYear})`);
+                console.log(`[SUCCESS] 저장 완료: ${movieDetail.movieNm} (${movieDetail.prdtYear})`);
             }
 
         } catch (error) {
-            console.error(`❌ 영화 처리 오류:`, error.message);
+            console.error(`[ERROR] 영화 처리 오류:`, error.message);
             results.errors.push(`${boxOfficeMovie?.movieNm}: ${error.message}`);
         }
     }
@@ -183,7 +183,7 @@ class KoficMovieCrawler {
             return null;
 
         } catch (error) {
-            console.error(`❌ 영화 상세 정보 API 오류 (${movieCd}):`, error.message);
+            console.error(`[ERROR] 영화 상세 정보 API 오류 (${movieCd}):`, error.message);
             return null;
         }
     }
@@ -278,7 +278,7 @@ class KoficMovieCrawler {
 
     // 영화 상세 정보 보완 (네이버 API 활용)
     async enrichMovieDetails(results) {
-        console.log('\n🔍 영화 상세 정보 보완 시작...');
+        console.log('\n[SEARCH] 영화 상세 정보 보완 시작...');
         
         try {
             // 포스터가 없는 영화들 조회
@@ -294,7 +294,7 @@ class KoficMovieCrawler {
                 return;
             }
 
-            console.log(`📸 포스터 정보 보완 대상: ${moviesNeedPoster.length}개`);
+            console.log(`[FLASHCAMERA] 포스터 정보 보완 대상: ${moviesNeedPoster.length}개`);
 
             const NaverMovieCrawler = require('./naver-movie-crawler');
             const naverCrawler = new NaverMovieCrawler();
@@ -313,7 +313,7 @@ class KoficMovieCrawler {
                             })
                             .eq('id', movie.id);
 
-                        console.log(`📸 포스터 추가: ${movie.title}`);
+                        console.log(`[FLASHCAMERA] 포스터 추가: ${movie.title}`);
                     }
 
                     await this.sleep(500); // API 호출 간격

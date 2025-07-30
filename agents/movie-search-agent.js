@@ -24,12 +24,12 @@ class MovieSearchAgent {
             
             if (supabaseUrl && supabaseKey) {
                 this.supabase = createClient(supabaseUrl, supabaseKey);
-                console.log('✅ 영화 검색 에이전트: Supabase 연결 성공');
+                console.log('[SUCCESS] 영화 검색 에이전트: Supabase 연결 성공');
             } else {
-                console.log('❌ 영화 검색 에이전트: Supabase 환경변수 누락');
+                console.log('[ERROR] 영화 검색 에이전트: Supabase 환경변수 누락');
             }
         } catch (error) {
-            console.error('❌ 영화 검색 에이전트: Supabase 초기화 실패:', error.message);
+            console.error('[ERROR] 영화 검색 에이전트: Supabase 초기화 실패:', error.message);
         }
     }
     
@@ -38,7 +38,7 @@ class MovieSearchAgent {
         const startTime = Date.now();
         this.searchStats.totalSearches++;
         
-        console.log(`🎬 영화 검색 에이전트 시작: "${movieTitle}"`);
+        console.log(`[MOVIE] 영화 검색 에이전트 시작: "${movieTitle}"`);
         
         try {
             // 1단계: 정확한 제목 매칭 우선 시도
@@ -67,25 +67,25 @@ class MovieSearchAgent {
                 const responseTime = Date.now() - startTime;
                 this.updateResponseTime(responseTime);
                 
-                console.log(`✅ 영화 검색 성공: "${detailedResult.title}" (${responseTime}ms)`);
+                console.log(`[SUCCESS] 영화 검색 성공: "${detailedResult.title}" (${responseTime}ms)`);
                 return detailedResult;
             } else {
-                console.log(`❌ 영화 검색 실패: "${movieTitle}"`);
+                console.log(`[ERROR] 영화 검색 실패: "${movieTitle}"`);
                 return null;
             }
             
         } catch (error) {
-            console.error(`❌ 영화 검색 에이전트 오류: ${error.message}`);
+            console.error(`[ERROR] 영화 검색 에이전트 오류: ${error.message}`);
             return null;
         }
     }
     
     // 1단계: 정확한 제목 매칭
     async exactTitleSearch(movieTitle) {
-        console.log(`🎯 정확한 제목 매칭 검색: "${movieTitle}"`);
+        console.log(`[TARGET] 정확한 제목 매칭 검색: "${movieTitle}"`);
         
         if (!this.supabase) {
-            console.log('⚠️ Supabase 연결 없음 - 하드코딩 데이터 사용');
+            console.log('[WARN] Supabase 연결 없음 - 하드코딩 데이터 사용');
             return this.searchInHardcodedData(movieTitle);
         }
         
@@ -101,25 +101,25 @@ class MovieSearchAgent {
                 .limit(1);
             
             if (error) {
-                console.error('❌ 정확한 제목 검색 오류:', error.message);
+                console.error('[ERROR] 정확한 제목 검색 오류:', error.message);
                 return null;
             }
             
             if (data && data.length > 0) {
-                console.log(`✅ 정확한 제목 매칭 성공: "${data[0].title}"`);
+                console.log(`[SUCCESS] 정확한 제목 매칭 성공: "${data[0].title}"`);
                 return data[0];
             }
             
             return null;
         } catch (error) {
-            console.error('❌ 정확한 제목 검색 예외:', error.message);
+            console.error('[ERROR] 정확한 제목 검색 예외:', error.message);
             return null;
         }
     }
     
     // 2단계: 부분 매칭 검색
     async partialTitleSearch(movieTitle) {
-        console.log(`🔍 부분 매칭 검색: "${movieTitle}"`);
+        console.log(`[SEARCH] 부분 매칭 검색: "${movieTitle}"`);
         
         if (!this.supabase) {
             return this.searchInHardcodedData(movieTitle);
@@ -138,31 +138,31 @@ class MovieSearchAgent {
                 .limit(5);
             
             if (error) {
-                console.error('❌ 부분 매칭 검색 오류:', error.message);
+                console.error('[ERROR] 부분 매칭 검색 오류:', error.message);
                 return null;
             }
             
             if (data && data.length > 0) {
                 // 가장 유사한 제목 선택
                 const bestMatch = this.findBestMatch(movieTitle, data);
-                console.log(`✅ 부분 매칭 성공: "${bestMatch.title}"`);
+                console.log(`[SUCCESS] 부분 매칭 성공: "${bestMatch.title}"`);
                 return bestMatch;
             }
             
             return null;
         } catch (error) {
-            console.error('❌ 부분 매칭 검색 예외:', error.message);
+            console.error('[ERROR] 부분 매칭 검색 예외:', error.message);
             return null;
         }
     }
     
     // 3단계: 유사 제목 검색 (한글/영어 변환 포함)
     async similarTitleSearch(movieTitle) {
-        console.log(`🔄 유사 제목 검색: "${movieTitle}"`);
+        console.log(`[LOADING] 유사 제목 검색: "${movieTitle}"`);
         
         // 검색 변형 생성
         const searchVariants = this.generateSearchVariants(movieTitle);
-        console.log(`🎲 검색 변형들: ${searchVariants.join(', ')}`);
+        console.log(`[DICE] 검색 변형들: ${searchVariants.join(', ')}`);
         
         if (!this.supabase) {
             // 하드코딩 데이터에서 검색
@@ -190,21 +190,21 @@ class MovieSearchAgent {
                 
                 if (!error && data && data.length > 0) {
                     const bestMatch = this.findBestMatch(movieTitle, data);
-                    console.log(`✅ 유사 제목 매칭 성공: "${bestMatch.title}" (변형: "${variant}")`);
+                    console.log(`[SUCCESS] 유사 제목 매칭 성공: "${bestMatch.title}" (변형: "${variant}")`);
                     return bestMatch;
                 }
             }
             
             return null;
         } catch (error) {
-            console.error('❌ 유사 제목 검색 예외:', error.message);
+            console.error('[ERROR] 유사 제목 검색 예외:', error.message);
             return null;
         }
     }
     
     // 4단계: 키워드 기반 검색
     async keywordBasedSearch(movieTitle) {
-        console.log(`🏷️ 키워드 기반 검색: "${movieTitle}"`);
+        console.log(`[LABEL] 키워드 기반 검색: "${movieTitle}"`);
         
         if (!this.supabase) {
             return this.searchInHardcodedData(movieTitle);
@@ -223,26 +223,26 @@ class MovieSearchAgent {
                 .limit(3);
             
             if (error) {
-                console.error('❌ 키워드 검색 오류:', error.message);
+                console.error('[ERROR] 키워드 검색 오류:', error.message);
                 return null;
             }
             
             if (data && data.length > 0) {
                 const bestMatch = this.findBestMatch(movieTitle, data);
-                console.log(`✅ 키워드 검색 성공: "${bestMatch.title}"`);
+                console.log(`[SUCCESS] 키워드 검색 성공: "${bestMatch.title}"`);
                 return bestMatch;
             }
             
             return null;
         } catch (error) {
-            console.error('❌ 키워드 검색 예외:', error.message);
+            console.error('[ERROR] 키워드 검색 예외:', error.message);
             return null;
         }
     }
     
     // 영화 상세 정보 및 리뷰 수집
     async getMovieDetails(movieData) {
-        console.log(`📊 영화 상세 정보 수집: "${movieData.title}"`);
+        console.log(`[INFO] 영화 상세 정보 수집: "${movieData.title}"`);
         
         try {
             // 영화 기본 정보
@@ -270,7 +270,7 @@ class MovieSearchAgent {
             return movieDetails;
             
         } catch (error) {
-            console.error('❌ 상세 정보 수집 오류:', error.message);
+            console.error('[ERROR] 상세 정보 수집 오류:', error.message);
             return movieData;
         }
     }
@@ -290,13 +290,13 @@ class MovieSearchAgent {
                 .limit(5);
             
             if (error) {
-                console.error('❌ 리뷰 수집 오류:', error.message);
+                console.error('[ERROR] 리뷰 수집 오류:', error.message);
                 return [];
             }
             
             return data || [];
         } catch (error) {
-            console.error('❌ 리뷰 수집 예외:', error.message);
+            console.error('[ERROR] 리뷰 수집 예외:', error.message);
             return [];
         }
     }
@@ -359,7 +359,7 @@ class MovieSearchAgent {
         // 점수 순으로 정렬
         scored.sort((a, b) => b.score - a.score);
         
-        console.log(`🎯 최적 매치 선택: "${scored[0].title}" (점수: ${scored[0].score.toFixed(2)})`);
+        console.log(`[TARGET] 최적 매치 선택: "${scored[0].title}" (점수: ${scored[0].score.toFixed(2)})`);
         return scored[0];
     }
     
@@ -460,7 +460,7 @@ class MovieSearchAgent {
         // 다양한 매칭 시도
         for (const movie of hardcodedMovies) {
             if (this.matchesMovie(movieTitle, movie)) {
-                console.log(`✅ 하드코딩 데이터에서 발견: "${movie.title}"`);
+                console.log(`[SUCCESS] 하드코딩 데이터에서 발견: "${movie.title}"`);
                 return movie;
             }
         }

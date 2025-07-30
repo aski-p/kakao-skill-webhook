@@ -420,7 +420,7 @@ class MassiveRealMovieCrawler {
 
     async getTMDBMovies(page = 1) {
         try {
-            console.log(`📡 TMDB API 페이지 ${page} 요청 중...`);
+            console.log(`[SATELLITE] TMDB API 페이지 ${page} 요청 중...`);
             
             const response = await axios.get(`${this.tmdbBaseUrl}/movie/popular`, {
                 params: {
@@ -431,12 +431,12 @@ class MassiveRealMovieCrawler {
             });
 
             if (response.data && response.data.results) {
-                console.log(`✅ TMDB 페이지 ${page}: ${response.data.results.length}개 영화 받음`);
+                console.log(`[SUCCESS] TMDB 페이지 ${page}: ${response.data.results.length}개 영화 받음`);
                 return response.data.results;
             }
             return [];
         } catch (error) {
-            console.log(`⚠️ TMDB API 페이지 ${page} 오류:`, error.message);
+            console.log(`[WARN] TMDB API 페이지 ${page} 오류:`, error.message);
             return [];
         }
     }
@@ -453,7 +453,7 @@ class MassiveRealMovieCrawler {
 
             return response.data;
         } catch (error) {
-            console.log(`⚠️ 영화 상세정보 조회 실패 (${movieId}):`, error.message);
+            console.log(`[WARN] 영화 상세정보 조회 실패 (${movieId}):`, error.message);
             return null;
         }
     }
@@ -683,14 +683,14 @@ class MassiveRealMovieCrawler {
     }
 
     async crawlAllMovies() {
-        console.log('🎬 10,000개 실제 영화 대량 크롤링 시작!');
-        console.log('📊 소스: TMDB API + 실제 영화 리스트');
+        console.log('[MOVIE] 10,000개 실제 영화 대량 크롤링 시작!');
+        console.log('[INFO] 소스: TMDB API + 실제 영화 리스트');
         
         let targetCount = 10000;
         let currentCount = 0;
         
         // 1. TMDB API에서 인기 영화들 수집 (5000개)
-        console.log('\n📡 TMDB API 크롤링 시작...');
+        console.log('\n[SATELLITE] TMDB API 크롤링 시작...');
         for (let page = 1; page <= 250; page++) { // 250페이지 * 20개 = 5000개
             if (currentCount >= targetCount * 0.5) break;
             
@@ -713,7 +713,7 @@ class MassiveRealMovieCrawler {
                     currentCount++;
                     
                     if (currentCount % 100 === 0) {
-                        console.log(`📊 TMDB 진행률: ${currentCount}/${Math.floor(targetCount * 0.5)} (${((currentCount/(targetCount * 0.5))*100).toFixed(1)}%)`);
+                        console.log(`[INFO] TMDB 진행률: ${currentCount}/${Math.floor(targetCount * 0.5)} (${((currentCount/(targetCount * 0.5))*100).toFixed(1)}%)`);
                     }
                 }
             }
@@ -721,10 +721,10 @@ class MassiveRealMovieCrawler {
             await new Promise(resolve => setTimeout(resolve, this.delay));
         }
         
-        console.log(`✅ TMDB API 크롤링 완료: ${currentCount}개 영화`);
+        console.log(`[SUCCESS] TMDB API 크롤링 완료: ${currentCount}개 영화`);
         
         // 2. 실제 영화 제목 리스트에서 나머지 생성 (5000개)
-        console.log('\n🎭 실제 영화 리스트 기반 생성 시작...');
+        console.log('\n[DRAMA] 실제 영화 리스트 기반 생성 시작...');
         const shuffledTitles = [...this.realMovieTitles].sort(() => 0.5 - Math.random());
         
         for (const title of shuffledTitles) {
@@ -743,7 +743,7 @@ class MassiveRealMovieCrawler {
                     currentCount++;
                     
                     if (currentCount % 200 === 0) {
-                        console.log(`📊 총 진행률: ${currentCount}/${targetCount} (${((currentCount/targetCount)*100).toFixed(1)}%)`);
+                        console.log(`[INFO] 총 진행률: ${currentCount}/${targetCount} (${((currentCount/targetCount)*100).toFixed(1)}%)`);
                     }
                 }
                 
@@ -752,10 +752,10 @@ class MassiveRealMovieCrawler {
             }
         }
         
-        console.log('\n🎉 대량 크롤링 완료!');
-        console.log(`📊 최종 수집 결과:`);
-        console.log(`   🎬 총 영화: ${this.movies.length}개`);
-        console.log(`   📝 총 리뷰: ${this.reviews.length}개`);
+        console.log('\n[PARTY] 대량 크롤링 완료!');
+        console.log(`[INFO] 최종 수집 결과:`);
+        console.log(`   [MOVIE] 총 영화: ${this.movies.length}개`);
+        console.log(`   [MEMO] 총 리뷰: ${this.reviews.length}개`);
         
         return this.movies.length;
     }
@@ -767,7 +767,7 @@ class MassiveRealMovieCrawler {
     }
 
     async uploadToSupabase() {
-        console.log('\n📤 Supabase 대량 업로드 시작...');
+        console.log('\n[OUTBOX] Supabase 대량 업로드 시작...');
         
         let uploadedMovies = 0;
         let uploadedReviews = 0;
@@ -783,7 +783,7 @@ class MassiveRealMovieCrawler {
                     .select('id');
                 
                 if (error) {
-                    console.log(`⚠️ 배치 ${Math.floor(i/this.batchSize) + 1} 일부 실패: ${error.message}`);
+                    console.log(`[WARN] 배치 ${Math.floor(i/this.batchSize) + 1} 일부 실패: ${error.message}`);
                     // 개별 업로드 시도
                     for (const movie of batch) {
                         try {
@@ -801,18 +801,18 @@ class MassiveRealMovieCrawler {
                     }
                 } else {
                     uploadedMovies += data.length;
-                    console.log(`✅ 영화 배치 ${Math.floor(i/this.batchSize) + 1}/${Math.ceil(this.movies.length/this.batchSize)}: ${data.length}개 업로드`);
+                    console.log(`[SUCCESS] 영화 배치 ${Math.floor(i/this.batchSize) + 1}/${Math.ceil(this.movies.length/this.batchSize)}: ${data.length}개 업로드`);
                 }
                 
                 await new Promise(resolve => setTimeout(resolve, 300));
                 
             } catch (err) {
-                console.log(`❌ 배치 업로드 오류:`, err.message);
+                console.log(`[ERROR] 배치 업로드 오류:`, err.message);
             }
         }
         
         // 리뷰 데이터 배치 업로드
-        console.log('\n📝 리뷰 데이터 업로드 중...');
+        console.log('\n[MEMO] 리뷰 데이터 업로드 중...');
         for (let i = 0; i < this.reviews.length; i += this.batchSize) {
             const batch = this.reviews.slice(i, i + this.batchSize);
             
@@ -829,7 +829,7 @@ class MassiveRealMovieCrawler {
                 await new Promise(resolve => setTimeout(resolve, 200));
                 
             } catch (err) {
-                console.log(`⚠️ 리뷰 배치 오류:`, err.message);
+                console.log(`[WARN] 리뷰 배치 오류:`, err.message);
             }
         }
         
@@ -860,23 +860,23 @@ class MassiveRealMovieCrawler {
             
             // 결과 리포트
             console.log('\n' + '='.repeat(70));
-            console.log('🎉 10,000개 실제 영화 데이터베이스 구축 완료!');
+            console.log('[PARTY] 10,000개 실제 영화 데이터베이스 구축 완료!');
             console.log('='.repeat(70));
             console.log(`⏱️ 총 실행 시간: ${totalTime}분`);
-            console.log(`🎬 크롤링된 영화: ${movieCount}개`);
-            console.log(`📤 업로드된 영화: ${uploadedMovies}개`);
-            console.log(`📝 업로드된 리뷰: ${uploadedReviews}개`);
+            console.log(`[MOVIE] 크롤링된 영화: ${movieCount}개`);
+            console.log(`[OUTBOX] 업로드된 영화: ${uploadedMovies}개`);
+            console.log(`[MEMO] 업로드된 리뷰: ${uploadedReviews}개`);
             console.log(`🗄️ 최종 DB 영화: ${finalMovieCount}개`);
-            console.log(`📋 최종 DB 리뷰: ${finalReviewCount}개`);
+            console.log(`[FORM] 최종 DB 리뷰: ${finalReviewCount}개`);
             
-            console.log('\n💡 이제 검색 가능한 영화들:');
+            console.log('\n[TIP] 이제 검색 가능한 영화들:');
             console.log('   🇰🇷 한국: 파묘, 기생충, 범죄도시, 서울의 봄, 올드보이...');
-            console.log('   🎬 할리우드: 어벤져스, 스파이더맨, 배트맨, 해리포터...');
+            console.log('   [MOVIE] 할리우드: 어벤져스, 스파이더맨, 배트맨, 해리포터...');
             console.log('   🎞️ 애니메이션: 토이스토리, 겨울왕국, 스즈메의 문단속...');
-            console.log('   📊 총 장르: 액션, 드라마, 코미디, 로맨스, 호러, SF 등');
+            console.log('   [INFO] 총 장르: 액션, 드라마, 코미디, 로맨스, 호러, SF 등');
             
         } catch (error) {
-            console.error('❌ 크롤링 중 오류 발생:', error.message);
+            console.error('[ERROR] 크롤링 중 오류 발생:', error.message);
         }
     }
 }

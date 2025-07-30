@@ -87,7 +87,7 @@ class NaverCompleteUpdater {
                 }
             }
         } catch (error) {
-            console.log(`   ⚠️ 네이버 검색 실패 (${title}):`, error.message);
+            console.log(`   [WARN] 네이버 검색 실패 (${title}):`, error.message);
         }
         return null;
     }
@@ -123,18 +123,18 @@ class NaverCompleteUpdater {
     }
 
     async updateMovieData(movie) {
-        console.log(`🎬 [${this.processedCount + 1}] ${movie.title} 업데이트 중...`);
+        console.log(`[MOVIE] [${this.processedCount + 1}] ${movie.title} 업데이트 중...`);
         
         // 네이버에서 영화 검색
         const naverMovie = await this.searchNaverMovie(movie.title, movie.release_year);
         
         if (!naverMovie) {
-            console.log(`   ❌ 네이버에서 찾을 수 없음`);
+            console.log(`   [ERROR] 네이버에서 찾을 수 없음`);
             this.failedCount++;
             return;
         }
         
-        console.log(`   ✅ 네이버 영화 발견: ${naverMovie.title} (${naverMovie.pubDate})`);
+        console.log(`   [SUCCESS] 네이버 영화 발견: ${naverMovie.title} (${naverMovie.pubDate})`);
         
         // 영화 정보 업데이트
         const updateData = {
@@ -156,7 +156,7 @@ class NaverCompleteUpdater {
             .eq('id', movie.id);
         
         if (movieError) {
-            console.log(`   ⚠️ 영화 정보 업데이트 실패:`, movieError.message);
+            console.log(`   [WARN] 영화 정보 업데이트 실패:`, movieError.message);
             this.failedCount++;
             return;
         }
@@ -180,17 +180,17 @@ class NaverCompleteUpdater {
             .select('id');
         
         if (reviewError) {
-            console.log(`   ⚠️ 리뷰 삽입 실패:`, reviewError.message);
+            console.log(`   [WARN] 리뷰 삽입 실패:`, reviewError.message);
         } else {
-            console.log(`   📝 ${insertedReviews.length}개 리뷰 생성`);
+            console.log(`   [MEMO] ${insertedReviews.length}개 리뷰 생성`);
         }
         
         this.updatedCount++;
-        console.log(`   ✅ 업데이트 완료 (평점: ${naverMovie.userRating})\n`);
+        console.log(`   [SUCCESS] 업데이트 완료 (평점: ${naverMovie.userRating})\n`);
     }
 
     async loadAllMovies() {
-        console.log('📋 전체 영화 목록 로드 중...');
+        console.log('[FORM] 전체 영화 목록 로드 중...');
         
         const { data, error } = await supabase
             .from('movies')
@@ -198,11 +198,11 @@ class NaverCompleteUpdater {
             .order('id', { ascending: true });
         
         if (error) {
-            console.log('❌ 영화 목록 로드 실패:', error.message);
+            console.log('[ERROR] 영화 목록 로드 실패:', error.message);
             return [];
         }
         
-        console.log(`✅ ${data.length}개 영화 로드 완료`);
+        console.log(`[SUCCESS] ${data.length}개 영화 로드 완료`);
         return data;
     }
 
@@ -213,17 +213,17 @@ class NaverCompleteUpdater {
         
         const movies = await this.loadAllMovies();
         if (movies.length === 0) {
-            console.log('❌ 업데이트할 영화가 없습니다.');
+            console.log('[ERROR] 업데이트할 영화가 없습니다.');
             return;
         }
         
-        console.log(`📊 총 ${movies.length}개 영화 업데이트 예정\n`);
+        console.log(`[INFO] 총 ${movies.length}개 영화 업데이트 예정\n`);
         
         // 배치 단위로 처리
         for (let i = 0; i < movies.length; i += this.batchSize) {
             const batch = movies.slice(i, i + this.batchSize);
             
-            console.log(`📦 배치 ${Math.floor(i/this.batchSize) + 1}/${Math.ceil(movies.length/this.batchSize)} 처리 중...`);
+            console.log(`[PACKAGE] 배치 ${Math.floor(i/this.batchSize) + 1}/${Math.ceil(movies.length/this.batchSize)} 처리 중...`);
             
             for (const movie of batch) {
                 try {
@@ -237,13 +237,13 @@ class NaverCompleteUpdater {
                     await this.delayMs(this.delay);
                     
                 } catch (error) {
-                    console.log(`❌ ${movie.title} 처리 중 오류:`, error.message);
+                    console.log(`[ERROR] ${movie.title} 처리 중 오류:`, error.message);
                     this.failedCount++;
                     this.processedCount++;
                 }
             }
             
-            console.log(`✅ 배치 ${Math.floor(i/this.batchSize) + 1} 완료\n`);
+            console.log(`[SUCCESS] 배치 ${Math.floor(i/this.batchSize) + 1} 완료\n`);
         }
         
         // 최종 통계
@@ -259,16 +259,16 @@ class NaverCompleteUpdater {
         const totalTime = ((endTime - startTime) / 1000 / 60).toFixed(1);
         
         console.log('='.repeat(70));
-        console.log('🎉 네이버 기준 전체 영화 데이터 업데이트 완료!');
+        console.log('[PARTY] 네이버 기준 전체 영화 데이터 업데이트 완료!');
         console.log('='.repeat(70));
         console.log(`⏱️ 총 실행 시간: ${totalTime}분`);
-        console.log(`🎬 총 영화: ${movieCount}개`);
-        console.log(`📝 총 리뷰: ${reviewCount}개`);
-        console.log(`✅ 성공적으로 업데이트: ${this.updatedCount}개`);
-        console.log(`❌ 업데이트 실패: ${this.failedCount}개`);
-        console.log(`📊 성공률: ${Math.round((this.updatedCount / this.processedCount) * 100)}%`);
-        console.log('\n💡 모든 영화 정보가 네이버 기준으로 업데이트되었습니다!');
-        console.log('🔍 이제 정확한 영화 정보와 실제 사용자 리뷰를 확인할 수 있습니다.');
+        console.log(`[MOVIE] 총 영화: ${movieCount}개`);
+        console.log(`[MEMO] 총 리뷰: ${reviewCount}개`);
+        console.log(`[SUCCESS] 성공적으로 업데이트: ${this.updatedCount}개`);
+        console.log(`[ERROR] 업데이트 실패: ${this.failedCount}개`);
+        console.log(`[INFO] 성공률: ${Math.round((this.updatedCount / this.processedCount) * 100)}%`);
+        console.log('\n[TIP] 모든 영화 정보가 네이버 기준으로 업데이트되었습니다!');
+        console.log('[SEARCH] 이제 정확한 영화 정보와 실제 사용자 리뷰를 확인할 수 있습니다.');
     }
 }
 
@@ -277,7 +277,7 @@ const checkDependencies = async () => {
     try {
         require('cheerio');
     } catch (error) {
-        console.log('📦 cheerio 설치 중...');
+        console.log('[PACKAGE] cheerio 설치 중...');
         const { execSync } = require('child_process');
         execSync('npm install cheerio', { stdio: 'inherit' });
     }

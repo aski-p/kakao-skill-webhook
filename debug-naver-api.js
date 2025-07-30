@@ -17,7 +17,7 @@ class NaverAPIDebugger {
     }
 
     async testNaverAPIConnection() {
-        console.log('🔍 네이버 API 연결 테스트 시작...');
+        console.log('[SEARCH] 네이버 API 연결 테스트 시작...');
         console.log(`Client ID: ${this.clientId}`);
         console.log(`Client Secret: ${this.clientSecret.substring(0, 3)}***\n`);
 
@@ -31,13 +31,13 @@ class NaverAPIDebugger {
     }
 
     async testSingleMovie(movieTitle) {
-        console.log(`🎬 "${movieTitle}" 검색 테스트...`);
+        console.log(`[MOVIE] "${movieTitle}" 검색 테스트...`);
         
         try {
             const encodedTitle = encodeURIComponent(movieTitle);
             const url = `https://openapi.naver.com/v1/search/movie.json?query=${encodedTitle}&display=10`;
             
-            console.log(`📡 요청 URL: ${url}`);
+            console.log(`[SATELLITE] 요청 URL: ${url}`);
             
             const response = await axios.get(url, {
                 headers: {
@@ -48,12 +48,12 @@ class NaverAPIDebugger {
                 timeout: 10000
             });
 
-            console.log(`✅ 응답 상태: ${response.status}`);
-            console.log(`📊 검색 결과 수: ${response.data.items?.length || 0}개`);
+            console.log(`[SUCCESS] 응답 상태: ${response.status}`);
+            console.log(`[INFO] 검색 결과 수: ${response.data.items?.length || 0}개`);
             
             if (response.data.items && response.data.items.length > 0) {
                 const firstMovie = response.data.items[0];
-                console.log(`🎭 첫 번째 결과:`);
+                console.log(`[DRAMA] 첫 번째 결과:`);
                 console.log(`   제목: ${firstMovie.title.replace(/<[^>]*>/g, '')}`);
                 console.log(`   감독: ${firstMovie.director}`);
                 console.log(`   출연: ${firstMovie.actor}`);
@@ -65,12 +65,12 @@ class NaverAPIDebugger {
                     movie: firstMovie
                 };
             } else {
-                console.log('❌ 검색 결과 없음');
+                console.log('[ERROR] 검색 결과 없음');
                 return { success: false, reason: 'No results' };
             }
 
         } catch (error) {
-            console.log(`❌ 오류 발생:`);
+            console.log(`[ERROR] 오류 발생:`);
             console.log(`   상태 코드: ${error.response?.status}`);
             console.log(`   메시지: ${error.message}`);
             console.log(`   응답 데이터: ${JSON.stringify(error.response?.data, null, 2)}`);
@@ -85,18 +85,18 @@ class NaverAPIDebugger {
     }
 
     async updateAmateurMovie() {
-        console.log('\n🔄 "아마추어" 영화 정보 업데이트 시도...');
+        console.log('\n[LOADING] "아마추어" 영화 정보 업데이트 시도...');
         
         // 1. 네이버에서 "아마추어" 검색
         const searchResult = await this.testSingleMovie('아마추어');
         
         if (!searchResult.success) {
-            console.log('❌ 네이버에서 아마추어 영화를 찾을 수 없습니다.');
+            console.log('[ERROR] 네이버에서 아마추어 영화를 찾을 수 없습니다.');
             return;
         }
 
         const naverMovie = searchResult.movie;
-        console.log('\n📝 아마추어 영화 정보 업데이트 중...');
+        console.log('\n[MEMO] 아마추어 영화 정보 업데이트 중...');
 
         // 2. 데이터베이스에서 아마추어 영화 찾기
         const { data: amateurMovies, error: findError } = await supabase
@@ -105,12 +105,12 @@ class NaverAPIDebugger {
             .eq('title', '아마추어');
 
         if (findError || !amateurMovies || amateurMovies.length === 0) {
-            console.log('❌ 데이터베이스에서 아마추어 영화를 찾을 수 없습니다.');
+            console.log('[ERROR] 데이터베이스에서 아마추어 영화를 찾을 수 없습니다.');
             return;
         }
 
         const movieId = amateurMovies[0].id;
-        console.log(`📍 영화 ID: ${movieId}`);
+        console.log(`[LOCATION] 영화 ID: ${movieId}`);
 
         // 3. 영화 정보 업데이트
         const updateData = {
@@ -129,7 +129,7 @@ class NaverAPIDebugger {
             .eq('id', movieId);
 
         if (updateError) {
-            console.log('❌ 영화 정보 업데이트 실패:', updateError.message);
+            console.log('[ERROR] 영화 정보 업데이트 실패:', updateError.message);
             return;
         }
 
@@ -152,13 +152,13 @@ class NaverAPIDebugger {
             .select('id');
 
         if (reviewError) {
-            console.log('❌ 리뷰 삽입 실패:', reviewError.message);
+            console.log('[ERROR] 리뷰 삽입 실패:', reviewError.message);
         } else {
-            console.log(`✅ ${insertedReviews.length}개 실제 리뷰 생성 완료`);
+            console.log(`[SUCCESS] ${insertedReviews.length}개 실제 리뷰 생성 완료`);
         }
 
-        console.log('\n🎉 아마추어 영화 정보가 네이버 실제 데이터로 업데이트되었습니다!');
-        console.log(`📋 업데이트된 정보:`);
+        console.log('\n[PARTY] 아마추어 영화 정보가 네이버 실제 데이터로 업데이트되었습니다!');
+        console.log(`[FORM] 업데이트된 정보:`);
         console.log(`   제목: ${updateData.title}`);
         console.log(`   감독: ${updateData.director}`);
         console.log(`   출연진: ${updateData.cast_members.join(', ')}`);
@@ -233,7 +233,7 @@ class NaverAPIDebugger {
         // 2. 아마추어 영화 업데이트
         await this.updateAmateurMovie();
         
-        console.log('\n✅ 모든 작업 완료!');
+        console.log('\n[SUCCESS] 모든 작업 완료!');
     }
 }
 

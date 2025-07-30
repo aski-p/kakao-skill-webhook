@@ -9,8 +9,8 @@ class NaverAPIEndpointChecker {
 
     async testEndpoint(endpoint, query) {
         try {
-            console.log(`🔍 테스트 중: ${endpoint}`);
-            console.log(`📡 쿼리: ${query}`);
+            console.log(`[SEARCH] 테스트 중: ${endpoint}`);
+            console.log(`[SATELLITE] 쿼리: ${query}`);
             
             const response = await axios.get(endpoint, {
                 headers: {
@@ -21,18 +21,18 @@ class NaverAPIEndpointChecker {
                 timeout: 10000
             });
 
-            console.log(`✅ 성공! 상태: ${response.status}`);
-            console.log(`📊 결과 수: ${response.data.items?.length || 0}개`);
+            console.log(`[SUCCESS] 성공! 상태: ${response.status}`);
+            console.log(`[INFO] 결과 수: ${response.data.items?.length || 0}개`);
             
             if (response.data.items && response.data.items.length > 0) {
                 const firstItem = response.data.items[0];
-                console.log(`📝 첫 번째 결과: ${JSON.stringify(firstItem, null, 2)}`);
+                console.log(`[MEMO] 첫 번째 결과: ${JSON.stringify(firstItem, null, 2)}`);
             }
             
             return { success: true, data: response.data };
 
         } catch (error) {
-            console.log(`❌ 실패:`);
+            console.log(`[ERROR] 실패:`);
             console.log(`   상태 코드: ${error.response?.status}`);
             console.log(`   메시지: ${error.message}`);
             console.log(`   응답: ${JSON.stringify(error.response?.data, null, 2)}`);
@@ -70,8 +70,8 @@ class NaverAPIEndpointChecker {
             await new Promise(resolve => setTimeout(resolve, 500));
         }
 
-        console.log('\n💡 네이버 영화 검색 API가 더 이상 사용 불가능한 것 같습니다.');
-        console.log('🔄 대안 방법을 시도해보겠습니다...');
+        console.log('\n[TIP] 네이버 영화 검색 API가 더 이상 사용 불가능한 것 같습니다.');
+        console.log('[LOADING] 대안 방법을 시도해보겠습니다...');
     }
 }
 

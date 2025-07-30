@@ -23,23 +23,23 @@ class UpdatedDatabaseMovieUpdater {
     // Supabase 연결 테스트
     async testConnection() {
         try {
-            console.log('🔧 Supabase 연결 테스트 중...');
+            console.log('[TOOL] Supabase 연결 테스트 중...');
             
             const { data, error, count } = await this.supabase
                 .from('movies')
                 .select('*', { count: 'exact', head: true });
             
             if (error) {
-                console.error('❌ 연결 실패:', error.message);
+                console.error('[ERROR] 연결 실패:', error.message);
                 return false;
             }
             
-            console.log('✅ Supabase 연결 성공!');
-            console.log(`📊 현재 movies 테이블 레코드 수: ${count || 0}개`);
+            console.log('[SUCCESS] Supabase 연결 성공!');
+            console.log(`[INFO] 현재 movies 테이블 레코드 수: ${count || 0}개`);
             return true;
             
         } catch (err) {
-            console.error('❌ 연결 테스트 오류:', err.message);
+            console.error('[ERROR] 연결 테스트 오류:', err.message);
             return false;
         }
     }
@@ -49,10 +49,10 @@ class UpdatedDatabaseMovieUpdater {
         try {
             const data = JSON.parse(fs.readFileSync(filename, 'utf8'));
             console.log(`📄 ${filename} 파일 로드 완료`);
-            console.log(`📊 총 ${data.total_movies}개 영화 데이터 발견\n`);
+            console.log(`[INFO] 총 ${data.total_movies}개 영화 데이터 발견\n`);
             return data.movies;
         } catch (error) {
-            console.error('❌ JSON 파일 로드 실패:', error.message);
+            console.error('[ERROR] JSON 파일 로드 실패:', error.message);
             return [];
         }
     }
@@ -174,7 +174,7 @@ class UpdatedDatabaseMovieUpdater {
             return null;
 
         } catch (error) {
-            console.error(`❌ 매칭 검색 실패 (${newMovie.title}):`, error.message);
+            console.error(`[ERROR] 매칭 검색 실패 (${newMovie.title}):`, error.message);
             return null;
         }
     }
@@ -193,7 +193,7 @@ class UpdatedDatabaseMovieUpdater {
             if (error) throw error;
             return true;
         } catch (error) {
-            console.error(`❌ 영화 업데이트 실패 (ID: ${movieId}):`, error.message);
+            console.error(`[ERROR] 영화 업데이트 실패 (ID: ${movieId}):`, error.message);
             return false;
         }
     }
@@ -210,21 +210,21 @@ class UpdatedDatabaseMovieUpdater {
             if (error) throw error;
             return data.id;
         } catch (error) {
-            console.error(`❌ 영화 삽입 실패 (${movieData.title}):`, error.message);
+            console.error(`[ERROR] 영화 삽입 실패 (${movieData.title}):`, error.message);
             return null;
         }
     }
 
     // 영화 데이터 처리
     async processMovie(movie) {
-        console.log(`\n🔍 처리 중: "${movie.title}" (${movie.release_year || '연도미상'})`);
+        console.log(`\n[SEARCH] 처리 중: "${movie.title}" (${movie.release_year || '연도미상'})`);
 
         // 기존 영화와 매칭 시도
         const matchResult = await this.findMatchingMovie(movie);
 
         if (matchResult) {
             const { match, similarity, type } = matchResult;
-            console.log(`🎯 매칭 발견: "${match.title}" (유사도: ${(similarity * 100).toFixed(1)}%, 타입: ${type})`);
+            console.log(`[TARGET] 매칭 발견: "${match.title}" (유사도: ${(similarity * 100).toFixed(1)}%, 타입: ${type})`);
 
             // 기존 데이터와 비교하여 업데이트할 필드 결정
             const updateData = {};
@@ -234,7 +234,7 @@ class UpdatedDatabaseMovieUpdater {
             if (movie.director && (!match.director || match.director !== movie.director)) {
                 updateData.director = movie.director;
                 hasUpdates = true;
-                console.log(`  📝 감독 업데이트: ${match.director || '없음'} → ${movie.director}`);
+                console.log(`  [MEMO] 감독 업데이트: ${match.director || '없음'} → ${movie.director}`);
             }
 
             // 배우 정보 업데이트
@@ -244,7 +244,7 @@ class UpdatedDatabaseMovieUpdater {
                 if (newCast.length > existingCast.length) {
                     updateData.cast_members = newCast;
                     hasUpdates = true;
-                    console.log(`  👥 배우 정보 업데이트: ${newCast.length}명`);
+                    console.log(`  [BUSTSINSILHOUETTE] 배우 정보 업데이트: ${newCast.length}명`);
                 }
             }
 
@@ -262,14 +262,14 @@ class UpdatedDatabaseMovieUpdater {
                 if (newKeywords.length > existingKeywords.length) {
                     updateData.keywords = newKeywords;
                     hasUpdates = true;
-                    console.log(`  🏷️ 키워드 업데이트: ${newKeywords.length}개`);
+                    console.log(`  [LABEL] 키워드 업데이트: ${newKeywords.length}개`);
                 }
             }
 
             if (hasUpdates) {
                 const success = await this.updateMovie(match.id, updateData);
                 if (success) {
-                    console.log(`✅ 업데이트 완료: "${match.title}"`);
+                    console.log(`[SUCCESS] 업데이트 완료: "${match.title}"`);
                     this.updatedCount++;
                 } else {
                     this.errorCount++;
@@ -281,11 +281,11 @@ class UpdatedDatabaseMovieUpdater {
 
         } else {
             // 새 영화 삽입
-            console.log(`📥 신규 영화 추가 시도...`);
+            console.log(`[INBOX] 신규 영화 추가 시도...`);
             
             const movieId = await this.insertMovie(movie);
             if (movieId) {
-                console.log(`✅ 신규 추가 완료: "${movie.title}" (ID: ${movieId})`);
+                console.log(`[SUCCESS] 신규 추가 완료: "${movie.title}" (ID: ${movieId})`);
                 this.insertedCount++;
             } else {
                 this.errorCount++;
@@ -301,8 +301,8 @@ class UpdatedDatabaseMovieUpdater {
     // 메인 실행 함수
     async run(jsonFilename = 'korean_movies_kofic_2025-07-28.json') {
         console.log('🗄️ Supabase 영화 데이터베이스 업데이트 시작 (새 연결 정보)\n');
-        console.log(`🔗 Supabase URL: ${SUPABASE_URL}`);
-        console.log(`🔑 Service Key: ${SUPABASE_SERVICE_ROLE_KEY.substring(0, 50)}...\n`);
+        console.log(`[LINK] Supabase URL: ${SUPABASE_URL}`);
+        console.log(`[KEY] Service Key: ${SUPABASE_SERVICE_ROLE_KEY.substring(0, 50)}...\n`);
         
         const startTime = Date.now();
 
@@ -310,14 +310,14 @@ class UpdatedDatabaseMovieUpdater {
             // 연결 테스트
             const connected = await this.testConnection();
             if (!connected) {
-                console.log('❌ Supabase 연결 실패. 종료합니다.');
+                console.log('[ERROR] Supabase 연결 실패. 종료합니다.');
                 return;
             }
 
             // JSON 파일에서 영화 데이터 로드
             const movies = this.loadMovieData(jsonFilename);
             if (movies.length === 0) {
-                console.log('❌ 처리할 영화 데이터가 없습니다.');
+                console.log('[ERROR] 처리할 영화 데이터가 없습니다.');
                 return;
             }
 
@@ -335,24 +335,24 @@ class UpdatedDatabaseMovieUpdater {
             const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
 
             console.log('\n' + '='.repeat(60));
-            console.log('📊 데이터베이스 업데이트 결과');
+            console.log('[INFO] 데이터베이스 업데이트 결과');
             console.log('='.repeat(60));
-            console.log(`📥 신규 추가: ${this.insertedCount}개`);
-            console.log(`🔄 업데이트: ${this.updatedCount}개`);
+            console.log(`[INBOX] 신규 추가: ${this.insertedCount}개`);
+            console.log(`[LOADING] 업데이트: ${this.updatedCount}개`);
             console.log(`⏭️ 변경사항 없음: ${this.skippedCount}개`);
-            console.log(`❌ 오류: ${this.errorCount}개`);
+            console.log(`[ERROR] 오류: ${this.errorCount}개`);
             console.log(`⏱️ 총 소요 시간: ${elapsedTime}초`);
             console.log('='.repeat(60));
 
             if (this.insertedCount + this.updatedCount > 0) {
-                console.log('\n🎉 데이터베이스 업데이트 완료!');
-                console.log('🔗 카카오 스킬에서 업데이트된 영화 정보를 확인할 수 있습니다.');
+                console.log('\n[PARTY] 데이터베이스 업데이트 완료!');
+                console.log('[LINK] 카카오 스킬에서 업데이트된 영화 정보를 확인할 수 있습니다.');
             } else {
-                console.log('\n💡 업데이트할 새로운 정보가 없었습니다.');
+                console.log('\n[TIP] 업데이트할 새로운 정보가 없었습니다.');
             }
 
         } catch (error) {
-            console.error('\n❌ 치명적 오류 발생:', error.message);
+            console.error('\n[ERROR] 치명적 오류 발생:', error.message);
         }
     }
 }

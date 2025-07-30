@@ -11,7 +11,7 @@ async function testServerResponse() {
     ];
     
     for (const message of testCases) {
-        console.log(`📝 테스트: "${message}"`);
+        console.log(`[MEMO] 테스트: "${message}"`);
         console.log('='.repeat(60));
         
         try {
@@ -25,7 +25,7 @@ async function testServerResponse() {
                 }
             };
             
-            console.log('📡 로컬 서버에 요청 전송...');
+            console.log('[SATELLITE] 로컬 서버에 요청 전송...');
             
             const response = await axios.post('http://localhost:3000/kakao-skill-webhook', requestBody, {
                 headers: {
@@ -36,27 +36,27 @@ async function testServerResponse() {
             
             if (response.data && response.data.template && response.data.template.outputs) {
                 const responseText = response.data.template.outputs[0].simpleText.text;
-                console.log('✅ 서버 응답 성공!');
-                console.log(`📏 응답 길이: ${responseText.length}자`);
-                console.log('\n📝 응답 내용:');
+                console.log('[SUCCESS] 서버 응답 성공!');
+                console.log(`[RULER] 응답 길이: ${responseText.length}자`);
+                console.log('\n[MEMO] 응답 내용:');
                 console.log(responseText);
             } else {
-                console.log('❌ 서버 응답 형식 오류:', response.data);
+                console.log('[ERROR] 서버 응답 형식 오류:', response.data);
             }
             
         } catch (error) {
             if (error.code === 'ECONNREFUSED') {
-                console.log('⚠️ 서버가 실행되지 않음. 먼저 서버를 시작하세요:');
+                console.log('[WARN] 서버가 실행되지 않음. 먼저 서버를 시작하세요:');
                 console.log('   npm start 또는 node index.js');
             } else {
-                console.log('❌ 요청 실패:', error.message);
+                console.log('[ERROR] 요청 실패:', error.message);
             }
         }
         
         console.log('\n' + '='.repeat(60) + '\n');
     }
     
-    console.log('🎉 서버 응답 테스트 완료!');
+    console.log('[PARTY] 서버 응답 테스트 완료!');
 }
 
 // 테스트 실행

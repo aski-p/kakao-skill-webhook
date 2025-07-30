@@ -208,11 +208,11 @@ class GradualRealUpdater {
 
     async updateMovieWithRealData(movie) {
         try {
-            console.log(`\\n🎬 ID ${movie.id}: "${movie.title}" 실제 데이터로 업데이트...`);
+            console.log(`\\n[MOVIE] ID ${movie.id}: "${movie.title}" 실제 데이터로 업데이트...`);
 
             const realData = this.realMovieDatabase[movie.title];
             if (!realData) {
-                console.log(`   ⚠️ "${movie.title}" 실제 데이터 없음`);
+                console.log(`   [WARN] "${movie.title}" 실제 데이터 없음`);
                 return false;
             }
 
@@ -231,15 +231,15 @@ class GradualRealUpdater {
                 .eq('id', movie.id);
 
             if (updateError) {
-                console.log(`   ❌ 업데이트 실패: ${updateError.message}`);
+                console.log(`   [ERROR] 업데이트 실패: ${updateError.message}`);
                 return false;
             }
 
-            console.log(`   ✅ 영화 정보 업데이트 완료`);
-            console.log(`   🎭 실제 감독: ${realData.director}`);
-            console.log(`   👥 실제 출연진: ${realData.cast_members.slice(0, 3).join(', ')}`);
-            console.log(`   🎪 장르: ${realData.genre} (${realData.release_year})`);
-            console.log(`   ⭐ 평점: ${realData.naver_rating}점`);
+            console.log(`   [SUCCESS] 영화 정보 업데이트 완료`);
+            console.log(`   [DRAMA] 실제 감독: ${realData.director}`);
+            console.log(`   [BUSTSINSILHOUETTE] 실제 출연진: ${realData.cast_members.slice(0, 3).join(', ')}`);
+            console.log(`   [FUN] 장르: ${realData.genre} (${realData.release_year})`);
+            console.log(`   [FAVORITE] 평점: ${realData.naver_rating}점`);
 
             // 2. 기존 리뷰 삭제
             await this.supabase
@@ -261,11 +261,11 @@ class GradualRealUpdater {
                 await this.delay(100);
             }
 
-            console.log(`   📝 실제 관객 리뷰 ${reviews.length}개 추가`);
+            console.log(`   [MEMO] 실제 관객 리뷰 ${reviews.length}개 추가`);
             return true;
 
         } catch (error) {
-            console.log(`   ❌ "${movie.title}" 처리 중 오류: ${error.message}`);
+            console.log(`   [ERROR] "${movie.title}" 처리 중 오류: ${error.message}`);
             return false;
         }
     }
@@ -307,7 +307,7 @@ class GradualRealUpdater {
     }
 
     async processBatch() {
-        console.log(`\\n📦 배치 ${this.currentBatch} 처리 시작`);
+        console.log(`\\n[PACKAGE] 배치 ${this.currentBatch} 처리 시작`);
         console.log('='.repeat(60));
 
         // 이번 배치에서 처리할 영화들 찾기
@@ -320,16 +320,16 @@ class GradualRealUpdater {
             .limit(20);
 
         if (error) {
-            console.log(`❌ 영화 조회 실패: ${error.message}`);
+            console.log(`[ERROR] 영화 조회 실패: ${error.message}`);
             return;
         }
 
         if (!unknownMovies || unknownMovies.length === 0) {
-            console.log('⚠️ 이번 배치에서 처리할 영화가 없습니다.');
+            console.log('[WARN] 이번 배치에서 처리할 영화가 없습니다.');
             return;
         }
 
-        console.log(`🎯 이번 배치 처리 대상: ${unknownMovies.length}개 영화`);
+        console.log(`[TARGET] 이번 배치 처리 대상: ${unknownMovies.length}개 영화`);
         unknownMovies.forEach(movie => {
             console.log(`   - ID ${movie.id}: "${movie.title}"`);
         });
@@ -341,7 +341,7 @@ class GradualRealUpdater {
 
             if (success) {
                 this.successCount++;
-                console.log(`   🎉 "${movie.title}" 성공! ✨`);
+                console.log(`   [PARTY] "${movie.title}" 성공! [SPARKLE]`);
             } else {
                 this.failCount++;
                 console.log(`   💥 "${movie.title}" 실패`);
@@ -356,7 +356,7 @@ class GradualRealUpdater {
             await this.delay(1500); // 서버 부하 방지
         }
 
-        console.log(`\\n✅ 배치 ${this.currentBatch} 완료!`);
+        console.log(`\\n[SUCCESS] 배치 ${this.currentBatch} 완료!`);
         console.log(`   성공: ${this.successCount}개, 실패: ${this.failCount}개`);
     }
 
@@ -369,7 +369,7 @@ class GradualRealUpdater {
 
         const remainingCount = remainingUnknown?.length || 0;
         
-        console.log(`\\n📊 진행 상황:`);
+        console.log(`\\n[INFO] 진행 상황:`);
         console.log(`   이번 세션 처리: ${this.processedCount}개`);
         console.log(`   성공: ${this.successCount}개`);
         console.log(`   실패: ${this.failCount}개`);
@@ -379,12 +379,12 @@ class GradualRealUpdater {
 
     async run() {
         console.log('🚀 "알 수 없음" → 실제 데이터 점진적 업데이트 시작!');
-        console.log('🎯 목표: 단계별로 안전하게 실제 영화 정보 추가\\n');
+        console.log('[TARGET] 목표: 단계별로 안전하게 실제 영화 정보 추가\\n');
 
-        console.log(`📊 이번 업데이트 대상: ${Object.keys(this.realMovieDatabase).length}개 영화`);
-        console.log('📋 카테고리별 구성:');
-        console.log('   🎬 최신 인기작: 스즈메의 문단속, 범죄도시2, 헤어질 결심 등');
-        console.log('   🏆 클래식 명작: 타이타닉, 인셉션, 다크 나이트 등');
+        console.log(`[INFO] 이번 업데이트 대상: ${Object.keys(this.realMovieDatabase).length}개 영화`);
+        console.log('[FORM] 카테고리별 구성:');
+        console.log('   [MOVIE] 최신 인기작: 스즈메의 문단속, 범죄도시2, 헤어질 결심 등');
+        console.log('   [TROPHY] 클래식 명작: 타이타닉, 인셉션, 다크 나이트 등');
         console.log('   🦸 히어로 영화: 아이언맨, 캡틴 아메리카 등');
         console.log('   🇰🇷 한국 명작: 올드보이, 마더, 추격자 등\\n');
 
@@ -392,13 +392,13 @@ class GradualRealUpdater {
         await this.checkProgress();
 
         console.log('\\n🎊 업데이트 완료!');
-        console.log('\\n📱 카카오 스킬에서 새로 답변 가능:');
-        console.log('   💬 "스즈메의 문단속 감독은 누구야" → "신카이 마코토입니다"');
-        console.log('   💬 "인셉션 출연진 알려줘" → "레오나르도 디카프리오, 매리언 코티야르..."');
-        console.log('   💬 "올드보이 영화평" → 실제 관객 리뷰');
-        console.log('   💬 "다크 나이트 평점" → "9.1점입니다"');
+        console.log('\\n[APP] 카카오 스킬에서 새로 답변 가능:');
+        console.log('   [MSG] "스즈메의 문단속 감독은 누구야" → "신카이 마코토입니다"');
+        console.log('   [MSG] "인셉션 출연진 알려줘" → "레오나르도 디카프리오, 매리언 코티야르..."');
+        console.log('   [MSG] "올드보이 영화평" → 실제 관객 리뷰');
+        console.log('   [MSG] "다크 나이트 평점" → "9.1점입니다"');
 
-        console.log('\\n💡 다음 단계:');
+        console.log('\\n[TIP] 다음 단계:');
         console.log('더 많은 영화를 추가하려면 realMovieDatabase를 확장하여');
         console.log('다시 실행하면 됩니다. 안전하고 점진적으로 개선됩니다!');
     }

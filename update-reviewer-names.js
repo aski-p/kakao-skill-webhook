@@ -41,7 +41,7 @@ class ReviewerNameUpdater {
     }
     
     async updateReviewerNames() {
-        console.log('🔄 리뷰어 이름 업데이트 시작...');
+        console.log('[LOADING] 리뷰어 이름 업데이트 시작...');
         
         try {
             // 현재 리뷰 상태 확인
@@ -49,7 +49,7 @@ class ReviewerNameUpdater {
                 .from('critic_reviews')
                 .select('*', { count: 'exact', head: true });
             
-            console.log(`📊 총 리뷰 수: ${totalReviews}개`);
+            console.log(`[INFO] 총 리뷰 수: ${totalReviews}개`);
             
             let updatedCount = 0;
             
@@ -61,12 +61,12 @@ class ReviewerNameUpdater {
                     .eq('critic_name', fakeName);
                 
                 if (selectError) {
-                    console.log(`⚠️ ${fakeName} 조회 실패:`, selectError.message);
+                    console.log(`[WARN] ${fakeName} 조회 실패:`, selectError.message);
                     continue;
                 }
                 
                 if (reviews && reviews.length > 0) {
-                    console.log(`🔧 "${fakeName}" 이름 변경 중... (${reviews.length}개 리뷰)`);
+                    console.log(`[TOOL] "${fakeName}" 이름 변경 중... (${reviews.length}개 리뷰)`);
                     
                     // 각 리뷰에 대해 다른 실제 이름 할당
                     for (const review of reviews) {
@@ -78,39 +78,39 @@ class ReviewerNameUpdater {
                             .eq('id', review.id);
                         
                         if (updateError) {
-                            console.log(`   ⚠️ ID ${review.id} 업데이트 실패:`, updateError.message);
+                            console.log(`   [WARN] ID ${review.id} 업데이트 실패:`, updateError.message);
                         } else {
                             updatedCount++;
                         }
                     }
                     
-                    console.log(`   ✅ "${fakeName}" → 실제 사용자 이름으로 변경 완료`);
+                    console.log(`   [SUCCESS] "${fakeName}" → 실제 사용자 이름으로 변경 완료`);
                 }
             }
             
             // 최종 확인
-            console.log('\n📊 업데이트 결과 확인...');
+            console.log('\n[INFO] 업데이트 결과 확인...');
             
             const { data: sampleReviews } = await supabase
                 .from('critic_reviews')
                 .select('critic_name, review_text, score')
                 .limit(20);
             
-            console.log('\n📝 업데이트된 리뷰 샘플:');
+            console.log('\n[MEMO] 업데이트된 리뷰 샘플:');
             sampleReviews.forEach((review, index) => {
                 console.log(`   ${index + 1}. ${review.critic_name}: ${review.review_text.substring(0, 40)}... (${review.score}점)`);
             });
             
             console.log('\n' + '='.repeat(60));
-            console.log('🎉 리뷰어 이름 업데이트 완료!');
+            console.log('[PARTY] 리뷰어 이름 업데이트 완료!');
             console.log('='.repeat(60));
-            console.log(`✅ 업데이트된 리뷰: ${updatedCount}개`);
-            console.log(`📝 총 리뷰: ${totalReviews}개`);
-            console.log('\n💡 이제 실제 네이버 사용자처럼 보이는 리뷰어 이름이 적용되었습니다!');
-            console.log('🔍 가짜 이름들 (김영화평론가, 박시네마리뷰 등)이 모두 실제 사용자 이름으로 변경됨');
+            console.log(`[SUCCESS] 업데이트된 리뷰: ${updatedCount}개`);
+            console.log(`[MEMO] 총 리뷰: ${totalReviews}개`);
+            console.log('\n[TIP] 이제 실제 네이버 사용자처럼 보이는 리뷰어 이름이 적용되었습니다!');
+            console.log('[SEARCH] 가짜 이름들 (김영화평론가, 박시네마리뷰 등)이 모두 실제 사용자 이름으로 변경됨');
             
         } catch (error) {
-            console.error('❌ 리뷰어 이름 업데이트 실패:', error.message);
+            console.error('[ERROR] 리뷰어 이름 업데이트 실패:', error.message);
         }
     }
     
@@ -166,14 +166,14 @@ class ReviewerNameUpdater {
                 .select('id');
             
             if (error) {
-                console.log(`⚠️ ${movie.title} 추가 리뷰 삽입 실패:`, error.message);
+                console.log(`[WARN] ${movie.title} 추가 리뷰 삽입 실패:`, error.message);
             } else {
                 addedCount += data.length;
-                console.log(`✅ ${movie.title}: ${data.length}개 추가 리뷰 생성`);
+                console.log(`[SUCCESS] ${movie.title}: ${data.length}개 추가 리뷰 생성`);
             }
         }
         
-        console.log(`🎉 총 ${addedCount}개 추가 리뷰가 생성되었습니다!`);
+        console.log(`[PARTY] 총 ${addedCount}개 추가 리뷰가 생성되었습니다!`);
     }
 }
 

@@ -82,19 +82,19 @@ class FastMovieInsertsGenerator {
 
     // 기존 테이블 구조에 맞는 INSERT문 생성
     generateInserts() {
-        console.log('📝 기존 테이블 구조에 맞는 INSERT문 생성 시작');
-        console.log(`📊 대상 영화: ${this.movieDatabase.length}개`);
+        console.log('[MEMO] 기존 테이블 구조에 맞는 INSERT문 생성 시작');
+        console.log(`[INFO] 대상 영화: ${this.movieDatabase.length}개`);
 
         this.movieDatabase.forEach((movie, index) => {
             try {
                 const insertSQL = this.generateSingleInsert(movie, index + 1);
                 this.sqlInserts.push(insertSQL);
             } catch (error) {
-                console.error(`❌ INSERT문 생성 오류 (${movie.title}):`, error.message);
+                console.error(`[ERROR] INSERT문 생성 오류 (${movie.title}):`, error.message);
             }
         });
 
-        console.log(`✅ INSERT문 생성 완료: ${this.sqlInserts.length}개`);
+        console.log(`[SUCCESS] INSERT문 생성 완료: ${this.sqlInserts.length}개`);
         return this.sqlInserts;
     }
 
@@ -191,17 +191,17 @@ VALUES (${values.join(', ')});`;
         sqlContent += `COMMIT;\n\n`;
         sqlContent += `-- INSERT 완료. 총 ${this.sqlInserts.length}개 영화 추가됨\n`;
         sqlContent += `-- \n`;
-        sqlContent += `-- 📊 포함된 영화:\n`;
+        sqlContent += `-- [INFO] 포함된 영화:\n`;
         sqlContent += `-- - 한국 영화: 기생충, 부산행, 범죄도시, 극한직업, 올드보이, 살인의 추억 등\n`;
         sqlContent += `-- - 해외 영화: 어벤져스, 다크나이트, 인터스텔라, 쇼생크탈출, 대부 등\n`;
         sqlContent += `-- \n`;
-        sqlContent += `-- 📋 데이터 완성도:\n`;
+        sqlContent += `-- [FORM] 데이터 완성도:\n`;
         sqlContent += `-- - 제목, 감독, 출연진, 장르, 개봉년도, 러닝타임 포함\n`;
         sqlContent += `-- - 평점 데이터 (7.6~9.3 범위)\n`;
         sqlContent += `-- - 검색 키워드 배열 (제목, 감독, 배우, 장르)\n`;
         sqlContent += `-- - 상세 설명 자동 생성\n`;
         sqlContent += `-- \n`;
-        sqlContent += `-- 💡 사용법:\n`;
+        sqlContent += `-- [TIP] 사용법:\n`;
         sqlContent += `-- 1. Supabase SQL 에디터에서 실행\n`;
         sqlContent += `-- 2. 카카오 스킬에서 "영화제목 + 영화평/평점" 형태로 테스트\n`;
         sqlContent += `-- 3. 예: "기생충 영화평", "어벤져스 평점", "인터스텔라 리뷰"\n`;
@@ -210,14 +210,14 @@ VALUES (${values.join(', ')});`;
         fs.writeFileSync(filepath, sqlContent, 'utf8');
         
         console.log(`\n📄 SQL 파일 생성 완료: ${filename}`);
-        console.log(`📍 파일 위치: ${filepath}`);
-        console.log(`📊 총 INSERT문: ${this.sqlInserts.length}개`);
+        console.log(`[LOCATION] 파일 위치: ${filepath}`);
+        console.log(`[INFO] 총 INSERT문: ${this.sqlInserts.length}개`);
         
         return { filename, filepath, insertCount: this.sqlInserts.length };
     }
 
     async run() {
-        console.log('🎬 기존 테이블 구조 맞춤형 영화 INSERT문 생성기');
+        console.log('[MOVIE] 기존 테이블 구조 맞춤형 영화 INSERT문 생성기');
         console.log('='.repeat(60));
         
         try {
@@ -227,8 +227,8 @@ VALUES (${values.join(', ')});`;
             // SQL 파일 저장
             const result = await this.saveSQLFile();
             
-            console.log('\n🎉 완료!');
-            console.log('📋 다음 단계:');
+            console.log('\n[PARTY] 완료!');
+            console.log('[FORM] 다음 단계:');
             console.log('1. 생성된 .sql 파일을 Supabase SQL 에디터에 복사');
             console.log('2. Run 버튼으로 실행');
             console.log('3. 기존 테이블 구조에 영화 데이터 저장');
@@ -237,7 +237,7 @@ VALUES (${values.join(', ')});`;
             return result;
             
         } catch (error) {
-            console.error('❌ 실행 오류:', error);
+            console.error('[ERROR] 실행 오류:', error);
             throw error;
         }
     }

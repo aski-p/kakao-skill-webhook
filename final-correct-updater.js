@@ -104,7 +104,7 @@ class FinalCorrectUpdater {
 
     async updateMovieById(movieData) {
         try {
-            console.log(`\n🎬 ID ${movieData.id}: "${movieData.title}" 업데이트 시작...`);
+            console.log(`\n[MOVIE] ID ${movieData.id}: "${movieData.title}" 업데이트 시작...`);
 
             // 1. 현재 영화 정보 확인
             const { data: currentMovie, error: selectError } = await this.supabase
@@ -114,13 +114,13 @@ class FinalCorrectUpdater {
                 .single();
 
             if (selectError) {
-                console.log(`   ❌ 영화 조회 실패: ${selectError.message}`);
+                console.log(`   [ERROR] 영화 조회 실패: ${selectError.message}`);
                 return false;
             }
 
-            console.log(`   ✅ 영화 발견`);
-            console.log(`   📝 현재 감독: ${currentMovie.director || '정보없음'}`);
-            console.log(`   📝 현재 출연진: ${currentMovie.cast_members?.join(', ') || '정보없음'}`);
+            console.log(`   [SUCCESS] 영화 발견`);
+            console.log(`   [MEMO] 현재 감독: ${currentMovie.director || '정보없음'}`);
+            console.log(`   [MEMO] 현재 출연진: ${currentMovie.cast_members?.join(', ') || '정보없음'}`);
 
             // 2. 영화 정보 업데이트
             const { error: updateError } = await this.supabase
@@ -137,14 +137,14 @@ class FinalCorrectUpdater {
                 .eq('id', movieData.id);
 
             if (updateError) {
-                console.log(`   ❌ 영화 정보 업데이트 실패: ${updateError.message}`);
+                console.log(`   [ERROR] 영화 정보 업데이트 실패: ${updateError.message}`);
                 return false;
             }
 
-            console.log(`   ✅ 영화 정보 업데이트 완료`);
-            console.log(`   🎭 새 감독: ${movieData.director}`);
-            console.log(`   👥 새 출연진: ${movieData.cast_members.slice(0, 3).join(', ')}`);
-            console.log(`   ⭐ 새 평점: ${movieData.naver_rating}`);
+            console.log(`   [SUCCESS] 영화 정보 업데이트 완료`);
+            console.log(`   [DRAMA] 새 감독: ${movieData.director}`);
+            console.log(`   [BUSTSINSILHOUETTE] 새 출연진: ${movieData.cast_members.slice(0, 3).join(', ')}`);
+            console.log(`   [FAVORITE] 새 평점: ${movieData.naver_rating}`);
 
             // 3. 기존 리뷰 삭제
             const { error: deleteError } = await this.supabase
@@ -153,7 +153,7 @@ class FinalCorrectUpdater {
                 .eq('movie_id', movieData.id);
 
             if (deleteError) {
-                console.log(`   ⚠️ 기존 리뷰 삭제 실패: ${deleteError.message}`);
+                console.log(`   [WARN] 기존 리뷰 삭제 실패: ${deleteError.message}`);
             } else {
                 console.log(`   🗑️ 기존 리뷰 삭제 완료`);
             }
@@ -172,26 +172,26 @@ class FinalCorrectUpdater {
                 .select('id');
 
             if (reviewError) {
-                console.log(`   ❌ 리뷰 추가 실패: ${reviewError.message}`);
+                console.log(`   [ERROR] 리뷰 추가 실패: ${reviewError.message}`);
                 return false;
             }
 
-            console.log(`   📝 ${insertedReviews.length}개 새 리뷰 추가 완료`);
-            console.log(`   💬 새 리뷰어: ${movieData.reviews.slice(0, 3).map(r => r.critic_name).join(', ')}`);
+            console.log(`   [MEMO] ${insertedReviews.length}개 새 리뷰 추가 완료`);
+            console.log(`   [MSG] 새 리뷰어: ${movieData.reviews.slice(0, 3).map(r => r.critic_name).join(', ')}`);
 
             return true;
 
         } catch (error) {
-            console.log(`   ❌ ID ${movieData.id} 처리 중 예외 발생: ${error.message}`);
+            console.log(`   [ERROR] ID ${movieData.id} 처리 중 예외 발생: ${error.message}`);
             return false;
         }
     }
 
     async run() {
         console.log('🚀 정확한 ID로 최신 영화들 업데이트 시작!');
-        console.log('🎯 목표: 최신 버전 영화들에 실제 데이터 적용\n');
+        console.log('[TARGET] 목표: 최신 버전 영화들에 실제 데이터 적용\n');
 
-        console.log(`📊 업데이트 대상: ${this.moviesData.length}개 영화`);
+        console.log(`[INFO] 업데이트 대상: ${this.moviesData.length}개 영화`);
         this.moviesData.forEach(movie => {
             console.log(`   ID ${movie.id}: ${movie.title} (감독: ${movie.director})`);
         });
@@ -205,7 +205,7 @@ class FinalCorrectUpdater {
 
             if (success) {
                 this.successCount++;
-                console.log(`   🎉 "${movieData.title}" (ID: ${movieData.id}) 업데이트 성공! ✨`);
+                console.log(`   [PARTY] "${movieData.title}" (ID: ${movieData.id}) 업데이트 성공! [SPARKLE]`);
             } else {
                 this.failCount++;
                 console.log(`   💥 "${movieData.title}" (ID: ${movieData.id}) 업데이트 실패`);
@@ -224,27 +224,27 @@ class FinalCorrectUpdater {
 
         // 최종 결과 출력
         console.log('\n' + '='.repeat(70));
-        console.log('🎉 최신 영화들 업데이트 완료!');
+        console.log('[PARTY] 최신 영화들 업데이트 완료!');
         console.log('='.repeat(70));
-        console.log(`✅ 성공: ${this.successCount}개`);
-        console.log(`❌ 실패: ${this.failCount}개`);
-        console.log(`📊 성공률: ${Math.round((this.successCount / this.moviesData.length) * 100)}%`);
+        console.log(`[SUCCESS] 성공: ${this.successCount}개`);
+        console.log(`[ERROR] 실패: ${this.failCount}개`);
+        console.log(`[INFO] 성공률: ${Math.round((this.successCount / this.moviesData.length) * 100)}%`);
 
         if (this.successCount > 0) {
-            console.log('\n💡 업데이트 완료된 내용:');
-            console.log('   🎭 실제 감독 이름 (장재현, 봉준호, 조셉 코신스키...)');
-            console.log('   👥 실제 출연진 (최민식, 송강호, 톰 크루즈...)');
-            console.log('   📝 실제 관객 리뷰 (가짜 평론가 완전 제거)');
-            console.log('   ⭐ 네이버 평점 및 상세 설명 추가');
+            console.log('\n[TIP] 업데이트 완료된 내용:');
+            console.log('   [DRAMA] 실제 감독 이름 (장재현, 봉준호, 조셉 코신스키...)');
+            console.log('   [BUSTSINSILHOUETTE] 실제 출연진 (최민식, 송강호, 톰 크루즈...)');
+            console.log('   [MEMO] 실제 관객 리뷰 (가짜 평론가 완전 제거)');
+            console.log('   [FAVORITE] 네이버 평점 및 상세 설명 추가');
             
-            console.log('\n📱 이제 카카오 스킬에서 테스트해보세요:');
-            console.log('   💬 "파묘 감독은 누구야" → "장재현입니다"');
-            console.log('   💬 "기생충 출연진 알려줘" → "송강호, 이선균, 조여정..."');
-            console.log('   💬 "탑건 매버릭 평점" → "8.7점입니다"');
-            console.log('   💬 "범죄도시4 영화평" → 실제 관객 리뷰 표시');
+            console.log('\n[APP] 이제 카카오 스킬에서 테스트해보세요:');
+            console.log('   [MSG] "파묘 감독은 누구야" → "장재현입니다"');
+            console.log('   [MSG] "기생충 출연진 알려줘" → "송강호, 이선균, 조여정..."');
+            console.log('   [MSG] "탑건 매버릭 평점" → "8.7점입니다"');
+            console.log('   [MSG] "범죄도시4 영화평" → 실제 관객 리뷰 표시');
         }
 
-        console.log('\n🔥 가짜 데이터 완전 제거! 실제 데이터로 교체 완료! 🔥');
+        console.log('\n[FIRE] 가짜 데이터 완전 제거! 실제 데이터로 교체 완료! [FIRE]');
     }
 }
 

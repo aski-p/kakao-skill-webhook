@@ -21,12 +21,12 @@ class NaverCrawlerTest {
 
     async searchNaverMovie(movieTitle) {
         try {
-            console.log(`\n🔍 네이버 검색: "${movieTitle}"`);
+            console.log(`\n[SEARCH] 네이버 검색: "${movieTitle}"`);
             
             const encodedTitle = encodeURIComponent(`영화 ${movieTitle} 관람평`);
             const searchUrl = `https://search.naver.com/search.naver?where=nexearch&sm=tab_etc&mra=bkEw&pkid=68&os=32764045&qvt=0&query=${encodedTitle}`;
             
-            console.log(`📡 요청 URL: ${searchUrl}`);
+            console.log(`[SATELLITE] 요청 URL: ${searchUrl}`);
 
             const response = await axios.get(searchUrl, {
                 headers: {
@@ -44,14 +44,14 @@ class NaverCrawlerTest {
                 timeout: 15000
             });
 
-            console.log(`✅ HTTP 응답: ${response.status}`);
+            console.log(`[SUCCESS] HTTP 응답: ${response.status}`);
             console.log(`📄 응답 크기: ${response.data.length} bytes`);
 
             const $ = cheerio.load(response.data);
             
             // 페이지 제목 확인
             const pageTitle = $('title').text();
-            console.log(`📝 페이지 제목: ${pageTitle}`);
+            console.log(`[MEMO] 페이지 제목: ${pageTitle}`);
 
             // 영화 정보 섹션 찾기
             const movieSections = [
@@ -66,14 +66,14 @@ class NaverCrawlerTest {
             for (const section of movieSections) {
                 const elements = $(section);
                 if (elements.length > 0) {
-                    console.log(`📦 발견된 섹션: ${section} (${elements.length}개)`);
+                    console.log(`[PACKAGE] 발견된 섹션: ${section} (${elements.length}개)`);
                     foundSection = section;
                     break;
                 }
             }
 
             if (!foundSection) {
-                console.log('❌ 영화 정보 섹션을 찾을 수 없음');
+                console.log('[ERROR] 영화 정보 섹션을 찾을 수 없음');
                 
                 // 전체 텍스트에서 감독/출연 정보 검색
                 const bodyText = $('body').text();
@@ -81,7 +81,7 @@ class NaverCrawlerTest {
                 const castMatch = bodyText.match(/출연[:\s]*([가-힣,\s]+)/);
                 
                 if (directorMatch || castMatch) {
-                    console.log('📝 텍스트에서 정보 발견:');
+                    console.log('[MEMO] 텍스트에서 정보 발견:');
                     if (directorMatch) console.log(`   감독: ${directorMatch[1].trim()}`);
                     if (castMatch) console.log(`   출연: ${castMatch[1].trim().substring(0, 50)}`);
                 }
@@ -96,16 +96,16 @@ class NaverCrawlerTest {
             const reviewInfo = this.extractReviewInfo($);
 
             // 결과 출력
-            console.log('📋 추출된 정보:');
-            if (movieInfo.director) console.log(`   🎭 감독: ${movieInfo.director}`);
+            console.log('[FORM] 추출된 정보:');
+            if (movieInfo.director) console.log(`   [DRAMA] 감독: ${movieInfo.director}`);
             if (movieInfo.cast && movieInfo.cast.length > 0) {
-                console.log(`   👥 출연: ${movieInfo.cast.slice(0, 3).join(', ')}`);
+                console.log(`   [BUSTSINSILHOUETTE] 출연: ${movieInfo.cast.slice(0, 3).join(', ')}`);
             }
-            if (movieInfo.genre) console.log(`   🎪 장르: ${movieInfo.genre}`);
-            if (movieInfo.releaseYear) console.log(`   📅 개봉: ${movieInfo.releaseYear}`);
-            if (reviewInfo.rating) console.log(`   ⭐ 평점: ${reviewInfo.rating}`);
+            if (movieInfo.genre) console.log(`   [FUN] 장르: ${movieInfo.genre}`);
+            if (movieInfo.releaseYear) console.log(`   [TOMORROW] 개봉: ${movieInfo.releaseYear}`);
+            if (reviewInfo.rating) console.log(`   [FAVORITE] 평점: ${reviewInfo.rating}`);
             if (reviewInfo.reviews && reviewInfo.reviews.length > 0) {
-                console.log(`   📝 리뷰: ${reviewInfo.reviews.length}개`);
+                console.log(`   [MEMO] 리뷰: ${reviewInfo.reviews.length}개`);
                 reviewInfo.reviews.slice(0, 2).forEach((review, index) => {
                     console.log(`      ${index + 1}. ${review.critic_name}: "${review.review_text.substring(0, 30)}..." (${review.score}점)`);
                 });
@@ -117,7 +117,7 @@ class NaverCrawlerTest {
             };
 
         } catch (error) {
-            console.log(`❌ 네이버 검색 실패: ${error.message}`);
+            console.log(`[ERROR] 네이버 검색 실패: ${error.message}`);
             if (error.response) {
                 console.log(`   상태 코드: ${error.response.status}`);
                 console.log(`   상태 텍스트: ${error.response.statusText}`);
@@ -178,7 +178,7 @@ class NaverCrawlerTest {
             }
 
         } catch (error) {
-            console.log(`⚠️ 영화 정보 추출 중 오류: ${error.message}`);
+            console.log(`[WARN] 영화 정보 추출 중 오류: ${error.message}`);
         }
 
         return movieInfo;
@@ -214,7 +214,7 @@ class NaverCrawlerTest {
             reviewInfo.reviews = this.generateSampleReviews();
 
         } catch (error) {
-            console.log(`⚠️ 리뷰 정보 추출 중 오류: ${error.message}`);
+            console.log(`[WARN] 리뷰 정보 추출 중 오류: ${error.message}`);
             reviewInfo.reviews = this.generateSampleReviews();
         }
 
@@ -243,20 +243,20 @@ class NaverCrawlerTest {
 
     async run() {
         console.log('🚀 네이버 검색 크롤링 테스트 시작...\n');
-        console.log(`📋 테스트 영화: ${this.testMovies.join(', ')}\n`);
+        console.log(`[FORM] 테스트 영화: ${this.testMovies.join(', ')}\n`);
 
         for (let i = 0; i < this.testMovies.length; i++) {
             const movie = this.testMovies[i];
             
-            console.log(`\n📽️ [${i + 1}/${this.testMovies.length}] ${movie} 처리 중...`);
+            console.log(`\n[PROJECTOR] [${i + 1}/${this.testMovies.length}] ${movie} 처리 중...`);
             console.log('='.repeat(50));
             
             const result = await this.searchNaverMovie(movie);
             
             if (result) {
-                console.log('✅ 정보 추출 성공');
+                console.log('[SUCCESS] 정보 추출 성공');
             } else {
-                console.log('❌ 정보 추출 실패');
+                console.log('[ERROR] 정보 추출 실패');
             }
             
             // 다음 요청 전 대기
@@ -266,8 +266,8 @@ class NaverCrawlerTest {
             }
         }
 
-        console.log('\n🎉 테스트 완료!');
-        console.log('💡 실제 크롤링이 성공하면 Supabase 업데이트를 진행할 수 있습니다.');
+        console.log('\n[PARTY] 테스트 완료!');
+        console.log('[TIP] 실제 크롤링이 성공하면 Supabase 업데이트를 진행할 수 있습니다.');
     }
 }
 

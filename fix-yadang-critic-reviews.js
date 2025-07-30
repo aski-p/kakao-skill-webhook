@@ -8,7 +8,7 @@ async function fixYadangCriticReviews() {
     const supabase = createClient(supabaseUrl, supabaseKey);
     
     try {
-        console.log('🎬 야당 영화 평론가 리뷰 수정 시작...');
+        console.log('[MOVIE] 야당 영화 평론가 리뷰 수정 시작...');
         
         // 1. 야당 영화 ID 찾기
         const { data: movies, error: movieError } = await supabase
@@ -18,12 +18,12 @@ async function fixYadangCriticReviews() {
             .limit(1);
         
         if (movieError || !movies || movies.length === 0) {
-            console.error('❌ 야당 영화를 찾을 수 없습니다.');
+            console.error('[ERROR] 야당 영화를 찾을 수 없습니다.');
             return;
         }
         
         const movieId = movies[0].id;
-        console.log(`✅ 야당 영화 ID: ${movieId}`);
+        console.log(`[SUCCESS] 야당 영화 ID: ${movieId}`);
         
         // 2. 기존 평론가가 아닌 리뷰들 삭제 (관객 리뷰 형태들)
         console.log('🗑️ 기존 관객 리뷰 형태 데이터 삭제 중...');
@@ -34,9 +34,9 @@ async function fixYadangCriticReviews() {
             .not('critic_name', 'in', '(박평식,이동진,김혜리,허지웅,황진미,송경원,이용철)');
         
         if (deleteError) {
-            console.error('❌ 기존 데이터 삭제 오류:', deleteError);
+            console.error('[ERROR] 기존 데이터 삭제 오류:', deleteError);
         } else {
-            console.log('✅ 관객 리뷰 형태 데이터 삭제 완료');
+            console.log('[SUCCESS] 관객 리뷰 형태 데이터 삭제 완료');
         }
         
         // 3. 정확한 평론가 리뷰 추가
@@ -74,7 +74,7 @@ async function fixYadangCriticReviews() {
                 .limit(1);
                 
             if (checkError) {
-                console.error(`❌ ${review.critic_name} 기존 리뷰 확인 오류:`, checkError);
+                console.error(`[ERROR] ${review.critic_name} 기존 리뷰 확인 오류:`, checkError);
                 continue;
             }
             
@@ -90,9 +90,9 @@ async function fixYadangCriticReviews() {
                     .eq('id', existing[0].id);
                     
                 if (updateError) {
-                    console.error(`❌ ${review.critic_name} 리뷰 업데이트 오류:`, updateError);
+                    console.error(`[ERROR] ${review.critic_name} 리뷰 업데이트 오류:`, updateError);
                 } else {
-                    console.log(`✅ ${review.critic_name} 리뷰 업데이트 완료 (${review.score}/10)`);
+                    console.log(`[SUCCESS] ${review.critic_name} 리뷰 업데이트 완료 (${review.score}/10)`);
                 }
             } else {
                 // 새로 추가
@@ -101,15 +101,15 @@ async function fixYadangCriticReviews() {
                     .insert(review);
                     
                 if (insertError) {
-                    console.error(`❌ ${review.critic_name} 리뷰 추가 오류:`, insertError);
+                    console.error(`[ERROR] ${review.critic_name} 리뷰 추가 오류:`, insertError);
                 } else {
-                    console.log(`✅ ${review.critic_name} 리뷰 새로 추가 완료 (${review.score}/10)`);
+                    console.log(`[SUCCESS] ${review.critic_name} 리뷰 새로 추가 완료 (${review.score}/10)`);
                 }
             }
         }
         
         // 5. 최종 확인
-        console.log('\n📋 최종 야당 영화 평론가 리뷰 확인:');
+        console.log('\n[FORM] 최종 야당 영화 평론가 리뷰 확인:');
         const { data: finalReviews, error: finalError } = await supabase
             .from('critic_reviews')
             .select('*')
@@ -117,7 +117,7 @@ async function fixYadangCriticReviews() {
             .order('score', { ascending: false });
             
         if (finalError) {
-            console.error('❌ 최종 확인 오류:', finalError);
+            console.error('[ERROR] 최종 확인 오류:', finalError);
         } else {
             finalReviews.forEach((review, index) => {
                 console.log(`${index + 1}. ${review.critic_name}: ${review.score}/10`);
@@ -126,11 +126,11 @@ async function fixYadangCriticReviews() {
             });
         }
         
-        console.log('🎉 야당 영화 평론가 리뷰 업데이트 완료!');
-        console.log('💡 이제 "야당 영화평"으로 테스트해보세요.');
+        console.log('[PARTY] 야당 영화 평론가 리뷰 업데이트 완료!');
+        console.log('[TIP] 이제 "야당 영화평"으로 테스트해보세요.');
         
     } catch (error) {
-        console.error('❌ 전체 오류:', error);
+        console.error('[ERROR] 전체 오류:', error);
     }
 }
 

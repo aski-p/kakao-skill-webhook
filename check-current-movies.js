@@ -8,7 +8,7 @@ const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 async function checkCurrentMovies() {
-    console.log('🎬 현재 movies 테이블 데이터 확인 중...\n');
+    console.log('[MOVIE] 현재 movies 테이블 데이터 확인 중...\n');
     
     try {
         // 전체 영화 수 확인
@@ -17,11 +17,11 @@ async function checkCurrentMovies() {
             .select('*', { count: 'exact', head: true });
             
         if (countError) {
-            console.error('❌ 총 영화 수 조회 오류:', countError);
+            console.error('[ERROR] 총 영화 수 조회 오류:', countError);
             return;
         }
         
-        console.log(`📊 총 영화 개수: ${totalCount}개`);
+        console.log(`[INFO] 총 영화 개수: ${totalCount}개`);
         
         // 샘플 데이터 확인 (처음 20개)
         const { data: sampleMovies, error: sampleError } = await supabase
@@ -30,11 +30,11 @@ async function checkCurrentMovies() {
             .limit(20);
             
         if (sampleError) {
-            console.error('❌ 샘플 데이터 조회 오류:', sampleError);
+            console.error('[ERROR] 샘플 데이터 조회 오류:', sampleError);
             return;
         }
         
-        console.log('\n📋 샘플 데이터 (처음 20개):');
+        console.log('\n[FORM] 샘플 데이터 (처음 20개):');
         console.log('='.repeat(120));
         
         sampleMovies.forEach((movie, index) => {
@@ -49,7 +49,7 @@ async function checkCurrentMovies() {
         });
         
         // 불일치 데이터 확인
-        console.log('\n🔍 데이터 불일치 분석...');
+        console.log('\n[SEARCH] 데이터 불일치 분석...');
         
         // title과 kofic_title이 다른 경우
         const { data: titleMismatch, error: titleError } = await supabase
@@ -60,7 +60,7 @@ async function checkCurrentMovies() {
             .limit(10);
             
         if (!titleError && titleMismatch) {
-            console.log(`\n📝 제목 불일치: ${titleMismatch.length}개 샘플`);
+            console.log(`\n[MEMO] 제목 불일치: ${titleMismatch.length}개 샘플`);
             titleMismatch.forEach(movie => {
                 console.log(`   ID ${movie.id}: "${movie.title}" ≠ "${movie.kofic_title}"`);
             });
@@ -75,7 +75,7 @@ async function checkCurrentMovies() {
             .limit(10);
             
         if (!directorError && directorMismatch) {
-            console.log(`\n🎭 감독 불일치: ${directorMismatch.length}개 샘플`);
+            console.log(`\n[DRAMA] 감독 불일치: ${directorMismatch.length}개 샘플`);
             directorMismatch.forEach(movie => {
                 console.log(`   "${movie.title}": "${movie.director}" ≠ "${movie.kofic_director}"`);
             });
@@ -90,14 +90,14 @@ async function checkCurrentMovies() {
             .limit(10);
             
         if (!castError && castMismatch) {
-            console.log(`\n👥 출연진 불일치: ${castMismatch.length}개 샘플`);
+            console.log(`\n[BUSTSINSILHOUETTE] 출연진 불일치: ${castMismatch.length}개 샘플`);
             castMismatch.forEach(movie => {
                 console.log(`   "${movie.title}": "${movie.cast_members}" ≠ "${movie.kofic_cast}"`);
             });
         }
         
         // 통계 정보
-        console.log('\n📊 데이터 통계:');
+        console.log('\n[INFO] 데이터 통계:');
         console.log('='.repeat(60));
         
         const stats = await Promise.all([
@@ -113,7 +113,7 @@ async function checkCurrentMovies() {
         console.log(`KOFIC 영화코드가 있는 영화: ${stats[3].count || 0}개`);
         
     } catch (error) {
-        console.error('❌ 오류 발생:', error);
+        console.error('[ERROR] 오류 발생:', error);
     }
 }
 

@@ -103,7 +103,7 @@ class CorrectSupabaseUpdater {
 
     async testConnection() {
         try {
-            console.log('🔍 Supabase 연결 테스트 중...');
+            console.log('[SEARCH] Supabase 연결 테스트 중...');
             
             const { data, error } = await this.supabase
                 .from('movies')
@@ -111,25 +111,25 @@ class CorrectSupabaseUpdater {
                 .limit(1);
 
             if (error) {
-                console.log(`❌ 연결 테스트 실패: ${error.message}`);
+                console.log(`[ERROR] 연결 테스트 실패: ${error.message}`);
                 return false;
             }
 
-            console.log(`✅ Supabase 연결 성공! 데이터베이스에 영화가 있습니다.`);
+            console.log(`[SUCCESS] Supabase 연결 성공! 데이터베이스에 영화가 있습니다.`);
             if (data && data.length > 0) {
                 console.log(`   첫 번째 영화: ${data[0].title} (ID: ${data[0].id})`);
             }
             return true;
 
         } catch (error) {
-            console.log(`❌ 연결 테스트 예외: ${error.message}`);
+            console.log(`[ERROR] 연결 테스트 예외: ${error.message}`);
             return false;
         }
     }
 
     async updateSingleMovie(title, movieData) {
         try {
-            console.log(`\n🎬 "${title}" 업데이트 시작...`);
+            console.log(`\n[MOVIE] "${title}" 업데이트 시작...`);
 
             // 1. 영화 존재 확인
             const { data: existingMovie, error: selectError } = await this.supabase
@@ -139,18 +139,18 @@ class CorrectSupabaseUpdater {
                 .maybeSingle();
 
             if (selectError) {
-                console.log(`   ❌ 영화 조회 실패: ${selectError.message}`);
+                console.log(`   [ERROR] 영화 조회 실패: ${selectError.message}`);
                 return false;
             }
 
             if (!existingMovie) {
-                console.log(`   ⚠️ "${title}" 영화를 찾을 수 없음`);
+                console.log(`   [WARN] "${title}" 영화를 찾을 수 없음`);
                 return false;
             }
 
-            console.log(`   ✅ 영화 발견 (ID: ${existingMovie.id})`);
-            console.log(`   📝 현재 감독: ${existingMovie.director || '정보없음'}`);
-            console.log(`   📝 현재 출연진: ${existingMovie.cast_members?.join(', ') || '정보없음'}`);
+            console.log(`   [SUCCESS] 영화 발견 (ID: ${existingMovie.id})`);
+            console.log(`   [MEMO] 현재 감독: ${existingMovie.director || '정보없음'}`);
+            console.log(`   [MEMO] 현재 출연진: ${existingMovie.cast_members?.join(', ') || '정보없음'}`);
 
             // 2. 영화 정보 업데이트
             const { data: updatedMovie, error: updateError } = await this.supabase
@@ -168,14 +168,14 @@ class CorrectSupabaseUpdater {
                 .select('id');
 
             if (updateError) {
-                console.log(`   ❌ 영화 정보 업데이트 실패: ${updateError.message}`);
+                console.log(`   [ERROR] 영화 정보 업데이트 실패: ${updateError.message}`);
                 return false;
             }
 
-            console.log(`   ✅ 영화 정보 업데이트 완료`);
-            console.log(`   🎭 새 감독: ${movieData.director}`);
-            console.log(`   👥 새 출연진: ${movieData.cast_members.slice(0, 3).join(', ')}`);
-            console.log(`   ⭐ 새 평점: ${movieData.naver_rating}`);
+            console.log(`   [SUCCESS] 영화 정보 업데이트 완료`);
+            console.log(`   [DRAMA] 새 감독: ${movieData.director}`);
+            console.log(`   [BUSTSINSILHOUETTE] 새 출연진: ${movieData.cast_members.slice(0, 3).join(', ')}`);
+            console.log(`   [FAVORITE] 새 평점: ${movieData.naver_rating}`);
 
             // 3. 기존 리뷰 개수 확인 후 삭제
             const { data: existingReviews, error: reviewCountError } = await this.supabase
@@ -184,11 +184,11 @@ class CorrectSupabaseUpdater {
                 .eq('movie_id', existingMovie.id);
 
             if (reviewCountError) {
-                console.log(`   ⚠️ 기존 리뷰 확인 실패: ${reviewCountError.message}`);
+                console.log(`   [WARN] 기존 리뷰 확인 실패: ${reviewCountError.message}`);
             } else {
                 console.log(`   🗑️ 기존 리뷰 ${existingReviews.length}개 발견`);
                 if (existingReviews.length > 0) {
-                    console.log(`   📝 예시 기존 리뷰어: ${existingReviews.slice(0, 2).map(r => r.critic_name).join(', ')}`);
+                    console.log(`   [MEMO] 예시 기존 리뷰어: ${existingReviews.slice(0, 2).map(r => r.critic_name).join(', ')}`);
                 }
             }
 
@@ -198,7 +198,7 @@ class CorrectSupabaseUpdater {
                 .eq('movie_id', existingMovie.id);
 
             if (deleteError) {
-                console.log(`   ⚠️ 기존 리뷰 삭제 실패: ${deleteError.message}`);
+                console.log(`   [WARN] 기존 리뷰 삭제 실패: ${deleteError.message}`);
             } else {
                 console.log(`   🗑️ 기존 리뷰 삭제 완료`);
             }
@@ -217,36 +217,36 @@ class CorrectSupabaseUpdater {
                 .select('id, critic_name');
 
             if (reviewError) {
-                console.log(`   ❌ 리뷰 추가 실패: ${reviewError.message}`);
+                console.log(`   [ERROR] 리뷰 추가 실패: ${reviewError.message}`);
                 return false;
             }
 
-            console.log(`   📝 ${insertedReviews.length}개 새 리뷰 추가 완료`);
-            console.log(`   💬 새 리뷰어: ${insertedReviews.slice(0, 3).map(r => r.critic_name).join(', ')}`);
+            console.log(`   [MEMO] ${insertedReviews.length}개 새 리뷰 추가 완료`);
+            console.log(`   [MSG] 새 리뷰어: ${insertedReviews.slice(0, 3).map(r => r.critic_name).join(', ')}`);
             console.log(`   📄 예시 리뷰: "${movieData.reviews[0].review_text.substring(0, 40)}..."`);
 
             return true;
 
         } catch (error) {
-            console.log(`   ❌ "${title}" 처리 중 예외 발생: ${error.message}`);
+            console.log(`   [ERROR] "${title}" 처리 중 예외 발생: ${error.message}`);
             return false;
         }
     }
 
     async run() {
         console.log('🚀 올바른 Supabase 정보로 영화 데이터 업데이트 시작!');
-        console.log('🎯 목표: 가짜 평론가 "김영화평론가", "박시네마리뷰" 완전 제거\n');
+        console.log('[TARGET] 목표: 가짜 평론가 "김영화평론가", "박시네마리뷰" 완전 제거\n');
 
         // 연결 테스트
         const connectionOk = await this.testConnection();
         if (!connectionOk) {
-            console.log('❌ Supabase 연결 실패. 스크립트를 종료합니다.');
+            console.log('[ERROR] Supabase 연결 실패. 스크립트를 종료합니다.');
             return;
         }
 
         const movieTitles = Object.keys(this.moviesData);
-        console.log(`\n📊 업데이트 대상: ${movieTitles.length}개 영화`);
-        console.log(`📋 대상 영화: ${movieTitles.join(', ')}\n`);
+        console.log(`\n[INFO] 업데이트 대상: ${movieTitles.length}개 영화`);
+        console.log(`[FORM] 대상 영화: ${movieTitles.join(', ')}\n`);
 
         // 각 영화 순차 처리
         for (let i = 0; i < movieTitles.length; i++) {
@@ -257,7 +257,7 @@ class CorrectSupabaseUpdater {
 
             if (success) {
                 this.successCount++;
-                console.log(`   🎉 "${title}" 업데이트 성공! ✨`);
+                console.log(`   [PARTY] "${title}" 업데이트 성공! [SPARKLE]`);
             } else {
                 this.failCount++;
                 console.log(`   💥 "${title}" 업데이트 실패`);
@@ -276,27 +276,27 @@ class CorrectSupabaseUpdater {
 
         // 최종 결과 출력
         console.log('\n' + '='.repeat(70));
-        console.log('🎉 Supabase 영화 데이터 배치 업데이트 완료!');
+        console.log('[PARTY] Supabase 영화 데이터 배치 업데이트 완료!');
         console.log('='.repeat(70));
-        console.log(`✅ 성공: ${this.successCount}개`);
-        console.log(`❌ 실패: ${this.failCount}개`);
-        console.log(`📊 성공률: ${Math.round((this.successCount / movieTitles.length) * 100)}%`);
+        console.log(`[SUCCESS] 성공: ${this.successCount}개`);
+        console.log(`[ERROR] 실패: ${this.failCount}개`);
+        console.log(`[INFO] 성공률: ${Math.round((this.successCount / movieTitles.length) * 100)}%`);
 
         if (this.successCount > 0) {
-            console.log('\n💡 업데이트 완료된 내용:');
-            console.log('   🎭 "알 수 없음" → 실제 감독 이름 (장재현, 봉준호, 신아가...)');
-            console.log('   👥 "알 수 없음" → 실제 출연진 (최민식, 송강호, 유지태...)');
-            console.log('   📝 "김영화평론가, 박시네마리뷰" → 실제 관객 리뷰');
-            console.log('   ⭐ 네이버 평점 및 상세 설명 추가');
+            console.log('\n[TIP] 업데이트 완료된 내용:');
+            console.log('   [DRAMA] "알 수 없음" → 실제 감독 이름 (장재현, 봉준호, 신아가...)');
+            console.log('   [BUSTSINSILHOUETTE] "알 수 없음" → 실제 출연진 (최민식, 송강호, 유지태...)');
+            console.log('   [MEMO] "김영화평론가, 박시네마리뷰" → 실제 관객 리뷰');
+            console.log('   [FAVORITE] 네이버 평점 및 상세 설명 추가');
             
-            console.log('\n📱 이제 카카오 스킬에서 테스트해보세요:');
-            console.log('   💬 "파묘 감독은 누구야" → "장재현입니다"');
-            console.log('   💬 "기생충 출연진 알려줘" → "송강호, 이선균, 조여정..."');
-            console.log('   💬 "아마추어 영화평" → 실제 관객 리뷰 표시');
-            console.log('   💬 "범죄도시4 평점" → "8.7점입니다"');
+            console.log('\n[APP] 이제 카카오 스킬에서 테스트해보세요:');
+            console.log('   [MSG] "파묘 감독은 누구야" → "장재현입니다"');
+            console.log('   [MSG] "기생충 출연진 알려줘" → "송강호, 이선균, 조여정..."');
+            console.log('   [MSG] "아마추어 영화평" → 실제 관객 리뷰 표시');
+            console.log('   [MSG] "범죄도시4 평점" → "8.7점입니다"');
         }
 
-        console.log('\n🔥 가짜 데이터 완전 제거 및 실제 데이터 교체 완료! 🔥');
+        console.log('\n[FIRE] 가짜 데이터 완전 제거 및 실제 데이터 교체 완료! [FIRE]');
     }
 }
 

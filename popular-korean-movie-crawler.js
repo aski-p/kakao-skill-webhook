@@ -56,7 +56,7 @@ class PopularKoreanMovieCrawler {
         
         const reviews = [];
         try {
-            console.log(`   🔍 네이버 코드 ${movieCode} 리뷰 크롤링 중...`);
+            console.log(`   [SEARCH] 네이버 코드 ${movieCode} 리뷰 크롤링 중...`);
             
             // 네이버 평점 리뷰 크롤링
             const url = `https://movie.naver.com/movie/bi/mi/pointWriteFormList.naver?code=${movieCode}&type=after&isActualPointWriteExecute=false&isMileageSubscriptionAlready=false&isMileageSubscriptionReject=false&page=1`;
@@ -100,10 +100,10 @@ class PopularKoreanMovieCrawler {
                 }
             });
 
-            console.log(`   ✅ ${reviews.length}개 리뷰 수집 완료`);
+            console.log(`   [SUCCESS] ${reviews.length}개 리뷰 수집 완료`);
 
         } catch (error) {
-            console.log(`   ⚠️ 리뷰 크롤링 실패 (${movieCode}):`, error.message);
+            console.log(`   [WARN] 리뷰 크롤링 실패 (${movieCode}):`, error.message);
         }
 
         return reviews;
@@ -135,7 +135,7 @@ class PopularKoreanMovieCrawler {
                     .eq('critic_name', fakeName);
                 
                 if (error) {
-                    console.log(`   ⚠️ ${fakeName} 삭제 실패:`, error.message);
+                    console.log(`   [WARN] ${fakeName} 삭제 실패:`, error.message);
                 }
             }
             
@@ -143,16 +143,16 @@ class PopularKoreanMovieCrawler {
                 .from('critic_reviews')
                 .select('*', { count: 'exact', head: true });
             
-            console.log(`   ✅ 가짜 리뷰 삭제 완료: ${beforeCount - afterCount}개 삭제됨`);
-            console.log(`   📝 남은 리뷰 수: ${afterCount}개`);
+            console.log(`   [SUCCESS] 가짜 리뷰 삭제 완료: ${beforeCount - afterCount}개 삭제됨`);
+            console.log(`   [MEMO] 남은 리뷰 수: ${afterCount}개`);
             
         } catch (error) {
-            console.log('❌ 가짜 리뷰 삭제 실패:', error.message);
+            console.log('[ERROR] 가짜 리뷰 삭제 실패:', error.message);
         }
     }
 
     async updateMovieWithRealReviews(movie) {
-        console.log(`🎬 [${movie.title}] 리뷰 업데이트 시작...`);
+        console.log(`[MOVIE] [${movie.title}] 리뷰 업데이트 시작...`);
         
         // 기존 영화 찾기
         const { data: existingMovies, error: findError } = await supabase
@@ -162,19 +162,19 @@ class PopularKoreanMovieCrawler {
             .eq('release_year', movie.year);
         
         if (findError || !existingMovies || existingMovies.length === 0) {
-            console.log(`   ⚠️ 영화를 찾을 수 없습니다: ${movie.title}`);
+            console.log(`   [WARN] 영화를 찾을 수 없습니다: ${movie.title}`);
             return;
         }
         
         const movieId = existingMovies[0].id;
-        console.log(`   📍 영화 ID: ${movieId}`);
+        console.log(`   [LOCATION] 영화 ID: ${movieId}`);
         
         // 실제 리뷰 크롤링
         await this.delayMs(this.delay);
         const reviews = await this.crawlNaverReviews(movie.naverCode);
         
         if (reviews.length === 0) {
-            console.log(`   ❌ 리뷰를 찾을 수 없습니다`);
+            console.log(`   [ERROR] 리뷰를 찾을 수 없습니다`);
             return;
         }
         
@@ -185,7 +185,7 @@ class PopularKoreanMovieCrawler {
             .eq('movie_id', movieId);
         
         if (deleteError) {
-            console.log(`   ⚠️ 기존 리뷰 삭제 실패:`, deleteError.message);
+            console.log(`   [WARN] 기존 리뷰 삭제 실패:`, deleteError.message);
         }
         
         // 새 리뷰 추가
@@ -200,9 +200,9 @@ class PopularKoreanMovieCrawler {
             .select('id');
         
         if (insertError) {
-            console.log(`   ❌ 리뷰 삽입 실패:`, insertError.message);
+            console.log(`   [ERROR] 리뷰 삽입 실패:`, insertError.message);
         } else {
-            console.log(`   ✅ ${insertedReviews.length}개 실제 리뷰 추가 완료`);
+            console.log(`   [SUCCESS] ${insertedReviews.length}개 실제 리뷰 추가 완료`);
         }
     }
 
@@ -210,7 +210,7 @@ class PopularKoreanMovieCrawler {
         const startTime = Date.now();
         
         console.log('🚀 인기 한국 영화 실제 리뷰 크롤링 시작...');
-        console.log(`📊 대상 영화: ${this.popularKoreanMovies.length}개`);
+        console.log(`[INFO] 대상 영화: ${this.popularKoreanMovies.length}개`);
         
         // 가짜 리뷰 삭제
         await this.clearFakeReviews();
@@ -226,7 +226,7 @@ class PopularKoreanMovieCrawler {
                 console.log(`📈 진행률: ${processedCount}/${this.popularKoreanMovies.length} (${Math.round(processedCount/this.popularKoreanMovies.length*100)}%)\n`);
                 
             } catch (error) {
-                console.log(`❌ ${movie.title} 처리 실패:`, error.message);
+                console.log(`[ERROR] ${movie.title} 처리 실패:`, error.message);
             }
         }
         
@@ -243,14 +243,14 @@ class PopularKoreanMovieCrawler {
         const totalTime = ((endTime - startTime) / 1000 / 60).toFixed(1);
         
         console.log('='.repeat(60));
-        console.log('🎉 인기 한국 영화 실제 리뷰 크롤링 완료!');
+        console.log('[PARTY] 인기 한국 영화 실제 리뷰 크롤링 완료!');
         console.log('='.repeat(60));
         console.log(`⏱️ 총 실행 시간: ${totalTime}분`);
-        console.log(`🎬 총 영화: ${movieCount}개`);
-        console.log(`📝 총 리뷰: ${reviewCount}개 (실제 네이버 리뷰로 교체됨)`);
-        console.log(`✅ 처리된 영화: ${processedCount}개`);
-        console.log('\n💡 이제 실제 네이버 사용자 리뷰가 포함된 영화 검색이 가능합니다!');
-        console.log('🔍 테스트해볼 수 있는 영화들:');
+        console.log(`[MOVIE] 총 영화: ${movieCount}개`);
+        console.log(`[MEMO] 총 리뷰: ${reviewCount}개 (실제 네이버 리뷰로 교체됨)`);
+        console.log(`[SUCCESS] 처리된 영화: ${processedCount}개`);
+        console.log('\n[TIP] 이제 실제 네이버 사용자 리뷰가 포함된 영화 검색이 가능합니다!');
+        console.log('[SEARCH] 테스트해볼 수 있는 영화들:');
         console.log('   • 파묘, 기생충, 올드보이, 극한직업, 베테랑');
         console.log('   • 범죄도시, 택시운전사, 부산행, 곡성, 아가씨');
     }

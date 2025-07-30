@@ -136,12 +136,12 @@ class MassMovieUpdater {
 
     async updateMovieWithKnownData(movie) {
         try {
-            console.log(`\n🎬 ID ${movie.id}: "${movie.title}" 업데이트 시작...`);
+            console.log(`\n[MOVIE] ID ${movie.id}: "${movie.title}" 업데이트 시작...`);
 
             const knownData = this.knownMovies[movie.title];
             
             if (!knownData) {
-                console.log(`   ⚠️ "${movie.title}" 알려진 정보 없음`);
+                console.log(`   [WARN] "${movie.title}" 알려진 정보 없음`);
                 return false;
             }
 
@@ -160,14 +160,14 @@ class MassMovieUpdater {
                 .eq('id', movie.id);
 
             if (updateError) {
-                console.log(`   ❌ 영화 정보 업데이트 실패: ${updateError.message}`);
+                console.log(`   [ERROR] 영화 정보 업데이트 실패: ${updateError.message}`);
                 return false;
             }
 
-            console.log(`   ✅ 영화 정보 업데이트 완료`);
-            console.log(`   🎭 감독: ${knownData.director}`);
-            console.log(`   👥 출연진: ${knownData.cast_members.slice(0, 3).join(', ')}`);
-            console.log(`   ⭐ 평점: ${knownData.naver_rating}`);
+            console.log(`   [SUCCESS] 영화 정보 업데이트 완료`);
+            console.log(`   [DRAMA] 감독: ${knownData.director}`);
+            console.log(`   [BUSTSINSILHOUETTE] 출연진: ${knownData.cast_members.slice(0, 3).join(', ')}`);
+            console.log(`   [FAVORITE] 평점: ${knownData.naver_rating}`);
 
             // 2. 기존 리뷰 삭제
             await this.supabase
@@ -189,7 +189,7 @@ class MassMovieUpdater {
                 .insert(reviewsData);
 
             if (reviewError) {
-                console.log(`   ⚠️ 리뷰 추가 실패: ${reviewError.message}`);
+                console.log(`   [WARN] 리뷰 추가 실패: ${reviewError.message}`);
                 // 개별 추가 시도
                 for (const reviewData of reviewsData) {
                     try {
@@ -201,13 +201,13 @@ class MassMovieUpdater {
                     }
                 }
             } else {
-                console.log(`   📝 ${reviews.length}개 리뷰 추가 완료`);
+                console.log(`   [MEMO] ${reviews.length}개 리뷰 추가 완료`);
             }
 
             return true;
 
         } catch (error) {
-            console.log(`   ❌ "${movie.title}" 처리 중 예외 발생: ${error.message}`);
+            console.log(`   [ERROR] "${movie.title}" 처리 중 예외 발생: ${error.message}`);
             return false;
         }
     }
@@ -221,7 +221,7 @@ class MassMovieUpdater {
             .range(offset, offset + limit - 1);
 
         if (error) {
-            console.log(`❌ 영화 목록 조회 실패: ${error.message}`);
+            console.log(`[ERROR] 영화 목록 조회 실패: ${error.message}`);
             return [];
         }
 
@@ -230,11 +230,11 @@ class MassMovieUpdater {
 
     async run() {
         console.log('🚀 대량 영화 정보 업데이트 시작!');
-        console.log('🎯 목표: "알 수 없음" → 실제 영화 정보로 대량 교체\n');
+        console.log('[TARGET] 목표: "알 수 없음" → 실제 영화 정보로 대량 교체\n');
 
         // 알려진 영화들부터 처리
-        console.log(`📊 알려진 영화 데이터: ${Object.keys(this.knownMovies).length}개`);
-        console.log('📋 처리 대상:', Object.keys(this.knownMovies).join(', '));
+        console.log(`[INFO] 알려진 영화 데이터: ${Object.keys(this.knownMovies).length}개`);
+        console.log('[FORM] 처리 대상:', Object.keys(this.knownMovies).join(', '));
         console.log('');
 
         // 첫 번째 배치 처리 (알려진 영화들 우선)
@@ -247,7 +247,7 @@ class MassMovieUpdater {
             
             if (success) {
                 this.successCount++;
-                console.log(`   🎉 "${movie.title}" 업데이트 성공! ✨`);
+                console.log(`   [PARTY] "${movie.title}" 업데이트 성공! [SPARKLE]`);
             } else {
                 this.failCount++;
                 console.log(`   💥 "${movie.title}" 업데이트 실패 또는 스킵`);
@@ -265,28 +265,28 @@ class MassMovieUpdater {
 
         // 최종 결과
         console.log('\n' + '='.repeat(70));
-        console.log('🎉 첫 번째 배치 업데이트 완료!');
+        console.log('[PARTY] 첫 번째 배치 업데이트 완료!');
         console.log('='.repeat(70));
-        console.log(`✅ 성공: ${this.successCount}개`);
-        console.log(`❌ 실패/스킵: ${this.failCount}개`);
-        console.log(`📊 성공률: ${Math.round((this.successCount / this.processedCount) * 100)}%`);
+        console.log(`[SUCCESS] 성공: ${this.successCount}개`);
+        console.log(`[ERROR] 실패/스킵: ${this.failCount}개`);
+        console.log(`[INFO] 성공률: ${Math.round((this.successCount / this.processedCount) * 100)}%`);
 
         if (this.successCount > 0) {
-            console.log('\n💡 업데이트된 영화들:');
+            console.log('\n[TIP] 업데이트된 영화들:');
             Object.keys(this.knownMovies).forEach(title => {
                 const data = this.knownMovies[title];
-                console.log(`   🎬 ${title} (${data.director}, ${data.release_year})`);
+                console.log(`   [MOVIE] ${title} (${data.director}, ${data.release_year})`);
             });
 
-            console.log('\n📱 카카오 스킬에서 테스트 가능:');
-            console.log('   💬 "드래곤 길들이기 감독은 누구야" → "딘 데블로이스입니다"');
-            console.log('   💬 "슈퍼맨 출연진 알려줘" → "크리스토퍼 리브, 마고 키더..."');
-            console.log('   💬 "발레리나 영화평" → 실제 관객 리뷰');
-            console.log('   💬 "미션 임파서블 평점" → "8.5점입니다"');
+            console.log('\n[APP] 카카오 스킬에서 테스트 가능:');
+            console.log('   [MSG] "드래곤 길들이기 감독은 누구야" → "딘 데블로이스입니다"');
+            console.log('   [MSG] "슈퍼맨 출연진 알려줘" → "크리스토퍼 리브, 마고 키더..."');
+            console.log('   [MSG] "발레리나 영화평" → 실제 관객 리뷰');
+            console.log('   [MSG] "미션 임파서블 평점" → "8.5점입니다"');
         }
 
-        console.log('\n🔥 가짜 데이터 제거 진행 중! 더 많은 영화 업데이트 예정! 🔥');
-        console.log(`📊 남은 "알 수 없음" 영화: 약 4,300개 → 계속 업데이트 필요`);
+        console.log('\n[FIRE] 가짜 데이터 제거 진행 중! 더 많은 영화 업데이트 예정! [FIRE]');
+        console.log(`[INFO] 남은 "알 수 없음" 영화: 약 4,300개 → 계속 업데이트 필요`);
     }
 }
 

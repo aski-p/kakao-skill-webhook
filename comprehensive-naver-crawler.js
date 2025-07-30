@@ -26,7 +26,7 @@ class ComprehensiveNaverCrawler {
     }
 
     async loadAllMovieTitles() {
-        console.log('📋 전체 영화 제목 리스트 로드 중...');
+        console.log('[FORM] 전체 영화 제목 리스트 로드 중...');
         
         const { data, error } = await supabase
             .from('movies')
@@ -35,12 +35,12 @@ class ComprehensiveNaverCrawler {
             .limit(100); // 먼저 100개로 테스트
 
         if (error) {
-            console.log('❌ 영화 목록 로드 실패:', error.message);
+            console.log('[ERROR] 영화 목록 로드 실패:', error.message);
             return [];
         }
 
         this.totalMovies = data.length;
-        console.log(`✅ ${this.totalMovies}개 영화 제목 로드 완료`);
+        console.log(`[SUCCESS] ${this.totalMovies}개 영화 제목 로드 완료`);
         return data;
     }
 
@@ -94,11 +94,11 @@ class ComprehensiveNaverCrawler {
             }
         } catch (error) {
             if (error.response?.status === 429) {
-                console.log(`   ⚠️ API 제한, 2초 대기...`);
+                console.log(`   [WARN] API 제한, 2초 대기...`);
                 await this.delayMs(2000);
                 return await this.searchNaverMovieAPI(title, year);
             }
-            console.log(`   ⚠️ 네이버 검색 실패: ${error.message}`);
+            console.log(`   [WARN] 네이버 검색 실패: ${error.message}`);
         }
         return null;
     }
@@ -147,7 +147,7 @@ class ComprehensiveNaverCrawler {
                 }
             }
         } catch (error) {
-            console.log(`   ⚠️ 영화 상세정보 크롤링 실패 (${movieCode}):`, error.message);
+            console.log(`   [WARN] 영화 상세정보 크롤링 실패 (${movieCode}):`, error.message);
         }
         
         return null;
@@ -247,7 +247,7 @@ class ComprehensiveNaverCrawler {
             }
             
         } catch (error) {
-            console.log(`   ⚠️ 리뷰 크롤링 실패 (${movieCode}):`, error.message);
+            console.log(`   [WARN] 리뷰 크롤링 실패 (${movieCode}):`, error.message);
         }
         
         // 리뷰가 없으면 기본 리뷰 생성
@@ -330,19 +330,19 @@ class ComprehensiveNaverCrawler {
     }
 
     async updateMovieWithNaverData(movie) {
-        console.log(`🎬 [${this.processedCount + 1}/${this.totalMovies}] ${movie.title} 처리 중...`);
+        console.log(`[MOVIE] [${this.processedCount + 1}/${this.totalMovies}] ${movie.title} 처리 중...`);
         
         // 1단계: 네이버 API로 기본 정보 검색
         const naverMovie = await this.searchNaverMovieAPI(movie.title, movie.release_year);
         
         if (!naverMovie) {
-            console.log(`   ❌ 네이버에서 찾을 수 없음`);
+            console.log(`   [ERROR] 네이버에서 찾을 수 없음`);
             this.failedCount++;
             return;
         }
         
-        console.log(`   ✅ 네이버 발견: ${naverMovie.title} (${naverMovie.pubDate})`);
-        console.log(`   📋 감독: ${naverMovie.director}, 출연: ${naverMovie.actors}`);
+        console.log(`   [SUCCESS] 네이버 발견: ${naverMovie.title} (${naverMovie.pubDate})`);
+        console.log(`   [FORM] 감독: ${naverMovie.director}, 출연: ${naverMovie.actors}`);
         
         // 2단계: 상세 정보 크롤링
         await this.delayMs(500);
@@ -352,7 +352,7 @@ class ComprehensiveNaverCrawler {
         await this.delayMs(500);
         const reviews = await this.crawlNaverReviews(naverMovie.movieCode);
         
-        console.log(`   📝 평론가 리뷰: ${reviews.critics.length}개, 관객 리뷰: ${reviews.audiences.length}개`);
+        console.log(`   [MEMO] 평론가 리뷰: ${reviews.critics.length}개, 관객 리뷰: ${reviews.audiences.length}개`);
         
         // 4단계: 영화 정보 업데이트
         const updateData = {
@@ -375,7 +375,7 @@ class ComprehensiveNaverCrawler {
             .eq('id', movie.id);
         
         if (movieError) {
-            console.log(`   ⚠️ 영화 정보 업데이트 실패:`, movieError.message);
+            console.log(`   [WARN] 영화 정보 업데이트 실패:`, movieError.message);
             this.failedCount++;
             return;
         }
@@ -395,14 +395,14 @@ class ComprehensiveNaverCrawler {
                 .select('id');
             
             if (reviewError) {
-                console.log(`   ⚠️ 리뷰 삽입 실패:`, reviewError.message);
+                console.log(`   [WARN] 리뷰 삽입 실패:`, reviewError.message);
             } else {
-                console.log(`   ✅ ${insertedReviews.length}개 실제 리뷰 저장`);
+                console.log(`   [SUCCESS] ${insertedReviews.length}개 실제 리뷰 저장`);
             }
         }
         
         this.updatedCount++;
-        console.log(`   🎯 업데이트 완료! (평점: ${naverMovie.userRating})\n`);
+        console.log(`   [TARGET] 업데이트 완료! (평점: ${naverMovie.userRating})\n`);
     }
 
     parseRuntime(runtimeStr) {
@@ -415,15 +415,15 @@ class ComprehensiveNaverCrawler {
         const startTime = Date.now();
         
         console.log('🚀 네이버 기반 전체 영화 데이터베이스 완전 업데이트 시작...');
-        console.log('📝 모든 영화 제목을 네이버에서 검색하여 실제 데이터로 교체합니다.\n');
+        console.log('[MEMO] 모든 영화 제목을 네이버에서 검색하여 실제 데이터로 교체합니다.\n');
         
         const movies = await this.loadAllMovieTitles();
         if (movies.length === 0) {
-            console.log('❌ 업데이트할 영화가 없습니다.');
+            console.log('[ERROR] 업데이트할 영화가 없습니다.');
             return;
         }
         
-        console.log(`📊 총 ${movies.length}개 영화 처리 예정\n`);
+        console.log(`[INFO] 총 ${movies.length}개 영화 처리 예정\n`);
         
         for (const movie of movies) {
             try {
@@ -437,7 +437,7 @@ class ComprehensiveNaverCrawler {
                 await this.delayMs(this.delay);
                 
             } catch (error) {
-                console.log(`❌ ${movie.title} 처리 중 오류:`, error.message);
+                console.log(`[ERROR] ${movie.title} 처리 중 오류:`, error.message);
                 this.failedCount++;
                 this.processedCount++;
             }
@@ -456,17 +456,17 @@ class ComprehensiveNaverCrawler {
         const totalTime = ((endTime - startTime) / 1000 / 60).toFixed(1);
         
         console.log('\n' + '='.repeat(80));
-        console.log('🎉 네이버 기반 전체 영화 데이터베이스 업데이트 완료!');
+        console.log('[PARTY] 네이버 기반 전체 영화 데이터베이스 업데이트 완료!');
         console.log('='.repeat(80));
         console.log(`⏱️ 총 실행 시간: ${totalTime}분`);
-        console.log(`🎬 총 영화: ${movieCount}개`);
-        console.log(`📝 총 리뷰: ${reviewCount}개`);
-        console.log(`✅ 성공적으로 업데이트: ${this.updatedCount}개`);
-        console.log(`❌ 업데이트 실패: ${this.failedCount}개`);
-        console.log(`📊 성공률: ${Math.round((this.updatedCount / this.processedCount) * 100)}%`);
-        console.log('\n💡 모든 영화 정보가 네이버 실제 데이터로 완전히 교체되었습니다!');
-        console.log('🔍 이제 정확한 감독, 출연진, 실제 평론가 평가, 관객 평가를 확인할 수 있습니다.');
-        console.log('📱 \"아마추어 영화평\", \"파묘 리뷰\" 등을 다시 테스트해보세요!');
+        console.log(`[MOVIE] 총 영화: ${movieCount}개`);
+        console.log(`[MEMO] 총 리뷰: ${reviewCount}개`);
+        console.log(`[SUCCESS] 성공적으로 업데이트: ${this.updatedCount}개`);
+        console.log(`[ERROR] 업데이트 실패: ${this.failedCount}개`);
+        console.log(`[INFO] 성공률: ${Math.round((this.updatedCount / this.processedCount) * 100)}%`);
+        console.log('\n[TIP] 모든 영화 정보가 네이버 실제 데이터로 완전히 교체되었습니다!');
+        console.log('[SEARCH] 이제 정확한 감독, 출연진, 실제 평론가 평가, 관객 평가를 확인할 수 있습니다.');
+        console.log('[APP] \"아마추어 영화평\", \"파묘 리뷰\" 등을 다시 테스트해보세요!');
     }
 }
 

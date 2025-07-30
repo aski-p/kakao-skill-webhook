@@ -27,7 +27,7 @@ class ComprehensiveMovieInsertsGenerator {
     }
 
     async generateComprehensiveInserts() {
-        console.log('🎬 10년간 모든 영화 데이터 크롤링 및 INSERT문 생성 시작\n');
+        console.log('[MOVIE] 10년간 모든 영화 데이터 크롤링 및 INSERT문 생성 시작\n');
         const startTime = Date.now();
 
         try {
@@ -38,7 +38,7 @@ class ComprehensiveMovieInsertsGenerator {
             if (this.naverClientId && this.naverClientSecret) {
                 await this.enrichWithNaverData();
             } else {
-                console.log('⚠️ 네이버 API 키가 없어서 기본 데이터로 진행');
+                console.log('[WARN] 네이버 API 키가 없어서 기본 데이터로 진행');
             }
 
             // 3. SQL INSERT문 생성
@@ -46,12 +46,12 @@ class ComprehensiveMovieInsertsGenerator {
 
             const duration = Math.round((Date.now() - startTime) / 1000);
             
-            console.log('\n🎉 영화 데이터 수집 및 INSERT문 생성 완료!');
-            console.log(`📊 총 처리: ${this.results.totalProcessed}개`);
-            console.log(`📽️ KOFIC 영화: ${this.results.koficMovies}개`);
-            console.log(`🔍 네이버 보완: ${this.results.naverEnriched}개`);
-            console.log(`✅ 성공: ${this.results.successCount}개`);
-            console.log(`❌ 실패: ${this.results.errorCount}개`);
+            console.log('\n[PARTY] 영화 데이터 수집 및 INSERT문 생성 완료!');
+            console.log(`[INFO] 총 처리: ${this.results.totalProcessed}개`);
+            console.log(`[PROJECTOR] KOFIC 영화: ${this.results.koficMovies}개`);
+            console.log(`[SEARCH] 네이버 보완: ${this.results.naverEnriched}개`);
+            console.log(`[SUCCESS] 성공: ${this.results.successCount}개`);
+            console.log(`[ERROR] 실패: ${this.results.errorCount}개`);
             console.log(`⏱️ 소요시간: ${duration}초`);
 
             return {
@@ -61,7 +61,7 @@ class ComprehensiveMovieInsertsGenerator {
             };
 
         } catch (error) {
-            console.error('❌ 전체 프로세스 오류:', error);
+            console.error('[ERROR] 전체 프로세스 오류:', error);
             return {
                 success: false,
                 error: error.message,
@@ -72,12 +72,12 @@ class ComprehensiveMovieInsertsGenerator {
 
     // KOFIC API로 10년간 박스오피스 데이터 수집
     async crawlKoficMovies() {
-        console.log('📊 KOFIC API 박스오피스 데이터 수집 시작');
+        console.log('[INFO] KOFIC API 박스오피스 데이터 수집 시작');
         
         const currentYear = new Date().getFullYear();
         const startYear = currentYear - 10;
         
-        console.log(`📅 ${startYear}년 ~ ${currentYear}년 박스오피스 데이터 수집`);
+        console.log(`[TOMORROW] ${startYear}년 ~ ${currentYear}년 박스오피스 데이터 수집`);
 
         for (let year = startYear; year <= currentYear; year++) {
             console.log(`\n🗓️ ${year}년 데이터 수집 중...`);
@@ -86,12 +86,12 @@ class ComprehensiveMovieInsertsGenerator {
                 await this.crawlYearlyMovies(year);
                 await this.sleep(1000); // 연도 간 대기
             } catch (error) {
-                console.error(`❌ ${year}년 데이터 수집 오류:`, error.message);
+                console.error(`[ERROR] ${year}년 데이터 수집 오류:`, error.message);
                 this.results.errors.push(`${year}년: ${error.message}`);
             }
         }
 
-        console.log(`\n📽️ KOFIC에서 총 ${this.results.koficMovies}개 영화 수집 완료`);
+        console.log(`\n[PROJECTOR] KOFIC에서 총 ${this.results.koficMovies}개 영화 수집 완료`);
     }
 
     // 연간 영화 데이터 수집
@@ -107,7 +107,7 @@ class ComprehensiveMovieInsertsGenerator {
                 }
 
             } catch (error) {
-                console.error(`❌ ${year}년 ${month}월 오류:`, error.message);
+                console.error(`[ERROR] ${year}년 ${month}월 오류:`, error.message);
             }
         }
         
@@ -119,7 +119,7 @@ class ComprehensiveMovieInsertsGenerator {
                 await this.sleep(200);
             }
         } catch (error) {
-            console.error(`❌ ${year}년 연간 박스오피스 오류:`, error.message);
+            console.error(`[ERROR] ${year}년 연간 박스오피스 오류:`, error.message);
         }
     }
 
@@ -174,7 +174,7 @@ class ComprehensiveMovieInsertsGenerator {
             return [];
 
         } catch (error) {
-            console.error(`❌ ${year}년 연간 박스오피스 오류:`, error.message);
+            console.error(`[ERROR] ${year}년 연간 박스오피스 오류:`, error.message);
             return [];
         }
     }
@@ -195,7 +195,7 @@ class ComprehensiveMovieInsertsGenerator {
             const movieDetail = await this.getKoficMovieDetail(boxOfficeMovie.movieCd);
             
             if (!movieDetail) {
-                console.log(`⚠️ 상세 정보 없음: ${boxOfficeMovie.movieNm}`);
+                console.log(`[WARN] 상세 정보 없음: ${boxOfficeMovie.movieNm}`);
                 return;
             }
 
@@ -205,7 +205,7 @@ class ComprehensiveMovieInsertsGenerator {
             this.results.koficMovies++;
 
             if (this.results.koficMovies % 50 === 0) {
-                console.log(`📊 진행 상황: ${this.results.koficMovies}개 영화 수집됨`);
+                console.log(`[INFO] 진행 상황: ${this.results.koficMovies}개 영화 수집됨`);
             }
 
         } catch (error) {
@@ -232,7 +232,7 @@ class ComprehensiveMovieInsertsGenerator {
             return null;
 
         } catch (error) {
-            console.error(`❌ KOFIC 상세 정보 오류 (${movieCd}):`, error.message);
+            console.error(`[ERROR] KOFIC 상세 정보 오류 (${movieCd}):`, error.message);
             return null;
         }
     }
@@ -321,14 +321,14 @@ class ComprehensiveMovieInsertsGenerator {
 
     // 네이버 API로 상세 정보 보완
     async enrichWithNaverData() {
-        console.log('\n🔍 네이버 API로 상세 정보 보완 시작');
-        console.log(`📊 보완 대상: ${this.movies.length}개 영화`);
+        console.log('\n[SEARCH] 네이버 API로 상세 정보 보완 시작');
+        console.log(`[INFO] 보완 대상: ${this.movies.length}개 영화`);
 
         for (let i = 0; i < this.movies.length; i++) {
             const movie = this.movies[i];
             
             try {
-                console.log(`🔍 ${i + 1}/${this.movies.length}: "${movie.title}" 보완 중...`);
+                console.log(`[SEARCH] ${i + 1}/${this.movies.length}: "${movie.title}" 보완 중...`);
                 
                 const naverData = await this.searchNaverMovie(movie.title);
                 
@@ -346,18 +346,18 @@ class ComprehensiveMovieInsertsGenerator {
                     this.results.naverEnriched++;
                     
                     if (this.results.naverEnriched % 20 === 0) {
-                        console.log(`📊 네이버 보완 진행: ${this.results.naverEnriched}개 완료`);
+                        console.log(`[INFO] 네이버 보완 진행: ${this.results.naverEnriched}개 완료`);
                     }
                 }
 
                 await this.sleep(150); // API 호출 제한 준수
 
             } catch (error) {
-                console.error(`❌ 네이버 보완 오류 (${movie.title}):`, error.message);
+                console.error(`[ERROR] 네이버 보완 오류 (${movie.title}):`, error.message);
             }
         }
 
-        console.log(`✅ 네이버 데이터 보완 완료: ${this.results.naverEnriched}개`);
+        console.log(`[SUCCESS] 네이버 데이터 보완 완료: ${this.results.naverEnriched}개`);
     }
 
     // 네이버 영화 검색
@@ -398,7 +398,7 @@ class ComprehensiveMovieInsertsGenerator {
 
     // SQL INSERT문 생성
     async generateSQLInserts() {
-        console.log('\n📝 SQL INSERT문 생성 시작');
+        console.log('\n[MEMO] SQL INSERT문 생성 시작');
         
         // 기존 movies 테이블 구조에 맞춰 INSERT문 생성
         this.movies.forEach((movie, index) => {
@@ -408,7 +408,7 @@ class ComprehensiveMovieInsertsGenerator {
                 this.results.successCount++;
                 
             } catch (error) {
-                console.error(`❌ INSERT문 생성 오류 (${movie.title}):`, error.message);
+                console.error(`[ERROR] INSERT문 생성 오류 (${movie.title}):`, error.message);
                 this.results.errorCount++;
             }
         });
@@ -416,7 +416,7 @@ class ComprehensiveMovieInsertsGenerator {
         // SQL 파일 저장
         await this.saveSQLFile();
         
-        console.log(`✅ SQL INSERT문 생성 완료: ${this.sqlInserts.length}개`);
+        console.log(`[SUCCESS] SQL INSERT문 생성 완료: ${this.sqlInserts.length}개`);
     }
 
     // 단일 INSERT문 생성 (기존 테이블 구조에 맞게)
@@ -499,7 +499,7 @@ VALUES (${values.join(', ')});`;
         sqlContent += `COMMIT;\n\n`;
         sqlContent += `-- INSERT 완료. 총 ${this.sqlInserts.length}개 영화 추가됨\n`;
         sqlContent += `-- \n`;
-        sqlContent += `-- 📊 수집 통계:\n`;
+        sqlContent += `-- [INFO] 수집 통계:\n`;
         sqlContent += `-- - KOFIC 영화: ${this.results.koficMovies}개\n`;
         sqlContent += `-- - 네이버 보완: ${this.results.naverEnriched}개\n`;
         sqlContent += `-- - 성공: ${this.results.successCount}개\n`;
@@ -509,8 +509,8 @@ VALUES (${values.join(', ')});`;
         fs.writeFileSync(filepath, sqlContent, 'utf8');
         
         console.log(`\n📄 SQL 파일 생성 완료: ${filename}`);
-        console.log(`📍 파일 위치: ${filepath}`);
-        console.log(`📊 총 INSERT문: ${this.sqlInserts.length}개`);
+        console.log(`[LOCATION] 파일 위치: ${filepath}`);
+        console.log(`[INFO] 총 INSERT문: ${this.sqlInserts.length}개`);
         
         return { filename, filepath, insertCount: this.sqlInserts.length };
     }
@@ -523,7 +523,7 @@ VALUES (${values.join(', ')});`;
 
 // 실행 함수
 async function main() {
-    console.log('🎬 10년간 모든 영화 데이터 수집 및 INSERT문 생성기');
+    console.log('[MOVIE] 10년간 모든 영화 데이터 수집 및 INSERT문 생성기');
     console.log('='.repeat(60));
     
     const generator = new ComprehensiveMovieInsertsGenerator();
@@ -532,8 +532,8 @@ async function main() {
         const result = await generator.generateComprehensiveInserts();
         
         if (result.success) {
-            console.log('\n🎉 전체 프로세스 완료!');
-            console.log('📋 사용 방법:');
+            console.log('\n[PARTY] 전체 프로세스 완료!');
+            console.log('[FORM] 사용 방법:');
             console.log('1. 생성된 .sql 파일을 Supabase SQL 에디터에 복사');
             console.log('2. Run 버튼으로 실행');
             console.log('3. 수천 개의 영화 데이터가 movies 테이블에 저장됨');
@@ -541,7 +541,7 @@ async function main() {
         }
         
     } catch (error) {
-        console.error('❌ 실행 오류:', error);
+        console.error('[ERROR] 실행 오류:', error);
     }
 }
 

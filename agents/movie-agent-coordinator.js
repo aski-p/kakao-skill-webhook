@@ -18,7 +18,7 @@ class MovieAgentCoordinator {
             errorCount: 0
         };
         
-        console.log('🎬 영화 에이전트 코디네이터 초기화 완료');
+        console.log('[MOVIE] 영화 에이전트 코디네이터 초기화 완료');
     }
     
     // 메인 영화 검색 및 리뷰 생성 함수
@@ -26,22 +26,22 @@ class MovieAgentCoordinator {
         const startTime = Date.now();
         this.coordinatorStats.totalRequests++;
         
-        console.log(`🎭 영화 에이전트 코디네이터 시작: "${movieTitle}"`);
+        console.log(`[DRAMA] 영화 에이전트 코디네이터 시작: "${movieTitle}"`);
         
         try {
             // 1단계: 영화 검색 에이전트 호출
-            console.log(`🔍 1단계: 영화 검색 에이전트 실행`);
+            console.log(`[SEARCH] 1단계: 영화 검색 에이전트 실행`);
             const movieData = await this.searchAgent.searchMovie(movieTitle, options);
             
             if (!movieData) {
-                console.log(`❌ 영화 검색 실패: "${movieTitle}"`);
+                console.log(`[ERROR] 영화 검색 실패: "${movieTitle}"`);
                 return this.reviewFormatter.createNotFoundResponse(movieTitle);
             }
             
-            console.log(`✅ 영화 검색 성공: "${movieData.title}"`);
+            console.log(`[SUCCESS] 영화 검색 성공: "${movieData.title}"`);
             
             // 2단계: 리뷰 포맷터 에이전트 호출
-            console.log(`📝 2단계: 리뷰 포맷팅 에이전트 실행`);
+            console.log(`[MEMO] 2단계: 리뷰 포맷팅 에이전트 실행`);
             const formattedReview = await this.reviewFormatter.formatMovieReview(movieData, movieTitle);
             
             // 성공 통계 업데이트
@@ -49,7 +49,7 @@ class MovieAgentCoordinator {
             const processingTime = Date.now() - startTime;
             this.updateProcessingTime(processingTime);
             
-            console.log(`🎉 영화 리뷰 생성 완료 (총 ${processingTime}ms)`);
+            console.log(`[PARTY] 영화 리뷰 생성 완료 (총 ${processingTime}ms)`);
             
             // 추가 메타데이터 포함
             if (formattedReview.success) {
@@ -64,14 +64,14 @@ class MovieAgentCoordinator {
             return formattedReview;
             
         } catch (error) {
-            console.error(`❌ 코디네이터 처리 오류: ${error.message}`);
+            console.error(`[ERROR] 코디네이터 처리 오류: ${error.message}`);
             this.coordinatorStats.errorCount++;
             
             return {
                 success: false,
                 type: 'coordinator_error',
                 data: {
-                    message: `🎬 "${movieTitle}" 영화평 처리 중 시스템 오류가 발생했습니다.\n\n❌ 오류: ${error.message}\n\n🔄 잠시 후 다시 시도해주세요.`
+                    message: `[MOVIE] "${movieTitle}" 영화평 처리 중 시스템 오류가 발생했습니다.\n\n[ERROR] 오류: ${error.message}\n\n[LOADING] 잠시 후 다시 시도해주세요.`
                 }
             };
         }
@@ -101,7 +101,7 @@ class MovieAgentCoordinator {
     
     // 배치 영화 검색 (여러 영화 동시 처리)
     async batchMovieSearch(movieTitles) {
-        console.log(`🎬 배치 영화 검색: ${movieTitles.length}개 영화`);
+        console.log(`[MOVIE] 배치 영화 검색: ${movieTitles.length}개 영화`);
         
         const results = await Promise.allSettled(
             movieTitles.map(title => this.getMovieReview(title))
@@ -114,14 +114,14 @@ class MovieAgentCoordinator {
         }));
         
         const successCount = processed.filter(r => r.success).length;
-        console.log(`✅ 배치 처리 완료: ${successCount}/${movieTitles.length} 성공`);
+        console.log(`[SUCCESS] 배치 처리 완료: ${successCount}/${movieTitles.length} 성공`);
         
         return processed;
     }
     
     // 인기 영화 추천 (데이터베이스 기반)
     async getPopularMovies(limit = 10) {
-        console.log(`🏆 인기 영화 ${limit}개 조회`);
+        console.log(`[TROPHY] 인기 영화 ${limit}개 조회`);
         
         try {
             // SearchAgent를 통해 고평점 영화들 조회
@@ -148,7 +148,7 @@ class MovieAgentCoordinator {
             return this.getHardcodedPopularMovies(limit);
             
         } catch (error) {
-            console.error(`❌ 인기 영화 조회 오류: ${error.message}`);
+            console.error(`[ERROR] 인기 영화 조회 오류: ${error.message}`);
             return this.getHardcodedPopularMovies(limit);
         }
     }
@@ -174,16 +174,16 @@ class MovieAgentCoordinator {
     
     // 인기 영화 응답 포맷팅
     formatPopularMoviesResponse(movies) {
-        let response = `🏆 인기 영화 TOP ${movies.length}\n\n`;
+        let response = `[TROPHY] 인기 영화 TOP ${movies.length}\n\n`;
         
         movies.forEach((movie, index) => {
             const stars = this.reviewFormatter.convertToStars(parseFloat(movie.naver_rating));
             response += `${index + 1}. ${movie.title} ${stars}\n`;
-            response += `   🎭 ${movie.director} | ${movie.genre}\n`;
-            response += `   📅 ${movie.release_year}년 | ⭐ ${movie.naver_rating}/10\n\n`;
+            response += `   [DRAMA] ${movie.director} | ${movie.genre}\n`;
+            response += `   [TOMORROW] ${movie.release_year}년 | [FAVORITE] ${movie.naver_rating}/10\n\n`;
         });
         
-        response += `💡 영화 제목으로 상세 리뷰를 요청하세요!\n`;
+        response += `[TIP] 영화 제목으로 상세 리뷰를 요청하세요!\n`;
         response += `예: "${movies[0].title} 영화평"`;
         
         return response;
@@ -191,7 +191,7 @@ class MovieAgentCoordinator {
     
     // 영화 추천 (장르 기반)
     async recommendMoviesByGenre(genre, limit = 5) {
-        console.log(`🎪 장르별 영화 추천: ${genre}`);
+        console.log(`[FUN] 장르별 영화 추천: ${genre}`);
         
         try {
             if (this.searchAgent.supabase) {
@@ -209,7 +209,7 @@ class MovieAgentCoordinator {
                         data: {
                             genre: genre,
                             movies: data,
-                            message: `🎪 ${genre} 장르 추천 영화 ${data.length}편\n\n${this.formatPopularMoviesResponse(data)}`
+                            message: `[FUN] ${genre} 장르 추천 영화 ${data.length}편\n\n${this.formatPopularMoviesResponse(data)}`
                         }
                     };
                 }
@@ -219,16 +219,16 @@ class MovieAgentCoordinator {
             return {
                 success: false,
                 data: {
-                    message: `🎪 "${genre}" 장르 영화를 찾을 수 없습니다.\n\n💡 다른 장르로 시도해보세요:\n• 액션, 드라마, 코미디, 로맨스\n• 스릴러, 호러, SF, 애니메이션`
+                    message: `[FUN] "${genre}" 장르 영화를 찾을 수 없습니다.\n\n[TIP] 다른 장르로 시도해보세요:\n• 액션, 드라마, 코미디, 로맨스\n• 스릴러, 호러, SF, 애니메이션`
                 }
             };
             
         } catch (error) {
-            console.error(`❌ 장르별 추천 오류: ${error.message}`);
+            console.error(`[ERROR] 장르별 추천 오류: ${error.message}`);
             return {
                 success: false,
                 data: {
-                    message: `🎪 장르별 영화 추천 중 오류가 발생했습니다.\n\n🔄 잠시 후 다시 시도해주세요.`
+                    message: `[FUN] 장르별 영화 추천 중 오류가 발생했습니다.\n\n[LOADING] 잠시 후 다시 시도해주세요.`
                 }
             };
         }
@@ -236,7 +236,7 @@ class MovieAgentCoordinator {
     
     // 건강 체크 (모든 서브에이전트 상태 확인)
     async healthCheck() {
-        console.log('🏥 영화 에이전트 시스템 건강 체크');
+        console.log('[HOSPITAL] 영화 에이전트 시스템 건강 체크');
         
         const health = {
             coordinator: {
@@ -276,7 +276,7 @@ class MovieAgentCoordinator {
             errorCount: 0
         };
         
-        console.log('📊 영화 에이전트 통계 리셋 완료');
+        console.log('[INFO] 영화 에이전트 통계 리셋 완료');
     }
     
     // 처리 시간 업데이트

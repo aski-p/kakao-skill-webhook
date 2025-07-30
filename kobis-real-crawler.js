@@ -251,20 +251,20 @@ class KobisRealMovieCrawler {
     }
 
     async crawlMovies() {
-        console.log('🎬 실제 한국/해외 영화 데이터 생성 시작');
-        console.log(`📊 총 ${this.realMovies.length}개 영화 처리 예정`);
+        console.log('[MOVIE] 실제 한국/해외 영화 데이터 생성 시작');
+        console.log(`[INFO] 총 ${this.realMovies.length}개 영화 처리 예정`);
 
         for (const movieTemplate of this.realMovies) {
             const movie = this.generateMovieFromTemplate(movieTemplate);
             this.movies.push(movie);
             
-            console.log(`✅ [${movie.release_year}] ${movie.title} (${movie.genre}) - ${movie.director}`);
+            console.log(`[SUCCESS] [${movie.release_year}] ${movie.title} (${movie.genre}) - ${movie.director}`);
         }
         
-        console.log('\n🎉 영화 데이터 생성 완료!');
-        console.log(`📊 총 수집 결과:`);
-        console.log(`   🎬 영화: ${this.movies.length}개`);
-        console.log(`   📝 리뷰: ${this.reviews.length}개`);
+        console.log('\n[PARTY] 영화 데이터 생성 완료!');
+        console.log(`[INFO] 총 수집 결과:`);
+        console.log(`   [MOVIE] 영화: ${this.movies.length}개`);
+        console.log(`   [MEMO] 리뷰: ${this.reviews.length}개`);
         
         return this.generateSQL();
     }
@@ -313,8 +313,8 @@ class KobisRealMovieCrawler {
         const filename = `real_korean_movies_${new Date().toISOString().slice(0, 10)}.sql`;
         fs.writeFileSync(filename, sql);
         
-        console.log(`✅ SQL 파일 생성 완료: ${filename}`);
-        console.log(`📊 총 ${this.movies.length}개 영화, ${this.reviews.length}개 리뷰`);
+        console.log(`[SUCCESS] SQL 파일 생성 완료: ${filename}`);
+        console.log(`[INFO] 총 ${this.movies.length}개 영화, ${this.reviews.length}개 리뷰`);
         
         return filename;
     }
@@ -328,8 +328,8 @@ class KobisRealMovieCrawler {
 // 실행
 const crawler = new KobisRealMovieCrawler();
 crawler.crawlMovies().then(filename => {
-    console.log(`\n✅ 실제 영화 데이터 생성 완료! SQL 파일: ${filename}`);
-    console.log('💡 다음 단계: Supabase에 데이터 업로드');
+    console.log(`\n[SUCCESS] 실제 영화 데이터 생성 완료! SQL 파일: ${filename}`);
+    console.log('[TIP] 다음 단계: Supabase에 데이터 업로드');
 }).catch(error => {
-    console.error('❌ 영화 데이터 생성 실패:', error.message);
+    console.error('[ERROR] 영화 데이터 생성 실패:', error.message);
 });

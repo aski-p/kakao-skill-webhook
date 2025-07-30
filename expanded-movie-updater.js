@@ -235,12 +235,12 @@ class ExpandedMovieUpdater {
 
     async updateMovieWithExpandedData(movie) {
         try {
-            console.log(`\n🎬 ID ${movie.id}: "${movie.title}" 업데이트 시작...`);
+            console.log(`\n[MOVIE] ID ${movie.id}: "${movie.title}" 업데이트 시작...`);
 
             const movieData = this.expandedMovies[movie.title];
             
             if (!movieData) {
-                console.log(`   ⚠️ "${movie.title}" 확장 정보 없음`);
+                console.log(`   [WARN] "${movie.title}" 확장 정보 없음`);
                 return false;
             }
 
@@ -257,14 +257,14 @@ class ExpandedMovieUpdater {
                 .eq('id', movie.id);
 
             if (updateError) {
-                console.log(`   ❌ 영화 정보 업데이트 실패: ${updateError.message}`);
+                console.log(`   [ERROR] 영화 정보 업데이트 실패: ${updateError.message}`);
                 return false;
             }
 
-            console.log(`   ✅ 영화 정보 업데이트 완료`);
-            console.log(`   🎭 감독: ${movieData.director}`);
-            console.log(`   👥 출연진: ${movieData.cast_members.slice(0, 3).join(', ')}`);
-            console.log(`   ⭐ 평점: ${movieData.naver_rating}`);
+            console.log(`   [SUCCESS] 영화 정보 업데이트 완료`);
+            console.log(`   [DRAMA] 감독: ${movieData.director}`);
+            console.log(`   [BUSTSINSILHOUETTE] 출연진: ${movieData.cast_members.slice(0, 3).join(', ')}`);
+            console.log(`   [FAVORITE] 평점: ${movieData.naver_rating}`);
 
             // 2. 기존 리뷰 삭제
             await this.supabase
@@ -298,13 +298,13 @@ class ExpandedMovieUpdater {
                 }
             }
 
-            console.log(`   📝 ${reviewSuccessCount}개 리뷰 추가 완료`);
-            console.log(`   💬 장르: ${movieData.genre}`);
+            console.log(`   [MEMO] ${reviewSuccessCount}개 리뷰 추가 완료`);
+            console.log(`   [MSG] 장르: ${movieData.genre}`);
 
             return true;
 
         } catch (error) {
-            console.log(`   ❌ "${movie.title}" 처리 중 예외 발생: ${error.message}`);
+            console.log(`   [ERROR] "${movie.title}" 처리 중 예외 발생: ${error.message}`);
             return false;
         }
     }
@@ -319,7 +319,7 @@ class ExpandedMovieUpdater {
             .or('director.eq.알 수 없음,cast_members.cs.{"알 수 없음"}');
 
         if (error) {
-            console.log(`❌ 타겟 영화 조회 실패: ${error.message}`);
+            console.log(`[ERROR] 타겟 영화 조회 실패: ${error.message}`);
             return [];
         }
 
@@ -328,10 +328,10 @@ class ExpandedMovieUpdater {
 
     async run() {
         console.log('🚀 확장된 영화 정보 업데이트 시작!');
-        console.log('🎯 목표: 더 많은 유명 영화들을 실제 정보로 업데이트\n');
+        console.log('[TARGET] 목표: 더 많은 유명 영화들을 실제 정보로 업데이트\n');
 
-        console.log(`📊 확장된 영화 데이터: ${Object.keys(this.expandedMovies).length}개`);
-        console.log('📋 추가 처리 대상들:');
+        console.log(`[INFO] 확장된 영화 데이터: ${Object.keys(this.expandedMovies).length}개`);
+        console.log('[FORM] 추가 처리 대상들:');
         Object.keys(this.expandedMovies).forEach((title, index) => {
             if (index < 10) {
                 console.log(`   ${index + 1}. ${title} (${this.expandedMovies[title].director})`);
@@ -344,7 +344,7 @@ class ExpandedMovieUpdater {
 
         // 타겟 영화들 가져오기
         const targetMovies = await this.getTargetMovies();
-        console.log(`🎯 실제 업데이트 대상: ${targetMovies.length}개 영화 발견\n`);
+        console.log(`[TARGET] 실제 업데이트 대상: ${targetMovies.length}개 영화 발견\n`);
 
         // 각 영화 처리
         for (let i = 0; i < targetMovies.length; i++) {
@@ -354,7 +354,7 @@ class ExpandedMovieUpdater {
             
             if (success) {
                 this.successCount++;
-                console.log(`   🎉 "${movie.title}" 업데이트 성공! ✨`);
+                console.log(`   [PARTY] "${movie.title}" 업데이트 성공! [SPARKLE]`);
             } else {
                 this.failCount++;
                 console.log(`   💥 "${movie.title}" 업데이트 실패 또는 스킵`);
@@ -372,29 +372,29 @@ class ExpandedMovieUpdater {
 
         // 최종 결과
         console.log('\n' + '='.repeat(70));
-        console.log('🎉 확장된 영화 업데이트 완료!');
+        console.log('[PARTY] 확장된 영화 업데이트 완료!');
         console.log('='.repeat(70));
-        console.log(`✅ 성공: ${this.successCount}개`);
-        console.log(`❌ 실패/스킵: ${this.failCount}개`);
-        console.log(`📊 성공률: ${Math.round((this.successCount / this.processedCount) * 100)}%`);
+        console.log(`[SUCCESS] 성공: ${this.successCount}개`);
+        console.log(`[ERROR] 실패/스킵: ${this.failCount}개`);
+        console.log(`[INFO] 성공률: ${Math.round((this.successCount / this.processedCount) * 100)}%`);
 
         if (this.successCount > 0) {
-            console.log('\n💡 새로 업데이트된 주요 영화들:');
+            console.log('\n[TIP] 새로 업데이트된 주요 영화들:');
             const successTitles = Object.keys(this.expandedMovies).slice(0, 10);
             successTitles.forEach(title => {
                 const data = this.expandedMovies[title];
-                console.log(`   🎬 ${title} (${data.director}, ${data.release_year})`);
+                console.log(`   [MOVIE] ${title} (${data.director}, ${data.release_year})`);
             });
 
-            console.log('\n📱 카카오 스킬에서 새로 테스트 가능:');
-            console.log('   💬 "릴로 앤 스티치 감독은 누구야" → "딘 데블로이스입니다"');
-            console.log('   💬 "판타스틱 4 출연진 알려줘" → "페드로 파스칼, 바네사 커비..."');
-            console.log('   💬 "썬더볼츠 영화평" → 실제 관객 리뷰');
-            console.log('   💬 "F1 더 무비 평점" → "8.4점입니다"');
+            console.log('\n[APP] 카카오 스킬에서 새로 테스트 가능:');
+            console.log('   [MSG] "릴로 앤 스티치 감독은 누구야" → "딘 데블로이스입니다"');
+            console.log('   [MSG] "판타스틱 4 출연진 알려줘" → "페드로 파스칼, 바네사 커비..."');
+            console.log('   [MSG] "썬더볼츠 영화평" → 실제 관객 리뷰');
+            console.log('   [MSG] "F1 더 무비 평점" → "8.4점입니다"');
         }
 
-        console.log('\n🔥 더 많은 영화들이 실제 데이터로 업데이트됨! 🔥');
-        console.log(`📊 지금까지 업데이트된 총 영화: ${this.successCount + 2}개 (이전 배치 포함)`);
+        console.log('\n[FIRE] 더 많은 영화들이 실제 데이터로 업데이트됨! [FIRE]');
+        console.log(`[INFO] 지금까지 업데이트된 총 영화: ${this.successCount + 2}개 (이전 배치 포함)`);
     }
 }
 

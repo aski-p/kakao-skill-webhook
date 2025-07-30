@@ -14,7 +14,7 @@ class NaverMovieCrawler {
     }
 
     async searchMoviesByYear(year) {
-        console.log(`🎬 ${year}년 영화 검색 중...`);
+        console.log(`[MOVIE] ${year}년 영화 검색 중...`);
         
         const searchQueries = [
             `${year} 영화`,
@@ -64,19 +64,19 @@ class NaverMovieCrawler {
                                 const movie = this.parseMovieData(item);
                                 if (movie) {
                                     this.movies.push(movie);
-                                    console.log(`✅ [${year}] ${movie.title} 추가`);
+                                    console.log(`[SUCCESS] [${year}] ${movie.title} 추가`);
                                 }
                             }
                         }
                     }
                 }
             } catch (error) {
-                console.log(`⚠️ ${query} 검색 오류:`, error.message);
+                console.log(`[WARN] ${query} 검색 오류:`, error.message);
                 await this.delayMs(1000); // 오류시 1초 대기
             }
         }
 
-        console.log(`📊 ${year}년: ${Array.from(yearMovies).length}개 영화 수집 완료`);
+        console.log(`[INFO] ${year}년: ${Array.from(yearMovies).length}개 영화 수집 완료`);
     }
 
     parseMovieData(item) {
@@ -281,8 +281,8 @@ class NaverMovieCrawler {
         const filename = `real_naver_movies_${new Date().toISOString().slice(0, 10)}.sql`;
         fs.writeFileSync(filename, sql);
         
-        console.log(`✅ SQL 파일 생성 완료: ${filename}`);
-        console.log(`📊 총 ${this.movies.length}개 영화, ${this.reviews.length}개 리뷰`);
+        console.log(`[SUCCESS] SQL 파일 생성 완료: ${filename}`);
+        console.log(`[INFO] 총 ${this.movies.length}개 영화, ${this.reviews.length}개 리뷰`);
         
         return filename;
     }
@@ -295,8 +295,8 @@ class NaverMovieCrawler {
     async crawlMovies() {
         console.log('🚀 네이버 영화 크롤링 시작 (2010-2025)');
         console.log('API 설정:', {
-            clientId: this.clientId ? '✅ 설정됨' : '❌ 미설정',
-            clientSecret: this.clientSecret ? '✅ 설정됨' : '❌ 미설정'
+            clientId: this.clientId ? '[SUCCESS] 설정됨' : '[ERROR] 미설정',
+            clientSecret: this.clientSecret ? '[SUCCESS] 설정됨' : '[ERROR] 미설정'
         });
 
         const startYear = 2010;
@@ -312,10 +312,10 @@ class NaverMovieCrawler {
             }
         }
         
-        console.log('\n🎉 크롤링 완료!');
-        console.log(`📊 총 수집 결과:`);
-        console.log(`   🎬 영화: ${this.movies.length}개`);
-        console.log(`   📝 리뷰: ${this.reviews.length}개`);
+        console.log('\n[PARTY] 크롤링 완료!');
+        console.log(`[INFO] 총 수집 결과:`);
+        console.log(`   [MOVIE] 영화: ${this.movies.length}개`);
+        console.log(`   [MEMO] 리뷰: ${this.reviews.length}개`);
         
         return this.generateSQL();
     }
@@ -328,8 +328,8 @@ process.env.NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET || '7ahplkzCS0
 // 실행
 const crawler = new NaverMovieCrawler();
 crawler.crawlMovies().then(filename => {
-    console.log(`\n✅ 크롤링 완료! SQL 파일: ${filename}`);
-    console.log('💡 다음 단계: Supabase에 데이터 업로드');
+    console.log(`\n[SUCCESS] 크롤링 완료! SQL 파일: ${filename}`);
+    console.log('[TIP] 다음 단계: Supabase에 데이터 업로드');
 }).catch(error => {
-    console.error('❌ 크롤링 실패:', error.message);
+    console.error('[ERROR] 크롤링 실패:', error.message);
 });

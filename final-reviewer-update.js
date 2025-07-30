@@ -19,7 +19,7 @@ async function updateAllFakeNames() {
     
     const fakePatterns = ['평론가', '리뷰', '시네마', '영화', '크리틱', '저널'];
     
-    console.log('🔍 가짜 리뷰어 이름 검색 및 업데이트 중...');
+    console.log('[SEARCH] 가짜 리뷰어 이름 검색 및 업데이트 중...');
     
     let updatedCount = 0;
     
@@ -30,12 +30,12 @@ async function updateAllFakeNames() {
             .like('critic_name', `%${pattern}%`);
         
         if (error) {
-            console.log(`⚠️ '${pattern}' 패턴 검색 실패:`, error.message);
+            console.log(`[WARN] '${pattern}' 패턴 검색 실패:`, error.message);
             continue;
         }
         
         if (reviews && reviews.length > 0) {
-            console.log(`🔧 '${pattern}' 패턴 포함 이름 ${reviews.length}개 발견, 업데이트 중...`);
+            console.log(`[TOOL] '${pattern}' 패턴 포함 이름 ${reviews.length}개 발견, 업데이트 중...`);
             
             for (const review of reviews) {
                 const newName = realNames[Math.floor(Math.random() * realNames.length)];
@@ -52,7 +52,7 @@ async function updateAllFakeNames() {
         }
     }
     
-    console.log(`✅ 총 ${updatedCount}개 리뷰어 이름이 업데이트되었습니다!`);
+    console.log(`[SUCCESS] 총 ${updatedCount}개 리뷰어 이름이 업데이트되었습니다!`);
     
     // 최종 통계
     const { count: totalReviews } = await supabase
@@ -69,20 +69,20 @@ async function updateAllFakeNames() {
         .select('critic_name, review_text, score')
         .limit(15);
     
-    console.log('\n📝 최종 리뷰 샘플:');
+    console.log('\n[MEMO] 최종 리뷰 샘플:');
     finalSample.forEach((review, index) => {
         console.log(`   ${index + 1}. ${review.critic_name}: ${review.review_text.substring(0, 40)}... (${review.score}점)`);
     });
     
     console.log('\n' + '='.repeat(60));
-    console.log('🎉 영화 데이터베이스 최종 완성!');
+    console.log('[PARTY] 영화 데이터베이스 최종 완성!');
     console.log('='.repeat(60));
-    console.log(`🎬 총 영화: ${movieCount}개`);
-    console.log(`📝 총 리뷰: ${totalReviews}개`);
-    console.log(`✅ 가짜 리뷰어 이름 제거 완료`);
-    console.log('\n💡 이제 "김영화평론가", "박시네마리뷰" 같은 가짜 이름이 모두');
+    console.log(`[MOVIE] 총 영화: ${movieCount}개`);
+    console.log(`[MEMO] 총 리뷰: ${totalReviews}개`);
+    console.log(`[SUCCESS] 가짜 리뷰어 이름 제거 완료`);
+    console.log('\n[TIP] 이제 "김영화평론가", "박시네마리뷰" 같은 가짜 이름이 모두');
     console.log('   실제 네이버 사용자처럼 보이는 이름으로 교체되었습니다!');
-    console.log('\n🔍 테스트해보세요:');
+    console.log('\n[SEARCH] 테스트해보세요:');
     console.log('   • "파묘 영화 정보 알려줘"');
     console.log('   • "기생충 리뷰 보여줘"');
     console.log('   • "범죄도시4 평점 알려줘"');

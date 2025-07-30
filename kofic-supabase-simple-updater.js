@@ -40,7 +40,7 @@ class KoficSimpleUpdater {
             }
             return [];
         } catch (error) {
-            console.error(`❌ 박스오피스 조회 실패 (${date}):`, error.message);
+            console.error(`[ERROR] 박스오피스 조회 실패 (${date}):`, error.message);
             return [];
         }
     }
@@ -61,7 +61,7 @@ class KoficSimpleUpdater {
             }
             return null;
         } catch (error) {
-            console.error(`❌ 영화 상세 정보 조회 실패 (${movieCd}):`, error.message);
+            console.error(`[ERROR] 영화 상세 정보 조회 실패 (${movieCd}):`, error.message);
             return null;
         }
     }
@@ -84,7 +84,7 @@ class KoficSimpleUpdater {
             }
             return [];
         } catch (error) {
-            console.error(`❌ 영화 검색 실패 (${movieNm}):`, error.message);
+            console.error(`[ERROR] 영화 검색 실패 (${movieNm}):`, error.message);
             return [];
         }
     }
@@ -219,7 +219,7 @@ class KoficSimpleUpdater {
 
                 if (updateError) throw updateError;
                 
-                console.log(`✅ 업데이트: ${movieData.title} (${movieData.release_year})`);
+                console.log(`[SUCCESS] 업데이트: ${movieData.title} (${movieData.release_year})`);
                 this.updatedCount++;
             } else {
                 // 삽입
@@ -229,13 +229,13 @@ class KoficSimpleUpdater {
 
                 if (insertError) throw insertError;
                 
-                console.log(`✅ 신규 추가: ${movieData.title} (${movieData.release_year})`);
+                console.log(`[SUCCESS] 신규 추가: ${movieData.title} (${movieData.release_year})`);
                 this.insertedCount++;
             }
 
             return true;
         } catch (error) {
-            console.error(`❌ DB 저장 실패 (${movieData.title}):`, error.message);
+            console.error(`[ERROR] DB 저장 실패 (${movieData.title}):`, error.message);
             this.errorCount++;
             return false;
         }
@@ -258,21 +258,21 @@ class KoficSimpleUpdater {
 
     // 메인 실행 함수
     async run() {
-        console.log('🎬 KOFIC → Supabase 영화 데이터 업데이트 시작 (박스오피스 기반)\n');
-        console.log(`🔑 KOFIC API 키: ${KOFIC_API_KEY.substring(0, 8)}...`);
+        console.log('[MOVIE] KOFIC → Supabase 영화 데이터 업데이트 시작 (박스오피스 기반)\n');
+        console.log(`[KEY] KOFIC API 키: ${KOFIC_API_KEY.substring(0, 8)}...`);
         console.log(`🗄️ Supabase URL: ${SUPABASE_URL}\n`);
 
         const startTime = Date.now();
 
         try {
             // 최근 30일간의 박스오피스 데이터 수집
-            console.log('📊 최근 30일간 박스오피스 영화 수집 중...\n');
+            console.log('[INFO] 최근 30일간 박스오피스 영화 수집 중...\n');
             
             const processedMovies = new Set(); // 중복 처리 방지
             
             for (let daysAgo = 1; daysAgo <= 30; daysAgo++) {
                 const targetDate = this.getDateString(daysAgo);
-                console.log(`📅 ${targetDate} 박스오피스 조회 중...`);
+                console.log(`[TOMORROW] ${targetDate} 박스오피스 조회 중...`);
                 
                 const boxOfficeMovies = await this.getDailyBoxOffice(targetDate);
                 
@@ -313,7 +313,7 @@ class KoficSimpleUpdater {
             }
 
             // 추가로 특정 인기 영화들 검색해서 추가
-            console.log('\n📌 추가 인기 한국 영화 검색 중...');
+            console.log('\n[PIN] 추가 인기 한국 영화 검색 중...');
             const popularMovies = [
                 '파묘', '범죄도시3', '서울의 봄', '콘크리트 유토피아', '잠', 
                 '오펜하이머', '듄: 파트2', '아바타: 물의 길', '탑건: 매버릭'
@@ -334,15 +334,15 @@ class KoficSimpleUpdater {
 
             const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
 
-            console.log('\n📊 처리 결과:');
-            console.log(`✅ 총 처리: ${this.processedCount}개`);
-            console.log(`📥 신규 추가: ${this.insertedCount}개`);
-            console.log(`🔄 업데이트: ${this.updatedCount}개`);
-            console.log(`❌ 오류: ${this.errorCount}개`);
+            console.log('\n[INFO] 처리 결과:');
+            console.log(`[SUCCESS] 총 처리: ${this.processedCount}개`);
+            console.log(`[INBOX] 신규 추가: ${this.insertedCount}개`);
+            console.log(`[LOADING] 업데이트: ${this.updatedCount}개`);
+            console.log(`[ERROR] 오류: ${this.errorCount}개`);
             console.log(`⏱️ 소요 시간: ${elapsedTime}초`);
 
         } catch (error) {
-            console.error('\n❌ 치명적 오류 발생:', error.message);
+            console.error('\n[ERROR] 치명적 오류 발생:', error.message);
         }
     }
 }

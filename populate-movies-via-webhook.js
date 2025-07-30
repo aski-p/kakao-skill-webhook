@@ -38,9 +38,9 @@ const popularMovies = [
 ];
 
 async function populateMoviesViaWebhook() {
-    console.log('🎬 웹훅을 통한 영화 데이터베이스 구축 시작\n');
-    console.log(`📊 대상 영화: ${popularMovies.length}개`);
-    console.log('⏰ 예상 소요 시간: 5-10분 (각 요청당 5초 제한)\n');
+    console.log('[MOVIE] 웹훅을 통한 영화 데이터베이스 구축 시작\n');
+    console.log(`[INFO] 대상 영화: ${popularMovies.length}개`);
+    console.log('[CLOCK] 예상 소요 시간: 5-10분 (각 요청당 5초 제한)\n');
     
     const results = {
         totalRequests: 0,
@@ -51,7 +51,7 @@ async function populateMoviesViaWebhook() {
     
     for (const movieQuery of popularMovies) {
         try {
-            console.log(`🔍 "${movieQuery}" 요청 중...`);
+            console.log(`[SEARCH] "${movieQuery}" 요청 중...`);
             
             // 카카오톡 웹훅 형태로 요청
             const kakaoRequest = {
@@ -89,24 +89,24 @@ async function populateMoviesViaWebhook() {
                 const responseText = response.data.template.outputs[0]?.simpleText?.text || '';
                 
                 if (responseText.includes('영화평 종합') || responseText.includes('평점')) {
-                    console.log(`✅ "${movieQuery}" - 영화평 생성 성공`);
+                    console.log(`[SUCCESS] "${movieQuery}" - 영화평 생성 성공`);
                     results.movieReviewsGenerated++;
                     
                     // 데이터 소스 확인
                     if (responseText.includes('Supabase')) {
-                        console.log('   📊 데이터 소스: Supabase DB');
+                        console.log('   [INFO] 데이터 소스: Supabase DB');
                     } else if (responseText.includes('공개 영화 데이터베이스')) {
-                        console.log('   📊 데이터 소스: 로컬 공개 DB');
+                        console.log('   [INFO] 데이터 소스: 로컬 공개 DB');
                     } else if (responseText.includes('네이버')) {
-                        console.log('   📊 데이터 소스: 네이버 API (자동 DB 저장)');
+                        console.log('   [INFO] 데이터 소스: 네이버 API (자동 DB 저장)');
                     }
                 } else {
-                    console.log(`⚠️ "${movieQuery}" - 영화평 외 응답`);
+                    console.log(`[WARN] "${movieQuery}" - 영화평 외 응답`);
                 }
                 
                 results.successfulResponses++;
             } else {
-                console.log(`❌ "${movieQuery}" - 응답 형식 오류`);
+                console.log(`[ERROR] "${movieQuery}" - 응답 형식 오류`);
                 results.errors.push(`${movieQuery}: 응답 형식 오류`);
             }
             
@@ -114,7 +114,7 @@ async function populateMoviesViaWebhook() {
             await new Promise(resolve => setTimeout(resolve, 2000));
             
         } catch (error) {
-            console.error(`❌ "${movieQuery}" 요청 오류:`, error.message);
+            console.error(`[ERROR] "${movieQuery}" 요청 오류:`, error.message);
             results.errors.push(`${movieQuery}: ${error.message}`);
             
             // 오류 발생시 더 긴 대기
@@ -122,15 +122,15 @@ async function populateMoviesViaWebhook() {
         }
     }
     
-    console.log('\n🎉 웹훅을 통한 영화 데이터베이스 구축 완료!');
+    console.log('\n[PARTY] 웹훅을 통한 영화 데이터베이스 구축 완료!');
     console.log('='.repeat(50));
-    console.log(`📊 총 요청 수: ${results.totalRequests}개`);
-    console.log(`✅ 성공적인 응답: ${results.successfulResponses}개`);
-    console.log(`🎬 영화평 생성: ${results.movieReviewsGenerated}개`);
-    console.log(`❌ 오류 발생: ${results.errors.length}개`);
+    console.log(`[INFO] 총 요청 수: ${results.totalRequests}개`);
+    console.log(`[SUCCESS] 성공적인 응답: ${results.successfulResponses}개`);
+    console.log(`[MOVIE] 영화평 생성: ${results.movieReviewsGenerated}개`);
+    console.log(`[ERROR] 오류 발생: ${results.errors.length}개`);
     
     if (results.errors.length > 0) {
-        console.log('\n⚠️ 발생한 오류들:');
+        console.log('\n[WARN] 발생한 오류들:');
         results.errors.slice(0, 5).forEach((error, index) => {
             console.log(`  ${index + 1}. ${error}`);
         });
@@ -139,7 +139,7 @@ async function populateMoviesViaWebhook() {
         }
     }
     
-    console.log('\n💡 효과:');
+    console.log('\n[TIP] 효과:');
     console.log('- 네이버 API로 검색된 영화들이 자동으로 Supabase에 저장됨');
     console.log('- 다음 검색부터는 Supabase DB에서 빠르게 조회');
     console.log('- 영화평 품질 향상 (감독, 출연진, 평점 등 상세 정보)');
@@ -159,7 +159,7 @@ async function testMovieQueries() {
     
     for (const query of testQueries) {
         try {
-            console.log(`\n🔍 "${query}" 테스트...`);
+            console.log(`\n[SEARCH] "${query}" 테스트...`);
             
             const kakaoRequest = {
                 userRequest: {
@@ -175,15 +175,15 @@ async function testMovieQueries() {
             
             if (response.data.template?.outputs?.[0]?.simpleText?.text) {
                 const text = response.data.template.outputs[0].simpleText.text;
-                console.log('✅ 응답 받음');
+                console.log('[SUCCESS] 응답 받음');
                 
                 // 데이터 소스 확인
                 if (text.includes('Supabase')) {
-                    console.log('   📊 데이터 소스: ✅ Supabase DB (목표 달성!)');
+                    console.log('   [INFO] 데이터 소스: [SUCCESS] Supabase DB (목표 달성!)');
                 } else if (text.includes('공개 영화 데이터베이스')) {
-                    console.log('   📊 데이터 소스: 로컬 공개 DB');
+                    console.log('   [INFO] 데이터 소스: 로컬 공개 DB');
                 } else {
-                    console.log('   📊 데이터 소스: 네이버 API');
+                    console.log('   [INFO] 데이터 소스: 네이버 API');
                 }
                 
                 // 정보 완성도 확인
@@ -191,11 +191,11 @@ async function testMovieQueries() {
                 const hasCast = text.includes('출연:');
                 const hasRating = text.includes('★') || text.includes('평점');
                 
-                console.log(`   ℹ️ 정보: 감독(${hasDirector ? '✅' : '❌'}) 출연진(${hasCast ? '✅' : '❌'}) 평점(${hasRating ? '✅' : '❌'})`);
+                console.log(`   ℹ️ 정보: 감독(${hasDirector ? '[SUCCESS]' : '[ERROR]'}) 출연진(${hasCast ? '[SUCCESS]' : '[ERROR]'}) 평점(${hasRating ? '[SUCCESS]' : '[ERROR]'})`);
             }
             
         } catch (error) {
-            console.log(`❌ "${query}" 테스트 오류:`, error.message);
+            console.log(`[ERROR] "${query}" 테스트 오류:`, error.message);
         }
     }
 }
@@ -212,7 +212,7 @@ async function main() {
     // 2. 결과 테스트
     await testMovieQueries();
     
-    console.log('\n🎯 최종 결과:');
+    console.log('\n[TARGET] 최종 결과:');
     console.log('- Supabase movies 테이블에 영화 데이터 자동 저장됨');
     console.log('- 향후 영화 검색이 DB 기반으로 빠르고 정확하게 동작');
     console.log('- 카카오톡에서 "영화제목 + 영화평/평점" 형태로 테스트 가능');
@@ -221,7 +221,7 @@ async function main() {
 // 실행
 if (require.main === module) {
     main().catch(error => {
-        console.error('❌ 실행 오류:', error.message);
+        console.error('[ERROR] 실행 오류:', error.message);
         process.exit(1);
     });
 }

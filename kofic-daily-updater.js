@@ -45,7 +45,7 @@ class KoficDailyUpdater {
             }
             return [];
         } catch (error) {
-            this.log(`❌ 박스오피스 조회 실패 (${date}): ${error.message}`);
+            this.log(`[ERROR] 박스오피스 조회 실패 (${date}): ${error.message}`);
             return [];
         }
     }
@@ -66,7 +66,7 @@ class KoficDailyUpdater {
             }
             return null;
         } catch (error) {
-            this.log(`❌ 영화 상세 정보 조회 실패 (${movieCd}): ${error.message}`);
+            this.log(`[ERROR] 영화 상세 정보 조회 실패 (${movieCd}): ${error.message}`);
             return null;
         }
     }
@@ -189,12 +189,12 @@ class KoficDailyUpdater {
     // 메인 업데이트 로직
     async updateMovies() {
         const targetDate = this.getYesterdayDate();
-        this.log(`🎬 KOFIC 일일 업데이트 시작 - ${targetDate}`);
+        this.log(`[MOVIE] KOFIC 일일 업데이트 시작 - ${targetDate}`);
 
         try {
             // 어제의 박스오피스 조회
             const boxOfficeMovies = await this.getDailyBoxOffice(targetDate);
-            this.log(`📊 박스오피스 영화 ${boxOfficeMovies.length}개 조회`);
+            this.log(`[INFO] 박스오피스 영화 ${boxOfficeMovies.length}개 조회`);
 
             let newKoreanMovies = 0;
 
@@ -227,7 +227,7 @@ class KoficDailyUpdater {
 
                 this.newMovies.push(movieData);
                 newKoreanMovies++;
-                this.log(`✅ 신규 한국 영화: ${movieData.title} (${movieData.release_year})`);
+                this.log(`[SUCCESS] 신규 한국 영화: ${movieData.title} (${movieData.release_year})`);
 
                 // API 호출 제한
                 await this.delay(200);
@@ -246,13 +246,13 @@ class KoficDailyUpdater {
                 fs.writeFileSync(filename, JSON.stringify(data, null, 2), 'utf8');
                 this.log(`💾 ${this.newMovies.length}개 신규 영화 저장: ${filename}`);
             } else {
-                this.log(`💡 신규 한국 영화 없음`);
+                this.log(`[TIP] 신규 한국 영화 없음`);
             }
 
-            this.log(`🎉 일일 업데이트 완료 - 신규 한국 영화: ${newKoreanMovies}개`);
+            this.log(`[PARTY] 일일 업데이트 완료 - 신규 한국 영화: ${newKoreanMovies}개`);
 
         } catch (error) {
-            this.log(`❌ 업데이트 실패: ${error.message}`);
+            this.log(`[ERROR] 업데이트 실패: ${error.message}`);
         }
     }
 
@@ -265,7 +265,7 @@ const KoficDailyUpdater = require('./kofic-daily-updater');
 // 매일 오전 9시에 KOFIC 데이터 업데이트
 const koficUpdater = new KoficDailyUpdater();
 cron.schedule('0 9 * * *', async () => {
-    console.log('🕘 KOFIC 일일 업데이트 시작');
+    console.log('[CLOCK9] KOFIC 일일 업데이트 시작');
     await koficUpdater.updateMovies();
 }, {
     timezone: "Asia/Seoul"

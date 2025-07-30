@@ -6,7 +6,7 @@ app.use(express.json());
 // 기본 헬스 체크
 app.get('/', (req, res) => {
     res.send(`
-        <h1>🤖 카카오 챗봇 최소 테스트 서버</h1>
+        <h1>[AI] 카카오 챗봇 최소 테스트 서버</h1>
         <p><strong>상태:</strong> 정상 실행 중</p>
         <p><strong>현재 시간:</strong> ${new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'})}</p>
         <hr>
@@ -16,14 +16,14 @@ app.get('/', (req, res) => {
 
 // 최소한의 카카오 웹훅 - 어떤 메시지든 간단히 응답
 app.post('/kakao-skill-webhook', (req, res) => {
-    console.log('🔔 카카오 웹훅 요청 받음!');
+    console.log('[BELL] 카카오 웹훅 요청 받음!');
     console.log('요청 본문:', JSON.stringify(req.body, null, 2));
     
     try {
         const userMessage = req.body.userRequest?.utterance || '메시지 없음';
         const userId = req.body.userRequest?.user?.id || 'anonymous';
         
-        console.log(`💬 사용자 메시지: '${userMessage}' (ID: ${userId})`);
+        console.log(`[MSG] 사용자 메시지: '${userMessage}' (ID: ${userId})`);
         
         // 현재 시간
         const now = new Date();
@@ -40,9 +40,9 @@ app.post('/kakao-skill-webhook', (req, res) => {
         // 간단한 응답 메시지
         let responseText = `안녕하세요! 메시지를 받았습니다.
 
-📝 받은 메시지: "${userMessage}"
-🕐 현재 시간: ${koreaTime}
-✅ 서버가 정상 작동 중입니다.
+[MEMO] 받은 메시지: "${userMessage}"
+[TIME] 현재 시간: ${koreaTime}
+[SUCCESS] 서버가 정상 작동 중입니다.
 
 이 메시지가 보인다면 웹훅이 정상적으로 작동하고 있습니다.`;
 
@@ -57,15 +57,15 @@ app.post('/kakao-skill-webhook', (req, res) => {
             }
         };
         
-        console.log('📤 응답 전송:', JSON.stringify(response, null, 2));
+        console.log('[OUTBOX] 응답 전송:', JSON.stringify(response, null, 2));
         
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.status(200).json(response);
         
-        console.log('✅ 응답 전송 완료');
+        console.log('[SUCCESS] 응답 전송 완료');
         
     } catch (error) {
-        console.error('❌ 웹훅 처리 오류:', error);
+        console.error('[ERROR] 웹훅 처리 오류:', error);
         
         const errorResponse = {
             version: "2.0",
@@ -85,5 +85,5 @@ app.post('/kakao-skill-webhook', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`✅ 최소 테스트 서버가 포트 ${PORT}에서 실행 중입니다.`);
+    console.log(`[SUCCESS] 최소 테스트 서버가 포트 ${PORT}에서 실행 중입니다.`);
 });

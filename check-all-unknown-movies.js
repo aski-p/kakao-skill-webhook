@@ -7,7 +7,7 @@ const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
 async function checkAllUnknownMovies() {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    console.log('🔍 "알 수 없음" 정보가 있는 모든 영화 검색 중...\n');
+    console.log('[SEARCH] "알 수 없음" 정보가 있는 모든 영화 검색 중...\n');
 
     try {
         // "알 수 없음" 감독이나 출연진이 있는 영화들 찾기
@@ -19,11 +19,11 @@ async function checkAllUnknownMovies() {
             .limit(50); // 처음 50개만
 
         if (error) {
-            console.log(`❌ 검색 실패: ${error.message}`);
+            console.log(`[ERROR] 검색 실패: ${error.message}`);
             return;
         }
 
-        console.log(`⚠️ "알 수 없음" 정보가 있는 영화: ${unknownMovies.length}개 발견\n`);
+        console.log(`[WARN] "알 수 없음" 정보가 있는 영화: ${unknownMovies.length}개 발견\n`);
 
         unknownMovies.forEach((movie, index) => {
             console.log(`${index + 1}. ID: ${movie.id} | 제목: "${movie.title}"`);
@@ -41,15 +41,15 @@ async function checkAllUnknownMovies() {
             .or('director.eq.알 수 없음,cast_members.cs.{"알 수 없음"}');
 
         if (!totalError) {
-            console.log(`📊 전체 "알 수 없음" 영화 수: ${totalMovies.length}개`);
+            console.log(`[INFO] 전체 "알 수 없음" 영화 수: ${totalMovies.length}개`);
         }
 
-        console.log('\n💡 이제 이 영화들의 실제 정보를 웹에서 찾아서 업데이트하겠습니다!');
+        console.log('\n[TIP] 이제 이 영화들의 실제 정보를 웹에서 찾아서 업데이트하겠습니다!');
 
         return unknownMovies;
 
     } catch (error) {
-        console.log(`❌ 검색 중 오류: ${error.message}`);
+        console.log(`[ERROR] 검색 중 오류: ${error.message}`);
     }
 }
 

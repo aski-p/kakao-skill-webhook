@@ -4,11 +4,11 @@ const axios = require('axios');
 const RAILWAY_URL = 'https://kakao-skill-webhook-production.up.railway.app';
 
 async function executeNaverCrawling() {
-    console.log('🎬 Railway에서 네이버 직접 크롤링 실행\n');
+    console.log('[MOVIE] Railway에서 네이버 직접 크롤링 실행\n');
     
     try {
-        console.log('📡 네이버 직접 크롤링 API 호출 중...');
-        console.log('⏰ 예상 소요 시간: 2-3분');
+        console.log('[SATELLITE] 네이버 직접 크롤링 API 호출 중...');
+        console.log('[CLOCK] 예상 소요 시간: 2-3분');
         
         const response = await axios.post(`${RAILWAY_URL}/api/direct-naver-crawling`, {}, {
             timeout: 300000, // 5분 타임아웃
@@ -20,17 +20,17 @@ async function executeNaverCrawling() {
         if (response.data.success) {
             const data = response.data.data;
             
-            console.log('🎉 네이버 크롤링 성공!');
+            console.log('[PARTY] 네이버 크롤링 성공!');
             console.log('='.repeat(50));
-            console.log(`📊 크롤링 전 영화 수: ${data.initialMovieCount}개`);
-            console.log(`📊 크롤링 후 영화 수: ${data.finalMovieCount}개`);
-            console.log(`✅ 실제 추가된 영화: ${data.actualAdded}개`);
-            console.log(`🔄 기존 영화: ${data.existingMovies}개`);
-            console.log(`❌ 오류 발생: ${data.errors.length}개`);
+            console.log(`[INFO] 크롤링 전 영화 수: ${data.initialMovieCount}개`);
+            console.log(`[INFO] 크롤링 후 영화 수: ${data.finalMovieCount}개`);
+            console.log(`[SUCCESS] 실제 추가된 영화: ${data.actualAdded}개`);
+            console.log(`[LOADING] 기존 영화: ${data.existingMovies}개`);
+            console.log(`[ERROR] 오류 발생: ${data.errors.length}개`);
             console.log(`⏱️ 소요 시간: ${data.duration}초`);
             
             if (data.errors.length > 0) {
-                console.log('\n⚠️ 발생한 오류들:');
+                console.log('\n[WARN] 발생한 오류들:');
                 data.errors.slice(0, 5).forEach((error, index) => {
                     console.log(`  ${index + 1}. ${error}`);
                 });
@@ -40,7 +40,7 @@ async function executeNaverCrawling() {
             }
             
         } else {
-            console.log('❌ 크롤링 실패:', response.data.message);
+            console.log('[ERROR] 크롤링 실패:', response.data.message);
             if (response.data.error) {
                 console.log('오류 세부사항:', response.data.error);
             }
@@ -48,13 +48,13 @@ async function executeNaverCrawling() {
         
     } catch (error) {
         if (error.code === 'ECONNABORTED') {
-            console.log('⏰ 타임아웃 발생');
-            console.log('💡 크롤링이 백그라운드에서 계속 진행 중일 수 있습니다.');
+            console.log('[CLOCK] 타임아웃 발생');
+            console.log('[TIP] 크롤링이 백그라운드에서 계속 진행 중일 수 있습니다.');
         } else if (error.response) {
-            console.error('❌ 서버 응답 오류:', error.response.status);
+            console.error('[ERROR] 서버 응답 오류:', error.response.status);
             console.error('📄 응답 내용:', error.response.data);
         } else {
-            console.error('❌ 네트워크 오류:', error.message);
+            console.error('[ERROR] 네트워크 오류:', error.message);
         }
     }
 }
@@ -67,7 +67,7 @@ async function testSingleMovie() {
     
     for (const movie of testMovies) {
         try {
-            console.log(`\n🔍 "${movie}" 추가 테스트...`);
+            console.log(`\n[SEARCH] "${movie}" 추가 테스트...`);
             
             const response = await axios.post(`${RAILWAY_URL}/api/add-single-movie`, {
                 movieTitle: movie
@@ -78,21 +78,21 @@ async function testSingleMovie() {
             
             if (response.data.success) {
                 const data = response.data.data;
-                console.log(`✅ ${data.status === 'added' ? '추가됨' : '이미 존재'}: ${data.movieTitle} (${data.releaseYear})`);
+                console.log(`[SUCCESS] ${data.status === 'added' ? '추가됨' : '이미 존재'}: ${data.movieTitle} (${data.releaseYear})`);
                 if (data.director) console.log(`   감독: ${data.director}`);
                 if (data.naverRating) console.log(`   평점: ${data.naverRating}/10`);
             } else {
-                console.log(`❌ 실패: ${response.data.message}`);
+                console.log(`[ERROR] 실패: ${response.data.message}`);
             }
             
         } catch (error) {
-            console.log(`❌ "${movie}" 테스트 오류:`, error.response?.data?.message || error.message);
+            console.log(`[ERROR] "${movie}" 테스트 오류:`, error.response?.data?.message || error.message);
         }
     }
 }
 
 async function checkFinalStatus() {
-    console.log('\n📊 최종 데이터베이스 상태 확인');
+    console.log('\n[INFO] 최종 데이터베이스 상태 확인');
     console.log('='.repeat(40));
     
     try {
@@ -102,12 +102,12 @@ async function checkFinalStatus() {
         
         if (response.data.success) {
             const data = response.data.data;
-            console.log(`📊 총 영화 수: ${data.totalMovies}개`);
-            console.log(`📸 포스터 있는 영화: ${data.posterCount}개`);
-            console.log(`⭐ 평점 데이터: ${data.ratingCount}개`);
-            console.log(`💬 리뷰 데이터: ${data.reviewCount}개`);
+            console.log(`[INFO] 총 영화 수: ${data.totalMovies}개`);
+            console.log(`[FLASHCAMERA] 포스터 있는 영화: ${data.posterCount}개`);
+            console.log(`[FAVORITE] 평점 데이터: ${data.ratingCount}개`);
+            console.log(`[MSG] 리뷰 데이터: ${data.reviewCount}개`);
             
-            console.log('\n📊 데이터 소스 분포:');
+            console.log('\n[INFO] 데이터 소스 분포:');
             Object.entries(data.sourceDistribution).forEach(([source, count]) => {
                 const sourceLabel = {
                     'kofic_api': '영화진흥위원회',
@@ -127,7 +127,7 @@ async function checkFinalStatus() {
         }
         
     } catch (error) {
-        console.error('❌ 상태 확인 오류:', error.message);
+        console.error('[ERROR] 상태 확인 오류:', error.message);
     }
 }
 
@@ -145,14 +145,14 @@ async function main() {
     // 3. 최종 상태 확인
     await checkFinalStatus();
     
-    console.log('\n🎉 프로세스 완료!');
-    console.log('🔗 테스트: 카카오톡에서 "기생충 영화평" 등으로 확인해보세요!');
+    console.log('\n[PARTY] 프로세스 완료!');
+    console.log('[LINK] 테스트: 카카오톡에서 "기생충 영화평" 등으로 확인해보세요!');
 }
 
 // 실행
 if (require.main === module) {
     main().catch(error => {
-        console.error('❌ 실행 오류:', error.message);
+        console.error('[ERROR] 실행 오류:', error.message);
         process.exit(1);
     });
 }

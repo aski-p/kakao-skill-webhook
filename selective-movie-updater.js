@@ -207,7 +207,7 @@ class SelectiveMovieUpdater {
     }
     
     async updateMovie(knownMovie) {
-        console.log(`🎬 ${knownMovie.title} 업데이트 중...`);
+        console.log(`[MOVIE] ${knownMovie.title} 업데이트 중...`);
         
         // 해당 제목의 영화 찾기
         const { data: existingMovies, error: findError } = await supabase
@@ -216,17 +216,17 @@ class SelectiveMovieUpdater {
             .eq('title', knownMovie.title);
         
         if (findError) {
-            console.log(`   ⚠️ 검색 실패:`, findError.message);
+            console.log(`   [WARN] 검색 실패:`, findError.message);
             return false;
         }
         
         if (!existingMovies || existingMovies.length === 0) {
-            console.log(`   ❌ 영화를 찾을 수 없음`);
+            console.log(`   [ERROR] 영화를 찾을 수 없음`);
             return false;
         }
         
         const movieId = existingMovies[0].id;
-        console.log(`   📍 영화 ID: ${movieId}`);
+        console.log(`   [LOCATION] 영화 ID: ${movieId}`);
         
         // 영화 정보 업데이트
         const { error: updateError } = await supabase
@@ -235,7 +235,7 @@ class SelectiveMovieUpdater {
             .eq('id', movieId);
         
         if (updateError) {
-            console.log(`   ⚠️ 영화 정보 업데이트 실패:`, updateError.message);
+            console.log(`   [WARN] 영화 정보 업데이트 실패:`, updateError.message);
             return false;
         }
         
@@ -258,17 +258,17 @@ class SelectiveMovieUpdater {
             .select('id');
         
         if (reviewError) {
-            console.log(`   ⚠️ 리뷰 삽입 실패:`, reviewError.message);
+            console.log(`   [WARN] 리뷰 삽입 실패:`, reviewError.message);
             return false;
         }
         
-        console.log(`   ✅ ${insertedReviews.length}개 리뷰 생성 완료 (평점: ${knownMovie.naver_rating})`);
+        console.log(`   [SUCCESS] ${insertedReviews.length}개 리뷰 생성 완료 (평점: ${knownMovie.naver_rating})`);
         return true;
     }
     
     async run() {
         console.log('🚀 잘 알려진 영화들 정보 업데이트 시작...');
-        console.log(`📊 대상 영화: ${this.knownMovies.length}개\n`);
+        console.log(`[INFO] 대상 영화: ${this.knownMovies.length}개\n`);
         
         let updatedCount = 0;
         let failedCount = 0;
@@ -287,7 +287,7 @@ class SelectiveMovieUpdater {
                 console.log(`📈 진행률: ${i + 1}/${this.knownMovies.length} (${Math.round((i + 1)/this.knownMovies.length*100)}%)\n`);
                 
             } catch (error) {
-                console.log(`❌ ${movie.title} 처리 중 오류:`, error.message);
+                console.log(`[ERROR] ${movie.title} 처리 중 오류:`, error.message);
                 failedCount++;
             }
         }
@@ -302,17 +302,17 @@ class SelectiveMovieUpdater {
             .select('*', { count: 'exact', head: true });
         
         console.log('='.repeat(60));
-        console.log('🎉 잘 알려진 영화들 정보 업데이트 완료!');
+        console.log('[PARTY] 잘 알려진 영화들 정보 업데이트 완료!');
         console.log('='.repeat(60));
-        console.log(`🎬 총 영화: ${movieCount}개`);
-        console.log(`📝 총 리뷰: ${reviewCount}개`);
-        console.log(`✅ 성공적으로 업데이트: ${updatedCount}개`);
-        console.log(`❌ 업데이트 실패: ${failedCount}개`);
-        console.log('\n💡 주요 영화들의 정보가 네이버 기준으로 완전히 업데이트되었습니다!');
-        console.log('🔍 테스트해볼 수 있는 영화들:');
+        console.log(`[MOVIE] 총 영화: ${movieCount}개`);
+        console.log(`[MEMO] 총 리뷰: ${reviewCount}개`);
+        console.log(`[SUCCESS] 성공적으로 업데이트: ${updatedCount}개`);
+        console.log(`[ERROR] 업데이트 실패: ${failedCount}개`);
+        console.log('\n[TIP] 주요 영화들의 정보가 네이버 기준으로 완전히 업데이트되었습니다!');
+        console.log('[SEARCH] 테스트해볼 수 있는 영화들:');
         console.log('   🇰🇷 파묘, 기생충, 범죄도시4, 서울의 봄, 올드보이');
-        console.log('   🎬 탑건: 매버릭, 아바타: 물의 길, 스파이더맨: 노 웨이 홈');
-        console.log('   🌟 어벤져스: 엔드게임, 인터스텔라');
+        console.log('   [MOVIE] 탑건: 매버릭, 아바타: 물의 길, 스파이더맨: 노 웨이 홈');
+        console.log('   [STAR] 어벤져스: 엔드게임, 인터스텔라');
     }
 }
 

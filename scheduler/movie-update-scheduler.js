@@ -16,14 +16,14 @@ class MovieUpdateScheduler {
 
     // 스케줄러 시작
     start() {
-        console.log('📅 영화 데이터 자동 업데이트 스케줄러 시작');
+        console.log('[TOMORROW] 영화 데이터 자동 업데이트 스케줄러 시작');
         
         // 매일 오전 12시에 실행 (한국 시간 기준)
         // cron 표현식: 초 분 시 일 월 요일
         // '0 0 0 * * *' = 매일 자정 (0시 0분 0초)
         this.dailyJob = cron.schedule('0 0 0 * * *', async () => {
             if (this.isRunning) {
-                console.log('⚠️ 이미 업데이트가 실행 중입니다. 스킵합니다.');
+                console.log('[WARN] 이미 업데이트가 실행 중입니다. 스킵합니다.');
                 return;
             }
 
@@ -32,7 +32,7 @@ class MovieUpdateScheduler {
                 console.log('🚀 매일 자동 영화 데이터 업데이트 시작:', new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}));
                 
                 // 1. KOFIC API로 최신 박스오피스 영화 수집
-                console.log('🎬 KOFIC API 일일 업데이트 시작...');
+                console.log('[MOVIE] KOFIC API 일일 업데이트 시작...');
                 await this.koficDailyUpdater.updateMovies();
                 
                 // 2. 수집된 데이터가 있다면 데이터베이스 업데이트
@@ -42,31 +42,31 @@ class MovieUpdateScheduler {
                 try {
                     const fs = require('fs');
                     if (fs.existsSync(dailyFile)) {
-                        console.log('📊 수집된 데이터를 데이터베이스에 업데이트 중...');
+                        console.log('[INFO] 수집된 데이터를 데이터베이스에 업데이트 중...');
                         await this.dbUpdater.run(dailyFile);
                     } else {
-                        console.log('💡 오늘 새로운 한국 영화가 없습니다.');
+                        console.log('[TIP] 오늘 새로운 한국 영화가 없습니다.');
                     }
                 } catch (dbError) {
-                    console.error('❌ 데이터베이스 업데이트 오류:', dbError.message);
+                    console.error('[ERROR] 데이터베이스 업데이트 오류:', dbError.message);
                 }
                 
                 // 3. 네이버 API로 추가 영화 정보 보완 (기존 크롤러)
-                console.log('🔍 네이버 API로 최신 영화 정보 보완...');
+                console.log('[SEARCH] 네이버 API로 최신 영화 정보 보완...');
                 try {
                     const naverResult = await this.naverCrawler.crawlAndUpdateMovies();
-                    console.log('✅ 네이버 API 업데이트 완료:', naverResult.newMoviesAdded || 0, '개 추가');
+                    console.log('[SUCCESS] 네이버 API 업데이트 완료:', naverResult.newMoviesAdded || 0, '개 추가');
                 } catch (naverError) {
-                    console.error('❌ 네이버 API 업데이트 오류:', naverError.message);
+                    console.error('[ERROR] 네이버 API 업데이트 오류:', naverError.message);
                 }
                 
-                console.log('🎉 매일 자동 업데이트 완료!');
+                console.log('[PARTY] 매일 자동 업데이트 완료!');
 
             } catch (error) {
-                console.error('❌ 스케줄러 실행 중 오류:', error);
+                console.error('[ERROR] 스케줄러 실행 중 오류:', error);
             } finally {
                 this.isRunning = false;
-                console.log('🏁 일일 업데이트 작업 완료:', new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}));
+                console.log('[CHECKERED] 일일 업데이트 작업 완료:', new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}));
             }
         }, {
             scheduled: true,
@@ -78,7 +78,7 @@ class MovieUpdateScheduler {
             console.log('🧪 개발 모드: 5분마다 테스트 크롤링 실행');
             this.testJob = cron.schedule('*/5 * * * *', async () => {
                 if (this.isRunning) {
-                    console.log('⚠️ 이미 크롤링이 실행 중입니다. 스킵합니다.');
+                    console.log('[WARN] 이미 크롤링이 실행 중입니다. 스킵합니다.');
                     return;
                 }
 
@@ -91,7 +91,7 @@ class MovieUpdateScheduler {
                     console.log('🧪 테스트 크롤링 결과:', result);
 
                 } catch (error) {
-                    console.error('❌ 테스트 크롤링 오류:', error);
+                    console.error('[ERROR] 테스트 크롤링 오류:', error);
                 } finally {
                     this.isRunning = false;
                 }
@@ -101,8 +101,8 @@ class MovieUpdateScheduler {
             });
         }
 
-        console.log('✅ 스케줄러 설정 완료');
-        console.log('📅 다음 실행 시간: 매일 오전 12시 (KST)');
+        console.log('[SUCCESS] 스케줄러 설정 완료');
+        console.log('[TOMORROW] 다음 실행 시간: 매일 오전 12시 (KST)');
         
         if (process.env.NODE_ENV === 'development') {
             console.log('🧪 테스트 모드: 5분마다 실행');
@@ -112,7 +112,7 @@ class MovieUpdateScheduler {
     // 즉시 실행 (수동 트리거)
     async runNow() {
         if (this.isRunning) {
-            console.log('⚠️ 이미 업데이트가 실행 중입니다.');
+            console.log('[WARN] 이미 업데이트가 실행 중입니다.');
             return { success: false, message: 'Already running' };
         }
 
@@ -124,10 +124,10 @@ class MovieUpdateScheduler {
             let naverMoviesAdded = 0;
             
             // 1. KOFIC API로 최신 박스오피스 영화 수집
-            console.log('🎬 KOFIC API 수동 업데이트 시작...');
+            console.log('[MOVIE] KOFIC API 수동 업데이트 시작...');
             try {
                 await this.koficDailyUpdater.updateMovies();
-                console.log('✅ KOFIC API 데이터 수집 완료');
+                console.log('[SUCCESS] KOFIC API 데이터 수집 완료');
                 
                 // 수집된 데이터 처리
                 const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -135,7 +135,7 @@ class MovieUpdateScheduler {
                 
                 const fs = require('fs');
                 if (fs.existsSync(dailyFile)) {
-                    console.log('📊 수집된 데이터를 데이터베이스에 업데이트 중...');
+                    console.log('[INFO] 수집된 데이터를 데이터베이스에 업데이트 중...');
                     await this.dbUpdater.run(dailyFile);
                     
                     // 파일에서 추가된 영화 수 확인
@@ -143,17 +143,17 @@ class MovieUpdateScheduler {
                     koficMoviesAdded = dailyData.total_new_movies || 0;
                 }
             } catch (koficError) {
-                console.error('❌ KOFIC 업데이트 오류:', koficError.message);
+                console.error('[ERROR] KOFIC 업데이트 오류:', koficError.message);
             }
             
             // 2. 네이버 API로 추가 영화 정보 보완
-            console.log('🔍 네이버 API로 최신 영화 정보 보완...');
+            console.log('[SEARCH] 네이버 API로 최신 영화 정보 보완...');
             try {
                 const naverResult = await this.naverCrawler.crawlAndUpdateMovies();
                 naverMoviesAdded = naverResult.newMoviesAdded || 0;
-                console.log('✅ 네이버 API 업데이트 완료');
+                console.log('[SUCCESS] 네이버 API 업데이트 완료');
             } catch (naverError) {
-                console.error('❌ 네이버 API 업데이트 오류:', naverError.message);
+                console.error('[ERROR] 네이버 API 업데이트 오류:', naverError.message);
             }
             
             const result = {
@@ -164,11 +164,11 @@ class MovieUpdateScheduler {
                 executedAt: new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'})
             };
             
-            console.log('✅ 수동 업데이트 완료:', result);
+            console.log('[SUCCESS] 수동 업데이트 완료:', result);
             return result;
 
         } catch (error) {
-            console.error('❌ 수동 업데이트 오류:', error);
+            console.error('[ERROR] 수동 업데이트 오류:', error);
             return { success: false, error: error.message };
         } finally {
             this.isRunning = false;

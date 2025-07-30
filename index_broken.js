@@ -9,7 +9,7 @@ app.use(express.json({ limit: '10mb' }));
 // 카카오톡 5초 제한에 맞춘 응답 타임아웃 설정
 app.use((req, res, next) => {
     res.setTimeout(4500, () => {  // 4.5초로 단축
-        console.log('⏰ 요청 타임아웃 (4.5초) - 카카오톡 호환성');
+        console.log('[CLOCK] 요청 타임아웃 (4.5초) - 카카오톡 호환성');
         
         // 타임아웃 시에도 사용자에게 도움이 되는 응답 제공
         if (!res.headersSent) {
@@ -18,7 +18,7 @@ app.use((req, res, next) => {
                 template: {
                     outputs: [{
                         simpleText: {
-                            text: "⏰ 복잡한 질문이네요! 처리 중입니다.\n\n💡 더 빠른 답변을 원하시면:\n• '맥미니 간단 비교'로 다시 물어보세요\n• 또는 잠시 후 다시 시도해주세요"
+                            text: "[CLOCK] 복잡한 질문이네요! 처리 중입니다.\n\n[TIP] 더 빠른 답변을 원하시면:\n• '맥미니 간단 비교'로 다시 물어보세요\n• 또는 잠시 후 다시 시도해주세요"
                         }
                     }]
                 }
@@ -79,9 +79,9 @@ async function loadPersistentData() {
             Object.entries(pendingObj).forEach(([key, value]) => {
                 pendingMessages.set(key, value);
             });
-            console.log(`📥 ${pendingMessages.size}개의 대기 중인 메시지 로드됨`);
+            console.log(`[INBOX] ${pendingMessages.size}개의 대기 중인 메시지 로드됨`);
         } catch (error) {
-            console.log('📥 대기 중인 메시지 파일 없음 (새로 시작)');
+            console.log('[INBOX] 대기 중인 메시지 파일 없음 (새로 시작)');
         }
         
         // 사용자 이미지 URL 로드 (비활성화됨)
@@ -94,13 +94,13 @@ async function loadPersistentData() {
             Object.entries(contextObj).forEach(([key, value]) => {
                 userContexts.set(key, value);
             });
-            console.log(`📥 ${userContexts.size}개의 사용자 컨텍스트 로드됨`);
+            console.log(`[INBOX] ${userContexts.size}개의 사용자 컨텍스트 로드됨`);
         } catch (error) {
-            console.log('📥 사용자 컨텍스트 파일 없음 (새로 시작)');
+            console.log('[INBOX] 사용자 컨텍스트 파일 없음 (새로 시작)');
         }
         
     } catch (error) {
-        console.error('❌ 데이터 로드 실패:', error);
+        console.error('[ERROR] 데이터 로드 실패:', error);
     }
 }
 
@@ -126,7 +126,7 @@ async function savePersistentData() {
         
         console.log('💾 데이터 저장 완료');
     } catch (error) {
-        console.error('❌ 데이터 저장 실패:', error);
+        console.error('[ERROR] 데이터 저장 실패:', error);
     }
 }
 
@@ -138,13 +138,13 @@ loadPersistentData();
 
 // 서버 종료 시 데이터 저장
 process.on('SIGINT', async () => {
-    console.log('🔄 서버 종료 중... 데이터 저장');
+    console.log('[LOADING] 서버 종료 중... 데이터 저장');
     await savePersistentData();
     process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-    console.log('🔄 서버 종료 중... 데이터 저장');
+    console.log('[LOADING] 서버 종료 중... 데이터 저장');
     await savePersistentData();
     process.exit(0);
 });
@@ -209,12 +209,12 @@ function handleLongResponse(text, userId, responseType = 'general') {
     const responseTypeEmoji = {
         'image': '🖼️',
         'restaurant': '🍽️',
-        'news': '📰',
+        'news': '[NEWS]',
         'shopping': '🛒',
-        'general': '💬'
+        'general': '[MSG]'
     };
     
-    const emoji = responseTypeEmoji[responseType] || '💬';
+    const emoji = responseTypeEmoji[responseType] || '[MSG]';
     const continueText = `\n\n${emoji} "계속" 또는 "더보기"를 입력하면 나머지 내용을 확인할 수 있습니다.`;
     
     console.log(`📄 ${responseType} 응답 분할: 총 ${chunks.length}개 청크, 첫 청크 ${firstChunk.length}자`);
@@ -363,7 +363,7 @@ function selectOptimalResponseFormat(data, type) {
 async function getLatestNews(query = '오늘 뉴스') {
     try {
         if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
-            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            console.log('[WARN] 네이버 API 키가 설정되지 않았습니다.');
             return null;
         }
         
@@ -374,7 +374,7 @@ async function getLatestNews(query = '오늘 뉴스') {
             sort: 'date'  // 최신순 정렬
         };
         
-        console.log(`📡 네이버 뉴스 검색: "${query}"`);
+        console.log(`[SATELLITE] 네이버 뉴스 검색: "${query}"`);
         
         const response = await axios.get(NAVER_NEWS_API_URL, {
             params: params,
@@ -387,11 +387,11 @@ async function getLatestNews(query = '오늘 뉴스') {
         
         const items = response.data.items;
         if (!items || items.length === 0) {
-            console.log('📰 검색된 뉴스가 없습니다.');
+            console.log('[NEWS] 검색된 뉴스가 없습니다.');
             return null;
         }
         
-        console.log(`✅ ${items.length}개의 뉴스를 찾았습니다.`);
+        console.log(`[SUCCESS] ${items.length}개의 뉴스를 찾았습니다.`);
         
         return items.slice(0, 5).map(item => ({  // 3 → 5개로 증가
             title: item.title.replace(/<[^>]*>/g, ''), // HTML 태그 제거
@@ -401,7 +401,7 @@ async function getLatestNews(query = '오늘 뉴스') {
         }));
         
     } catch (error) {
-        console.error('❌ 네이버 뉴스 API 오류:', error.response?.data || error.message);
+        console.error('[ERROR] 네이버 뉴스 API 오류:', error.response?.data || error.message);
         return null;
     }
 }
@@ -410,7 +410,7 @@ async function getLatestNews(query = '오늘 뉴스') {
 async function getShoppingResults(query) {
     try {
         if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
-            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            console.log('[WARN] 네이버 API 키가 설정되지 않았습니다.');
             return null;
         }
         
@@ -438,7 +438,7 @@ async function getShoppingResults(query) {
             return null;
         }
         
-        console.log(`✅ ${items.length}개의 상품을 찾았습니다.`);
+        console.log(`[SUCCESS] ${items.length}개의 상품을 찾았습니다.`);
         
         return items.slice(0, 5).map((item, index) => ({
             rank: index + 1,
@@ -454,7 +454,7 @@ async function getShoppingResults(query) {
         }));
         
     } catch (error) {
-        console.error('❌ 네이버 쇼핑 API 오류:', error.response?.data || error.message);
+        console.error('[ERROR] 네이버 쇼핑 API 오류:', error.response?.data || error.message);
         return null;
     }
 }
@@ -499,7 +499,7 @@ function isNewsRequest(message) {
 async function getLocalRestaurants(query) {
     try {
         if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
-            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            console.log('[WARN] 네이버 API 키가 설정되지 않았습니다.');
             return null;
         }
         
@@ -527,7 +527,7 @@ async function getLocalRestaurants(query) {
             return null;
         }
         
-        console.log(`✅ ${items.length}개의 맛집을 찾았습니다.`);
+        console.log(`[SUCCESS] ${items.length}개의 맛집을 찾았습니다.`);
         
         return items.slice(0, 5).map(item => ({
             title: item.title.replace(/<[^>]*>/g, ''), // HTML 태그 제거
@@ -542,7 +542,7 @@ async function getLocalRestaurants(query) {
         }));
         
     } catch (error) {
-        console.error('❌ 네이버 지역검색 API 오류:', error.response?.data || error.message);
+        console.error('[ERROR] 네이버 지역검색 API 오류:', error.response?.data || error.message);
         return null;
     }
 }
@@ -612,7 +612,7 @@ function extractImageUrl(requestBody) {
     const blocks = requestBody.userRequest?.blocks || [];
     const action = requestBody.action || {};
     
-    console.log(`📷 이미지 URL 추출 시작...`);
+    console.log(`[CAMERA] 이미지 URL 추출 시작...`);
     
     // 1. 메시지에서 이미지 URL 추출 (카카오 이미지 URL 포함)
     const urlPatterns = [
@@ -624,7 +624,7 @@ function extractImageUrl(requestBody) {
     for (const pattern of urlPatterns) {
         const urlMatch = userMessage.match(pattern);
         if (urlMatch) {
-            console.log(`📷 메시지에서 URL 추출 성공: ${urlMatch[0]}`);
+            console.log(`[CAMERA] 메시지에서 URL 추출 성공: ${urlMatch[0]}`);
             return urlMatch[0];
         }
     }
@@ -636,7 +636,7 @@ function extractImageUrl(requestBody) {
                 for (const pattern of urlPatterns) {
                     const urlMatch = value.match(pattern);
                     if (urlMatch) {
-                        console.log(`📷 액션 파라미터에서 URL 추출 성공: ${urlMatch[0]}`);
+                        console.log(`[CAMERA] 액션 파라미터에서 URL 추출 성공: ${urlMatch[0]}`);
                         return urlMatch[0];
                     }
                 }
@@ -649,27 +649,27 @@ function extractImageUrl(requestBody) {
         if (block.listCard?.items) {
             for (const item of block.listCard.items) {
                 if (item.imageUrl) {
-                    console.log(`📷 리스트 카드에서 URL 추출 성공: ${item.imageUrl}`);
+                    console.log(`[CAMERA] 리스트 카드에서 URL 추출 성공: ${item.imageUrl}`);
                     return item.imageUrl;
                 }
             }
         }
         if (block.basicCard?.thumbnail?.imageUrl) {
-            console.log(`📷 베이직 카드에서 URL 추출 성공: ${block.basicCard.thumbnail.imageUrl}`);
+            console.log(`[CAMERA] 베이직 카드에서 URL 추출 성공: ${block.basicCard.thumbnail.imageUrl}`);
             return block.basicCard.thumbnail.imageUrl;
         }
         if (block.commerceCard?.thumbnails?.length > 0) {
-            console.log(`📷 커머스 카드에서 URL 추출 성공: ${block.commerceCard.thumbnails[0].imageUrl}`);
+            console.log(`[CAMERA] 커머스 카드에서 URL 추출 성공: ${block.commerceCard.thumbnails[0].imageUrl}`);
             return block.commerceCard.thumbnails[0].imageUrl;
         }
         if (block.carousel?.items?.length > 0) {
             for (const item of block.carousel.items) {
                 if (item.imageUrl) {
-                    console.log(`📷 캐러셀에서 URL 추출 성공: ${item.imageUrl}`);
+                    console.log(`[CAMERA] 캐러셀에서 URL 추출 성공: ${item.imageUrl}`);
                     return item.imageUrl;
                 }
                 if (item.thumbnail?.imageUrl) {
-                    console.log(`📷 캐러셀 썸네일에서 URL 추출 성공: ${item.thumbnail.imageUrl}`);
+                    console.log(`[CAMERA] 캐러셀 썸네일에서 URL 추출 성공: ${item.thumbnail.imageUrl}`);
                     return item.thumbnail.imageUrl;
                 }
             }
@@ -681,12 +681,12 @@ function extractImageUrl(requestBody) {
     for (const pattern of urlPatterns) {
         const urlMatch = bodyString.match(pattern);
         if (urlMatch) {
-            console.log(`📷 전체 바디에서 URL 추출 성공: ${urlMatch[0]}`);
+            console.log(`[CAMERA] 전체 바디에서 URL 추출 성공: ${urlMatch[0]}`);
             return urlMatch[0];
         }
     }
     
-    console.log(`📷 이미지 URL을 찾을 수 없습니다.`);
+    console.log(`[CAMERA] 이미지 URL을 찾을 수 없습니다.`);
     return null;
 }
 
@@ -699,7 +699,7 @@ function isImageAnalysisRequest(message) {
 
 // Claude Vision API를 사용한 이미지 분석 함수
 async function analyzeImageWithClaude(imageUrl, analysisType, userMessage) {
-    console.log(`🔍 이미지 분석 시작: ${analysisType}, URL: ${imageUrl}`);
+    console.log(`[SEARCH] 이미지 분석 시작: ${analysisType}, URL: ${imageUrl}`);
     
     try {
         // 이미지를 base64로 변환
@@ -783,12 +783,12 @@ async function analyzeImageWithClaude(imageUrl, analysisType, userMessage) {
         );
         
         const analysisResult = claudeResponse.data.content[0].text;
-        console.log(`✅ 이미지 분석 완료: ${analysisResult.length}자`);
+        console.log(`[SUCCESS] 이미지 분석 완료: ${analysisResult.length}자`);
         
         return analysisResult;
         
     } catch (error) {
-        console.error('❌ 이미지 분석 에러:', error.response?.data || error.message);
+        console.error('[ERROR] 이미지 분석 에러:', error.response?.data || error.message);
         
         if (error.response?.status === 401) {
             return '이미지 분석 서비스 인증에 문제가 있습니다. 관리자에게 문의해주세요.';
@@ -827,12 +827,12 @@ app.get('/status', (req, res) => {
     const hasClaudeApiKey = !!process.env.CLAUDE_API_KEY;
     const hasNaverClientId = !!process.env.NAVER_CLIENT_ID;
     const hasNaverClientSecret = !!process.env.NAVER_CLIENT_SECRET;
-    const claudeStatus = hasClaudeApiKey ? '✅ Claude API 설정됨' : '❌ Claude API 미설정';
-    const naverStatus = (hasNaverClientId && hasNaverClientSecret) ? '✅ 네이버 API 설정됨' : '❌ 네이버 API 미설정';
+    const claudeStatus = hasClaudeApiKey ? '[SUCCESS] Claude API 설정됨' : '[ERROR] Claude API 미설정';
+    const naverStatus = (hasNaverClientId && hasNaverClientSecret) ? '[SUCCESS] 네이버 API 설정됨' : '[ERROR] 네이버 API 미설정';
     const koreanTime = getKoreanDateTime();
     
     res.send(`
-        <h1>🤖 카카오 챗봇 Claude AI 서버</h1>
+        <h1>[AI] 카카오 챗봇 Claude AI 서버</h1>
         <p><strong>상태:</strong> 정상 실행 중</p>
         <p><strong>현재 시간:</strong> ${koreanTime.formatted}</p>
         <p><strong>Claude API:</strong> ${claudeStatus}</p>
@@ -843,10 +843,10 @@ app.get('/status', (req, res) => {
         <hr>
         <p><strong>기능:</strong></p>
         <ul>
-            <li>📰 실시간 뉴스 제공 (예: "오늘 뉴스", "최신 뉴스")</li>
+            <li>[NEWS] 실시간 뉴스 제공 (예: "오늘 뉴스", "최신 뉴스")</li>
             <li>🛒 쇼핑 상품 검색 (예: "젖병 세척기 추천", "노트북 베스트")</li>
-            <li>🕐 한국 시간 인식 및 제공</li>
-            <li>💬 무제한 길이 상세 답변</li>
+            <li>[TIME] 한국 시간 인식 및 제공</li>
+            <li>[MSG] 무제한 길이 상세 답변</li>
         </ul>
         <hr>
         <p><strong>환경변수 설정:</strong></p>
@@ -859,13 +859,13 @@ app.get('/status', (req, res) => {
 
 // 카카오 스킬 웹훅
 app.post('/kakao-skill-webhook', async (req, res) => {
-    console.log('🔔 카카오 웹훅 요청 받음!');
+    console.log('[BELL] 카카오 웹훅 요청 받음!');
     
     try {
         const userMessage = req.body.userRequest?.utterance;
         const userId = req.body.userRequest?.user?.id || 'anonymous';
-        console.log(`💬 사용자 메시지 길이: ${userMessage.length}자`);
-        console.log(`💬 사용자 메시지: '${userMessage}' (ID: ${userId})`);
+        console.log(`[MSG] 사용자 메시지 길이: ${userMessage.length}자`);
+        console.log(`[MSG] 사용자 메시지: '${userMessage}' (ID: ${userId})`);
         
         // 이미지 분석 관련 요청 로깅 (비활성화됨)
         if (userMessage.includes('분석') || userMessage.includes('이미지') || userMessage.includes('사진')) {
@@ -874,7 +874,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         // 전체 요청 바디를 로그로 출력 (디버깅용)
         if (userMessage.length > 500) {
-            console.log(`📊 긴 메시지 감지됨. 전체 요청 바디:`, JSON.stringify(req.body, null, 2));
+            console.log(`[INFO] 긴 메시지 감지됨. 전체 요청 바디:`, JSON.stringify(req.body, null, 2));
         }
         
         if (!userMessage) {
@@ -882,7 +882,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         }
         
         const koreanTime = getKoreanDateTime();
-        console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
+        console.log(`[TIME] 현재 한국 시간: ${koreanTime.formatted}`);
         
         // 긴 메시지 감지 및 컨텍스트 병합 처리
         let finalMessage = userMessage;
@@ -896,7 +896,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
              (previousContext.timestamp && Date.now() - previousContext.timestamp < 30000))) {
             
             finalMessage = previousContext.message + '\n\n' + userMessage;
-            console.log(`🔗 이전 컨텍스트와 병합됨. 총 길이: ${finalMessage.length}자`);
+            console.log(`[LINK] 이전 컨텍스트와 병합됨. 총 길이: ${finalMessage.length}자`);
             
             // 컨텍스트 업데이트
             userContexts.set(userId, {
@@ -913,10 +913,10 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         // 최종 메시지로 처리 계속
         const processMessage = finalMessage;
-        console.log(`📝 최종 처리할 메시지 길이: ${processMessage.length}자`);
+        console.log(`[MEMO] 최종 처리할 메시지 길이: ${processMessage.length}자`);
         
         // 이미지 분석 요청 처리 (최우선 처리)
-        console.log(`🔍 이미지 감지 테스트: 메시지='${userMessage.substring(0, 100)}'`);
+        console.log(`[SEARCH] 이미지 감지 테스트: 메시지='${userMessage.substring(0, 100)}'`);
         // 🚫 이미지 기능 완전 비활성화
         console.log('🚫 이미지 처리 로직 건너뜀 (비활성화됨)');
         
@@ -929,7 +929,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 template: {
                     outputs: [{
                         simpleText: {
-                            text: "🚫 이미지 분석 기능이 현재 비활성화되어 있습니다.\n\n💬 텍스트 기반 질문으로 도움을 드릴 수 있습니다:\n• 뉴스 검색\n• 쇼핑 정보\n• 맛집 추천\n• 일반적인 질문 답변"
+                            text: "🚫 이미지 분석 기능이 현재 비활성화되어 있습니다.\n\n[MSG] 텍스트 기반 질문으로 도움을 드릴 수 있습니다:\n• 뉴스 검색\n• 쇼핑 정보\n• 맛집 추천\n• 일반적인 질문 답변"
                         }
                     }]
                 }
@@ -942,7 +942,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         // 더미 조건 (절대 실행되지 않음)
         if (false) {
-                console.log(`📷 이미지 분석 시작: ${imageUrl}`);
+                console.log(`[CAMERA] 이미지 분석 시작: ${imageUrl}`);
                 
                 try {
                     const analysisResult = await analyzeImageWithClaude(imageUrl, 'analysis', processMessage);
@@ -965,10 +965,10 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
-                    console.log('✅ 이미지 분석 결과 전송 완료');
+                    console.log('[SUCCESS] 이미지 분석 결과 전송 완료');
                     return;
                 } catch (error) {
-                    console.error('❌ 이미지 분석 중 오류:', error);
+                    console.error('[ERROR] 이미지 분석 중 오류:', error);
                     
                     const errorText = `🖼️ 이미지 분석 중 오류가 발생했습니다.
 
@@ -989,7 +989,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
-                    console.log('✅ 이미지 분석 오류 안내 전송 완료');
+                    console.log('[SUCCESS] 이미지 분석 오류 안내 전송 완료');
                     return;
                 }
             } else {
@@ -997,7 +997,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 
 이미지를 먼저 업로드하거나 이미지와 함께 분석 요청을 보내주세요.
 
-📝 사용법:
+[MEMO] 사용법:
 1️⃣ 이미지를 먼저 전송 → "이미지 분석해줘"
 2️⃣ 이미지와 함께 "이미지 분석해줘" 메시지 전송
 
@@ -1016,11 +1016,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
                 res.status(200).json(response);
-                console.log('✅ 이미지 없음 안내 전송 완료');
+                console.log('[SUCCESS] 이미지 없음 안내 전송 완료');
                 return;
             }
         } catch (error) {
-            console.error('❌ 이미지 처리 중 예상치 못한 오류:', error);
+            console.error('[ERROR] 이미지 처리 중 예상치 못한 오류:', error);
         }
         
         // 이미지 처리 로직 완전 제거됨 (두 번째 체크도 비활성화)
@@ -1032,7 +1032,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             
             const imageUrl = null; // 비활성화됨
             if (imageUrl) {
-                console.log(`📷 이미지 URL 발견: ${imageUrl}`);
+                console.log(`[CAMERA] 이미지 URL 발견: ${imageUrl}`);
                 
                 const imageOptionsText = `🚫 이미지 기능이 비활성화되어 있습니다.`;
 
@@ -1045,7 +1045,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             console.log('📄 계속 요청 감지됨');
             const pendingMessage = pendingMessages.get(userId);
             if (pendingMessage) {
-                console.log('✅ 저장된 나머지 내용 전송');
+                console.log('[SUCCESS] 저장된 나머지 내용 전송');
                 pendingMessages.delete(userId); // 사용 후 삭제
                 
                 const response = {
@@ -1061,10 +1061,10 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
                 res.status(200).json(response);
-                console.log('✅ 나머지 내용 전송 완료');
+                console.log('[SUCCESS] 나머지 내용 전송 완료');
                 return;
             } else {
-                console.log('⚠️ 저장된 내용이 없음');
+                console.log('[WARN] 저장된 내용이 없음');
                 const response = {
                     version: "2.0",
                     template: {
@@ -1078,7 +1078,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
                 res.status(200).json(response);
-                console.log('✅ 안내 메시지 전송 완료');
+                console.log('[SUCCESS] 안내 메시지 전송 완료');
                 return;
             }
         }
@@ -1095,7 +1095,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 다른 기능을 이용해보세요:
 • 🥘 맛집 추천
 • 🛒 쇼핑 정보 검색  
-• 💬 일반 대화
+• [MSG] 일반 대화
 • ❓ 질문 답변
 
 원하시는 다른 도움이 있으시면 말씀해주세요!`;
@@ -1113,7 +1113,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.status(200).json(response);
-            console.log('✅ 이미지 기능 비활성화 안내 전송 완료');
+            console.log('[SUCCESS] 이미지 기능 비활성화 안내 전송 완료');
             return;
         }
         
@@ -1123,7 +1123,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             
             // 쇼핑과 중복 감지되지 않았는지 확인 로깅
             if (isShoppingRequest(processMessage)) {
-                console.log('⚠️ 쇼핑과 중복 감지됨 - 맛집 우선 처리');
+                console.log('[WARN] 쇼핑과 중복 감지됨 - 맛집 우선 처리');
             }
             
             // 지역명 추출 (간단한 방법)
@@ -1144,18 +1144,18 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             // 지역명이 명확하게 추출된 경우 그것을 우선 사용
             if (locationMatch && locationMatch[1]) {
                 searchQuery = locationMatch[1] + ' 맛집';
-                console.log(`📍 지역명 추출됨: ${locationMatch[1]} → 검색어: "${searchQuery}"`);
+                console.log(`[LOCATION] 지역명 추출됨: ${locationMatch[1]} → 검색어: "${searchQuery}"`);
             } else if (searchQuery.length < 2) {
                 // 검색어가 너무 짧으면 원본에서 핵심 부분만 추출
                 const cleanMessage = processMessage.replace(/[추천해주세요알려주세요해줘]/gi, '').trim();
                 searchQuery = cleanMessage.substring(0, 10) + ' 맛집';
-                console.log(`📝 짧은 검색어 처리: "${cleanMessage}" → "${searchQuery}"`);
+                console.log(`[MEMO] 짧은 검색어 처리: "${cleanMessage}" → "${searchQuery}"`);
             } else {
                 // 맛집 키워드가 없으면 추가
                 if (!searchQuery.includes('맛집')) {
                     searchQuery += ' 맛집';
                 }
-                console.log(`🔍 최종 검색어: "${searchQuery}"`);
+                console.log(`[SEARCH] 최종 검색어: "${searchQuery}"`);
             }
             
             const restaurants = await getLocalRestaurants(searchQuery);
@@ -1163,17 +1163,17 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 let restaurantText = `🍽️ ${koreanTime.formatted} "${searchQuery}" 검색 결과\n\n` +
                     restaurants.map((restaurant, index) => {
                         let result = `${index + 1}. ${restaurant.title}\n`;
-                        result += `📍 ${restaurant.roadAddress || restaurant.address}\n`;
-                        result += `📞 ${restaurant.telephone}\n`;
+                        result += `[LOCATION] ${restaurant.roadAddress || restaurant.address}\n`;
+                        result += `[CALL] ${restaurant.telephone}\n`;
                         if (restaurant.category) {
-                            result += `🏷️ ${restaurant.category}\n`;
+                            result += `[LABEL] ${restaurant.category}\n`;
                         }
-                        result += `🔗 ${restaurant.link}\n`;
+                        result += `[LINK] ${restaurant.link}\n`;
                         return result + '\n' + '='.repeat(50) + '\n';
                     }).join('');
                 
-                console.log('✅ 맛집 데이터 제공 완료');
-                console.log(`📊 응답 길이: ${restaurantText.length}자`);
+                console.log('[SUCCESS] 맛집 데이터 제공 완료');
+                console.log(`[INFO] 응답 길이: ${restaurantText.length}자`);
                 
                 // 스마트 분할 시스템 적용
                 const processedResponse = handleLongResponse(restaurantText, userId, 'restaurant');
@@ -1192,17 +1192,17 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
                 res.status(200).json(response);
-                console.log('✅ 맛집 응답 전송 완료');
+                console.log('[SUCCESS] 맛집 응답 전송 완료');
                 return;
             } else {
-                console.log('⚠️ 맛집 API 사용 불가 - 직접 안내 메시지 제공');
+                console.log('[WARN] 맛집 API 사용 불가 - 직접 안내 메시지 제공');
                 
                 const noRestaurantText = `🍽️ 죄송합니다. "${searchQuery}" 지역의 맛집 정보를 찾을 수 없습니다.
 
-📍 정확한 지역명으로 다시 검색해보세요:
+[LOCATION] 정확한 지역명으로 다시 검색해보세요:
 • 예: "강남역 맛집", "홍대 카페", "명동 한식"
 
-🔍 검색 팁:
+[SEARCH] 검색 팁:
 • 구체적인 지역명 + 맛집 키워드 사용
 • "○○역", "○○동", "○○구" 등 명확한 위치 정보 포함
 
@@ -1221,7 +1221,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
                 res.status(200).json(response);
-                console.log('✅ 맛집 검색 실패 안내 전송 완료');
+                console.log('[SUCCESS] 맛집 검색 실패 안내 전송 완료');
                 return;
             }
         }
@@ -1264,23 +1264,23 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             if (shopping && shopping.length > 0) {
                 const shoppingText = `🛒 ${koreanTime.formatted} "${searchQuery}" 검색 결과\n\n` +
                     shopping.map((product) => {
-                        return `${product.rank}. ${product.title}\n💰 ${product.price}\n🏪 ${product.mallName}\n🔗 ${product.link}\n\n${'='.repeat(50)}\n`;
+                        return `${product.rank}. ${product.title}\n💰 ${product.price}\n[STORE] ${product.mallName}\n[LINK] ${product.link}\n\n${'='.repeat(50)}\n`;
                     }).join('');
                 
-                console.log('✅ 쇼핑 데이터 제공 완료');
-                console.log(`📊 응답 길이: ${shoppingText.length}자`);
+                console.log('[SUCCESS] 쇼핑 데이터 제공 완료');
+                console.log(`[INFO] 응답 길이: ${shoppingText.length}자`);
                 
                 // 스마트 분할 시스템 적용
                 const processedResponse = handleLongResponse(shoppingText, userId, 'shopping');
                 
                 // 응답이 짧으면 일반 텍스트로, 길면 리스트 카드로 제공
                 if (processedResponse.hasMore || shoppingText.length > 1000) {
-                    console.log('⚠️ 응답이 길어서 리스트 카드로 변환');
+                    console.log('[WARN] 응답이 길어서 리스트 카드로 변환');
                     
                     // 리스트 카드 형태로 제공
                     const listItems = shopping.map((product) => ({
                         title: `${product.rank}. ${product.title}`,
-                        description: `💰 ${product.price} | 🏪 ${product.mallName}`,
+                        description: `💰 ${product.price} | [STORE] ${product.mallName}`,
                         imageUrl: product.image || null,
                         link: {
                             web: product.link
@@ -1307,7 +1307,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     };
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
-                    console.log('✅ 리스트 카드 응답 전송 완료');
+                    console.log('[SUCCESS] 리스트 카드 응답 전송 완료');
                 } else {
                     // 짧은 텍스트는 스마트 분할이 적용된 텍스트로 제공
                     const response = {
@@ -1322,11 +1322,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     };
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
-                    console.log('✅ 텍스트 응답 전송 완료');
+                    console.log('[SUCCESS] 텍스트 응답 전송 완료');
                 }
                 return;
             } else {
-                console.log('⚠️ 쇼핑 API 사용 불가 - Claude로 폴백');
+                console.log('[WARN] 쇼핑 API 사용 불가 - Claude로 폴백');
             }
         }
         
@@ -1352,7 +1352,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         const isTimeQuestion = timeQuestionPatterns.some(pattern => pattern.test(processMessage));
         
         if (isTimeQuestion) {
-            console.log('🕐 시간/날짜 질문 감지됨 - 직접 처리');
+            console.log('[TIME] 시간/날짜 질문 감지됨 - 직접 처리');
             
             const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
             const now = new Date();
@@ -1384,33 +1384,33 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.status(200).json(response);
-            console.log('✅ 시간/날짜 응답 전송 완료');
+            console.log('[SUCCESS] 시간/날짜 응답 전송 완료');
             return;
         }
 
         // 뉴스 요청인지 확인
         if (isNewsRequest(processMessage)) {
-            console.log('📰 뉴스 요청 감지됨');
+            console.log('[NEWS] 뉴스 요청 감지됨');
             
             const news = await getLatestNews('최신 뉴스');
             if (news && news.length > 0) {
-                const newsText = `📰 ${koreanTime.formatted} 네이버 최신 뉴스\n\n` +
+                const newsText = `[NEWS] ${koreanTime.formatted} 네이버 최신 뉴스\n\n` +
                     news.map((article, index) => {
                         const date = new Date(article.pubDate).toLocaleString('ko-KR');
                         const description = article.description || '내용이 없습니다.';
                         
-                        return `📌 ${index + 1}. ${article.title}\n\n${description}\n\n📅 ${date}\n🔗 ${article.link}\n\n${'='.repeat(50)}\n`;
+                        return `[PIN] ${index + 1}. ${article.title}\n\n${description}\n\n[TOMORROW] ${date}\n[LINK] ${article.link}\n\n${'='.repeat(50)}\n`;
                     }).join('');
                 
-                console.log('✅ 뉴스 데이터 제공 완료');
-                console.log(`📊 응답 길이: ${newsText.length}자`);
+                console.log('[SUCCESS] 뉴스 데이터 제공 완료');
+                console.log(`[INFO] 응답 길이: ${newsText.length}자`);
                 
                 // 스마트 분할 시스템 적용
                 const processedResponse = handleLongResponse(newsText, userId, 'news');
                 
                 // 응답이 짧으면 일반 텍스트로, 길면 리스트 카드로 제공
                 if (processedResponse.hasMore || newsText.length > 1000) {
-                    console.log('⚠️ 응답이 길어서 리스트 카드로 변환');
+                    console.log('[WARN] 응답이 길어서 리스트 카드로 변환');
                     
                     // 리스트 카드 형태로 제공
                     const listItems = news.map((article, index) => ({
@@ -1430,7 +1430,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                             outputs: [{
                                 listCard: {
                                     header: {
-                                        title: `📰 ${koreanTime.formatted} 최신 뉴스`
+                                        title: `[NEWS] ${koreanTime.formatted} 최신 뉴스`
                                     },
                                     items: listItems.slice(0, 5),
                                     buttons: [{
@@ -1457,20 +1457,20 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 }
                 return;
             } else {
-                console.log('⚠️ 뉴스 API 사용 불가 - Claude로 폴백');
+                console.log('[WARN] 뉴스 API 사용 불가 - Claude로 폴백');
             }
         }
         
         // Claude API 키 확인
         if (!process.env.CLAUDE_API_KEY) {
-            console.log('⚠️ Claude API 키가 설정되지 않았습니다.');
+            console.log('[WARN] Claude API 키가 설정되지 않았습니다.');
             throw new Error('API 키가 설정되지 않았습니다');
         }
         
-        console.log('✅ Claude API 호출 시작...');
+        console.log('[SUCCESS] Claude API 호출 시작...');
         
         // Claude API 호출 (더 관대한 타임아웃)
-        console.log('🔄 Claude API 호출 중...');
+        console.log('[LOADING] Claude API 호출 중...');
         const startTime = Date.now();
         
         let responseText;
@@ -1510,10 +1510,10 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             
             const responseTime = Date.now() - startTime;
             responseText = claudeResponse.data.content[0].text;
-            console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
+            console.log(`[SUCCESS] Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
         } catch (error) {
             const responseTime = Date.now() - startTime;
-            console.log(`⚠️ Claude API 에러 (${responseTime}ms): ${error.message}`);
+            console.log(`[WARN] Claude API 에러 (${responseTime}ms): ${error.message}`);
             
             // API 키 문제인지 확인
             if (error.response?.status === 401) {
@@ -1541,7 +1541,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             }
         }
         
-        console.log(`📝 응답 내용 일부: ${responseText.substring(0, 100)}...`);
+        console.log(`[MEMO] 응답 내용 일부: ${responseText.substring(0, 100)}...`);
         
         // 스마트 분할 시스템 적용
         const processedResponse = handleLongResponse(responseText, userId, 'general');
@@ -1563,15 +1563,15 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             throw new Error('Invalid Kakao response format');
         }
         
-        console.log(`📤 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2).substring(0, 300)}...`);
+        console.log(`[OUTBOX] 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2).substring(0, 300)}...`);
         
         // 응답 헤더 명시적 설정 (Kakao Skills 호환성)
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.status(200).json(kakaoResponse);
-        console.log('✅ 카카오 웹훅 응답 전송 완료');
+        console.log('[SUCCESS] 카카오 웹훅 응답 전송 완료');
         
     } catch (error) {
-        console.error('❌ 웹훅 처리 중 전체 오류:', error);
+        console.error('[ERROR] 웹훅 처리 중 전체 오류:', error);
         const errorResponse = {
             version: "2.0",
             template: {
@@ -1589,18 +1589,18 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 
 // 루트 웹훅 (POST /)
 app.post('/', async (req, res) => {
-    console.log('🔔 루트 웹훅 호출');
+    console.log('[BELL] 루트 웹훅 호출');
     
     try {
         const userMessage = req.body.userRequest?.utterance;
-        console.log(`💬 사용자 메시지: '${userMessage}'`);
+        console.log(`[MSG] 사용자 메시지: '${userMessage}'`);
         
         if (!userMessage) {
             throw new Error('메시지가 없습니다');
         }
         
         const koreanTime = getKoreanDateTime();
-        console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
+        console.log(`[TIME] 현재 한국 시간: ${koreanTime.formatted}`);
         
         // 쇼핑 요청인지 먼저 확인
         if (isShoppingRequest(processMessage)) {
@@ -1637,23 +1637,23 @@ app.post('/', async (req, res) => {
             if (shopping && shopping.length > 0) {
                 const shoppingText = `🛒 ${koreanTime.formatted} "${searchQuery}" 검색 결과\n\n` +
                     shopping.map((product) => {
-                        return `${product.rank}. ${product.title}\n💰 ${product.price}\n🏪 ${product.mallName}\n🔗 ${product.link}\n\n${'='.repeat(50)}\n`;
+                        return `${product.rank}. ${product.title}\n💰 ${product.price}\n[STORE] ${product.mallName}\n[LINK] ${product.link}\n\n${'='.repeat(50)}\n`;
                     }).join('');
                 
-                console.log('✅ 쇼핑 데이터 제공 완료');
-                console.log(`📊 응답 길이: ${shoppingText.length}자`);
+                console.log('[SUCCESS] 쇼핑 데이터 제공 완료');
+                console.log(`[INFO] 응답 길이: ${shoppingText.length}자`);
                 
                 // 스마트 분할 시스템 적용
                 const processedResponse = handleLongResponse(shoppingText, userId, 'shopping');
                 
                 // 응답이 짧으면 일반 텍스트로, 길면 리스트 카드로 제공
                 if (processedResponse.hasMore || shoppingText.length > 1000) {
-                    console.log('⚠️ 응답이 길어서 리스트 카드로 변환');
+                    console.log('[WARN] 응답이 길어서 리스트 카드로 변환');
                     
                     // 리스트 카드 형태로 제공
                     const listItems = shopping.map((product) => ({
                         title: `${product.rank}. ${product.title}`,
-                        description: `💰 ${product.price} | 🏪 ${product.mallName}`,
+                        description: `💰 ${product.price} | [STORE] ${product.mallName}`,
                         imageUrl: product.image || null,
                         link: {
                             web: product.link
@@ -1680,7 +1680,7 @@ app.post('/', async (req, res) => {
                     };
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
-                    console.log('✅ 리스트 카드 응답 전송 완료');
+                    console.log('[SUCCESS] 리스트 카드 응답 전송 완료');
                 } else {
                     // 짧은 텍스트는 스마트 분할이 적용된 텍스트로 제공
                     const response = {
@@ -1695,11 +1695,11 @@ app.post('/', async (req, res) => {
                     };
                     res.setHeader('Content-Type', 'application/json; charset=utf-8');
                     res.status(200).json(response);
-                    console.log('✅ 텍스트 응답 전송 완료');
+                    console.log('[SUCCESS] 텍스트 응답 전송 완료');
                 }
                 return;
             } else {
-                console.log('⚠️ 쇼핑 API 사용 불가 - Claude로 폴백');
+                console.log('[WARN] 쇼핑 API 사용 불가 - Claude로 폴백');
             }
         }
         
@@ -1725,7 +1725,7 @@ app.post('/', async (req, res) => {
         const isTimeQuestion = timeQuestionPatterns.some(pattern => pattern.test(processMessage));
         
         if (isTimeQuestion) {
-            console.log('🕐 시간/날짜 질문 감지됨 - 직접 처리');
+            console.log('[TIME] 시간/날짜 질문 감지됨 - 직접 처리');
             
             const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
             const now = new Date();
@@ -1757,33 +1757,33 @@ app.post('/', async (req, res) => {
             
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.status(200).json(response);
-            console.log('✅ 시간/날짜 응답 전송 완료');
+            console.log('[SUCCESS] 시간/날짜 응답 전송 완료');
             return;
         }
 
         // 뉴스 요청인지 확인
         if (isNewsRequest(processMessage)) {
-            console.log('📰 뉴스 요청 감지됨');
+            console.log('[NEWS] 뉴스 요청 감지됨');
             
             const news = await getLatestNews('최신 뉴스');
             if (news && news.length > 0) {
-                const newsText = `📰 ${koreanTime.formatted} 네이버 최신 뉴스\n\n` +
+                const newsText = `[NEWS] ${koreanTime.formatted} 네이버 최신 뉴스\n\n` +
                     news.map((article, index) => {
                         const date = new Date(article.pubDate).toLocaleString('ko-KR');
                         const description = article.description || '내용이 없습니다.';
                         
-                        return `📌 ${index + 1}. ${article.title}\n\n${description}\n\n📅 ${date}\n🔗 ${article.link}\n\n${'='.repeat(50)}\n`;
+                        return `[PIN] ${index + 1}. ${article.title}\n\n${description}\n\n[TOMORROW] ${date}\n[LINK] ${article.link}\n\n${'='.repeat(50)}\n`;
                     }).join('');
                 
-                console.log('✅ 뉴스 데이터 제공 완료');
-                console.log(`📊 응답 길이: ${newsText.length}자`);
+                console.log('[SUCCESS] 뉴스 데이터 제공 완료');
+                console.log(`[INFO] 응답 길이: ${newsText.length}자`);
                 
                 // 스마트 분할 시스템 적용
                 const processedResponse = handleLongResponse(newsText, userId, 'news');
                 
                 // 응답이 짧으면 일반 텍스트로, 길면 리스트 카드로 제공
                 if (processedResponse.hasMore || newsText.length > 1000) {
-                    console.log('⚠️ 응답이 길어서 리스트 카드로 변환');
+                    console.log('[WARN] 응답이 길어서 리스트 카드로 변환');
                     
                     // 리스트 카드 형태로 제공
                     const listItems = news.map((article, index) => ({
@@ -1803,7 +1803,7 @@ app.post('/', async (req, res) => {
                             outputs: [{
                                 listCard: {
                                     header: {
-                                        title: `📰 ${koreanTime.formatted} 최신 뉴스`
+                                        title: `[NEWS] ${koreanTime.formatted} 최신 뉴스`
                                     },
                                     items: listItems.slice(0, 5),
                                     buttons: [{
@@ -1830,17 +1830,17 @@ app.post('/', async (req, res) => {
                 }
                 return;
             } else {
-                console.log('⚠️ 뉴스 API 사용 불가 - Claude로 폴백');
+                console.log('[WARN] 뉴스 API 사용 불가 - Claude로 폴백');
             }
         }
         
         // Claude API 키 확인
         if (!process.env.CLAUDE_API_KEY) {
-            console.log('⚠️ Claude API 키가 설정되지 않았습니다.');
+            console.log('[WARN] Claude API 키가 설정되지 않았습니다.');
             throw new Error('API 키가 설정되지 않았습니다');
         }
         
-        console.log('✅ Claude API 호출 시작...');
+        console.log('[SUCCESS] Claude API 호출 시작...');
         
         // Claude API 호출 (더 관대한 타임아웃)
         const startTime = Date.now();
@@ -1882,10 +1882,10 @@ app.post('/', async (req, res) => {
             
             const responseTime = Date.now() - startTime;
             responseText = claudeResponse.data.content[0].text;
-            console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
+            console.log(`[SUCCESS] Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
         } catch (error) {
             const responseTime = Date.now() - startTime;
-            console.log(`⚠️ Claude API 에러 (${responseTime}ms): ${error.message}`);
+            console.log(`[WARN] Claude API 에러 (${responseTime}ms): ${error.message}`);
             
             // API 키 문제인지 확인
             if (error.response?.status === 401) {
@@ -1912,7 +1912,7 @@ app.post('/', async (req, res) => {
                 responseText = `현재 AI 서비스가 일시적으로 불안정합니다. 간단한 질문이나 뉴스/쇼핑 검색은 가능합니다. (현재 시간: ${koreanTime.formatted})`;
             }
         }
-        console.log(`📝 응답 미리보기: ${responseText.substring(0, 100)}...`);
+        console.log(`[MEMO] 응답 미리보기: ${responseText.substring(0, 100)}...`);
         
         // 카카오 스킬 응답 처리 - 800자로 분할 전송
         const maxLength = 800;
@@ -1946,15 +1946,15 @@ app.post('/', async (req, res) => {
             throw new Error('Invalid Kakao response format');
         }
         
-        console.log(`📤 루트 웹훅 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2).substring(0, 300)}...`);
+        console.log(`[OUTBOX] 루트 웹훅 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2).substring(0, 300)}...`);
         
         // 응답 헤더 명시적 설정 (Kakao Skills 호환성)
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.status(200).json(kakaoResponse);
-        console.log('✅ 루트 웹훅 응답 전송 완료');
+        console.log('[SUCCESS] 루트 웹훅 응답 전송 완료');
         
     } catch (error) {
-        console.error('❌ 루트 웹훅 에러 발생:', error.response?.data || error.message);
+        console.error('[ERROR] 루트 웹훅 에러 발생:', error.response?.data || error.message);
         
         // 에러별 메시지
         let errorMsg = "죄송합니다. 잠시 후 다시 시도해주세요.";
@@ -1986,26 +1986,26 @@ const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, '0.0.0.0', () => {
     const koreanTime = getKoreanDateTime();
     console.log(`🚀 Node.js 서버 시작: 포트 ${PORT}`);
-    console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
-    console.log(`💡 상태 페이지: http://0.0.0.0:${PORT}/status`);
-    console.log(`🔗 웹훅 URL: http://0.0.0.0:${PORT}/kakao-skill-webhook`);
-    console.log(`🔑 Claude API 키 설정: ${process.env.CLAUDE_API_KEY ? '✅' : '❌'}`);
-    console.log(`📰 네이버 Client ID 설정: ${process.env.NAVER_CLIENT_ID ? '✅' : '❌'}`);
-    console.log(`🔐 네이버 Client Secret 설정: ${process.env.NAVER_CLIENT_SECRET ? '✅' : '❌'}`);
-    console.log(`📋 기능: 네이버 검색 뉴스 제공, 한국 시간 인식`);
+    console.log(`[TIME] 현재 한국 시간: ${koreanTime.formatted}`);
+    console.log(`[TIP] 상태 페이지: http://0.0.0.0:${PORT}/status`);
+    console.log(`[LINK] 웹훅 URL: http://0.0.0.0:${PORT}/kakao-skill-webhook`);
+    console.log(`[KEY] Claude API 키 설정: ${process.env.CLAUDE_API_KEY ? '[SUCCESS]' : '[ERROR]'}`);
+    console.log(`[NEWS] 네이버 Client ID 설정: ${process.env.NAVER_CLIENT_ID ? '[SUCCESS]' : '[ERROR]'}`);
+    console.log(`[LOCKKEY] 네이버 Client Secret 설정: ${process.env.NAVER_CLIENT_SECRET ? '[SUCCESS]' : '[ERROR]'}`);
+    console.log(`[FORM] 기능: 네이버 검색 뉴스 제공, 한국 시간 인식`);
 });
 
 // Railway 배포를 위한 Graceful shutdown
 const gracefulShutdown = (signal) => {
     console.log(`🛑 ${signal} 신호 받음. 서버 종료 중...`);
     server.close(() => {
-        console.log('✅ 서버가 정상적으로 종료되었습니다.');
+        console.log('[SUCCESS] 서버가 정상적으로 종료되었습니다.');
         process.exit(0);
     });
     
     // 10초 후 강제 종료
     setTimeout(() => {
-        console.log('⚠️ 강제 종료됩니다.');
+        console.log('[WARN] 강제 종료됩니다.');
         process.exit(1);
     }, 10000);
 };
@@ -2018,7 +2018,7 @@ setInterval(() => {
     const memUsage = process.memoryUsage();
     const memUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
     if (memUsedMB > 450) { // 450MB 이상시 경고
-        console.log(`⚠️ 높은 메모리 사용량: ${memUsedMB}MB`);
+        console.log(`[WARN] 높은 메모리 사용량: ${memUsedMB}MB`);
         if (global.gc) {
             global.gc();
             console.log('🧹 가비지 컬렉션 실행');

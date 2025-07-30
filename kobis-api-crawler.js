@@ -58,7 +58,7 @@ class KobisApiCrawler {
 
     async getBoxOfficeByDate(targetDate) {
         try {
-            console.log(`📅 ${targetDate} 박스오피스 데이터 수집 중...`);
+            console.log(`[TOMORROW] ${targetDate} 박스오피스 데이터 수집 중...`);
             
             const response = await axios.get(`${this.baseUrl}/boxoffice/searchDailyBoxOfficeList.json`, {
                 params: {
@@ -69,7 +69,7 @@ class KobisApiCrawler {
 
             if (response.data && response.data.boxOfficeResult) {
                 const boxOfficeList = response.data.boxOfficeResult.dailyBoxOfficeList || [];
-                console.log(`✅ ${targetDate}: ${boxOfficeList.length}개 영화 발견`);
+                console.log(`[SUCCESS] ${targetDate}: ${boxOfficeList.length}개 영화 발견`);
                 
                 for (const movie of boxOfficeList) {
                     await this.getMovieDetails(movie.movieCd, movie);
@@ -77,7 +77,7 @@ class KobisApiCrawler {
                 }
             }
         } catch (error) {
-            console.log(`⚠️ ${targetDate} 박스오피스 조회 실패:`, error.message);
+            console.log(`[WARN] ${targetDate} 박스오피스 조회 실패:`, error.message);
         }
     }
 
@@ -97,11 +97,11 @@ class KobisApiCrawler {
                 if (movie && !this.isDuplicate(movie.title, movie.release_year)) {
                     this.movies.push(movie);
                     this.generateReviews(movie.id, movie.title, movie.naver_rating);
-                    console.log(`✅ [${movie.release_year}] ${movie.title} (${movie.genre}) - ${movie.director}`);
+                    console.log(`[SUCCESS] [${movie.release_year}] ${movie.title} (${movie.genre}) - ${movie.director}`);
                 }
             }
         } catch (error) {
-            console.log(`⚠️ 영화 상세정보 조회 실패 (${movieCd}):`, error.message);
+            console.log(`[WARN] 영화 상세정보 조회 실패 (${movieCd}):`, error.message);
         }
     }
 
@@ -282,15 +282,15 @@ class KobisApiCrawler {
     }
 
     async crawlMovies() {
-        console.log('🎬 영화진흥위원회(KOBIS) API 대량 크롤링 시작!');
-        console.log('API 키:', this.apiKey ? '✅ 설정됨' : '❌ 미설정 (기본값 사용)');
+        console.log('[MOVIE] 영화진흥위원회(KOBIS) API 대량 크롤링 시작!');
+        console.log('API 키:', this.apiKey ? '[SUCCESS] 설정됨' : '[ERROR] 미설정 (기본값 사용)');
         
         // 2015-2024 기간의 박스오피스 데이터 수집
         const startYear = 2015;
         const endYear = 2024;
         const dates = this.generateDateRange(startYear, endYear);
         
-        console.log(`📅 ${startYear}-${endYear} 기간 총 ${dates.length}개 날짜 조회 예정`);
+        console.log(`[TOMORROW] ${startYear}-${endYear} 기간 총 ${dates.length}개 날짜 조회 예정`);
         
         let processedDates = 0;
         
@@ -300,7 +300,7 @@ class KobisApiCrawler {
             
             // 진행 상황 출력
             if (processedDates % 10 === 0) {
-                console.log(`📊 진행률: ${processedDates}/${dates.length} (${((processedDates/dates.length)*100).toFixed(1)}%)`);
+                console.log(`[INFO] 진행률: ${processedDates}/${dates.length} (${((processedDates/dates.length)*100).toFixed(1)}%)`);
                 console.log(`   현재까지 수집된 영화: ${this.movies.length}개`);
             }
             
@@ -308,11 +308,11 @@ class KobisApiCrawler {
             await this.delayMs(this.delay);
         }
         
-        console.log('\n🎉 KOBIS API 크롤링 완료!');
-        console.log(`📊 최종 수집 결과:`);
-        console.log(`   🎬 영화: ${this.movies.length}개`);
-        console.log(`   📝 리뷰: ${this.reviews.length}개`);
-        console.log(`   📅 조회 기간: ${startYear}-${endYear}`);
+        console.log('\n[PARTY] KOBIS API 크롤링 완료!');
+        console.log(`[INFO] 최종 수집 결과:`);
+        console.log(`   [MOVIE] 영화: ${this.movies.length}개`);
+        console.log(`   [MEMO] 리뷰: ${this.reviews.length}개`);
+        console.log(`   [TOMORROW] 조회 기간: ${startYear}-${endYear}`);
         
         return this.generateSQL();
     }
@@ -361,8 +361,8 @@ class KobisApiCrawler {
         const filename = `kobis_movies_${new Date().toISOString().slice(0, 10)}.sql`;
         fs.writeFileSync(filename, sql);
         
-        console.log(`✅ SQL 파일 생성 완료: ${filename}`);
-        console.log(`📊 총 ${this.movies.length}개 영화, ${this.reviews.length}개 리뷰`);
+        console.log(`[SUCCESS] SQL 파일 생성 완료: ${filename}`);
+        console.log(`[INFO] 총 ${this.movies.length}개 영화, ${this.reviews.length}개 리뷰`);
         
         return filename;
     }
@@ -376,8 +376,8 @@ class KobisApiCrawler {
 // 실행
 const crawler = new KobisApiCrawler();
 crawler.crawlMovies().then(filename => {
-    console.log(`\n✅ KOBIS 영화 데이터 크롤링 완료! SQL 파일: ${filename}`);
-    console.log('💡 다음 단계: Supabase에 데이터 업로드');
+    console.log(`\n[SUCCESS] KOBIS 영화 데이터 크롤링 완료! SQL 파일: ${filename}`);
+    console.log('[TIP] 다음 단계: Supabase에 데이터 업로드');
 }).catch(error => {
-    console.error('❌ KOBIS 크롤링 실패:', error.message);
+    console.error('[ERROR] KOBIS 크롤링 실패:', error.message);
 });

@@ -57,13 +57,13 @@ class NaverAPIMovieUpdater {
     
     // 메인 실행 함수
     async run() {
-        console.log('🎬🎬🎬 네이버 API 기반 영화 데이터 업데이트 시작! 🎬🎬🎬');
-        console.log('📊 API 사용: 네이버 Search API');
-        console.log('🎯 수집 데이터: 영화 정보, 평점, 평론가/관객 평가');
-        console.log('👥 필수 평론가: 박평식, 이동진 (무조건 포함)');
+        console.log('[MOVIE][MOVIE][MOVIE] 네이버 API 기반 영화 데이터 업데이트 시작! [MOVIE][MOVIE][MOVIE]');
+        console.log('[INFO] API 사용: 네이버 Search API');
+        console.log('[TARGET] 수집 데이터: 영화 정보, 평점, 평론가/관객 평가');
+        console.log('[BUSTSINSILHOUETTE] 필수 평론가: 박평식, 이동진 (무조건 포함)');
         
         if (!this.naverClientId || !this.naverClientSecret) {
-            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            console.log('[WARN] 네이버 API 키가 설정되지 않았습니다.');
             console.log('환경변수 NAVER_CLIENT_ID, NAVER_CLIENT_SECRET를 확인해주세요.');
             return;
         }
@@ -73,7 +73,7 @@ class NaverAPIMovieUpdater {
         try {
             // 전체 영화 목록 조회
             const movies = await this.getAllMovies();
-            console.log(`\n📋 총 ${movies.length}개 영화 발견`);
+            console.log(`\n[FORM] 총 ${movies.length}개 영화 발견`);
             
             // 배치별로 영화 처리
             await this.processBatches(movies);
@@ -82,7 +82,7 @@ class NaverAPIMovieUpdater {
             this.generateFinalReport(startTime);
             
         } catch (error) {
-            console.error('❌ 전체 작업 오류:', error.message);
+            console.error('[ERROR] 전체 작업 오류:', error.message);
         }
     }
     
@@ -95,22 +95,22 @@ class NaverAPIMovieUpdater {
                 .order('id');
             
             if (error) {
-                console.error('❌ 영화 목록 조회 오류:', error.message);
+                console.error('[ERROR] 영화 목록 조회 오류:', error.message);
                 return [];
             }
             
-            console.log(`✅ ${data.length}개 영화 조회 완료`);
+            console.log(`[SUCCESS] ${data.length}개 영화 조회 완료`);
             return data;
             
         } catch (error) {
-            console.error('❌ 영화 목록 조회 예외:', error.message);
+            console.error('[ERROR] 영화 목록 조회 예외:', error.message);
             return [];
         }
     }
     
     // 배치별 영화 처리
     async processBatches(movies) {
-        console.log(`\n🔄 ${movies.length}개 영화를 ${this.batchSize}개씩 배치 처리`);
+        console.log(`\n[LOADING] ${movies.length}개 영화를 ${this.batchSize}개씩 배치 처리`);
         
         const totalBatches = Math.ceil(movies.length / this.batchSize);
         
@@ -119,7 +119,7 @@ class NaverAPIMovieUpdater {
             const endIdx = Math.min(startIdx + this.batchSize, movies.length);
             const batch = movies.slice(startIdx, endIdx);
             
-            console.log(`\n📦 배치 ${batchIndex + 1}/${totalBatches} 처리 중 (${startIdx + 1}-${endIdx})`);
+            console.log(`\n[PACKAGE] 배치 ${batchIndex + 1}/${totalBatches} 처리 중 (${startIdx + 1}-${endIdx})`);
             console.log('='.repeat(60));
             
             // 배치 내 각 영화 처리
@@ -138,7 +138,7 @@ class NaverAPIMovieUpdater {
     
     // 개별 영화 처리
     async processMovie(movie) {
-        console.log(`\n🎬 "${movie.title}" 처리 시작...`);
+        console.log(`\n[MOVIE] "${movie.title}" 처리 시작...`);
         this.processedCount++;
         
         try {
@@ -146,14 +146,14 @@ class NaverAPIMovieUpdater {
             const movieInfo = await this.searchMovieViaAPI(movie);
             
             if (!movieInfo) {
-                console.log(`   ❌ 네이버 API에서 "${movie.title}" 검색 실패`);
+                console.log(`   [ERROR] 네이버 API에서 "${movie.title}" 검색 실패`);
                 // 검색 실패해도 평론가 평가는 생성
                 await this.generateAndUpdateReviews(movie);
                 this.successCount++; // 부분 성공으로 처리
                 return;
             }
             
-            console.log(`   ✅ 네이버 API에서 발견: ${movieInfo.title}`);
+            console.log(`   [SUCCESS] 네이버 API에서 발견: ${movieInfo.title}`);
             
             // 2단계: 평론가 및 관객 평가 생성
             const { criticReviews, audienceReviews } = await this.generateReviews(movie, movieInfo);
@@ -161,7 +161,7 @@ class NaverAPIMovieUpdater {
             // 3단계: 데이터베이스 업데이트
             await this.updateMovieData(movie.id, movieInfo, criticReviews, audienceReviews);
             
-            console.log(`   🎉 "${movie.title}" 업데이트 완료! ✨`);
+            console.log(`   [PARTY] "${movie.title}" 업데이트 완료! [SPARKLE]`);
             this.successCount++;
             
         } catch (error) {
@@ -182,7 +182,7 @@ class NaverAPIMovieUpdater {
             
             for (const query of searchQueries) {
                 try {
-                    console.log(`   🔍 네이버 API 검색: "${query}"`);
+                    console.log(`   [SEARCH] 네이버 API 검색: "${query}"`);
                     
                     const response = await axios.get('https://openapi.naver.com/v1/search/movie.json', {
                         params: {
@@ -205,7 +205,7 @@ class NaverAPIMovieUpdater {
                         const similarity = this.calculateSimilarity(movie.title, apiTitle);
                         
                         if (similarity > 0.6) { // 60% 이상 유사도
-                            console.log(`   ✅ 매칭 성공: "${apiTitle}" (유사도: ${(similarity * 100).toFixed(1)}%)`);
+                            console.log(`   [SUCCESS] 매칭 성공: "${apiTitle}" (유사도: ${(similarity * 100).toFixed(1)}%)`);
                             
                             return {
                                 title: apiTitle,
@@ -220,7 +220,7 @@ class NaverAPIMovieUpdater {
                     }
                     
                 } catch (apiError) {
-                    console.log(`   ⚠️ API 검색 "${query}" 실패: ${apiError.message}`);
+                    console.log(`   [WARN] API 검색 "${query}" 실패: ${apiError.message}`);
                     continue;
                 }
             }
@@ -228,7 +228,7 @@ class NaverAPIMovieUpdater {
             return null;
             
         } catch (error) {
-            console.log(`   ❌ 네이버 API 검색 오류: ${error.message}`);
+            console.log(`   [ERROR] 네이버 API 검색 오류: ${error.message}`);
             return null;
         }
     }
@@ -246,7 +246,7 @@ class NaverAPIMovieUpdater {
     
     // 평론가 및 관객 평가 생성
     async generateReviews(movie, movieInfo) {
-        console.log(`   📝 평론가 및 관객 평가 생성: ${movie.title}`);
+        console.log(`   [MEMO] 평론가 및 관객 평가 생성: ${movie.title}`);
         
         const criticReviews = [];
         const audienceReviews = [];
@@ -270,7 +270,7 @@ class NaverAPIMovieUpdater {
             const audienceReview = this.generateAudienceReview(movie.title, movieInfo);
             audienceReviews.push(audienceReview);
         }
-        console.log(`   👥 관객 평가 ${audienceReviews.length}개 생성`);
+        console.log(`   [BUSTSINSILHOUETTE] 관객 평가 ${audienceReviews.length}개 생성`);
         
         return { criticReviews, audienceReviews };
     }
@@ -343,12 +343,12 @@ class NaverAPIMovieUpdater {
     
     // 검색 실패 시 평가만 생성
     async generateAndUpdateReviews(movie) {
-        console.log(`   📝 검색 실패 - 평론가 평가만 생성: ${movie.title}`);
+        console.log(`   [MEMO] 검색 실패 - 평론가 평가만 생성: ${movie.title}`);
         
         const { criticReviews } = await this.generateReviews(movie, null);
         await this.updateMovieData(movie.id, null, criticReviews, []);
         
-        console.log(`   ✅ 평론가 평가 ${criticReviews.length}개 추가 완료`);
+        console.log(`   [SUCCESS] 평론가 평가 ${criticReviews.length}개 추가 완료`);
     }
     
     // 데이터베이스 업데이트
@@ -367,7 +367,7 @@ class NaverAPIMovieUpdater {
                     .eq('id', movieId);
                 
                 if (!updateError) {
-                    console.log(`   ✅ 네이버 평점 업데이트: ${rating}/10`);
+                    console.log(`   [SUCCESS] 네이버 평점 업데이트: ${rating}/10`);
                 }
             }
             
@@ -392,7 +392,7 @@ class NaverAPIMovieUpdater {
                     .insert(reviewsToInsert);
                 
                 if (!insertError) {
-                    console.log(`   ✅ 평론가 리뷰 ${criticReviews.length}개 추가`);
+                    console.log(`   [SUCCESS] 평론가 리뷰 ${criticReviews.length}개 추가`);
                     criticReviews.forEach((review, index) => {
                         console.log(`      ${index + 1}. ${review.critic_name}: ${review.score}/10`);
                     });
@@ -401,11 +401,11 @@ class NaverAPIMovieUpdater {
             
             // 4. 관객 리뷰는 로그만 출력 (별도 테이블이 없으므로)
             if (audienceReviews.length > 0) {
-                console.log(`   📝 관객 리뷰 ${audienceReviews.length}개 생성 완료`);
+                console.log(`   [MEMO] 관객 리뷰 ${audienceReviews.length}개 생성 완료`);
             }
             
         } catch (error) {
-            console.log(`   ❌ 데이터베이스 업데이트 오류: ${error.message}`);
+            console.log(`   [ERROR] 데이터베이스 업데이트 오류: ${error.message}`);
         }
     }
     
@@ -415,24 +415,24 @@ class NaverAPIMovieUpdater {
         const totalTime = (endTime - startTime) / 1000 / 60;
         
         console.log('\n' + '='.repeat(80));
-        console.log('🎉🎉🎉 네이버 API 영화 데이터 업데이트 완료! 🎉🎉🎉');
+        console.log('[PARTY][PARTY][PARTY] 네이버 API 영화 데이터 업데이트 완료! [PARTY][PARTY][PARTY]');
         console.log('='.repeat(80));
         console.log(`⏱️ 총 실행 시간: ${totalTime.toFixed(1)}분`);
-        console.log(`🎬 처리된 영화: ${this.processedCount}개`);
-        console.log(`✅ 성공: ${this.successCount}개`);
-        console.log(`❌ 실패: ${this.failCount}개`);
-        console.log(`📊 성공률: ${Math.round((this.successCount / this.processedCount) * 100)}%`);
+        console.log(`[MOVIE] 처리된 영화: ${this.processedCount}개`);
+        console.log(`[SUCCESS] 성공: ${this.successCount}개`);
+        console.log(`[ERROR] 실패: ${this.failCount}개`);
+        console.log(`[INFO] 성공률: ${Math.round((this.successCount / this.processedCount) * 100)}%`);
         
-        console.log('\n🔥🔥🔥 업데이트 완료된 데이터 🔥🔥🔥');
-        console.log('✅ 네이버 API 기반 실제 영화 평점');
-        console.log('✅ 박평식, 이동진 평론가 평가 필수 포함');
-        console.log('✅ 추가 평론가 1명 + 실제 관객 평가');
-        console.log('✅ movies 및 critic_reviews 테이블 업데이트');
+        console.log('\n[FIRE][FIRE][FIRE] 업데이트 완료된 데이터 [FIRE][FIRE][FIRE]');
+        console.log('[SUCCESS] 네이버 API 기반 실제 영화 평점');
+        console.log('[SUCCESS] 박평식, 이동진 평론가 평가 필수 포함');
+        console.log('[SUCCESS] 추가 평론가 1명 + 실제 관객 평가');
+        console.log('[SUCCESS] movies 및 critic_reviews 테이블 업데이트');
         
-        console.log('\n📱 카카오 스킬에서 모든 영화가 업데이트된 데이터로 응답합니다!');
-        console.log('   🎬 "야당 영화평" → 박평식, 이동진 포함 평론가 평가');
-        console.log('   🎬 "기생충 평점" → 네이버 API 기반 실제 평점');
-        console.log('   🎬 "아무 영화나 평론가 평가" → 전문 평론가 3명 평가');
+        console.log('\n[APP] 카카오 스킬에서 모든 영화가 업데이트된 데이터로 응답합니다!');
+        console.log('   [MOVIE] "야당 영화평" → 박평식, 이동진 포함 평론가 평가');
+        console.log('   [MOVIE] "기생충 평점" → 네이버 API 기반 실제 평점');
+        console.log('   [MOVIE] "아무 영화나 평론가 평가" → 전문 평론가 3명 평가');
     }
 }
 

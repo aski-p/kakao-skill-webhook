@@ -29,7 +29,7 @@ class KoficMovieCollector {
             }
             return [];
         } catch (error) {
-            console.error(`❌ 박스오피스 조회 실패 (${date}):`, error.message);
+            console.error(`[ERROR] 박스오피스 조회 실패 (${date}):`, error.message);
             return [];
         }
     }
@@ -50,7 +50,7 @@ class KoficMovieCollector {
             }
             return null;
         } catch (error) {
-            console.error(`❌ 영화 상세 정보 조회 실패 (${movieCd}):`, error.message);
+            console.error(`[ERROR] 영화 상세 정보 조회 실패 (${movieCd}):`, error.message);
             return null;
         }
     }
@@ -73,7 +73,7 @@ class KoficMovieCollector {
             }
             return [];
         } catch (error) {
-            console.error(`❌ 영화 검색 실패 (${movieNm}):`, error.message);
+            console.error(`[ERROR] 영화 검색 실패 (${movieNm}):`, error.message);
             return [];
         }
     }
@@ -214,20 +214,20 @@ class KoficMovieCollector {
 
     // 메인 실행 함수
     async run() {
-        console.log('🎬 KOFIC 한국 영화 데이터 수집 시작\n');
-        console.log(`🔑 KOFIC API 키: ${KOFIC_API_KEY.substring(0, 8)}...\n`);
+        console.log('[MOVIE] KOFIC 한국 영화 데이터 수집 시작\n');
+        console.log(`[KEY] KOFIC API 키: ${KOFIC_API_KEY.substring(0, 8)}...\n`);
 
         const startTime = Date.now();
 
         try {
             // 최근 30일간의 박스오피스 데이터 수집
-            console.log('📊 최근 30일간 박스오피스 영화 수집 중...\n');
+            console.log('[INFO] 최근 30일간 박스오피스 영화 수집 중...\n');
             
             const processedMovies = new Set(); // 중복 처리 방지
             
             for (let daysAgo = 1; daysAgo <= 30; daysAgo++) {
                 const targetDate = this.getDateString(daysAgo);
-                console.log(`📅 ${targetDate} 박스오피스 조회 중...`);
+                console.log(`[TOMORROW] ${targetDate} 박스오피스 조회 중...`);
                 
                 const boxOfficeMovies = await this.getDailyBoxOffice(targetDate);
                 
@@ -261,7 +261,7 @@ class KoficMovieCollector {
                     // 데이터 변환 및 저장
                     const movieData = this.formatMovieData(movieDetail);
                     this.movies.push(movieData);
-                    console.log(`✅ 수집: ${movieData.title} (${movieData.release_year})`);
+                    console.log(`[SUCCESS] 수집: ${movieData.title} (${movieData.release_year})`);
                     
                     // API 호출 제한을 위한 딜레이
                     await this.delay(200);
@@ -272,7 +272,7 @@ class KoficMovieCollector {
             }
 
             // 추가로 특정 인기 영화들 검색해서 추가
-            console.log('\n📌 추가 인기 한국 영화 검색 중...');
+            console.log('\n[PIN] 추가 인기 한국 영화 검색 중...');
             const popularMovies = [
                 '파묘', '범죄도시3', '서울의 봄', '콘크리트 유토피아', '잠', 
                 '기생충', '미나리', '오징어 게임', '기적', '모가디슈'
@@ -293,7 +293,7 @@ class KoficMovieCollector {
                     if (movieDetail) {
                         const movieData = this.formatMovieData(movieDetail);
                         this.movies.push(movieData);
-                        console.log(`✅ 추가 수집: ${movieData.title} (${movieData.release_year})`);
+                        console.log(`[SUCCESS] 추가 수집: ${movieData.title} (${movieData.release_year})`);
                     }
                 }
                 await this.delay(200);
@@ -301,21 +301,21 @@ class KoficMovieCollector {
 
             const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
 
-            console.log('\n📊 수집 결과:');
-            console.log(`✅ 총 처리: ${this.processedCount}개`);
-            console.log(`📥 수집된 한국 영화: ${this.movies.length}개`);
-            console.log(`❌ 오류: ${this.errors.length}개`);
+            console.log('\n[INFO] 수집 결과:');
+            console.log(`[SUCCESS] 총 처리: ${this.processedCount}개`);
+            console.log(`[INBOX] 수집된 한국 영화: ${this.movies.length}개`);
+            console.log(`[ERROR] 오류: ${this.errors.length}개`);
             console.log(`⏱️ 소요 시간: ${elapsedTime}초`);
 
             // JSON 파일로 저장
             const filename = `korean_movies_kofic_${new Date().toISOString().slice(0, 10)}.json`;
             this.saveToJSON(filename);
 
-            console.log('\n🎉 KOFIC 한국 영화 데이터 수집 완료!');
+            console.log('\n[PARTY] KOFIC 한국 영화 데이터 수집 완료!');
             console.log(`📄 다음 단계: ${filename} 파일을 확인하고 Supabase에 수동으로 업로드하세요.`);
 
         } catch (error) {
-            console.error('\n❌ 치명적 오류 발생:', error.message);
+            console.error('\n[ERROR] 치명적 오류 발생:', error.message);
         }
     }
 }

@@ -131,7 +131,7 @@ class MassiveMovieDatabaseGenerator {
 
     // 모든 카테고리의 영화를 하나로 합치기
     combineAllMovies() {
-        console.log('📊 모든 카테고리 영화 데이터 합치는 중...');
+        console.log('[INFO] 모든 카테고리 영화 데이터 합치는 중...');
         
         Object.entries(this.movieCategories).forEach(([category, movies]) => {
             console.log(`📁 ${category}: ${movies.length}개 영화`);
@@ -151,12 +151,12 @@ class MassiveMovieDatabaseGenerator {
         });
 
         this.allMovies = uniqueMovies;
-        console.log(`🎬 전체 고유 영화: ${this.allMovies.length}개`);
+        console.log(`[MOVIE] 전체 고유 영화: ${this.allMovies.length}개`);
     }
 
     // 추가 영화들을 생성 (패턴 기반)
     generateAdditionalMovies() {
-        console.log('🔄 추가 영화 데이터 생성 중...');
+        console.log('[LOADING] 추가 영화 데이터 생성 중...');
         
         const yearRanges = [2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015, 2014, 2013, 2012, 2011, 2010];
         const additionalMovies = [];
@@ -201,24 +201,24 @@ class MassiveMovieDatabaseGenerator {
 
         this.allMovies.push(...additionalMovies);
         console.log(`➕ 추가 영화: ${additionalMovies.length}개`);
-        console.log(`🎬 총 영화: ${this.allMovies.length}개`);
+        console.log(`[MOVIE] 총 영화: ${this.allMovies.length}개`);
     }
 
     // INSERT문 생성
     generateInserts() {
-        console.log('\n📝 대용량 INSERT문 생성 시작');
-        console.log(`📊 대상 영화: ${this.allMovies.length}개`);
+        console.log('\n[MEMO] 대용량 INSERT문 생성 시작');
+        console.log(`[INFO] 대상 영화: ${this.allMovies.length}개`);
 
         this.allMovies.forEach((movie, index) => {
             try {
                 const insertSQL = this.generateSingleInsert(movie, index + 1);
                 this.sqlInserts.push(insertSQL);
             } catch (error) {
-                console.error(`❌ INSERT문 생성 오류 (${movie.title}):`, error.message);
+                console.error(`[ERROR] INSERT문 생성 오류 (${movie.title}):`, error.message);
             }
         });
 
-        console.log(`✅ INSERT문 생성 완료: ${this.sqlInserts.length}개`);
+        console.log(`[SUCCESS] INSERT문 생성 완료: ${this.sqlInserts.length}개`);
     }
 
     // 단일 INSERT문 생성
@@ -327,7 +327,7 @@ VALUES (${values.join(', ')});`;
         sqlContent += `COMMIT;\n\n`;
         sqlContent += `-- INSERT 완료. 총 ${this.sqlInserts.length}개 영화 추가됨\n`;
         sqlContent += `-- \n`;
-        sqlContent += `-- 📊 포함된 영화들:\n`;
+        sqlContent += `-- [INFO] 포함된 영화들:\n`;
         sqlContent += `-- - 한국 영화: 기생충, 부산행, 범죄도시, 극한직업, 올드보이, 살인의추억 등\n`;
         sqlContent += `-- - 할리우드 액션: 어벤져스, 다크나이트, 탑건매버릭, 존윅, 매드맥스 등\n`;
         sqlContent += `-- - SF & 판타지: 인터스텔라, 매트릭스, 아바타, 스타워즈, 반지의제왕 등\n`;
@@ -335,14 +335,14 @@ VALUES (${values.join(', ')});`;
         sqlContent += `-- - 애니메이션: 겨울왕국, 토이스토리, 센과치히로, 코코, 인사이드아웃 등\n`;
         sqlContent += `-- - 클래식: 펄프픽션, 12명의성난사람들, 굿윌헌팅, 택시드라이버 등\n`;
         sqlContent += `-- \n`;
-        sqlContent += `-- 📋 데이터 완성도:\n`;
+        sqlContent += `-- [FORM] 데이터 완성도:\n`;
         sqlContent += `-- - 제목, 감독, 출연진, 장르, 개봉년도, 러닝타임 포함\n`;
         sqlContent += `-- - 평점 데이터 (7.5~9.3 범위)\n`;
         sqlContent += `-- - 검색 키워드 배열 (제목, 감독, 배우, 장르)\n`;
         sqlContent += `-- - 상세 설명 자동 생성\n`;
         sqlContent += `-- - 국가별 분류 (한국, 미국, 일본, 영국 등)\n`;
         sqlContent += `-- \n`;
-        sqlContent += `-- 💡 사용법:\n`;
+        sqlContent += `-- [TIP] 사용법:\n`;
         sqlContent += `-- 1. Supabase SQL 에디터에서 실행\n`;
         sqlContent += `-- 2. 카카오 스킬에서 다양한 영화 검색 가능\n`;
         sqlContent += `-- 3. 예: "기생충 영화평", "어벤져스 평점", "봉준호 감독", "액션 영화 추천" 등\n`;
@@ -352,11 +352,11 @@ VALUES (${values.join(', ')});`;
         fs.writeFileSync(filepath, sqlContent, 'utf8');
         
         console.log(`\n📄 SQL 파일 생성 완료: ${filename}`);
-        console.log(`📍 파일 위치: ${filepath}`);
-        console.log(`📊 총 INSERT문: ${this.sqlInserts.length}개`);
+        console.log(`[LOCATION] 파일 위치: ${filepath}`);
+        console.log(`[INFO] 총 INSERT문: ${this.sqlInserts.length}개`);
         
         // 국가별 통계 출력
-        console.log('\n📊 국가별 영화 통계:');
+        console.log('\n[INFO] 국가별 영화 통계:');
         Object.entries(stats).forEach(([country, count]) => {
             console.log(`   ${country}: ${count}개`);
         });
@@ -365,7 +365,7 @@ VALUES (${values.join(', ')});`;
     }
 
     async run() {
-        console.log('🎬 대용량 영화 데이터베이스 생성기 (기존 테이블 구조 맞춤)');
+        console.log('[MOVIE] 대용량 영화 데이터베이스 생성기 (기존 테이블 구조 맞춤)');
         console.log('='.repeat(70));
         
         try {
@@ -381,19 +381,19 @@ VALUES (${values.join(', ')});`;
             // 4. SQL 파일 저장
             const result = await this.saveSQLFile();
             
-            console.log('\n🎉 대용량 영화 데이터베이스 생성 완료!');
-            console.log(`🎬 총 ${result.insertCount}개 영화 INSERT문 생성`);
-            console.log('📋 다음 단계:');
+            console.log('\n[PARTY] 대용량 영화 데이터베이스 생성 완료!');
+            console.log(`[MOVIE] 총 ${result.insertCount}개 영화 INSERT문 생성`);
+            console.log('[FORM] 다음 단계:');
             console.log('1. 생성된 .sql 파일을 Supabase SQL 에디터에 복사');
             console.log('2. Run 버튼으로 실행');
             console.log('3. 수백 개의 영화 데이터가 movies 테이블에 저장');
             console.log('4. 카카오 스킬에서 다양한 영화 검색 테스트');
-            console.log('\n🎯 이제 거의 모든 인기 영화에 대해 답변할 수 있습니다!');
+            console.log('\n[TARGET] 이제 거의 모든 인기 영화에 대해 답변할 수 있습니다!');
             
             return result;
             
         } catch (error) {
-            console.error('❌ 실행 오류:', error);
+            console.error('[ERROR] 실행 오류:', error);
             throw error;
         }
     }

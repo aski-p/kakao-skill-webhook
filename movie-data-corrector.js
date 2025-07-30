@@ -81,19 +81,19 @@ class MovieDataCorrector {
 
     // KOFIC 데이터와 DB 데이터 비교 및 수정
     async compareAndCorrect() {
-        console.log('🔍 영화 데이터 비교 및 수정 시작...\n');
+        console.log('[SEARCH] 영화 데이터 비교 및 수정 시작...\n');
 
         // KOFIC 데이터 로드
         const koficFile = 'kofic_recent_movies_20250728.json';
         if (!fs.existsSync(koficFile)) {
-            console.error('❌ KOFIC 데이터 파일을 찾을 수 없습니다:', koficFile);
+            console.error('[ERROR] KOFIC 데이터 파일을 찾을 수 없습니다:', koficFile);
             return;
         }
 
         const koficData = JSON.parse(fs.readFileSync(koficFile, 'utf8'));
         const koficMovies = koficData.movies;
 
-        console.log(`📊 KOFIC 기준 데이터: ${koficMovies.length}개`);
+        console.log(`[INFO] KOFIC 기준 데이터: ${koficMovies.length}개`);
 
         // 현재 DB의 모든 한국 영화 조회
         const { data: dbMovies, error } = await supabase
@@ -102,15 +102,15 @@ class MovieDataCorrector {
             .or('country.eq.한국,country.eq.Korea,country.ilike.%한국%');
 
         if (error) {
-            console.error('❌ DB 조회 오류:', error);
+            console.error('[ERROR] DB 조회 오류:', error);
             return;
         }
 
-        console.log(`📊 DB 한국 영화: ${dbMovies.length}개\n`);
+        console.log(`[INFO] DB 한국 영화: ${dbMovies.length}개\n`);
 
         // 각 KOFIC 영화에 대해 DB에서 매칭 찾기
         for (const koficMovie of koficMovies) {
-            console.log(`🎬 "${koficMovie.title}" 매칭 검색 중...`);
+            console.log(`[MOVIE] "${koficMovie.title}" 매칭 검색 중...`);
             
             let bestMatch = null;
             let bestScore = 0;
@@ -134,7 +134,7 @@ class MovieDataCorrector {
             }
 
             if (bestMatch) {
-                console.log(`   ✅ 매칭 발견: "${bestMatch.title}" (유사도: ${(bestScore * 100).toFixed(1)}%)`);
+                console.log(`   [SUCCESS] 매칭 발견: "${bestMatch.title}" (유사도: ${(bestScore * 100).toFixed(1)}%)`);
                 
                 // 데이터 비교 및 수정 필요성 확인
                 const needsUpdate = await this.checkAndPrepareUpdate(koficMovie, bestMatch);
@@ -147,36 +147,36 @@ class MovieDataCorrector {
                     });
                 }
             } else {
-                console.log(`   ❌ 매칭 없음`);
+                console.log(`   [ERROR] 매칭 없음`);
                 this.noMatches.push(koficMovie);
             }
         }
 
         // 수정 사항 요약
-        console.log('\n📊 분석 결과:');
+        console.log('\n[INFO] 분석 결과:');
         console.log('='.repeat(80));
-        console.log(`✅ 수정 필요: ${this.corrections.length}개`);
-        console.log(`❌ 매칭 없음: ${this.noMatches.length}개`);
+        console.log(`[SUCCESS] 수정 필요: ${this.corrections.length}개`);
+        console.log(`[ERROR] 매칭 없음: ${this.noMatches.length}개`);
 
         if (this.corrections.length > 0) {
-            console.log('\n🔧 수정 필요한 항목들:');
+            console.log('\n[TOOL] 수정 필요한 항목들:');
             console.log('='.repeat(80));
             
             this.corrections.forEach((correction, index) => {
                 console.log(`\n${index + 1}. "${correction.kofic.title}" (ID: ${correction.db.id})`);
-                console.log(`   🎯 KOFIC 감독: "${correction.kofic.director}"`);
-                console.log(`   🎯 DB 감독: "${correction.db.director}"`);
-                console.log(`   🎯 KOFIC 출연진: "${correction.kofic.cast_members}"`);
-                console.log(`   🎯 DB 출연진: "${this.formatCastMembers(correction.db.cast_members)}"`);
+                console.log(`   [TARGET] KOFIC 감독: "${correction.kofic.director}"`);
+                console.log(`   [TARGET] DB 감독: "${correction.db.director}"`);
+                console.log(`   [TARGET] KOFIC 출연진: "${correction.kofic.cast_members}"`);
+                console.log(`   [TARGET] DB 출연진: "${this.formatCastMembers(correction.db.cast_members)}"`);
             });
 
             // 업데이트 실행 여부 확인
             console.log('\n❓ 이 데이터들을 KOFIC 정보로 업데이트하시겠습니까?');
-            console.log('⚠️  업데이트를 진행하려면 updateDatabase() 메소드를 호출하세요.');
+            console.log('[WARN]  업데이트를 진행하려면 updateDatabase() 메소드를 호출하세요.');
         }
 
         if (this.noMatches.length > 0) {
-            console.log('\n📝 매칭되지 않은 KOFIC 영화들 (새로 추가 가능):');
+            console.log('\n[MEMO] 매칭되지 않은 KOFIC 영화들 (새로 추가 가능):');
             console.log('='.repeat(80));
             
             this.noMatches.forEach((movie, index) => {
@@ -207,7 +207,7 @@ class MovieDataCorrector {
     // 실제 데이터베이스 업데이트 실행
     async updateDatabase() {
         if (this.corrections.length === 0) {
-            console.log('❌ 업데이트할 데이터가 없습니다.');
+            console.log('[ERROR] 업데이트할 데이터가 없습니다.');
             return;
         }
 
@@ -220,7 +220,7 @@ class MovieDataCorrector {
             const correction = this.corrections[i];
             
             try {
-                console.log(`📝 ${i + 1}/${this.corrections.length}: "${correction.kofic.title}" 업데이트 중...`);
+                console.log(`[MEMO] ${i + 1}/${this.corrections.length}: "${correction.kofic.title}" 업데이트 중...`);
 
                 // 업데이트할 데이터 준비
                 const updateData = {
@@ -237,17 +237,17 @@ class MovieDataCorrector {
                     .eq('id', correction.db.id);
 
                 if (error) {
-                    console.error(`   ❌ 업데이트 실패:`, error.message);
+                    console.error(`   [ERROR] 업데이트 실패:`, error.message);
                     failCount++;
                 } else {
-                    console.log(`   ✅ 업데이트 성공`);
+                    console.log(`   [SUCCESS] 업데이트 성공`);
                     console.log(`      - 감독: "${correction.db.director}" → "${correction.kofic.director}"`);
                     console.log(`      - 출연진: 업데이트됨`);
                     successCount++;
                 }
 
             } catch (error) {
-                console.error(`   ❌ 오류 발생:`, error.message);
+                console.error(`   [ERROR] 오류 발생:`, error.message);
                 failCount++;
             }
 
@@ -255,10 +255,10 @@ class MovieDataCorrector {
             await new Promise(resolve => setTimeout(resolve, 100));
         }
 
-        console.log('\n🎉 업데이트 완료!');
+        console.log('\n[PARTY] 업데이트 완료!');
         console.log('='.repeat(50));
-        console.log(`✅ 성공: ${successCount}개`);
-        console.log(`❌ 실패: ${failCount}개`);
+        console.log(`[SUCCESS] 성공: ${successCount}개`);
+        console.log(`[ERROR] 실패: ${failCount}개`);
 
         return { success: successCount, failed: failCount };
     }
@@ -266,11 +266,11 @@ class MovieDataCorrector {
     // 새 영화 추가
     async addNewMovies() {
         if (this.noMatches.length === 0) {
-            console.log('❌ 추가할 새 영화가 없습니다.');
+            console.log('[ERROR] 추가할 새 영화가 없습니다.');
             return;
         }
 
-        console.log(`🎬 ${this.noMatches.length}개 새 영화 추가 시작...\n`);
+        console.log(`[MOVIE] ${this.noMatches.length}개 새 영화 추가 시작...\n`);
 
         let successCount = 0;
         let failCount = 0;
@@ -279,7 +279,7 @@ class MovieDataCorrector {
             const movie = this.noMatches[i];
             
             try {
-                console.log(`📝 ${i + 1}/${this.noMatches.length}: "${movie.title}" 추가 중...`);
+                console.log(`[MEMO] ${i + 1}/${this.noMatches.length}: "${movie.title}" 추가 중...`);
 
                 const newMovieData = {
                     title: movie.title,
@@ -299,25 +299,25 @@ class MovieDataCorrector {
                     .insert(newMovieData);
 
                 if (error) {
-                    console.error(`   ❌ 추가 실패:`, error.message);
+                    console.error(`   [ERROR] 추가 실패:`, error.message);
                     failCount++;
                 } else {
-                    console.log(`   ✅ 추가 성공`);
+                    console.log(`   [SUCCESS] 추가 성공`);
                     successCount++;
                 }
 
             } catch (error) {
-                console.error(`   ❌ 오류 발생:`, error.message);
+                console.error(`   [ERROR] 오류 발생:`, error.message);
                 failCount++;
             }
 
             await new Promise(resolve => setTimeout(resolve, 100));
         }
 
-        console.log('\n🎉 새 영화 추가 완료!');
+        console.log('\n[PARTY] 새 영화 추가 완료!');
         console.log('='.repeat(50));
-        console.log(`✅ 성공: ${successCount}개`);
-        console.log(`❌ 실패: ${failCount}개`);
+        console.log(`[SUCCESS] 성공: ${successCount}개`);
+        console.log(`[ERROR] 실패: ${failCount}개`);
 
         return { success: successCount, failed: failCount };
     }
@@ -341,7 +341,7 @@ async function main() {
         await corrector.addNewMovies();
     }
     
-    console.log('\n🎉 모든 작업 완료!');
+    console.log('\n[PARTY] 모든 작업 완료!');
 }
 
 if (require.main === module) {

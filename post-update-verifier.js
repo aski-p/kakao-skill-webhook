@@ -131,7 +131,7 @@ class PostUpdateVerifier {
 
     // 가짜 리뷰어 확인
     async checkFakeReviewers() {
-        console.log('\n🔍 가짜 리뷰어 확인...');
+        console.log('\n[SEARCH] 가짜 리뷰어 확인...');
         
         const fakeReviewers = ['김영화평론가', '박시네마리뷰'];
         
@@ -141,7 +141,7 @@ class PostUpdateVerifier {
             .in('critic_name', fakeReviewers);
 
         if (error) {
-            console.log(`❌ 리뷰 조회 실패: ${error.message}`);
+            console.log(`[ERROR] 리뷰 조회 실패: ${error.message}`);
             return;
         }
 
@@ -151,13 +151,13 @@ class PostUpdateVerifier {
                 console.log(`   - ${review.critic_name} (영화 ID: ${review.movie_id})`);
             });
         } else {
-            console.log('✅ 가짜 리뷰어 없음');
+            console.log('[SUCCESS] 가짜 리뷰어 없음');
         }
     }
 
     // "알 수 없음" 데이터 현황
     async checkUnknownData() {
-        console.log('\n📊 "알 수 없음" 데이터 현황...');
+        console.log('\n[INFO] "알 수 없음" 데이터 현황...');
         
         const { data: unknownMovies, error } = await this.supabase
             .from('movies')
@@ -165,19 +165,19 @@ class PostUpdateVerifier {
             .eq('director', '알 수 없음');
 
         if (error) {
-            console.log(`❌ 조회 실패: ${error.message}`);
+            console.log(`[ERROR] 조회 실패: ${error.message}`);
             return;
         }
 
         const unknownCount = unknownMovies?.length || 0;
-        console.log(`📋 "알 수 없음" 감독: ${unknownCount}개`);
+        console.log(`[FORM] "알 수 없음" 감독: ${unknownCount}개`);
         
         return unknownCount;
     }
 
     // 샘플 검증
     async verifySampleMovies() {
-        console.log('\n🎯 샘플 영화 검증...');
+        console.log('\n[TARGET] 샘플 영화 검증...');
         
         const sampleTitles = Object.keys(this.verifiedMovies);
         
@@ -189,22 +189,22 @@ class PostUpdateVerifier {
                 .limit(1);
 
             if (error) {
-                console.log(`❌ "${title}" 조회 실패: ${error.message}`);
+                console.log(`[ERROR] "${title}" 조회 실패: ${error.message}`);
                 continue;
             }
 
             if (!movies || movies.length === 0) {
-                console.log(`⚠️ "${title}" 데이터베이스에 없음`);
+                console.log(`[WARN] "${title}" 데이터베이스에 없음`);
                 continue;
             }
 
             const movie = movies[0];
             const verified = this.verifiedMovies[title];
             
-            console.log(`\n🎬 "${title}" 검증:`);
+            console.log(`\n[MOVIE] "${title}" 검증:`);
             console.log(`   실제 감독: ${verified.director}`);
             console.log(`   DB 감독: ${movie.director}`);
-            console.log(`   매치: ${movie.director === verified.director ? '✅' : '❌'}`);
+            console.log(`   매치: ${movie.director === verified.director ? '[SUCCESS]' : '[ERROR]'}`);
             
             if (movie.director === verified.director) {
                 this.accurateCount++;
@@ -222,7 +222,7 @@ class PostUpdateVerifier {
 
     // 전체 데이터 품질 검사
     async performQualityCheck() {
-        console.log('\n🔍 전체 데이터 품질 검사...');
+        console.log('\n[SEARCH] 전체 데이터 품질 검사...');
         
         let offset = 0;
         const batchSize = 100;
@@ -235,7 +235,7 @@ class PostUpdateVerifier {
             .select('id', { count: 'exact' });
         
         totalMovies = totalData?.length || 0;
-        console.log(`📊 전체 영화 수: ${totalMovies}개`);
+        console.log(`[INFO] 전체 영화 수: ${totalMovies}개`);
         
         while (offset < totalMovies) {
             const { data: movies, error } = await this.supabase
@@ -244,7 +244,7 @@ class PostUpdateVerifier {
                 .range(offset, offset + batchSize - 1);
             
             if (error) {
-                console.log(`❌ 배치 조회 실패: ${error.message}`);
+                console.log(`[ERROR] 배치 조회 실패: ${error.message}`);
                 break;
             }
             
@@ -255,7 +255,7 @@ class PostUpdateVerifier {
                 if (movieIssues.length > 0) {
                     issueCount++;
                     if (issueCount <= 10) { // 처음 10개만 로그
-                        console.log(`⚠️ ID ${movie.id}: "${movie.title}"`);
+                        console.log(`[WARN] ID ${movie.id}: "${movie.title}"`);
                         movieIssues.forEach(issue => {
                             console.log(`   ${issue.reason || issue.type}`);
                         });
@@ -272,14 +272,14 @@ class PostUpdateVerifier {
             await this.delay(100);
         }
         
-        console.log(`\n📊 품질 검사 결과:`);
+        console.log(`\n[INFO] 품질 검사 결과:`);
         console.log(`   검사된 영화: ${totalMovies}개`);
         console.log(`   문제 영화: ${issueCount}개`);
         console.log(`   정확도: ${Math.round(((totalMovies - issueCount) / totalMovies) * 100)}%`);
     }
 
     async run() {
-        console.log('🔍 대량 업데이트 후 데이터베이스 검증 시작!');
+        console.log('[SEARCH] 대량 업데이트 후 데이터베이스 검증 시작!');
         console.log('='.repeat(60));
         
         // 1. 가짜 리뷰어 확인
@@ -296,14 +296,14 @@ class PostUpdateVerifier {
         
         // 최종 결과
         console.log('\n' + '='.repeat(60));
-        console.log('📊 최종 검증 결과');
+        console.log('[INFO] 최종 검증 결과');
         console.log('='.repeat(60));
         
         const sampleAccuracy = this.totalChecked > 0 ? 
             Math.round((this.accurateCount / this.totalChecked) * 100) : 0;
         
-        console.log(`🎬 샘플 영화 정확도: ${this.accurateCount}/${this.totalChecked} (${sampleAccuracy}%)`);
-        console.log(`📋 남은 "알 수 없음": ${unknownCount}개`);
+        console.log(`[MOVIE] 샘플 영화 정확도: ${this.accurateCount}/${this.totalChecked} (${sampleAccuracy}%)`);
+        console.log(`[FORM] 남은 "알 수 없음": ${unknownCount}개`);
         
         if (this.issues.length > 0) {
             console.log(`\n🚨 발견된 문제들:`);
@@ -311,10 +311,10 @@ class PostUpdateVerifier {
                 console.log(`${index + 1}. ID ${issue.id}: ${issue.issue}`);
             });
         } else {
-            console.log('\n✅ 검증된 샘플 영화들은 모두 정확합니다!');
+            console.log('\n[SUCCESS] 검증된 샘플 영화들은 모두 정확합니다!');
         }
         
-        console.log('\n💡 권장사항:');
+        console.log('\n[TIP] 권장사항:');
         if (unknownCount > 0) {
             console.log(`- 남은 ${unknownCount}개 "알 수 없음" 영화 업데이트`);
         }

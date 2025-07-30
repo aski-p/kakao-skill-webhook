@@ -412,9 +412,9 @@ class MovieDatabaseCleanup {
             .neq('id', 0); // 모든 행 삭제
         
         if (reviewError) {
-            console.log('⚠️ 리뷰 삭제 실패:', reviewError.message);
+            console.log('[WARN] 리뷰 삭제 실패:', reviewError.message);
         } else {
-            console.log('✅ 모든 리뷰 삭제 완료');
+            console.log('[SUCCESS] 모든 리뷰 삭제 완료');
         }
         
         // 모든 영화 삭제
@@ -424,21 +424,21 @@ class MovieDatabaseCleanup {
             .neq('id', 0); // 모든 행 삭제
         
         if (movieError) {
-            console.log('⚠️ 영화 삭제 실패:', movieError.message);
+            console.log('[WARN] 영화 삭제 실패:', movieError.message);
         } else {
-            console.log('✅ 모든 영화 삭제 완료');
+            console.log('[SUCCESS] 모든 영화 삭제 완료');
         }
     }
 
     async insertRealMovies() {
-        console.log('🎬 실제 영화 데이터 삽입 중...');
+        console.log('[MOVIE] 실제 영화 데이터 삽입 중...');
         
         let insertedCount = 0;
         let totalReviews = 0;
         
         for (const movie of this.realMovies) {
             try {
-                console.log(`   📽️ ${movie.title} 삽입 중...`);
+                console.log(`   [PROJECTOR] ${movie.title} 삽입 중...`);
                 
                 // 영화 삽입
                 const { data: movieData, error: movieError } = await supabase
@@ -447,7 +447,7 @@ class MovieDatabaseCleanup {
                     .select('id');
                 
                 if (movieError) {
-                    console.log(`   ⚠️ ${movie.title} 삽입 실패:`, movieError.message);
+                    console.log(`   [WARN] ${movie.title} 삽입 실패:`, movieError.message);
                     continue;
                 }
                 
@@ -466,16 +466,16 @@ class MovieDatabaseCleanup {
                     .select('id');
                 
                 if (reviewError) {
-                    console.log(`   ⚠️ ${movie.title} 리뷰 삽입 실패:`, reviewError.message);
+                    console.log(`   [WARN] ${movie.title} 리뷰 삽입 실패:`, reviewError.message);
                 } else {
                     totalReviews += reviewData.length;
-                    console.log(`   ✅ ${movie.title} 완료 (${reviewData.length}개 리뷰)`);
+                    console.log(`   [SUCCESS] ${movie.title} 완료 (${reviewData.length}개 리뷰)`);
                 }
                 
                 insertedCount++;
                 
             } catch (error) {
-                console.log(`   ❌ ${movie.title} 처리 중 오류:`, error.message);
+                console.log(`   [ERROR] ${movie.title} 처리 중 오류:`, error.message);
             }
         }
         
@@ -484,13 +484,13 @@ class MovieDatabaseCleanup {
 
     async run() {
         console.log('🚀 영화 데이터베이스 완전 정리 및 재구축 시작...');
-        console.log('📝 가짜 영화들을 삭제하고 실제 영화들만으로 정확한 데이터베이스를 구축합니다.\n');
+        console.log('[MEMO] 가짜 영화들을 삭제하고 실제 영화들만으로 정확한 데이터베이스를 구축합니다.\n');
         
         // 1단계: 기존 데이터 정리
         await this.clearDatabase();
         
-        console.log('\n📥 실제 영화 데이터 삽입 시작...');
-        console.log(`📊 삽입 예정 영화: ${this.realMovies.length}개\n`);
+        console.log('\n[INBOX] 실제 영화 데이터 삽입 시작...');
+        console.log(`[INFO] 삽입 예정 영화: ${this.realMovies.length}개\n`);
         
         // 2단계: 실제 영화 데이터 삽입
         const result = await this.insertRealMovies();
@@ -505,29 +505,29 @@ class MovieDatabaseCleanup {
             .select('*', { count: 'exact', head: true });
         
         console.log('\n' + '='.repeat(70));
-        console.log('🎉 영화 데이터베이스 완전 재구축 완료!');
+        console.log('[PARTY] 영화 데이터베이스 완전 재구축 완료!');
         console.log('='.repeat(70));
-        console.log(`🎬 총 영화: ${movieCount}개 (모두 실제 영화)`);
-        console.log(`📝 총 리뷰: ${reviewCount}개 (실제 사용자 이름)`);
-        console.log(`✅ 성공적으로 삽입된 영화: ${result.movies}개`);
-        console.log(`✅ 생성된 리뷰: ${result.reviews}개`);
-        console.log('\n💡 이제 데이터베이스에는 실제 존재하는 영화들만 있습니다!');
-        console.log('🔍 모든 영화에 정확한 감독, 출연진, 실제 사용자 리뷰가 포함되어 있습니다.');
-        console.log('\n📱 테스트해보세요:');
+        console.log(`[MOVIE] 총 영화: ${movieCount}개 (모두 실제 영화)`);
+        console.log(`[MEMO] 총 리뷰: ${reviewCount}개 (실제 사용자 이름)`);
+        console.log(`[SUCCESS] 성공적으로 삽입된 영화: ${result.movies}개`);
+        console.log(`[SUCCESS] 생성된 리뷰: ${result.reviews}개`);
+        console.log('\n[TIP] 이제 데이터베이스에는 실제 존재하는 영화들만 있습니다!');
+        console.log('[SEARCH] 모든 영화에 정확한 감독, 출연진, 실제 사용자 리뷰가 포함되어 있습니다.');
+        console.log('\n[APP] 테스트해보세요:');
         console.log('   • "파묘 영화평" - 실제 정보와 리뷰');
         console.log('   • "기생충 감독" - 봉준호 감독');
         console.log('   • "탑건: 매버릭 출연진" - 톰 크루즈, 마일스 텔러 등');
         console.log('   • "아마추어 영화평" - 더 이상 존재하지 않는 영화');
         
         // 샘플 확인
-        console.log('\n📝 삽입된 영화 샘플:');
+        console.log('\n[MEMO] 삽입된 영화 샘플:');
         const { data: sampleMovies } = await supabase
             .from('movies')
             .select('title, director, cast_members, naver_rating')
             .limit(5);
         
         sampleMovies.forEach(movie => {
-            console.log(`   ✅ ${movie.title}: ${movie.director} 감독, 평점 ${movie.naver_rating}`);
+            console.log(`   [SUCCESS] ${movie.title}: ${movie.director} 감독, 평점 ${movie.naver_rating}`);
         });
     }
 }

@@ -13,7 +13,7 @@ async function testRestaurantSearch() {
     console.log('🍽️ 맛집 검색 테스트 시작...\n');
 
     for (const query of testCases) {
-        console.log(`🔍 테스트: "${query}"`);
+        console.log(`[SEARCH] 테스트: "${query}"`);
         
         try {
             const response = await axios.post('http://localhost:3000/webhook', {
@@ -37,19 +37,19 @@ async function testRestaurantSearch() {
 
             if (response.data && response.data.template && response.data.template.outputs) {
                 const message = response.data.template.outputs[0].simpleText.text;
-                console.log(`✅ 응답: ${message.substring(0, 200)}...\n`);
+                console.log(`[SUCCESS] 응답: ${message.substring(0, 200)}...\n`);
             } else {
-                console.log(`❌ 응답 구조 오류\n`);
+                console.log(`[ERROR] 응답 구조 오류\n`);
             }
         } catch (error) {
-            console.log(`❌ 오류: ${error.message}\n`);
+            console.log(`[ERROR] 오류: ${error.message}\n`);
         }
         
         // 1초 대기
         await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
-    console.log('🎉 맛집 검색 테스트 완료!');
+    console.log('[PARTY] 맛집 검색 테스트 완료!');
 }
 
 // 테스트 실행

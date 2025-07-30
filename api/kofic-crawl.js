@@ -6,7 +6,7 @@ const router = express.Router();
 
 // 영화진흥위원회 전체 영화 수집 API
 router.post('/crawl-kofic-movies', async (req, res) => {
-    console.log('🎬 영화진흥위원회 전체 영화 수집 API 호출');
+    console.log('[MOVIE] 영화진흥위원회 전체 영화 수집 API 호출');
     
     try {
         const crawler = new KoficMovieCrawler();
@@ -37,7 +37,7 @@ router.post('/crawl-kofic-movies', async (req, res) => {
             });
         }
     } catch (error) {
-        console.error('❌ 영화진흥위원회 크롤링 API 오류:', error);
+        console.error('[ERROR] 영화진흥위원회 크롤링 API 오류:', error);
         res.status(500).json({
             success: false,
             message: '서버 오류',
@@ -65,7 +65,7 @@ router.get('/kofic-status', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('❌ 영화진흥위원회 상태 확인 오류:', error);
+        console.error('[ERROR] 영화진흥위원회 상태 확인 오류:', error);
         res.status(500).json({
             success: false,
             message: '상태 확인 실패',

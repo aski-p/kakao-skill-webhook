@@ -48,7 +48,7 @@ class MassiveRealMovieGenerator {
 
     // 대용량 실제 영화 데이터베이스 생성 (30,000개 이상)
     generateMassiveRealMovieDatabase() {
-        console.log('🎬 대용량 실제 영화 데이터베이스 생성 시작 (목표: 30,000개)...');
+        console.log('[MOVIE] 대용량 실제 영화 데이터베이스 생성 시작 (목표: 30,000개)...');
         
         // 1. 실제 한국 영화 (8,000개)
         this.addMassiveKoreanMovies();
@@ -71,7 +71,7 @@ class MassiveRealMovieGenerator {
         // 7. 실제 애니메이션 영화 (1,000개)
         this.addMassiveAnimationMovies();
         
-        console.log(`✅ 총 ${this.movies.size}개 실제 영화 생성 완료`);
+        console.log(`[SUCCESS] 총 ${this.movies.size}개 실제 영화 생성 완료`);
         return Array.from(this.movies.values());
     }
 
@@ -408,7 +408,7 @@ class MassiveRealMovieGenerator {
 
     // 대용량 애니메이션 영화 (1,000개)
     addMassiveAnimationMovies() {
-        console.log('🎨 대용량 애니메이션 영화 데이터 생성 중... (목표: 1,000개)');
+        console.log('[ART] 대용량 애니메이션 영화 데이터 생성 중... (목표: 1,000개)');
         
         const animationStudios = ['픽사', '디즈니', '스튜디오 지브리', '드림웍스', '일루미네이션'];
         
@@ -435,7 +435,7 @@ class MassiveRealMovieGenerator {
 
     // 전문가 리뷰 생성
     generateReviews(movies) {
-        console.log('📝 대용량 전문가 리뷰 생성 중...');
+        console.log('[MEMO] 대용량 전문가 리뷰 생성 중...');
         const reviews = [];
         
         // 메모리 효율성을 위해 배치 처리
@@ -493,10 +493,10 @@ class MassiveRealMovieGenerator {
 
     // 메모리 효율적 SQL 파일 생성
     generateSQL() {
-        console.log('📊 SQL 생성 중...');
+        console.log('[INFO] SQL 생성 중...');
         const movies = this.generateMassiveRealMovieDatabase();
         
-        console.log('📝 리뷰 생성 중...');
+        console.log('[MEMO] 리뷰 생성 중...');
         const reviews = this.generateReviews(movies);
         
         console.log('💾 SQL 파일 작성 중...');
@@ -555,8 +555,8 @@ class MassiveRealMovieGenerator {
         
         sql += `\nCOMMIT;\n\n`;
         sql += `-- INSERT 완료\n`;
-        sql += `-- 📊 총 ${movies.length}개 영화 + ${reviews.length}개 전문가 리뷰 추가됨\n`;
-        sql += `-- 🎯 기존 9개 영화 + 새로운 ${movies.length}개 = 총 ${9 + movies.length}개 영화\n`;
+        sql += `-- [INFO] 총 ${movies.length}개 영화 + ${reviews.length}개 전문가 리뷰 추가됨\n`;
+        sql += `-- [TARGET] 기존 9개 영화 + 새로운 ${movies.length}개 = 총 ${9 + movies.length}개 영화\n`;
         
         return { sql, movieCount: movies.length, reviewCount: reviews.length };
     }
@@ -573,13 +573,13 @@ class MassiveRealMovieGenerator {
         console.log('💾 파일 저장 중...');
         fs.writeFileSync(filepath, sql);
         
-        console.log(`\n🎉 대용량 실제 영화 데이터베이스 생성 완료!`);
+        console.log(`\n[PARTY] 대용량 실제 영화 데이터베이스 생성 완료!`);
         console.log(`📁 파일명: ${filename}`);
-        console.log(`📊 실제 영화: ${movieCount.toLocaleString()}개`);
-        console.log(`📝 전문가 리뷰: ${reviewCount.toLocaleString()}개`);
+        console.log(`[INFO] 실제 영화: ${movieCount.toLocaleString()}개`);
+        console.log(`[MEMO] 전문가 리뷰: ${reviewCount.toLocaleString()}개`);
         console.log(`📈 총 영화 수: ${(9 + movieCount).toLocaleString()}개 (기존 9개 + 신규 ${movieCount.toLocaleString()}개)`);
         console.log(`💾 파일 크기: ${Math.round(sql.length / 1024 / 1024)}MB`);
-        console.log(`\n💡 사용법:`);
+        console.log(`\n[TIP] 사용법:`);
         console.log(`1. ./open-movie-sql.sh (VS Code로 파일 열기)`);
         console.log(`2. Supabase SQL 에디터에서 실행`);
         console.log(`3. 기존 9개 영화는 유지되고 30,000개 이상 영화가 추가됩니다`);

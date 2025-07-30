@@ -184,7 +184,7 @@ class MassiveMovieDBWithReviews {
             });
         });
 
-        console.log(`📊 총 영화 생성: ${this.movies.length}개`);
+        console.log(`[INFO] 총 영화 생성: ${this.movies.length}개`);
     }
 
     // 전문가 리뷰 생성
@@ -283,8 +283,8 @@ class MassiveMovieDBWithReviews {
 
     // SQL INSERT문 생성
     async generateSQLInserts() {
-        console.log('\n📝 SQL INSERT문 생성 시작');
-        console.log(`📊 대상 영화: ${this.movies.length}개`);
+        console.log('\n[MEMO] SQL INSERT문 생성 시작');
+        console.log(`[INFO] 대상 영화: ${this.movies.length}개`);
         
         let movieId = 1;
         
@@ -304,16 +304,16 @@ class MassiveMovieDBWithReviews {
                 movieId++;
                 
             } catch (error) {
-                console.error(`❌ SQL 생성 오류 (${movie.title}):`, error.message);
+                console.error(`[ERROR] SQL 생성 오류 (${movie.title}):`, error.message);
             }
         });
 
         // SQL 파일 저장
         await this.saveSQLFile();
         
-        console.log(`✅ SQL INSERT문 생성 완료:`);
-        console.log(`   📽️ 영화: ${this.movieInserts.length}개`);
-        console.log(`   📝 전문가 리뷰: ${this.reviewInserts.length}개`);
+        console.log(`[SUCCESS] SQL INSERT문 생성 완료:`);
+        console.log(`   [PROJECTOR] 영화: ${this.movieInserts.length}개`);
+        console.log(`   [MEMO] 전문가 리뷰: ${this.reviewInserts.length}개`);
     }
 
     // 영화 INSERT문 생성
@@ -457,9 +457,9 @@ VALUES (${values.join(', ')});`;
         
         sqlContent += `\nCOMMIT;\n\n`;
         sqlContent += `-- INSERT 완료\n`;
-        sqlContent += `-- 📊 총 ${this.movieInserts.length}개 영화 + ${this.reviewInserts.length}개 전문가 리뷰 추가됨\n`;
+        sqlContent += `-- [INFO] 총 ${this.movieInserts.length}개 영화 + ${this.reviewInserts.length}개 전문가 리뷰 추가됨\n`;
         sqlContent += `-- \n`;
-        sqlContent += `-- 💡 사용법:\n`;
+        sqlContent += `-- [TIP] 사용법:\n`;
         sqlContent += `-- 1. Supabase SQL 에디터에서 실행\n`;
         sqlContent += `-- 2. 카카오 스킬에서 영화 검색 시 전문가 리뷰도 함께 제공\n`;
         sqlContent += `-- 3. 예: "기생충 영화평", "2019년 영화", "봉준호 감독", "액션 영화 추천" 등\n`;
@@ -470,13 +470,13 @@ VALUES (${values.join(', ')});`;
         fs.writeFileSync(filepath, sqlContent, 'utf8');
         
         console.log(`\n📄 SQL 파일 생성 완료: ${filename}`);
-        console.log(`📍 파일 위치: ${filepath}`);
-        console.log(`📊 총 INSERT문: ${this.movieInserts.length + this.reviewInserts.length}개`);
+        console.log(`[LOCATION] 파일 위치: ${filepath}`);
+        console.log(`[INFO] 총 INSERT문: ${this.movieInserts.length + this.reviewInserts.length}개`);
         
         // 통계 출력
-        console.log('\n📊 최종 통계:');
-        console.log(`🎬 영화: ${this.movieInserts.length}개`);
-        console.log(`📝 전문가 리뷰: ${this.reviewInserts.length}개`);
+        console.log('\n[INFO] 최종 통계:');
+        console.log(`[MOVIE] 영화: ${this.movieInserts.length}개`);
+        console.log(`[MEMO] 전문가 리뷰: ${this.reviewInserts.length}개`);
         Object.entries(stats).forEach(([country, count]) => {
             console.log(`   ${country}: ${count}개 영화`);
         });
@@ -530,25 +530,25 @@ VALUES (${values.join(', ')});`;
     }
 
     async run() {
-        console.log('🎬 대용량 2010-2025년 영화 데이터베이스 + 전문가 리뷰 생성기');
+        console.log('[MOVIE] 대용량 2010-2025년 영화 데이터베이스 + 전문가 리뷰 생성기');
         console.log('='.repeat(80));
-        console.log('📊 이동진, 박평식 고정 + 랜덤 전문가 2명 리뷰 포함');
-        console.log('🎯 2010-2025년 15년간의 대표 영화들\n');
+        console.log('[INFO] 이동진, 박평식 고정 + 랜덤 전문가 2명 리뷰 포함');
+        console.log('[TARGET] 2010-2025년 15년간의 대표 영화들\n');
         
         try {
             // SQL INSERT문 생성
             await this.generateSQLInserts();
             
-            console.log('\n🎉 대용량 영화 데이터베이스 생성 완료!');
-            console.log('📋 다음 단계:');
+            console.log('\n[PARTY] 대용량 영화 데이터베이스 생성 완료!');
+            console.log('[FORM] 다음 단계:');
             console.log('1. 생성된 .sql 파일을 Supabase SQL 에디터에 복사');
             console.log('2. Run 버튼으로 실행');
             console.log('3. 수백 개의 영화 + 전문가 리뷰 데이터 저장');
             console.log('4. 카카오 스킬에서 풍부한 영화 정보 + 전문가 평점 제공');
-            console.log('\n🎯 이제 2010-2025년 모든 대표 영화에 대해 전문가 리뷰까지 제공 가능!');
+            console.log('\n[TARGET] 이제 2010-2025년 모든 대표 영화에 대해 전문가 리뷰까지 제공 가능!');
             
         } catch (error) {
-            console.error('❌ 실행 오류:', error);
+            console.error('[ERROR] 실행 오류:', error);
             throw error;
         }
     }

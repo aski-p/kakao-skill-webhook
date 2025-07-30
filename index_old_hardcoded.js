@@ -27,7 +27,7 @@ app.use(express.json());
 // 카카오톡 5초 제한에 맞춘 응답 타임아웃 설정
 app.use((req, res, next) => {
     res.setTimeout(4500, () => {  // 4.5초로 단축
-        console.log('⏰ 서버 타임아웃 (4.5초) - 카카오톡 호환성');
+        console.log('[CLOCK] 서버 타임아웃 (4.5초) - 카카오톡 호환성');
         
         if (!res.headersSent) {
             res.status(200).json({
@@ -35,7 +35,7 @@ app.use((req, res, next) => {
                 template: {
                     outputs: [{
                         simpleText: {
-                            text: "⏰ 처리 시간이 길어지고 있습니다.\n\n간단한 질문으로 다시 시도해주세요."
+                            text: "[CLOCK] 처리 시간이 길어지고 있습니다.\n\n간단한 질문으로 다시 시도해주세요."
                         }
                     }]
                 }
@@ -55,7 +55,7 @@ const NAVER_LOCAL_API_URL = 'https://openapi.naver.com/v1/search/local.json';
 // 설정 파일에서 타임아웃 설정 가져오기
 const TIMEOUT_CONFIG = config.timeouts;
 
-// 🧠 지능형 메시지 분류 및 데이터 추출 시스템 초기화
+// [BRAIN] 지능형 메시지 분류 및 데이터 추출 시스템 초기화
 const messageClassifier = new MessageClassifier();
 const dataExtractor = new DataExtractor({
     clientId: NAVER_CLIENT_ID,
@@ -130,7 +130,7 @@ async function getYouTubeVideoInfo(videoId) {
         const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
         
         if (!YOUTUBE_API_KEY) {
-            console.log('⚠️ YouTube API 키가 설정되지 않았습니다.');
+            console.log('[WARN] YouTube API 키가 설정되지 않았습니다.');
             return null;
         }
         
@@ -150,7 +150,7 @@ async function getYouTubeVideoInfo(videoId) {
         
         return null;
     } catch (error) {
-        console.log(`❌ YouTube API 오류: ${error.message}`);
+        console.log(`[ERROR] YouTube API 오류: ${error.message}`);
         return null;
     }
 }
@@ -159,7 +159,7 @@ async function getYouTubeVideoInfo(videoId) {
 async function getNaverMovieInfo(movieTitle) {
     try {
         if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
-            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            console.log('[WARN] 네이버 API 키가 설정되지 않았습니다.');
             return null;
         }
         
@@ -169,7 +169,7 @@ async function getNaverMovieInfo(movieTitle) {
             start: 1
         };
         
-        console.log(`🎬 네이버 영화 검색: "${movieTitle}"`);
+        console.log(`[MOVIE] 네이버 영화 검색: "${movieTitle}"`);
         
         const response = await axios.get('https://openapi.naver.com/v1/search/movie.json', {
             params: params,
@@ -182,11 +182,11 @@ async function getNaverMovieInfo(movieTitle) {
         
         const items = response.data.items;
         if (!items || items.length === 0) {
-            console.log(`🎬 "${movieTitle}" 검색 결과 없음`);
+            console.log(`[MOVIE] "${movieTitle}" 검색 결과 없음`);
             return null;
         }
         
-        console.log(`✅ "${movieTitle}" 검색 결과: ${items.length}개 영화 발견`);
+        console.log(`[SUCCESS] "${movieTitle}" 검색 결과: ${items.length}개 영화 발견`);
         
         // 검색 결과 디버깅
         items.forEach((item, index) => {
@@ -204,7 +204,7 @@ async function getNaverMovieInfo(movieTitle) {
         }));
         
     } catch (error) {
-        console.error('❌ 네이버 영화 API 오류:', error.response?.data || error.message);
+        console.error('[ERROR] 네이버 영화 API 오류:', error.response?.data || error.message);
         return null;
     }
 }
@@ -212,7 +212,7 @@ async function getNaverMovieInfo(movieTitle) {
 // 영화 평가 처리 함수
 async function getMovieReview(movieTitle) {
     try {
-        console.log(`🎬 영화 평가 요청: "${movieTitle}"`);
+        console.log(`[MOVIE] 영화 평가 요청: "${movieTitle}"`);
         
         // 1단계: 다양한 검색어로 시도
         let movieResults = null;
@@ -244,14 +244,14 @@ async function getMovieReview(movieTitle) {
             }
         }
         
-        console.log(`🔍 검색 시도할 키워드들: ${searchVariations.join(', ')}`);
+        console.log(`[SEARCH] 검색 시도할 키워드들: ${searchVariations.join(', ')}`);
         
         // 각 검색어로 순차적으로 시도
         for (const searchTerm of searchVariations) {
             if (searchTerm && searchTerm.length > 0) {
                 movieResults = await getNaverMovieInfo(searchTerm);
                 if (movieResults && movieResults.length > 0) {
-                    console.log(`✅ "${searchTerm}"로 영화 발견됨`);
+                    console.log(`[SUCCESS] "${searchTerm}"로 영화 발견됨`);
                     break;
                 }
             }
@@ -259,10 +259,10 @@ async function getMovieReview(movieTitle) {
         
         if (!movieResults || movieResults.length === 0) {
             // 추가 시도: 영화 제목에 "F1" 포함시 특별 검색 로직
-            console.log(`🔍 영화 제목 분석: "${movieTitle}" (소문자: "${movieTitle.toLowerCase()}")`);
+            console.log(`[SEARCH] 영화 제목 분석: "${movieTitle}" (소문자: "${movieTitle.toLowerCase()}")`);
             
             if (movieTitle.toLowerCase().includes('f1') || movieTitle.includes('더무비') || movieTitle.includes('무비')) {
-                console.log('🏎️ F1/무비 영화 전용 검색 로직 시작');
+                console.log('[RACECAR] F1/무비 영화 전용 검색 로직 시작');
                 
                 // 1. 네이버 뉴스에서 영화 평론 검색 (F1 특화 검색어 포함)
                 const reviewSearches = [
@@ -291,7 +291,7 @@ async function getMovieReview(movieTitle) {
                         arr.findIndex(r => r.title === review.title) === index
                     );
                     
-                    let reviewText = `🎬 "${movieTitle}" 영화 평점/평론 모음\n\n`;
+                    let reviewText = `[MOVIE] "${movieTitle}" 영화 평점/평론 모음\n\n`;
                     
                     // 전문가 평론과 관객 평을 구분
                     const expertReviews = uniqueReviews.filter(review => 
@@ -305,7 +305,7 @@ async function getMovieReview(movieTitle) {
                     ).slice(0, 3);
                     
                     if (expertReviews.length > 0) {
-                        reviewText += `👨‍💼 전문가 평론:\n`;
+                        reviewText += `[MAN]‍💼 전문가 평론:\n`;
                         expertReviews.forEach((review, index) => {
                             reviewText += `${index + 1}. ${review.title}\n`;
                             if (review.description) {
@@ -316,7 +316,7 @@ async function getMovieReview(movieTitle) {
                     }
                     
                     if (audienceReviews.length > 0) {
-                        reviewText += `👥 관객 평가:\n`;
+                        reviewText += `[BUSTSINSILHOUETTE] 관객 평가:\n`;
                         audienceReviews.forEach((review, index) => {
                             reviewText += `${index + 1}. ${review.title}\n`;
                             if (review.description) {
@@ -327,7 +327,7 @@ async function getMovieReview(movieTitle) {
                     }
                     
                     if (expertReviews.length === 0 && audienceReviews.length === 0) {
-                        reviewText += `📰 검색된 리뷰/평점 (${uniqueReviews.length}개):\n`;
+                        reviewText += `[NEWS] 검색된 리뷰/평점 (${uniqueReviews.length}개):\n`;
                         uniqueReviews.slice(0, 5).forEach((review, index) => {
                             reviewText += `${index + 1}. ${review.title}\n`;
                             if (review.description) {
@@ -336,26 +336,26 @@ async function getMovieReview(movieTitle) {
                         });
                     }
                     
-                    reviewText += `\n💡 더 자세한 평점은 네이버 영화, 왓챠, CGV 등에서 확인하세요.`;
+                    reviewText += `\n[TIP] 더 자세한 평점은 네이버 영화, 왓챠, CGV 등에서 확인하세요.`;
                     return reviewText;
                 }
             }
             
             // 추가 시도: 네이버 뉴스에서 영화 관련 정보 검색
-            console.log('🔍 네이버 뉴스에서 영화 정보 검색 시도');
+            console.log('[SEARCH] 네이버 뉴스에서 영화 정보 검색 시도');
             const newsResults = await getLatestNews(`"${movieTitle}" 영화`);
             
             if (newsResults && newsResults.length > 0) {
-                let newsInfo = `🎬 "${movieTitle}" 관련 최신 정보\n\n`;
-                newsInfo += `📰 뉴스 검색 결과 (영화 정보):\n`;
+                let newsInfo = `[MOVIE] "${movieTitle}" 관련 최신 정보\n\n`;
+                newsInfo += `[NEWS] 뉴스 검색 결과 (영화 정보):\n`;
                 newsResults.slice(0, 4).forEach((news, index) => {
                     newsInfo += `${index + 1}. ${news.title}\n`;
                 });
-                newsInfo += `\n💡 정확한 영화 제목 확인:\n• "러쉬" (2013) - F1 라이벌 영화\n• "세나" (2010) - 아일톤 세나 다큐\n• "그랑프리" (1966) - 클래식 F1 영화\n• 또는 "러쉬 영화평"으로 다시 검색`;
+                newsInfo += `\n[TIP] 정확한 영화 제목 확인:\n• "러쉬" (2013) - F1 라이벌 영화\n• "세나" (2010) - 아일톤 세나 다큐\n• "그랑프리" (1966) - 클래식 F1 영화\n• 또는 "러쉬 영화평"으로 다시 검색`;
                 return newsInfo;
             }
             
-            return `🎬 "${movieTitle}" 영화를 찾을 수 없습니다.\n\n💡 검색 팁:\n• 정확한 영화 제목으로 다시 검색\n• 영어 제목이나 한글 제목으로 시도\n• 개봉년도와 함께 검색\n\n🏎️ F1 관련 실제 영화들:\n• "러쉬 영화평" - 2013년 F1 라이벌 영화\n• "세나 영화평" - 2010년 아일톤 세나 다큐\n• "그랑프리 영화평" - 1966년 클래식 F1 영화\n\n💭 "f1더무비"는 존재하지 않는 제목일 수 있습니다.`;
+            return `[MOVIE] "${movieTitle}" 영화를 찾을 수 없습니다.\n\n[TIP] 검색 팁:\n• 정확한 영화 제목으로 다시 검색\n• 영어 제목이나 한글 제목으로 시도\n• 개봉년도와 함께 검색\n\n[RACECAR] F1 관련 실제 영화들:\n• "러쉬 영화평" - 2013년 F1 라이벌 영화\n• "세나 영화평" - 2010년 아일톤 세나 다큐\n• "그랑프리 영화평" - 1966년 클래식 F1 영화\n\n💭 "f1더무비"는 존재하지 않는 제목일 수 있습니다.`;
         }
         
         // 2단계: 가장 관련성 높은 영화 선택
@@ -367,38 +367,38 @@ async function getMovieReview(movieTitle) {
             reviewResults = await getLatestNews(`${bestMatch.title} 평점`);
         }
         
-        let movieReviewText = `🎬 "${bestMatch.title}" 영화 정보\n\n`;
+        let movieReviewText = `[MOVIE] "${bestMatch.title}" 영화 정보\n\n`;
         
         // 영화 기본 정보
-        movieReviewText += `📽️ 감독: ${bestMatch.director || '정보 없음'}\n`;
-        movieReviewText += `🎭 출연: ${bestMatch.actor ? bestMatch.actor.substring(0, 100) + '...' : '정보 없음'}\n`;
-        movieReviewText += `📅 개봉: ${bestMatch.pubDate || '정보 없음'}\n`;
+        movieReviewText += `[PROJECTOR] 감독: ${bestMatch.director || '정보 없음'}\n`;
+        movieReviewText += `[DRAMA] 출연: ${bestMatch.actor ? bestMatch.actor.substring(0, 100) + '...' : '정보 없음'}\n`;
+        movieReviewText += `[TOMORROW] 개봉: ${bestMatch.pubDate || '정보 없음'}\n`;
         
         // 네이버 평점
         if (bestMatch.userRating && bestMatch.userRating !== '0.00') {
             const rating = parseFloat(bestMatch.userRating);
-            const stars = '⭐'.repeat(Math.round(rating / 2));
-            movieReviewText += `⭐ 네이버 평점: ${rating}/10 ${stars}\n`;
+            const stars = '[FAVORITE]'.repeat(Math.round(rating / 2));
+            movieReviewText += `[FAVORITE] 네이버 평점: ${rating}/10 ${stars}\n`;
             
             // 평점 분석
             if (rating >= 8.0) {
                 movieReviewText += `💫 높은 평점! 많은 관객들이 만족한 작품\n`;
             } else if (rating >= 6.0) {
-                movieReviewText += `👍 괜찮은 평점의 무난한 작품\n`;
+                movieReviewText += `[THUMBSUP] 괜찮은 평점의 무난한 작품\n`;
             } else if (rating >= 4.0) {
                 movieReviewText += `😐 평점이 아쉬운 작품\n`;
             } else {
-                movieReviewText += `👎 낮은 평점의 작품\n`;
+                movieReviewText += `[THUMBSDOWN] 낮은 평점의 작품\n`;
             }
         } else {
-            movieReviewText += `⭐ 네이버 평점: 정보 없음\n`;
+            movieReviewText += `[FAVORITE] 네이버 평점: 정보 없음\n`;
         }
         
-        movieReviewText += `\n🔗 상세 정보: ${bestMatch.link}\n`;
+        movieReviewText += `\n[LINK] 상세 정보: ${bestMatch.link}\n`;
         
         // 리뷰 정보 추가
         if (reviewResults && reviewResults.length > 0) {
-            movieReviewText += `\n📰 최신 리뷰 (${reviewResults.length}개):\n`;
+            movieReviewText += `\n[NEWS] 최신 리뷰 (${reviewResults.length}개):\n`;
             reviewResults.slice(0, 3).forEach((review, index) => {
                 movieReviewText += `${index + 1}. ${review.title}\n`;
             });
@@ -407,15 +407,15 @@ async function getMovieReview(movieTitle) {
         return movieReviewText;
         
     } catch (error) {
-        console.log(`❌ 영화 평가 오류: ${error.message}`);
-        return `🎬 영화 정보를 가져올 수 없습니다.\n\n❌ 오류:\n• 네이버 영화 API 연결 실패\n• 영화 제목을 정확히 입력해주세요\n\n💡 다시 시도:\n• "영화제목 + 영화평" 형식으로 질문\n• 네이버 영화에서 직접 검색`;
+        console.log(`[ERROR] 영화 평가 오류: ${error.message}`);
+        return `[MOVIE] 영화 정보를 가져올 수 없습니다.\n\n[ERROR] 오류:\n• 네이버 영화 API 연결 실패\n• 영화 제목을 정확히 입력해주세요\n\n[TIP] 다시 시도:\n• "영화제목 + 영화평" 형식으로 질문\n• 네이버 영화에서 직접 검색`;
     }
 }
 
 // 유튜브 요약 처리 함수 (개선된 버전)
 async function getYouTubeSummary(youtubeData) {
     try {
-        console.log(`📺 유튜브 요약 요청: ${youtubeData.url}`);
+        console.log(`[TV] 유튜브 요약 요청: ${youtubeData.url}`);
         
         // 1단계: YouTube API로 실제 영상 정보 가져오기
         const videoInfo = await getYouTubeVideoInfo(youtubeData.videoId);
@@ -440,9 +440,9 @@ async function getYouTubeSummary(youtubeData) {
         let userContent = `다음 유튜브 영상 정보를 분석해주세요:\n\nURL: ${youtubeData.url}\nVideo ID: ${youtubeData.videoId}\n`;
         
         if (videoInfo) {
-            userContent += `\n📌 영상 정보:\n제목: ${videoInfo.title}\n채널: ${videoInfo.channelTitle}\n업로드 날짜: ${videoInfo.publishedAt}\n설명: ${videoInfo.description ? videoInfo.description.substring(0, 500) + '...' : '설명 없음'}\n\n이 정보를 바탕으로 영상이 어떤 내용인지 파악할 수 있는 범위에서 설명해주세요.`;
+            userContent += `\n[PIN] 영상 정보:\n제목: ${videoInfo.title}\n채널: ${videoInfo.channelTitle}\n업로드 날짜: ${videoInfo.publishedAt}\n설명: ${videoInfo.description ? videoInfo.description.substring(0, 500) + '...' : '설명 없음'}\n\n이 정보를 바탕으로 영상이 어떤 내용인지 파악할 수 있는 범위에서 설명해주세요.`;
         } else {
-            userContent += `\n⚠️ YouTube API로 영상 정보를 가져올 수 없습니다.\n영상을 직접 볼 수 없으므로 내용을 추측하지 말고, 이 한계를 명확히 설명해주세요.`;
+            userContent += `\n[WARN] YouTube API로 영상 정보를 가져올 수 없습니다.\n영상을 직접 볼 수 없으므로 내용을 추측하지 말고, 이 한계를 명확히 설명해주세요.`;
         }
         
         const claudeResponse = await axios.post(
@@ -467,14 +467,14 @@ async function getYouTubeSummary(youtubeData) {
         );
         
         const summary = claudeResponse.data.content[0].text;
-        console.log(`✅ 유튜브 분석 완료: ${summary.length}자`);
+        console.log(`[SUCCESS] 유튜브 분석 완료: ${summary.length}자`);
         
-        return `📺 유튜브 영상 정보\n🔗 ${youtubeData.url}\n\n${summary}\n\n⚠️ 자막 기반 요약을 원하시면 YouTube 자막 API 연동이 필요합니다.`;
+        return `[TV] 유튜브 영상 정보\n[LINK] ${youtubeData.url}\n\n${summary}\n\n[WARN] 자막 기반 요약을 원하시면 YouTube 자막 API 연동이 필요합니다.`;
         
     } catch (error) {
-        console.log(`❌ 유튜브 요약 오류: ${error.message}`);
+        console.log(`[ERROR] 유튜브 요약 오류: ${error.message}`);
         
-        return `📺 유튜브 영상 요약을 처리할 수 없습니다.\n🔗 ${youtubeData.url}\n\n❌ 문제점:\n• YouTube API 키 미설정 또는 오류\n• Claude AI가 영상을 직접 볼 수 없음\n• 자막 데이터 접근 불가\n\n💡 정확한 요약을 위해서는:\n• YouTube Data API 키 설정 필요\n• 자막 추출 도구 연동 필요\n• 또는 영상을 직접 시청하세요`;
+        return `[TV] 유튜브 영상 요약을 처리할 수 없습니다.\n[LINK] ${youtubeData.url}\n\n[ERROR] 문제점:\n• YouTube API 키 미설정 또는 오류\n• Claude AI가 영상을 직접 볼 수 없음\n• 자막 데이터 접근 불가\n\n[TIP] 정확한 요약을 위해서는:\n• YouTube Data API 키 설정 필요\n• 자막 추출 도구 연동 필요\n• 또는 영상을 직접 시청하세요`;
     }
 }
 
@@ -526,26 +526,26 @@ async function getNamuWikiGameInfo(gameName) {
                 }
                 
                 if (content) {
-                    gameInfo += `📝 개요:\n${content}\n\n`;
+                    gameInfo += `[MEMO] 개요:\n${content}\n\n`;
                 }
             }
             
-            gameInfo += `🔗 자세한 정보: ${searchUrl}`;
+            gameInfo += `[LINK] 자세한 정보: ${searchUrl}`;
             
-            console.log(`✅ 나무위키 "${gameName}" 정보 추출 완료: ${gameInfo.length}자`);
+            console.log(`[SUCCESS] 나무위키 "${gameName}" 정보 추출 완료: ${gameInfo.length}자`);
             return gameInfo;
             
         } else {
-            console.log(`❌ 나무위키 "${gameName}" 페이지 응답 실패`);
+            console.log(`[ERROR] 나무위키 "${gameName}" 페이지 응답 실패`);
             return null;
         }
         
     } catch (error) {
-        console.log(`❌ 나무위키 "${gameName}" 정보 추출 오류:`, error.message);
+        console.log(`[ERROR] 나무위키 "${gameName}" 정보 추출 오류:`, error.message);
         
         // 대안: 나무위키 검색 결과 페이지로 안내
         const searchQuery = encodeURIComponent(gameName);
-        return `🌳 나무위키에서 "${gameName}" 정보를 찾을 수 없습니다.\n\n🔍 직접 검색해보세요:\nhttps://namu.wiki/Search?q=${searchQuery}\n\n나무위키는 게임 정보가 매우 상세하게 정리되어 있습니다.`;
+        return `🌳 나무위키에서 "${gameName}" 정보를 찾을 수 없습니다.\n\n[SEARCH] 직접 검색해보세요:\nhttps://namu.wiki/Search?q=${searchQuery}\n\n나무위키는 게임 정보가 매우 상세하게 정리되어 있습니다.`;
     }
 }
 
@@ -847,12 +847,12 @@ function handleLongResponse(text, userId, responseType = 'general') {
     const responseTypeEmoji = {
         'image': '🖼️',
         'restaurant': '🍽️',
-        'news': '📰',
+        'news': '[NEWS]',
         'shopping': '🛒',
-        'general': '💬'
+        'general': '[MSG]'
     };
     
-    const emoji = responseTypeEmoji[responseType] || '💬';
+    const emoji = responseTypeEmoji[responseType] || '[MSG]';
     const continueText = `\n\n${emoji} "계속" 또는 "더보기"를 입력하면 나머지 내용을 확인할 수 있습니다.`;
     
     console.log(`📄 ${responseType} 응답 분할: 총 ${chunks.length}개 청크, 첫 청크 ${firstChunk.length}자`);
@@ -868,7 +868,7 @@ function handleLongResponse(text, userId, responseType = 'general') {
 async function getLatestNews(query = '오늘 뉴스') {
     try {
         if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
-            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            console.log('[WARN] 네이버 API 키가 설정되지 않았습니다.');
             return null;
         }
         
@@ -879,7 +879,7 @@ async function getLatestNews(query = '오늘 뉴스') {
             sort: 'date'
         };
         
-        console.log(`📡 네이버 뉴스 검색: "${query}"`);
+        console.log(`[SATELLITE] 네이버 뉴스 검색: "${query}"`);
         
         const response = await axios.get(NAVER_NEWS_API_URL, {
             params: params,
@@ -892,11 +892,11 @@ async function getLatestNews(query = '오늘 뉴스') {
         
         const items = response.data.items;
         if (!items || items.length === 0) {
-            console.log('📰 검색된 뉴스가 없습니다.');
+            console.log('[NEWS] 검색된 뉴스가 없습니다.');
             return null;
         }
         
-        console.log(`✅ ${items.length}개의 뉴스를 찾았습니다.`);
+        console.log(`[SUCCESS] ${items.length}개의 뉴스를 찾았습니다.`);
         
         return items.slice(0, 5).map(item => ({
             title: item.title.replace(/<[^>]*>/g, ''),
@@ -906,7 +906,7 @@ async function getLatestNews(query = '오늘 뉴스') {
         }));
         
     } catch (error) {
-        console.error('❌ 네이버 뉴스 API 오류:', error.response?.data || error.message);
+        console.error('[ERROR] 네이버 뉴스 API 오류:', error.response?.data || error.message);
         return null;
     }
 }
@@ -915,7 +915,7 @@ async function getLatestNews(query = '오늘 뉴스') {
 async function getShoppingResults(query) {
     try {
         if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
-            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            console.log('[WARN] 네이버 API 키가 설정되지 않았습니다.');
             return null;
         }
         
@@ -943,7 +943,7 @@ async function getShoppingResults(query) {
             return null;
         }
         
-        console.log(`✅ ${items.length}개의 상품을 찾았습니다.`);
+        console.log(`[SUCCESS] ${items.length}개의 상품을 찾았습니다.`);
         
         return items.slice(0, 5).map((item, index) => ({
             rank: index + 1,
@@ -959,7 +959,7 @@ async function getShoppingResults(query) {
         }));
         
     } catch (error) {
-        console.error('❌ 네이버 쇼핑 API 오류:', error.response?.data || error.message);
+        console.error('[ERROR] 네이버 쇼핑 API 오류:', error.response?.data || error.message);
         return null;
     }
 }
@@ -968,7 +968,7 @@ async function getShoppingResults(query) {
 async function getLocalRestaurants(query) {
     try {
         if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
-            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            console.log('[WARN] 네이버 API 키가 설정되지 않았습니다.');
             return null;
         }
         
@@ -980,7 +980,7 @@ async function getLocalRestaurants(query) {
         };
         
         console.log(`🍽️ 네이버 지역검색: "${query}"`);
-        console.log(`📊 API 요청 파라미터:`, params);
+        console.log(`[INFO] API 요청 파라미터:`, params);
         
         const response = await axios.get(NAVER_LOCAL_API_URL, {
             params: params,
@@ -992,7 +992,7 @@ async function getLocalRestaurants(query) {
         });
         
         console.log(`📈 API 응답 상태: ${response.status}`);
-        console.log(`📊 API 응답 데이터:`, {
+        console.log(`[INFO] API 응답 데이터:`, {
             total: response.data.total || 0,
             start: response.data.start || 0,
             display: response.data.display || 0,
@@ -1002,11 +1002,11 @@ async function getLocalRestaurants(query) {
         const items = response.data.items;
         if (!items || items.length === 0) {
             console.log('🍽️ 검색된 맛집이 없습니다.');
-            console.log(`🔍 API 응답 전체:`, JSON.stringify(response.data, null, 2));
+            console.log(`[SEARCH] API 응답 전체:`, JSON.stringify(response.data, null, 2));
             return null;
         }
         
-        console.log(`✅ ${items.length}개의 원본 결과를 받았습니다.`);
+        console.log(`[SUCCESS] ${items.length}개의 원본 결과를 받았습니다.`);
         
         // 패스트푸드점 및 체인점 필터링 (설정 파일 기반)
         const filteredItems = items.filter(item => {
@@ -1031,7 +1031,7 @@ async function getLocalRestaurants(query) {
             return !hasExcludeKeyword && !hasExcludeCategory;
         });
         
-        console.log(`🔍 필터링 완료: ${items.length}개 → ${filteredItems.length}개 (패스트푸드/체인점 제외)`);
+        console.log(`[SEARCH] 필터링 완료: ${items.length}개 → ${filteredItems.length}개 (패스트푸드/체인점 제외)`);
         
         if (filteredItems.length === 0) {
             console.log('🍽️ 필터링 후 맛집이 없습니다.');
@@ -1060,11 +1060,11 @@ async function getLocalRestaurants(query) {
             return totalScoreB - totalScoreA; // 높은 점수가 우선
         });
         
-        console.log(`📊 인기도순 정렬 완료: ${sortedItems.length}개`);
+        console.log(`[INFO] 인기도순 정렬 완료: ${sortedItems.length}개`);
         
         // 첫 번째 결과 샘플 로깅
         if (sortedItems.length > 0) {
-            console.log(`🏪 첫 번째 결과 샘플:`, {
+            console.log(`[STORE] 첫 번째 결과 샘플:`, {
                 title: sortedItems[0].title?.replace(/<[^>]*>/g, ''),
                 category: sortedItems[0].category,
                 address: sortedItems[0].address
@@ -1085,8 +1085,8 @@ async function getLocalRestaurants(query) {
         }));
         
     } catch (error) {
-        console.error('❌ 네이버 지역검색 API 오류:', error.response?.data || error.message);
-        console.error('🔍 오류 세부사항:', {
+        console.error('[ERROR] 네이버 지역검색 API 오류:', error.response?.data || error.message);
+        console.error('[SEARCH] 오류 세부사항:', {
             status: error.response?.status,
             statusText: error.response?.statusText,
             data: error.response?.data
@@ -1166,36 +1166,36 @@ app.get('/', (req, res) => {
     const hasNaverClientSecret = !!process.env.NAVER_CLIENT_SECRET;
     
     res.send(`
-        <h1>🤖 카카오 챗봇 Claude AI 서버</h1>
+        <h1>[AI] 카카오 챗봇 Claude AI 서버</h1>
         <p><strong>상태:</strong> 정상 실행 중</p>
         <p><strong>현재 시간:</strong> ${koreanTime.formatted}</p>
-        <p><strong>Claude AI API:</strong> ${hasClaudeApiKey ? '✅ 설정됨' : '❌ 미설정'}</p>
-        <p><strong>네이버 검색 API:</strong> ${(hasNaverClientId && hasNaverClientSecret) ? '✅ 설정됨' : '❌ 미설정'}</p>
-        <p><strong>Client ID:</strong> ${hasNaverClientId ? '✅ 설정됨' : '❌ 미설정'}</p>
-        <p><strong>Client Secret:</strong> ${hasNaverClientSecret ? '✅ 설정됨' : '❌ 미설정'}</p>
+        <p><strong>Claude AI API:</strong> ${hasClaudeApiKey ? '[SUCCESS] 설정됨' : '[ERROR] 미설정'}</p>
+        <p><strong>네이버 검색 API:</strong> ${(hasNaverClientId && hasNaverClientSecret) ? '[SUCCESS] 설정됨' : '[ERROR] 미설정'}</p>
+        <p><strong>Client ID:</strong> ${hasNaverClientId ? '[SUCCESS] 설정됨' : '[ERROR] 미설정'}</p>
+        <p><strong>Client Secret:</strong> ${hasNaverClientSecret ? '[SUCCESS] 설정됨' : '[ERROR] 미설정'}</p>
         <hr>
         <p><strong>카카오 스킬 URL:</strong> /kakao-skill-webhook</p>
         <hr>
         <p><strong>기능:</strong></p>
         <ul>
-            <li>🤖 Claude AI 답변 (M4 vs M2 성능비교 등)</li>
-            <li>📰 실시간 뉴스 제공 (예: "오늘 뉴스", "최신 뉴스")</li>
+            <li>[AI] Claude AI 답변 (M4 vs M2 성능비교 등)</li>
+            <li>[NEWS] 실시간 뉴스 제공 (예: "오늘 뉴스", "최신 뉴스")</li>
             <li>🛒 쇼핑 상품 검색 (예: "노트북 추천", "휴대폰 베스트")</li>
             <li>🍽️ 맛집 검색 (예: "강남역 맛집", "홍대 카페")</li>
-            <li>💬 긴 답변 자동 분할 및 "계속" 기능</li>
+            <li>[MSG] 긴 답변 자동 분할 및 "계속" 기능</li>
         </ul>
     `);
 });
 
 // Main webhook endpoint with Claude AI integration
 app.post('/kakao-skill-webhook', async (req, res) => {
-    console.log('🔔 카카오 웹훅 요청 받음!');
+    console.log('[BELL] 카카오 웹훅 요청 받음!');
     console.log('요청 본문:', JSON.stringify(req.body, null, 2));
     
     try {
         const userMessage = req.body.userRequest?.utterance || '';
         const userId = req.body.userRequest?.user?.id || 'anonymous';
-        console.log(`💬 사용자 메시지: '${userMessage}' (ID: ${userId})`);
+        console.log(`[MSG] 사용자 메시지: '${userMessage}' (ID: ${userId})`);
         
         if (!userMessage) {
             const response = {
@@ -1214,7 +1214,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         }
         
         const koreanTime = getKoreanDateTime();
-        console.log(`🕐 현재 한국 시간: ${koreanTime.formatted}`);
+        console.log(`[TIME] 현재 한국 시간: ${koreanTime.formatted}`);
         
         // 키워드 감지 디버깅
         const debugInfo = {
@@ -1263,20 +1263,20 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             };
         }
         
-        console.log(`🔍 키워드 감지 결과:`, debugInfo);
+        console.log(`[SEARCH] 키워드 감지 결과:`, debugInfo);
         
         let responseText;
         
-        // 🧠 컨텍스트 기반 의도 분석 (대화 메모리 활용)
+        // [BRAIN] 컨텍스트 기반 의도 분석 (대화 메모리 활용)
         const analysis = analyzeMessageWithContext(userId, userMessage);
-        console.log(`🧠 의도 분석 결과:`, analysis);
+        console.log(`[BRAIN] 의도 분석 결과:`, analysis);
         
         // 컨텍스트 기반 응답 생성
         if (analysis.needsGuidance) {
             // 질문이 아닌 경우 → 안내 메시지
             const suggestions = analysis.contextInsight.suggestionTopics || ['뉴스 검색', '맛집 추천', '날씨 정보'];
             
-            responseText = `💬 무엇을 도와드릴까요?\n\n🎯 이런 걸 물어보실 수 있어요:\n${suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\n✨ 또는 자유롭게 질문해주세요!\n• 뉴스, 맛집, 쇼핑 검색\n• 영화 평점, 게임 정보\n• 일반적인 질문도 환영!`;
+            responseText = `[MSG] 무엇을 도와드릴까요?\n\n[TARGET] 이런 걸 물어보실 수 있어요:\n${suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\n[SPARKLE] 또는 자유롭게 질문해주세요!\n• 뉴스, 맛집, 쇼핑 검색\n• 영화 평점, 게임 정보\n• 일반적인 질문도 환영!`;
             
             // 대화 히스토리에 저장
             addToConversationHistory(userId, userMessage, responseText, analysis.intent);
@@ -1286,9 +1286,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             console.log('😅 연속된 불만 감지 - 맞춤형 도움 제공');
             
             const helpfulResponses = [
-                `😊 계속 도움이 안 되는 것 같아 죄송해요!\n\n🎯 정확히 뭘 찾고 계신가요?\n• "홍대 맛집" - 맛집 정보\n• "오늘 뉴스" - 최신 뉴스\n• "아이폰 가격" - 쇼핑 정보\n\n💪 구체적으로 말씀해주시면 바로 도와드릴게요!`,
+                `[SMILE] 계속 도움이 안 되는 것 같아 죄송해요!\n\n[TARGET] 정확히 뭘 찾고 계신가요?\n• "홍대 맛집" - 맛집 정보\n• "오늘 뉴스" - 최신 뉴스\n• "아이폰 가격" - 쇼핑 정보\n\n[STRONG] 구체적으로 말씀해주시면 바로 도와드릴게요!`,
                 
-                `🤗 제가 이해를 못한 것 같네요!\n\n💡 이렇게 질문해주시면 도움이 될 거예요:\n• 구체적인 키워드로 (예: "강남 카페")\n• 원하는 정보 명시 (예: "영화 평점")\n• 간단명료하게 (예: "오늘 날씨")\n\n✨ 다시 시도해보세요!`
+                `[HUG] 제가 이해를 못한 것 같네요!\n\n[TIP] 이렇게 질문해주시면 도움이 될 거예요:\n• 구체적인 키워드로 (예: "강남 카페")\n• 원하는 정보 명시 (예: "영화 평점")\n• 간단명료하게 (예: "오늘 날씨")\n\n[SPARKLE] 다시 시도해보세요!`
             ];
             
             responseText = helpfulResponses[Math.floor(Math.random() * helpfulResponses.length)];
@@ -1300,20 +1300,20 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         }
         // 즉시 응답 가능한 간단한 질문들
         else if (/시간|몇시|지금/.test(userMessage)) {
-            responseText = `🕐 현재 시간: ${koreanTime.formatted}\n\n📅 오늘 날짜: ${koreanTime.date}\n\n⚡ 빠른 응답 모드로 답변드렸어요!`;
+            responseText = `[TIME] 현재 시간: ${koreanTime.formatted}\n\n[TOMORROW] 오늘 날짜: ${koreanTime.date}\n\n[LIGHTNING] 빠른 응답 모드로 답변드렸어요!`;
         }
-        // 🧠 새로운 지능형 메시지 분류 시스템 적용
+        // [BRAIN] 새로운 지능형 메시지 분류 시스템 적용
         else {
-            console.log('🧠 지능형 메시지 분류 시스템 시작');
+            console.log('[BRAIN] 지능형 메시지 분류 시스템 시작');
             
             try {
                 // 1단계: 메시지 분류
                 const classification = messageClassifier.classifyMessage(userMessage);
-                console.log('📊 분류 결과:', classification);
+                console.log('[INFO] 분류 결과:', classification);
                 
                 // 2단계: 분류된 카테고리에 따른 데이터 추출
                 const extractionResult = await dataExtractor.extractData(classification);
-                console.log('📋 추출 결과:', extractionResult);
+                console.log('[FORM] 추출 결과:', extractionResult);
                 
                 // 3단계: 결과에 따른 응답 생성
                 if (extractionResult.success) {
@@ -1323,7 +1323,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     addToConversationHistory(userId, userMessage, responseText, classification.category.toLowerCase());
                 } else if (extractionResult.needsAI) {
                     // Claude AI가 필요한 일반 질문인 경우
-                    console.log('🤖 Claude AI 처리 필요한 질문:', extractionResult.data);
+                    console.log('[AI] Claude AI 처리 필요한 질문:', extractionResult.data);
                     responseText = await callClaudeAI(userMessage, userId);
                 } else {
                     // 데이터 추출 실패 시 폴백
@@ -1331,7 +1331,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 }
                 
             } catch (error) {
-                console.error('❌ 메시지 분류/추출 시스템 오류:', error);
+                console.error('[ERROR] 메시지 분류/추출 시스템 오류:', error);
                 
                 // 시스템 오류 시 기존 Claude AI로 폴백
                 responseText = await callClaudeAI(userMessage, userId);
@@ -1340,23 +1340,23 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         // 감사 인사나 칭찬 등 간단한 사회적 응답들
         else if (/고마워|감사|ㄱㅅ|thanks/.test(userMessage)) {
             const thankResponses = [
-                `😊 천만에요! 도움이 되었다니 기뻐요!\n\n💪 앞으로도 더 나은 서비스로 보답하겠습니다!`,
-                `🙏 별말씀을요! 언제든 궁금한 게 있으면 물어보세요!\n\n✨ 저는 항상 여기 있어요!`,
-                `😄 네! 도움이 되어서 다행이에요!\n\n🎯 다음에도 필요한 게 있으면 바로 말씀해주세요!`
+                `[SMILE] 천만에요! 도움이 되었다니 기뻐요!\n\n[STRONG] 앞으로도 더 나은 서비스로 보답하겠습니다!`,
+                `🙏 별말씀을요! 언제든 궁금한 게 있으면 물어보세요!\n\n[SPARKLE] 저는 항상 여기 있어요!`,
+                `😄 네! 도움이 되어서 다행이에요!\n\n[TARGET] 다음에도 필요한 게 있으면 바로 말씀해주세요!`
             ];
             responseText = thankResponses[Math.floor(Math.random() * thankResponses.length)];
         }
         else if (/괜찮아|좋아|잘해|훌륭|완벽/.test(userMessage)) {
             const praiseResponses = [
-                `😊 와! 칭찬해주셔서 감사해요!\n\n💪 더 열심히 해서 항상 만족스러운 답변 드릴게요!`,
-                `🥰 그렇게 말씀해주시니 힘이 나네요!\n\n⚡ 앞으로도 빠르고 정확한 정보로 도와드리겠습니다!`,
-                `😄 칭찬 감사드려요! 정말 기뻐요!\n\n🎯 계속 발전하는 AI가 되도록 노력하겠습니다!`
+                `[SMILE] 와! 칭찬해주셔서 감사해요!\n\n[STRONG] 더 열심히 해서 항상 만족스러운 답변 드릴게요!`,
+                `🥰 그렇게 말씀해주시니 힘이 나네요!\n\n[LIGHTNING] 앞으로도 빠르고 정확한 정보로 도와드리겠습니다!`,
+                `😄 칭찬 감사드려요! 정말 기뻐요!\n\n[TARGET] 계속 발전하는 AI가 되도록 노력하겠습니다!`
             ];
             responseText = praiseResponses[Math.floor(Math.random() * praiseResponses.length)];
         }
-        // ⚠️ 위의 모든 시스템에서 처리되지 않은 경우 Claude AI로 폴백
+        // [WARN] 위의 모든 시스템에서 처리되지 않은 경우 Claude AI로 폴백
         else {
-            console.log('🤖 Claude AI 폴백 처리 시작 (새로운 분류 시스템에서 처리되지 않음)');
+            console.log('[AI] Claude AI 폴백 처리 시작 (새로운 분류 시스템에서 처리되지 않음)');
             responseText = await callClaudeAI(userMessage, userId);
         }
         
@@ -1371,17 +1371,17 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         - 기타 하드코딩된 분기들
         */
         
-        // ⚠️ 응답 길이 최적화 (카카오톡 메시지 길이 제한)
+        // [WARN] 응답 길이 최적화 (카카오톡 메시지 길이 제한)
             
             if (youtubeData) {
                 responseText = await getYouTubeSummary(youtubeData);
             } else {
-                responseText = `📺 유튜브 URL을 찾을 수 없습니다.\n\n💡 올바른 형식:\n• https://www.youtube.com/watch?v=VIDEO_ID\n• https://youtu.be/VIDEO_ID\n\n다시 시도해주세요.`;
+                responseText = `[TV] 유튜브 URL을 찾을 수 없습니다.\n\n[TIP] 올바른 형식:\n• https://www.youtube.com/watch?v=VIDEO_ID\n• https://youtu.be/VIDEO_ID\n\n다시 시도해주세요.`;
             }
         }
         // 영화 평가 요청 처리
         else if (isMovieReviewRequest(userMessage)) {
-            console.log('🎬 영화 평가 요청 감지됨');
+            console.log('[MOVIE] 영화 평가 요청 감지됨');
             
             // 영화 제목 추출 (평가 관련 키워드 제거)
             let movieTitle = userMessage
@@ -1390,14 +1390,14 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             
             // 빈 제목 처리
             if (!movieTitle || movieTitle.length < 2) {
-                responseText = `🎬 영화 평가를 위해 영화 제목을 알려주세요!\n\n💡 올바른 형식:\n• "탑건 영화평"\n• "어벤져스 평점"\n• "기생충 어때?"\n\n다시 시도해주세요.`;
+                responseText = `[MOVIE] 영화 평가를 위해 영화 제목을 알려주세요!\n\n[TIP] 올바른 형식:\n• "탑건 영화평"\n• "어벤져스 평점"\n• "기생충 어때?"\n\n다시 시도해주세요.`;
             } else {
                 responseText = await getMovieReview(movieTitle);
             }
         }
         // 사실 확인 요청 (뉴스 검색으로 처리) - 시간 질문보다 우선
         else if (isFactCheckRequest(userMessage)) {
-            console.log('🔍 사실 확인 요청 감지됨 - 스마트 뉴스 검색으로 처리');
+            console.log('[SEARCH] 사실 확인 요청 감지됨 - 스마트 뉴스 검색으로 처리');
             
             // 핵심 키워드 추출 (인명, 주요 단어)
             let searchKeywords = [];
@@ -1436,14 +1436,14 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 searchKeywords.push('체포');
             }
             
-            console.log(`🔍 추출된 검색 키워드: ${searchKeywords.join(', ')}`);
+            console.log(`[SEARCH] 추출된 검색 키워드: ${searchKeywords.join(', ')}`);
             
             // API 연결 상태 확인
             if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
-                responseText = `❌ 네이버 뉴스 API 설정이 필요합니다.\n\n관리자가 API 키를 확인 중입니다.\n\n💡 임시 확인 방법:\n• 네이버 뉴스에서 직접 검색\n• 구글 뉴스에서 확인`;
-                console.log('❌ 네이버 API 키가 설정되지 않았습니다.');
+                responseText = `[ERROR] 네이버 뉴스 API 설정이 필요합니다.\n\n관리자가 API 키를 확인 중입니다.\n\n[TIP] 임시 확인 방법:\n• 네이버 뉴스에서 직접 검색\n• 구글 뉴스에서 확인`;
+                console.log('[ERROR] 네이버 API 키가 설정되지 않았습니다.');
             } else {
-                console.log(`✅ 네이버 API 키 상태: 설정됨 (${NAVER_CLIENT_ID.length}자)`);
+                console.log(`[SUCCESS] 네이버 API 키 상태: 설정됨 (${NAVER_CLIENT_ID.length}자)`);
                 
                 let newsResults = null;
                 let searchTerm = '';
@@ -1451,21 +1451,21 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 // 4. 다단계 검색 시도
                 for (const keyword of searchKeywords) {
                     searchTerm = keyword;
-                    console.log(`🔍 "${searchTerm}" 검색 시도...`);
+                    console.log(`[SEARCH] "${searchTerm}" 검색 시도...`);
                     newsResults = await getLatestNews(searchTerm);
                     
                     if (newsResults && newsResults.length > 0) {
-                        console.log(`✅ "${searchTerm}" 검색 성공: ${newsResults.length}개 결과`);
+                        console.log(`[SUCCESS] "${searchTerm}" 검색 성공: ${newsResults.length}개 결과`);
                         break;
                     } else {
-                        console.log(`❌ "${searchTerm}" 검색 결과 없음`);
+                        console.log(`[ERROR] "${searchTerm}" 검색 결과 없음`);
                     }
                 }
             
                 // 5. 조합 검색 시도 (단일 키워드 실패 시)
                 if ((!newsResults || newsResults.length === 0) && searchKeywords.length >= 2) {
                     searchTerm = searchKeywords.slice(0, 2).join(' ');
-                    console.log(`🔍 조합 검색 시도: "${searchTerm}"`);
+                    console.log(`[SEARCH] 조합 검색 시도: "${searchTerm}"`);
                     newsResults = await getLatestNews(searchTerm);
                 }
                 
@@ -1505,30 +1505,30 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     }
                     
                     for (const alt of alternatives) {
-                        console.log(`🔍 대안 검색 시도: "${alt}"`);
+                        console.log(`[SEARCH] 대안 검색 시도: "${alt}"`);
                         newsResults = await getLatestNews(alt);
                         if (newsResults && newsResults.length > 0) {
                             searchTerm = alt;
-                            console.log(`✅ 대안 검색 "${alt}" 성공: ${newsResults.length}개 결과`);
+                            console.log(`[SUCCESS] 대안 검색 "${alt}" 성공: ${newsResults.length}개 결과`);
                             break;
                         }
                     }
                 }
                 
                 if (newsResults && newsResults.length > 0) {
-                    let factCheckText = `🔍 "${searchTerm}" 관련 최신 뉴스\n\n`;
+                    let factCheckText = `[SEARCH] "${searchTerm}" 관련 최신 뉴스\n\n`;
                     newsResults.slice(0, 5).forEach((news, index) => {
-                        factCheckText += `${index + 1}. ${news.title}\n${news.description}\n🕐 ${news.pubDate}\n🔗 ${news.link}\n\n`;
+                        factCheckText += `${index + 1}. ${news.title}\n${news.description}\n[TIME] ${news.pubDate}\n[LINK] ${news.link}\n\n`;
                     });
                     
                     if (factCheckText.length > config.limits.message_max_length) {
-                        factCheckText = factCheckText.substring(0, config.limits.message_truncate_length) + '...\n\n📰 더 자세한 정보는 네이버 뉴스에서 확인하세요.';
+                        factCheckText = factCheckText.substring(0, config.limits.message_truncate_length) + '...\n\n[NEWS] 더 자세한 정보는 네이버 뉴스에서 확인하세요.';
                     }
                     
                     responseText = factCheckText;
                 } else {
                     const mainKeyword = searchKeywords[0] || '관련 인물';
-                    responseText = `🔍 "${searchKeywords.join(', ')}" 관련 최신 뉴스를 찾을 수 없습니다.\n\n💡 확인 방법:\n• 네이버 뉴스에서 "${mainKeyword}" 직접 검색\n• 구글 뉴스에서 검색\n• 공식 소스나 신뢰할 수 있는 언론사 확인\n\n📊 네이버 API 연결 상태: ${NAVER_CLIENT_ID ? '정상' : '오류'}\n\n최신 뉴스가 없다는 것은 해당 사실이 발생하지 않았을 가능성이 높습니다.`;
+                    responseText = `[SEARCH] "${searchKeywords.join(', ')}" 관련 최신 뉴스를 찾을 수 없습니다.\n\n[TIP] 확인 방법:\n• 네이버 뉴스에서 "${mainKeyword}" 직접 검색\n• 구글 뉴스에서 검색\n• 공식 소스나 신뢰할 수 있는 언론사 확인\n\n[INFO] 네이버 API 연결 상태: ${NAVER_CLIENT_ID ? '정상' : '오류'}\n\n최신 뉴스가 없다는 것은 해당 사실이 발생하지 않았을 가능성이 높습니다.`;
                 }
             }
         }
@@ -1542,13 +1542,13 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         }
         // 네이버 뉴스 검색
         else if (isNewsRequest(userMessage)) {
-            console.log('📰 뉴스 요청 감지됨');
+            console.log('[NEWS] 뉴스 요청 감지됨');
             const newsResults = await getLatestNews(userMessage);
             
             if (newsResults && newsResults.length > 0) {
-                let newsText = `📰 최신 뉴스 (${newsResults.length}개)\n\n`;
+                let newsText = `[NEWS] 최신 뉴스 (${newsResults.length}개)\n\n`;
                 newsResults.forEach((news, index) => {
-                    newsText += `${index + 1}. ${news.title}\n${news.description}\n🔗 ${news.link}\n\n`;
+                    newsText += `${index + 1}. ${news.title}\n${news.description}\n[LINK] ${news.link}\n\n`;
                 });
                 
                 if (newsText.length > config.limits.message_max_length) {
@@ -1595,7 +1595,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 shoppingResults.slice(0, config.limits.search_results_count).forEach((product, index) => {
                     // 가격을 더 눈에 띄게 표시
                     const priceDisplay = product.price !== '가격정보없음' ? `💰 ${product.price}` : '💰 가격문의';
-                    shoppingText += `${index + 1}. ${product.title}\n${priceDisplay}\n🏪 ${product.mallName}\n🔗 ${product.link}\n\n`;
+                    shoppingText += `${index + 1}. ${product.title}\n${priceDisplay}\n[STORE] ${product.mallName}\n[LINK] ${product.link}\n\n`;
                 });
                 
                 if (shoppingText.length > config.limits.message_max_length) {
@@ -1652,10 +1652,10 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             if (foundLocation) {
                 // 지역명이 있으면 "지역명 + 맛집"으로 검색
                 searchQuery = `${foundLocation} 맛집`;
-                console.log(`🔍 최적화된 검색어: "${searchQuery}" (원본: "${userMessage}", 추출된 지역: "${foundLocation}")`);
+                console.log(`[SEARCH] 최적화된 검색어: "${searchQuery}" (원본: "${userMessage}", 추출된 지역: "${foundLocation}")`);
             } else {
                 // 지역명을 못 찾았으면 원본 메시지 그대로 사용
-                console.log(`🔍 지역명 추출 실패, 원본 검색어 사용: "${searchQuery}"`);
+                console.log(`[SEARCH] 지역명 추출 실패, 원본 검색어 사용: "${searchQuery}"`);
             }
             
             const restaurantResults = await getLocalRestaurants(searchQuery);
@@ -1666,7 +1666,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 let restaurantText = `🍽️ "${displayLocation}" 맛집 검색 결과\n\n`;
                 
                 restaurantResults.slice(0, config.limits.search_results_count).forEach((restaurant, index) => {
-                    restaurantText += `${index + 1}. ${restaurant.title}\n📍 ${restaurant.address}\n📞 ${restaurant.telephone}\n🏷️ ${restaurant.category}\n🔗 ${restaurant.link}\n\n`;
+                    restaurantText += `${index + 1}. ${restaurant.title}\n[LOCATION] ${restaurant.address}\n[CALL] ${restaurant.telephone}\n[LABEL] ${restaurant.category}\n[LINK] ${restaurant.link}\n\n`;
                 });
                 
                 if (restaurantText.length > config.limits.message_max_length) {
@@ -1676,7 +1676,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 responseText = restaurantText;
             } else {
                 // 첫 번째 검색 실패 시 다양한 방법으로 재시도
-                console.log(`🔄 첫 번째 검색 실패, 스마트 재시도 시작...`);
+                console.log(`[LOADING] 첫 번째 검색 실패, 스마트 재시도 시작...`);
                 
                 let retryResults = null;
                 let retryQuery = userMessage;
@@ -1704,13 +1704,13 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                             if (retryResults && retryResults.length > 0) break;
                             
                             retryQuery = term ? `${location} ${term}` : location;
-                            console.log(`🔍 재시도: "${retryQuery}"`);
+                            console.log(`[SEARCH] 재시도: "${retryQuery}"`);
                             retryAttempts.push(retryQuery);
                             
                             retryResults = await getLocalRestaurants(retryQuery);
                             
                             if (retryResults && retryResults.length > 0) {
-                                console.log(`✅ 성공한 검색어: "${retryQuery}"`);
+                                console.log(`[SUCCESS] 성공한 검색어: "${retryQuery}"`);
                                 break;
                             }
                         }
@@ -1753,13 +1753,13 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                                 if (retryResults && retryResults.length > 0) break;
                                 
                                 retryQuery = `${broadSearch} ${keyword}`;
-                                console.log(`🔍 확장 검색: "${retryQuery}"`);
+                                console.log(`[SEARCH] 확장 검색: "${retryQuery}"`);
                                 retryAttempts.push(retryQuery);
                                 
                                 retryResults = await getLocalRestaurants(retryQuery);
                                 
                                 if (retryResults && retryResults.length > 0) {
-                                    console.log(`✅ 확장 검색 성공: "${retryQuery}"`);
+                                    console.log(`[SUCCESS] 확장 검색 성공: "${retryQuery}"`);
                                     break;
                                 }
                             }
@@ -1790,25 +1790,25 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                             if (retryResults && retryResults.length > 0) break;
                             
                             retryQuery = `${area} 맛집`;
-                            console.log(`🔍 인근 지역 검색: "${retryQuery}"`);
+                            console.log(`[SEARCH] 인근 지역 검색: "${retryQuery}"`);
                             retryAttempts.push(retryQuery);
                             
                             retryResults = await getLocalRestaurants(retryQuery);
                             
                             if (retryResults && retryResults.length > 0) {
-                                console.log(`✅ 인근 지역 검색 성공: "${retryQuery}" (${foundLocation} 대신)`);
+                                console.log(`[SUCCESS] 인근 지역 검색 성공: "${retryQuery}" (${foundLocation} 대신)`);
                                 break;
                             }
                         }
                     }
                 } else {
                     // 지역명을 못 찾은 경우 원본 메시지로 재시도
-                    console.log(`🔍 지역명 없이 원본 메시지로 재시도: "${userMessage}"`);
+                    console.log(`[SEARCH] 지역명 없이 원본 메시지로 재시도: "${userMessage}"`);
                     retryAttempts.push(userMessage);
                     retryResults = await getLocalRestaurants(userMessage);
                 }
                 
-                console.log(`📊 총 ${retryAttempts.length}번의 재시도 완료:`, retryAttempts);
+                console.log(`[INFO] 총 ${retryAttempts.length}번의 재시도 완료:`, retryAttempts);
                 
                 if (retryResults && retryResults.length > 0) {
                     // 성공한 검색어에서 키워드 추출해서 사용자에게 표시
@@ -1819,11 +1819,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     
                     // 원래 요청과 다른 검색어로 찾았다면 알림 추가
                     if (retryQuery !== searchQuery) {
-                        restaurantText += `💡 "${successfulSearchTerm}" 지역 맛집을 찾았습니다\n\n`;
+                        restaurantText += `[TIP] "${successfulSearchTerm}" 지역 맛집을 찾았습니다\n\n`;
                     }
                     
                     retryResults.slice(0, config.limits.search_results_count).forEach((restaurant, index) => {
-                        restaurantText += `${index + 1}. ${restaurant.title}\n📍 ${restaurant.address}\n📞 ${restaurant.telephone}\n🏷️ ${restaurant.category}\n🔗 ${restaurant.link}\n\n`;
+                        restaurantText += `${index + 1}. ${restaurant.title}\n[LOCATION] ${restaurant.address}\n[CALL] ${restaurant.telephone}\n[LABEL] ${restaurant.category}\n[LINK] ${restaurant.link}\n\n`;
                     });
                     
                     if (restaurantText.length > config.limits.message_max_length) {
@@ -1833,7 +1833,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     responseText = restaurantText;
                 } else {
                     // 모든 재시도 실패 - 더 구체적인 안내
-                    console.log(`❌ 모든 검색 시도 실패. 시도한 검색어들:`, retryAttempts);
+                    console.log(`[ERROR] 모든 검색 시도 실패. 시도한 검색어들:`, retryAttempts);
                     
                     if (foundLocation) {
                         // 지역명 기반 대안 제시
@@ -1855,9 +1855,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                         // 중복 제거 후 최대 4개만
                         const uniqueAlternatives = [...new Set(alternatives)].slice(0, 4);
                         
-                        responseText = `"${foundLocation}" 지역 검색 결과가 없습니다.\n\n💡 이렇게 검색해보세요:\n${uniqueAlternatives.map(alt => `• ${alt}`).join('\n')}\n\n또는 더 큰 지역명 (예: 강북구→강북)으로 시도해보세요.`;
+                        responseText = `"${foundLocation}" 지역 검색 결과가 없습니다.\n\n[TIP] 이렇게 검색해보세요:\n${uniqueAlternatives.map(alt => `• ${alt}`).join('\n')}\n\n또는 더 큰 지역명 (예: 강북구→강북)으로 시도해보세요.`;
                     } else {
-                        responseText = `"${userMessage}" 검색 결과가 없습니다.\n\n💡 검색 팁:\n• "지역명 + 맛집" (예: 강남 맛집)\n• "구/동 + 맛집" (예: 강북구 맛집)\n• "역 + 맛집" (예: 강북역 맛집)\n• "지역명 + 음식종류" (예: 홍대 카페)`;
+                        responseText = `"${userMessage}" 검색 결과가 없습니다.\n\n[TIP] 검색 팁:\n• "지역명 + 맛집" (예: 강남 맛집)\n• "구/동 + 맛집" (예: 강북구 맛집)\n• "역 + 맛집" (예: 강북역 맛집)\n• "지역명 + 음식종류" (예: 홍대 카페)`;
                     }
                 }
             }
@@ -1865,7 +1865,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         // 맥미니 가격 관련 질문은 쇼핑 검색으로 처리되므로 제외
         // 맥미니 관련 질문 - 최신 정보로 Claude API 사용 (가격 질문 제외)
         else if (userMessage.includes('맥미니') && (userMessage.includes('최신') || userMessage.includes('M4') || userMessage.includes('m4') || userMessage.includes('M2') || userMessage.includes('m2')) && !config.shopping.price_keywords.some(keyword => userMessage.includes(keyword))) {
-            console.log('✅ 맥미니 관련 질문 - Claude API로 최신 정보 검색');
+            console.log('[SUCCESS] 맥미니 관련 질문 - Claude API로 최신 정보 검색');
             const startTime = Date.now();
             
             try {
@@ -1891,7 +1891,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                         system: `한국어 800자 이내. M4 맥미니 최신. ${currentDate}
 
 ${hasMacSpecialCalling || isMacFrustrated ? `
-🤖 사용자 화남. 친근 사과 톤: 😅 죄송해요! [맥미니 답변] 💪 더 나은 답변!
+[AI] 사용자 화남. 친근 사과 톤: 😅 죄송해요! [맥미니 답변] [STRONG] 더 나은 답변!
 ` : '맥미니 정확 정보. 이모지 사용.'}`,
                         messages: [{
                             role: "user",
@@ -1911,7 +1911,7 @@ ${hasMacSpecialCalling || isMacFrustrated ? `
                 
                 const responseTime = Date.now() - startTime;
                 responseText = claudeResponse.data.content[0].text;
-                console.log(`✅ 맥미니 Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
+                console.log(`[SUCCESS] 맥미니 Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
                 
                 // 응답 후처리: 카카오톡에 맞게 최적화
                 if (responseText.length > config.limits.message_max_length) {
@@ -1922,12 +1922,12 @@ ${hasMacSpecialCalling || isMacFrustrated ? `
                         truncated += sentence + '. ';
                     }
                     responseText = truncated.trim();
-                    console.log(`📝 맥미니 응답 길이 조정: ${responseText.length}자로 단축`);
+                    console.log(`[MEMO] 맥미니 응답 길이 조정: ${responseText.length}자로 단축`);
                 }
                 
             } catch (error) {
                 const responseTime = Date.now() - startTime;
-                console.log(`⚠️ 맥미니 Claude API 에러 (${responseTime}ms):`, error.message);
+                console.log(`[WARN] 맥미니 Claude API 에러 (${responseTime}ms):`, error.message);
                 
                 // 에러 시 백업 최신 정보
                 responseText = `🖥️ 맥미니 최신 정보 (2024년 말 기준)
@@ -1939,17 +1939,17 @@ ${hasMacSpecialCalling || isMacFrustrated ? `
 • 저장용량: 최대 8TB SSD
 • 가격: 기본형 약 95만원
 
-📊 **M2와 비교**
+[INFO] **M2와 비교**
 • 성능: 전체적으로 20-25% 향상
 • AI 작업: 훨씬 빠른 처리 속도
 • 게임: Ray Tracing으로 그래픽 향상
 
-💡 M4가 현재 **최신 맥미니**입니다!`;
+[TIP] M4가 현재 **최신 맥미니**입니다!`;
             }
         }
         // Claude API를 통한 일반 질문 처리 (카카오톡 최적화)
         else {
-            console.log('✅ Claude API 호출 시작...');
+            console.log('[SUCCESS] Claude API 호출 시작...');
             const startTime = Date.now();
             
             try {
@@ -2012,7 +2012,7 @@ ${hasMacSpecialCalling || isMacFrustrated ? `
                     
                     if (gameName) {
                         try {
-                            console.log(`🔍 "${gameName}" 게임 정보 검색 시작...`);
+                            console.log(`[SEARCH] "${gameName}" 게임 정보 검색 시작...`);
                             
                             // 1단계: 나무위키에서 기본 게임 정보 가져오기 (우선순위)
                             let namuWikiInfo = null;
@@ -2041,21 +2041,21 @@ ${hasMacSpecialCalling || isMacFrustrated ? `
                                 const results = await getLatestNews(searchTerm);
                                 if (results && results.length > 0) {
                                     searchResults.push(...results);
-                                    console.log(`✅ "${searchTerm}" 검색 성공: ${results.length}개 결과`);
+                                    console.log(`[SUCCESS] "${searchTerm}" 검색 성공: ${results.length}개 결과`);
                                     break; // 첫 번째 성공한 검색으로 충분
                                 }
                             }
                             
                             // 검색 결과가 부족하면 추가 검색
                             if (searchResults.length < 2) {
-                                console.log(`🔄 추가 뉴스 검색 (현재 ${searchResults.length}개)`);
+                                console.log(`[LOADING] 추가 뉴스 검색 (현재 ${searchResults.length}개)`);
                                 const secondarySearches = [`${gameName} 리뷰`, `${gameName} 평가`];
                                 
                                 for (const searchTerm of secondarySearches) {
                                     const results = await getLatestNews(searchTerm);
                                     if (results && results.length > 0) {
                                         searchResults.push(...results);
-                                        console.log(`✅ "${searchTerm}" 추가 검색: ${results.length}개 결과`);
+                                        console.log(`[SUCCESS] "${searchTerm}" 추가 검색: ${results.length}개 결과`);
                                         if (searchResults.length >= 3) break; // 충분한 결과 확보
                                     }
                                 }
@@ -2078,7 +2078,7 @@ ${hasMacSpecialCalling || isMacFrustrated ? `
                             
                             searchResults = uniqueResults.slice(0, 10); // 최대 10개까지
                             
-                            console.log(`📊 "${gameName}" 검색 완료: ${searchResults.length}개 결과`);
+                            console.log(`[INFO] "${gameName}" 검색 완료: ${searchResults.length}개 결과`);
                             
                             // 검색 결과 요약 생성 (나무위키 + 네이버 뉴스)
                             gameSearchSummary = '';
@@ -2088,33 +2088,33 @@ ${hasMacSpecialCalling || isMacFrustrated ? `
                             }
                             
                             if (searchResults.length > 0) {
-                                gameSearchSummary += `📰 최신 뉴스 (${searchResults.length}개):\n`;
+                                gameSearchSummary += `[NEWS] 최신 뉴스 (${searchResults.length}개):\n`;
                                 searchResults.slice(0, 3).forEach((result, index) => {
                                     gameSearchSummary += `${index + 1}. ${result.title}\n`;
                                 });
                             }
                             
                             if (!namuWikiInfo && searchResults.length === 0) {
-                                gameSearchSummary = `❌ "${gameName}"에 대한 정보를 찾을 수 없습니다.\n`;
+                                gameSearchSummary = `[ERROR] "${gameName}"에 대한 정보를 찾을 수 없습니다.\n`;
                             }
                             
                         } catch (error) {
-                            console.log(`❌ 게임 정보 검색 오류: ${error.message}`);
-                            gameSearchSummary = `⚠️ 검색 중 오류가 발생했습니다. Claude AI 직접 판단으로 전환합니다.\n`;
+                            console.log(`[ERROR] 게임 정보 검색 오류: ${error.message}`);
+                            gameSearchSummary = `[WARN] 검색 중 오류가 발생했습니다. Claude AI 직접 판단으로 전환합니다.\n`;
                             
                             // 검색 실패 시 Claude AI에게 직접 질문 던지기
                             searchResults = null;
                             namuWikiInfo = null;
-                            console.log(`🔄 검색 실패, Claude AI 직접 판단 모드로 전환`);
+                            console.log(`[LOADING] 검색 실패, Claude AI 직접 판단 모드로 전환`);
                         }
                     } else {
-                        console.log(`⚠️ 게임명을 추출할 수 없습니다: "${userMessage}"`);
+                        console.log(`[WARN] 게임명을 추출할 수 없습니다: "${userMessage}"`);
                         gameSearchSummary = `❓ 게임명을 정확히 파악하기 어려워 Claude AI 직접 판단으로 전환합니다.\n`;
                         
                         // 게임명 추출 실패 시도 Claude AI에게 직접 질문 던지기
                         searchResults = null;
                         namuWikiInfo = null;
-                        console.log(`🔄 게임명 추출 실패, Claude AI 직접 판단 모드로 전환`);
+                        console.log(`[LOADING] 게임명 추출 실패, Claude AI 직접 판단 모드로 전환`);
                     }
                 }
                 
@@ -2130,8 +2130,8 @@ ${hasMacSpecialCalling || isMacFrustrated ? `
                         system: `한국어로 800자 이내 간결 답변. ${currentDate}
 
 ${hasSpecialCalling || isFrustrated || isDownOrSilent ? `
-🤖 사용자 화남. 친근하고 사과하는 톤 필수.
-형식: 😅 죄송해요! [답변] 💪 더 나은 답변 드리겠습니다!
+[AI] 사용자 화남. 친근하고 사과하는 톤 필수.
+형식: 😅 죄송해요! [답변] [STRONG] 더 나은 답변 드리겠습니다!
 ` : '빠른 정확한 답변. 이모지 사용.'}
 
 ${namuWikiInfo || (searchResults && searchResults.length > 0) ? `🎮 게임 정보 검색 결과:
@@ -2139,13 +2139,13 @@ ${namuWikiInfo || (searchResults && searchResults.length > 0) ? `🎮 게임 정
 ${namuWikiInfo ? `🌳 나무위키 상세 정보:
 ${namuWikiInfo}
 
-` : ''}${searchResults && searchResults.length > 0 ? `📰 최신 뉴스 정보:
+` : ''}${searchResults && searchResults.length > 0 ? `[NEWS] 최신 뉴스 정보:
 ${gameSearchSummary}
 
 상세 뉴스:
 ${searchResults.slice(0, 3).map((item, index) => `${index + 1}. ${item.title}\n   ${item.description || '설명 없음'}`).join('\n\n')}` : ''}
 
-위 검색 결과를 바탕으로 정확하고 유용한 답변을 제공하세요.` : `🔄 검색 시스템에서 정보를 찾지 못했습니다.
+위 검색 결과를 바탕으로 정확하고 유용한 답변을 제공하세요.` : `[LOADING] 검색 시스템에서 정보를 찾지 못했습니다.
 ${gameSearchSummary}
 
 검색 실패로 인해 내장된 지식으로 답변합니다. 알고 있는 정보 범위 내에서 게임에 대해 설명하되, 2024년 이후 최신 정보는 제한적일 수 있음을 알려주세요.
@@ -2153,7 +2153,7 @@ ${gameSearchSummary}
 답변 형식:
 🎮 [게임명]에 대해 알고 있는 정보를 바탕으로 설명드립니다.
 [게임 정보 설명]
-⚠️ 단, 2024년 이후 최신 정보는 제한적일 수 있습니다.`}`,
+[WARN] 단, 2024년 이후 최신 정보는 제한적일 수 있습니다.`}`,
                         messages: [{
                             role: "user",
                             content: userMessage
@@ -2172,7 +2172,7 @@ ${gameSearchSummary}
                 
                 const responseTime = Date.now() - startTime;
                 responseText = claudeResponse.data.content[0].text;
-                console.log(`✅ Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
+                console.log(`[SUCCESS] Claude 응답 받음 (${responseText.length}자, ${responseTime}ms)`);
                 
                 // 응답 후처리: 카카오톡에 맞게 최적화
                 if (responseText.length > config.limits.message_max_length) {
@@ -2184,12 +2184,12 @@ ${gameSearchSummary}
                         truncated += sentence + '. ';
                     }
                     responseText = truncated.trim();
-                    console.log(`📝 응답 길이 조정: ${responseText.length}자로 단축`);
+                    console.log(`[MEMO] 응답 길이 조정: ${responseText.length}자로 단축`);
                 }
                 
             } catch (error) {
                 const responseTime = Date.now() - startTime;
-                console.log(`⚠️ Claude API 에러 (${responseTime}ms):`, {
+                console.log(`[WARN] Claude API 에러 (${responseTime}ms):`, {
                     message: error.message,
                     status: error.response?.status,
                     statusText: error.response?.statusText,
@@ -2201,13 +2201,13 @@ ${gameSearchSummary}
                 });
                 
                 if (error.response?.status === 401) {
-                    responseText = `🔑 AI 서비스 인증에 문제가 있습니다.\n\n관리자에게 문의해주세요.`;
+                    responseText = `[KEY] AI 서비스 인증에 문제가 있습니다.\n\n관리자에게 문의해주세요.`;
                 } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
                     // 게임 정보 요청인 경우 검색 결과라도 제공
                     if (isGameInfoRequest && searchResults && searchResults.length > 0) {
-                        responseText = `🎮 AI 처리 시간이 초과되었지만, 검색된 정보를 제공드립니다:\n\n${gameSearchSummary}\n💡 더 자세한 정보는 위 검색 결과를 참고해주세요.`;
+                        responseText = `🎮 AI 처리 시간이 초과되었지만, 검색된 정보를 제공드립니다:\n\n${gameSearchSummary}\n[TIP] 더 자세한 정보는 위 검색 결과를 참고해주세요.`;
                     } else {
-                        responseText = `⏰ AI 응답 시간이 초과되었습니다.\n\n게임 정보 검색은 정상 작동하지만 AI 처리에서 지연이 발생했습니다.\n다시 시도해주세요.`;
+                        responseText = `[CLOCK] AI 응답 시간이 초과되었습니다.\n\n게임 정보 검색은 정상 작동하지만 AI 처리에서 지연이 발생했습니다.\n다시 시도해주세요.`;
                     }
                 } else if (error.response?.status === 429) {
                     responseText = `🚫 AI 사용량 한도에 도달했습니다.\n\n잠시 후 다시 시도해주세요.`;
@@ -2216,20 +2216,20 @@ ${gameSearchSummary}
                 } else {
                     // 게임 정보 요청인 경우 안전한 에러 메시지
                     if (isGameInfoRequest) {
-                        responseText = `🎮 죄송합니다. AI 서비스 오류로 게임 정보를 처리할 수 없습니다.\n\n${gameSearchSummary || ''}💡 정확한 게임 정보를 원하시면:\n• 네이버에서 "게임명 + 리뷰" 검색\n• 스팀, 플레이스토어 등 공식 스토어 확인\n• 게임 공식 웹사이트 방문\n\n네이버 검색 API를 통한 실시간 정보 제공을 목표로 하고 있습니다.`;
+                        responseText = `🎮 죄송합니다. AI 서비스 오류로 게임 정보를 처리할 수 없습니다.\n\n${gameSearchSummary || ''}[TIP] 정확한 게임 정보를 원하시면:\n• 네이버에서 "게임명 + 리뷰" 검색\n• 스팀, 플레이스토어 등 공식 스토어 확인\n• 게임 공식 웹사이트 방문\n\n네이버 검색 API를 통한 실시간 정보 제공을 목표로 하고 있습니다.`;
                     } else {
-                        responseText = `⚠️ AI 서비스가 일시 불안정합니다.\n\n잠시 후 다시 시도해주세요.`;
+                        responseText = `[WARN] AI 서비스가 일시 불안정합니다.\n\n잠시 후 다시 시도해주세요.`;
                     }
                 }
             }
         }
         
-        console.log(`📝 응답 내용: ${responseText.substring(0, 100)}...`);
+        console.log(`[MEMO] 응답 내용: ${responseText.substring(0, 100)}...`);
         
         // 메시지 길이 제한 (카카오톡 호환성)
         if (responseText.length > config.limits.message_max_length) {
             responseText = responseText.substring(0, config.limits.message_max_length - 3) + '...';
-            console.log(`⚠️ 메시지가 길어서 ${config.limits.message_max_length}자로 제한됨`);
+            console.log(`[WARN] 메시지가 길어서 ${config.limits.message_max_length}자로 제한됨`);
         }
         
         const kakaoResponse = {
@@ -2243,7 +2243,7 @@ ${gameSearchSummary}
             }
         };
         
-        // 🧠 대화 히스토리 저장 (응답 생성 완료 후)
+        // [BRAIN] 대화 히스토리 저장 (응답 생성 완료 후)
         if (userId && userMessage && responseText) {
             try {
                 // 기존 분석이 있으면 사용, 없으면 새로 분석
@@ -2262,27 +2262,27 @@ ${gameSearchSummary}
                 
                 console.log(`💾 현재 메모리: 대화기록 ${conversationMemory.size}명, 패턴 ${userPatterns.size}명`);
             } catch (error) {
-                console.log(`⚠️ 대화 히스토리 저장 오류: ${error.message}`);
+                console.log(`[WARN] 대화 히스토리 저장 오류: ${error.message}`);
             }
         }
         
-        console.log(`📤 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2)}`);
+        console.log(`[OUTBOX] 카카오 응답 전송: ${JSON.stringify(kakaoResponse, null, 2)}`);
         
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.status(200).json(kakaoResponse);
-        console.log('✅ 카카오 웹훅 응답 전송 완료');
+        console.log('[SUCCESS] 카카오 웹훅 응답 전송 완료');
         
     } catch (error) {
-        console.error('❌ 웹훅 처리 중 전체 오류:', error);
+        console.error('[ERROR] 웹훅 처리 중 전체 오류:', error);
         
         // 게임 정보 요청이었는지 확인
         const isGameQuestion = userMessage && userMessage.includes('게임') && config.shopping.review_keywords.some(keyword => userMessage.includes(keyword));
         
         let errorMessage;
         if (isGameQuestion) {
-            errorMessage = `🎮 게임 정보 검색 중 오류가 발생했습니다.\n\n💡 다시 시도해주시거나:\n• "게임명 + 어때" 형식으로 질문\n• 네이버에서 직접 검색\n\n검색 시스템을 개선하고 있습니다.`;
+            errorMessage = `🎮 게임 정보 검색 중 오류가 발생했습니다.\n\n[TIP] 다시 시도해주시거나:\n• "게임명 + 어때" 형식으로 질문\n• 네이버에서 직접 검색\n\n검색 시스템을 개선하고 있습니다.`;
         } else {
-            errorMessage = `⚠️ 서비스 처리 중 오류가 발생했습니다.\n\n잠시 후 다시 시도해주세요.\n문제가 지속되면 더 간단한 질문으로 시도해보세요.`;
+            errorMessage = `[WARN] 서비스 처리 중 오류가 발생했습니다.\n\n잠시 후 다시 시도해주세요.\n문제가 지속되면 더 간단한 질문으로 시도해보세요.`;
         }
         
         const errorResponse = {
@@ -2302,7 +2302,7 @@ ${gameSearchSummary}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`✅ 서버가 포트 ${PORT}에서 실행 중입니다.`);
-    console.log(`🔑 Claude API 키 상태: ${process.env.CLAUDE_API_KEY ? '설정됨 (' + process.env.CLAUDE_API_KEY.length + '자)' : '미설정'}`);
-    console.log(`📡 네이버 API 키 상태: ${(process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) ? '설정됨' : '미설정'}`);
+    console.log(`[SUCCESS] 서버가 포트 ${PORT}에서 실행 중입니다.`);
+    console.log(`[KEY] Claude API 키 상태: ${process.env.CLAUDE_API_KEY ? '설정됨 (' + process.env.CLAUDE_API_KEY.length + '자)' : '미설정'}`);
+    console.log(`[SATELLITE] 네이버 API 키 상태: ${(process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) ? '설정됨' : '미설정'}`);
 });

@@ -104,7 +104,7 @@ class ComprehensiveDataVerifier {
     }
 
     async checkAllMovies() {
-        console.log('🔍 전체 데이터베이스 영화 데이터 검증 시작...\n');
+        console.log('[SEARCH] 전체 데이터베이스 영화 데이터 검증 시작...\n');
 
         let offset = 0;
         const batchSize = 100;
@@ -115,16 +115,16 @@ class ComprehensiveDataVerifier {
             .select('id', { count: 'exact' });
 
         if (totalError) {
-            console.log(`❌ 전체 수 조회 실패: ${totalError.message}`);
+            console.log(`[ERROR] 전체 수 조회 실패: ${totalError.message}`);
             return;
         }
 
         this.totalMovies = totalData.length;
-        console.log(`📊 전체 영화 수: ${this.totalMovies}개`);
-        console.log('🎯 검증 기준: 외국/한국 영화 감독/배우 매칭 오류 탐지\n');
+        console.log(`[INFO] 전체 영화 수: ${this.totalMovies}개`);
+        console.log('[TARGET] 검증 기준: 외국/한국 영화 감독/배우 매칭 오류 탐지\n');
 
         while (offset < this.totalMovies) {
-            console.log(`📦 배치 ${Math.floor(offset / batchSize) + 1} 검증 중... (${offset + 1} ~ ${Math.min(offset + batchSize, this.totalMovies)})`);
+            console.log(`[PACKAGE] 배치 ${Math.floor(offset / batchSize) + 1} 검증 중... (${offset + 1} ~ ${Math.min(offset + batchSize, this.totalMovies)})`);
 
             const { data: movies, error } = await this.supabase
                 .from('movies')
@@ -133,7 +133,7 @@ class ComprehensiveDataVerifier {
                 .order('id');
 
             if (error) {
-                console.log(`❌ 배치 조회 실패: ${error.message}`);
+                console.log(`[ERROR] 배치 조회 실패: ${error.message}`);
                 offset += batchSize;
                 continue;
             }
@@ -161,7 +161,7 @@ class ComprehensiveDataVerifier {
                         problems: problems
                     });
 
-                    console.log(`   ⚠️ ID ${movie.id}: "${movie.title}" - ${problems.length}개 문제 발견`);
+                    console.log(`   [WARN] ID ${movie.id}: "${movie.title}" - ${problems.length}개 문제 발견`);
                     problems.forEach(problem => {
                         console.log(`      🚨 ${problem.reason}`);
                     });
@@ -183,12 +183,12 @@ class ComprehensiveDataVerifier {
 
     generateReport() {
         console.log('\n' + '='.repeat(80));
-        console.log('📊 전체 데이터베이스 검증 결과');
+        console.log('[INFO] 전체 데이터베이스 검증 결과');
         console.log('='.repeat(80));
-        console.log(`🎬 전체 검사한 영화: ${this.checkedCount}개`);
-        console.log(`❌ 문제 발견된 영화: ${this.problemMovies.length}개`);
-        console.log(`✅ 정상 영화: ${this.checkedCount - this.problemMovies.length}개`);
-        console.log(`📊 데이터 정확도: ${Math.round(((this.checkedCount - this.problemMovies.length) / this.checkedCount) * 100)}%`);
+        console.log(`[MOVIE] 전체 검사한 영화: ${this.checkedCount}개`);
+        console.log(`[ERROR] 문제 발견된 영화: ${this.problemMovies.length}개`);
+        console.log(`[SUCCESS] 정상 영화: ${this.checkedCount - this.problemMovies.length}개`);
+        console.log(`[INFO] 데이터 정확도: ${Math.round(((this.checkedCount - this.problemMovies.length) / this.checkedCount) * 100)}%`);
 
         if (this.problemMovies.length > 0) {
             console.log('\n🚨 주요 문제점들:');
@@ -213,7 +213,7 @@ class ComprehensiveDataVerifier {
                 console.log(`   ${typeNames[type] || type}: ${count}개`);
             });
 
-            console.log('\n📋 문제 영화 샘플 (처음 20개):');
+            console.log('\n[FORM] 문제 영화 샘플 (처음 20개):');
             this.problemMovies.slice(0, 20).forEach((movie, index) => {
                 console.log(`${index + 1}. ID ${movie.id}: "${movie.title}"`);
                 console.log(`   감독: ${movie.director} | 출연진: ${movie.cast_members.slice(0, 3).join(', ')}`);
@@ -225,7 +225,7 @@ class ComprehensiveDataVerifier {
             this.saveProblemsToFile();
         }
 
-        console.log('\n💡 다음 단계:');
+        console.log('\n[TIP] 다음 단계:');
         console.log('1. 실제 영화 API/크롤링으로 정확한 정보 수집');
         console.log('2. 문제 영화들을 실제 데이터로 일괄 교체');
         console.log('3. 전체 데이터 재검증');
@@ -253,11 +253,11 @@ class ComprehensiveDataVerifier {
 
     async run() {
         console.log('🚨 전체 데이터베이스 포괄적 검증 시작! 🚨');
-        console.log('🎯 목표: 모든 잘못된 데이터 식별 및 분류\n');
+        console.log('[TARGET] 목표: 모든 잘못된 데이터 식별 및 분류\n');
         
         await this.checkAllMovies();
         
-        console.log('\n🔥 검증 완료! 다음은 실제 데이터로 교체 작업입니다.');
+        console.log('\n[FIRE] 검증 완료! 다음은 실제 데이터로 교체 작업입니다.');
     }
 }
 

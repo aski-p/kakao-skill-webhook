@@ -42,7 +42,7 @@ class KoficComprehensiveUpdater {
             
             return { movies: [], totalCount: 0, itemPerPage: 0 };
         } catch (error) {
-            console.error(`❌ 영화 목록 조회 오류:`, error.message);
+            console.error(`[ERROR] 영화 목록 조회 오류:`, error.message);
             return { movies: [], totalCount: 0, itemPerPage: 0 };
         }
     }
@@ -62,7 +62,7 @@ class KoficComprehensiveUpdater {
             }
             return null;
         } catch (error) {
-            console.error(`❌ 영화 ${movieCd} 상세정보 조회 오류:`, error.message);
+            console.error(`[ERROR] 영화 ${movieCd} 상세정보 조회 오류:`, error.message);
             return null;
         }
     }
@@ -96,7 +96,7 @@ class KoficComprehensiveUpdater {
 
     // 대량 한국 영화 수집 (최근 10년)
     async collectKoreanMovies() {
-        console.log('🎬 대량 한국 영화 데이터 수집 시작...\n');
+        console.log('[MOVIE] 대량 한국 영화 데이터 수집 시작...\n');
         
         const movieCodes = new Set();
         const currentYear = new Date().getFullYear();
@@ -104,7 +104,7 @@ class KoficComprehensiveUpdater {
         
         // 연도별로 영화 목록 수집
         for (let year = startYear; year <= currentYear; year++) {
-            console.log(`📅 ${year}년 한국 영화 수집 중...`);
+            console.log(`[TOMORROW] ${year}년 한국 영화 수집 중...`);
             
             let page = 1;
             const itemsPerPage = 100;
@@ -125,7 +125,7 @@ class KoficComprehensiveUpdater {
                     return isKorean;
                 });
                 
-                console.log(`   📖 페이지 ${page}: 전체 ${result.movies.length}개 중 한국 영화 ${koreanMovies.length}개`);
+                console.log(`   [OPENBOOK] 페이지 ${page}: 전체 ${result.movies.length}개 중 한국 영화 ${koreanMovies.length}개`);
                 
                 koreanMovies.forEach(movie => {
                     movieCodes.add(movie.movieCd);
@@ -140,24 +140,24 @@ class KoficComprehensiveUpdater {
                 
                 // 너무 많은 페이지는 제한 (API 호출 제한 고려)
                 if (page > 10) {
-                    console.log('   ⚠️ 페이지 제한으로 다음 연도로 이동');
+                    console.log('   [WARN] 페이지 제한으로 다음 연도로 이동');
                     hasMorePages = false;
                 }
             }
         }
         
-        console.log(`\n🎯 총 ${movieCodes.size}개의 고유한 한국 영화 코드 수집 완료`);
+        console.log(`\n[TARGET] 총 ${movieCodes.size}개의 고유한 한국 영화 코드 수집 완료`);
         
         // 상세 정보 수집 (처음 200개만 - API 제한 고려)
         const movieCodesArray = Array.from(movieCodes).slice(0, 200);
-        console.log(`🔍 상위 ${movieCodesArray.length}개 영화의 상세 정보 수집 중...\n`);
+        console.log(`[SEARCH] 상위 ${movieCodesArray.length}개 영화의 상세 정보 수집 중...\n`);
         
         let successCount = 0;
         let failCount = 0;
         
         for (let i = 0; i < movieCodesArray.length; i++) {
             const movieCd = movieCodesArray[i];
-            console.log(`📽️ ${i + 1}/${movieCodesArray.length}: ${movieCd} 상세정보 조회 중...`);
+            console.log(`[PROJECTOR] ${i + 1}/${movieCodesArray.length}: ${movieCd} 상세정보 조회 중...`);
             
             try {
                 const movieDetail = await this.getMovieDetail(movieCd);
@@ -188,17 +188,17 @@ class KoficComprehensiveUpdater {
                 
                 // 진행 상황 표시
                 if ((i + 1) % 20 === 0) {
-                    console.log(`   📊 진행 상황: ${i + 1}/${movieCodesArray.length} (성공: ${successCount}, 실패: ${failCount})`);
+                    console.log(`   [INFO] 진행 상황: ${i + 1}/${movieCodesArray.length} (성공: ${successCount}, 실패: ${failCount})`);
                 }
                 
             } catch (error) {
-                console.error(`❌ ${movieCd} 처리 중 오류:`, error.message);
+                console.error(`[ERROR] ${movieCd} 처리 중 오류:`, error.message);
                 failCount++;
             }
         }
         
-        console.log(`\n✅ KOFIC 데이터 수집 완료!`);
-        console.log(`📊 총 수집: ${this.allMovies.length}개`);
+        console.log(`\n[SUCCESS] KOFIC 데이터 수집 완료!`);
+        console.log(`[INFO] 총 수집: ${this.allMovies.length}개`);
         
         // 결과 저장
         const filename = `kofic_comprehensive_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.json`;
@@ -261,7 +261,7 @@ class KoficComprehensiveUpdater {
 
     // DB와 매칭 및 업데이트
     async matchAndUpdate() {
-        console.log('\n🔍 데이터베이스와 매칭 및 업데이트 시작...\n');
+        console.log('\n[SEARCH] 데이터베이스와 매칭 및 업데이트 시작...\n');
         
         // DB에서 한국 영화 조회
         const { data: dbMovies, error } = await supabase
@@ -269,12 +269,12 @@ class KoficComprehensiveUpdater {
             .select('id, title, director, cast_members, country, release_year');
             
         if (error) {
-            console.error('❌ DB 조회 오류:', error);
+            console.error('[ERROR] DB 조회 오류:', error);
             return;
         }
         
-        console.log(`📊 DB 영화: ${dbMovies.length}개`);
-        console.log(`📊 KOFIC 영화: ${this.allMovies.length}개\n`);
+        console.log(`[INFO] DB 영화: ${dbMovies.length}개`);
+        console.log(`[INFO] KOFIC 영화: ${this.allMovies.length}개\n`);
         
         let matchCount = 0;
         let updateCount = 0;
@@ -283,7 +283,7 @@ class KoficComprehensiveUpdater {
         // 각 KOFIC 영화에 대해 DB 매칭 시도
         for (let i = 0; i < this.allMovies.length; i++) {
             const koficMovie = this.allMovies[i];
-            console.log(`🎬 ${i + 1}/${this.allMovies.length}: "${koficMovie.title}" 매칭 중...`);
+            console.log(`[MOVIE] ${i + 1}/${this.allMovies.length}: "${koficMovie.title}" 매칭 중...`);
             
             let bestMatch = null;
             let bestScore = 0;
@@ -306,7 +306,7 @@ class KoficComprehensiveUpdater {
             }
             
             if (bestMatch) {
-                console.log(`   ✅ 매칭: "${bestMatch.title}" (유사도: ${(bestScore * 100).toFixed(1)}%)`);
+                console.log(`   [SUCCESS] 매칭: "${bestMatch.title}" (유사도: ${(bestScore * 100).toFixed(1)}%)`);
                 matchCount++;
                 
                 // 업데이트 필요성 확인
@@ -315,10 +315,10 @@ class KoficComprehensiveUpdater {
                 if (needsUpdate) {
                     try {
                         await this.updateMovie(bestMatch.id, koficMovie);
-                        console.log(`   🔄 업데이트 완료`);
+                        console.log(`   [LOADING] 업데이트 완료`);
                         updateCount++;
                     } catch (error) {
-                        console.error(`   ❌ 업데이트 실패:`, error.message);
+                        console.error(`   [ERROR] 업데이트 실패:`, error.message);
                     }
                 }
             } else {
@@ -326,27 +326,27 @@ class KoficComprehensiveUpdater {
                 
                 try {
                     await this.addNewMovie(koficMovie);
-                    console.log(`   ✅ 새 영화 추가 완료`);
+                    console.log(`   [SUCCESS] 새 영화 추가 완료`);
                     newMovieCount++;
                 } catch (error) {
                     if (error.message.includes('duplicate key')) {
-                        console.log(`   ⚠️ 이미 존재하는 영화`);
+                        console.log(`   [WARN] 이미 존재하는 영화`);
                     } else {
-                        console.error(`   ❌ 추가 실패:`, error.message);
+                        console.error(`   [ERROR] 추가 실패:`, error.message);
                     }
                 }
             }
             
             // 진행 상황 표시
             if ((i + 1) % 20 === 0) {
-                console.log(`\n📊 중간 결과: 매칭 ${matchCount}, 업데이트 ${updateCount}, 새 추가 ${newMovieCount}\n`);
+                console.log(`\n[INFO] 중간 결과: 매칭 ${matchCount}, 업데이트 ${updateCount}, 새 추가 ${newMovieCount}\n`);
             }
         }
         
-        console.log('\n🎉 매칭 및 업데이트 완료!');
+        console.log('\n[PARTY] 매칭 및 업데이트 완료!');
         console.log('='.repeat(60));
-        console.log(`🔍 매칭된 영화: ${matchCount}개`);
-        console.log(`🔄 업데이트된 영화: ${updateCount}개`);
+        console.log(`[SEARCH] 매칭된 영화: ${matchCount}개`);
+        console.log(`[LOADING] 업데이트된 영화: ${updateCount}개`);
         console.log(`➕ 새로 추가된 영화: ${newMovieCount}개`);
         
         return {
@@ -416,7 +416,7 @@ class KoficComprehensiveUpdater {
             return result;
             
         } catch (error) {
-            console.error('❌ 전체 프로세스 실행 중 오류:', error);
+            console.error('[ERROR] 전체 프로세스 실행 중 오류:', error);
             throw error;
         }
     }

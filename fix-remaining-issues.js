@@ -68,10 +68,10 @@ class RemainingIssuesFixer {
 
     // 중요한 영화들 우선 수정
     async fixCriticalMovies() {
-        console.log('🎯 중요 영화 데이터 수정...\n');
+        console.log('[TARGET] 중요 영화 데이터 수정...\n');
         
         for (const [title, correctData] of Object.entries(this.criticalFixes)) {
-            console.log(`🎬 "${title}" 수정 중...`);
+            console.log(`[MOVIE] "${title}" 수정 중...`);
             
             const { data: movies, error: selectError } = await this.supabase
                 .from('movies')
@@ -80,12 +80,12 @@ class RemainingIssuesFixer {
                 .limit(1);
 
             if (selectError) {
-                console.log(`   ❌ 조회 실패: ${selectError.message}`);
+                console.log(`   [ERROR] 조회 실패: ${selectError.message}`);
                 continue;
             }
 
             if (!movies || movies.length === 0) {
-                console.log(`   ⚠️ 영화를 찾을 수 없음`);
+                console.log(`   [WARN] 영화를 찾을 수 없음`);
                 continue;
             }
 
@@ -108,13 +108,13 @@ class RemainingIssuesFixer {
                     .eq('id', movie.id);
 
                 if (updateError) {
-                    console.log(`   ❌ 업데이트 실패: ${updateError.message}`);
+                    console.log(`   [ERROR] 업데이트 실패: ${updateError.message}`);
                 } else {
-                    console.log(`   ✅ 수정 완료!`);
+                    console.log(`   [SUCCESS] 수정 완료!`);
                     this.fixedCount++;
                 }
             } else {
-                console.log(`   ✅ 이미 올바름`);
+                console.log(`   [SUCCESS] 이미 올바름`);
             }
 
             await this.delay(500);
@@ -123,7 +123,7 @@ class RemainingIssuesFixer {
 
     // 잘못 분류된 영화들 찾아서 수정
     async fixMisclassifiedMovies() {
-        console.log('\n🔍 잘못 분류된 영화들 수정...\n');
+        console.log('\n[SEARCH] 잘못 분류된 영화들 수정...\n');
         
         let fixedInBatch = 0;
         
@@ -147,7 +147,7 @@ class RemainingIssuesFixer {
                 ];
 
                 if (koreanDirectors.includes(movie.director)) {
-                    console.log(`🎬 "${movie.title}" (ID: ${movie.id})`);
+                    console.log(`[MOVIE] "${movie.title}" (ID: ${movie.id})`);
                     console.log(`   외국 영화에 한국 감독 "${movie.director}" 잘못 배정됨`);
                     
                     // 올바른 외국 감독으로 교체
@@ -167,7 +167,7 @@ class RemainingIssuesFixer {
                         .eq('id', movie.id);
 
                     if (!updateError) {
-                        console.log(`   ✅ "${correctDirector}"로 수정`);
+                        console.log(`   [SUCCESS] "${correctDirector}"로 수정`);
                         fixedInBatch++;
                     }
                 }
@@ -177,13 +177,13 @@ class RemainingIssuesFixer {
             await this.delay(200);
         }
         
-        console.log(`\n📊 이번 배치 수정 완료: ${fixedInBatch}개`);
+        console.log(`\n[INFO] 이번 배치 수정 완료: ${fixedInBatch}개`);
         this.fixedCount += fixedInBatch;
     }
 
     // 현재 상태 확인
     async checkCurrentStatus() {
-        console.log('\n📊 현재 데이터베이스 상태 확인...\n');
+        console.log('\n[INFO] 현재 데이터베이스 상태 확인...\n');
         
         // "알 수 없음" 수
         const { data: unknownData } = await this.supabase
@@ -230,8 +230,8 @@ class RemainingIssuesFixer {
     }
 
     async run() {
-        console.log('🔧 남은 문제들 수정 시작!');
-        console.log('🎯 목표: 중요 영화 정확도 향상 + 분류 오류 수정\n');
+        console.log('[TOOL] 남은 문제들 수정 시작!');
+        console.log('[TARGET] 목표: 중요 영화 정확도 향상 + 분류 오류 수정\n');
         
         // 1. 중요한 영화들 우선 수정
         await this.fixCriticalMovies();
@@ -243,21 +243,21 @@ class RemainingIssuesFixer {
         const status = await this.checkCurrentStatus();
         
         console.log('\n' + '='.repeat(60));
-        console.log('🎉 수정 작업 완료!');
+        console.log('[PARTY] 수정 작업 완료!');
         console.log('='.repeat(60));
-        console.log(`✅ 총 수정된 영화: ${this.fixedCount}개`);
-        console.log(`📊 남은 "알 수 없음": ${status.unknownCount}개`);
-        console.log(`🎯 검증된 영화 정확도: ${Math.round((status.verifiedAccuracy/status.checkedVerified)*100)}%`);
+        console.log(`[SUCCESS] 총 수정된 영화: ${this.fixedCount}개`);
+        console.log(`[INFO] 남은 "알 수 없음": ${status.unknownCount}개`);
+        console.log(`[TARGET] 검증된 영화 정확도: ${Math.round((status.verifiedAccuracy/status.checkedVerified)*100)}%`);
         
-        console.log('\n💡 다음 단계:');
+        console.log('\n[TIP] 다음 단계:');
         console.log('1. 남은 "알 수 없음" 영화들 점진적 업데이트');
         console.log('2. 전체 데이터 최종 검증');
         console.log('3. 카카오 스킬 테스트');
         
         console.log('\n🚀 카카오 스킬 이제 더 정확하게 답변 가능:');
-        console.log('💬 "파묘 감독은 누구야" → "장재현입니다"');
-        console.log('💬 "극한직업 감독은 누구야" → "이병헌입니다"');
-        console.log('💬 "토이 스토리 감독은 누구야" → "존 라세터입니다"');
+        console.log('[MSG] "파묘 감독은 누구야" → "장재현입니다"');
+        console.log('[MSG] "극한직업 감독은 누구야" → "이병헌입니다"');
+        console.log('[MSG] "토이 스토리 감독은 누구야" → "존 라세터입니다"');
     }
 }
 
