@@ -106,6 +106,8 @@ class SubAgentManager {
     // 적절한 에이전트 선택
     selectTargetAgent(classification) {
         const agentMapping = {
+            'CONVERSATIONAL': 'information-agent',  // 자연스러운 대화는 정보 에이전트가 처리
+            'INFORMATION_QUERY': 'information-agent',
             'SHOPPING': 'shopping-agent',
             'RESTAURANT': 'restaurant-agent', 
             'NEWS': 'news-agent',
@@ -119,7 +121,7 @@ class SubAgentManager {
             'LOCATION_SEARCH': 'restaurant-agent'
         };
         
-        return agentMapping[classification.category] || null;
+        return agentMapping[classification.category] || 'information-agent';  // 기본값을 information-agent로
     }
     
     // 에이전트에게 작업 위임
@@ -164,8 +166,20 @@ class SubAgentManager {
     async enhancedIntentClassification(message, context = {}) {
         console.log('🔍 향상된 의도 분류 시작');
         
-        // 1단계: 자연스러운 대화 분석
-        const conversationalAnalysis = this.analyzeConversationalContext(message, context);
+        // 1단계: 자연스러운 대화 분석 (안전한 처리)
+        let conversationalAnalysis;
+        try {
+            conversationalAnalysis = this.analyzeConversationalContext(message, context || {});
+        } catch (error) {
+            console.error('❌ 대화 분석 오류:', error);
+            conversationalAnalysis = {
+                isEmotionalExpression: false,
+                emotionType: null,
+                isContextualStatement: false,
+                needsEmpathyResponse: false,
+                topicShift: false
+            };
+        }
         
         // 2단계: 명확한 패턴 매칭
         const explicitPatterns = {
@@ -223,46 +237,61 @@ class SubAgentManager {
             }
         };
         
-        // 2단계: 패턴 매칭 및 점수 계산
+        // 2단계: 패턴 매칭 및 점수 계산 (안전한 처리)
         let bestMatch = { category: 'GENERAL_QUESTION', confidence: 0.3 };
         
-        for (const [category, config] of Object.entries(explicitPatterns)) {
-            let score = 0;
-            let matchCount = 0;
-            
-            // 긍정 패턴 체크
-            for (const pattern of config.patterns) {
-                if (pattern.test(message)) {
-                    score += config.weight;
-                    matchCount++;
+        try {
+            for (const [category, config] of Object.entries(explicitPatterns)) {
+                let score = 0;
+                let matchCount = 0;
+                
+                // 긍정 패턴 체크 (안전한 처리)
+                if (config.patterns && Array.isArray(config.patterns)) {
+                    for (const pattern of config.patterns) {
+                        try {
+                            if (pattern && pattern.test && pattern.test(message)) {
+                                score += (config.weight || 0.5);
+                                matchCount++;
+                            }
+                        } catch (patternError) {
+                            console.log(`⚠️ 패턴 매칭 오류: ${patternError.message}`);
+                        }
+                    }
                 }
-            }
-            
-            // 제외 패턴 체크
-            if (config.exclusions) {
-                for (const exclusion of config.exclusions) {
-                    if (exclusion.test(message)) {
-                        score -= 0.5; // 제외 패턴에 매칭되면 점수 감소
+                
+                // 제외 패턴 체크 (안전한 처리)
+                if (config.exclusions && Array.isArray(config.exclusions)) {
+                    for (const exclusion of config.exclusions) {
+                        try {
+                            if (exclusion && exclusion.test && exclusion.test(message)) {
+                                score -= 0.5; // 제외 패턴에 매칭되면 점수 감소
+                            }
+                        } catch (exclusionError) {
+                            console.log(`⚠️ 제외 패턴 매칭 오류: ${exclusionError.message}`);
+                        }
+                    }
+                }
+                
+                // 가중평균 계산
+                if (matchCount > 0 && config.patterns && config.patterns.length > 0) {
+                    const finalScore = (score / matchCount) * Math.min(matchCount / config.patterns.length + 0.5, 1.0);
+                    
+                    if (finalScore > bestMatch.confidence) {
+                        bestMatch = {
+                            category: category,
+                            confidence: finalScore,
+                            matchDetails: {
+                                patterns: matchCount,
+                                score: score,
+                                finalScore: finalScore
+                            }
+                        };
                     }
                 }
             }
-            
-            // 가중평균 계산
-            if (matchCount > 0) {
-                const finalScore = (score / matchCount) * Math.min(matchCount / config.patterns.length + 0.5, 1.0);
-                
-                if (finalScore > bestMatch.confidence) {
-                    bestMatch = {
-                        category: category,
-                        confidence: finalScore,
-                        matchDetails: {
-                            patterns: matchCount,
-                            score: score,
-                            finalScore: finalScore
-                        }
-                    };
-                }
-            }
+        } catch (error) {
+            console.error('❌ 패턴 매칭 전체 오류:', error);
+            // 에러 발생 시 기본값 유지
         }
         
         // 3단계: 컨텍스트 기반 조정
