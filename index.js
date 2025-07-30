@@ -199,11 +199,29 @@ function getBirthReportInfo() {
 function isWeatherRequest(message) {
     const weatherKeywords = [
         '날씨', '기온', '온도', '비', '눈', '맑음', '흐림', '구름', 
-        '습도', '바람', '미세먼지', '황사', '우산', '날씨어때', 
-        '춥', '덥', '쌀쌀', '따뜻', '시원', '더위', '추위'
+        '습도', '바람', '미세먼지', '황사', '우산', '날씨어때'
     ];
     
-    return weatherKeywords.some(keyword => message.includes(keyword));
+    // 명확한 날씨 질문 패턴
+    const weatherQuestionPatterns = [
+        /날씨.*어때/, /날씨.*알려/, /기온.*몇/, /온도.*몇/,
+        /비.*와/, /눈.*와/, /맑/, /흐림/, /구름/,
+        /.*날씨$/, /.*기온$/, /.*온도$/
+    ];
+    
+    const hasWeatherKeyword = weatherKeywords.some(keyword => message.includes(keyword));
+    const hasWeatherQuestionPattern = weatherQuestionPatterns.some(pattern => pattern.test(message));
+    
+    // 일반적인 더위/추위 언급은 제외 (문맥적 표현)
+    const contextualExpressions = [
+        /더위에.*어떻게/, /추위에.*어떻게/, /덥.*어떻게/, /춥.*어떻게/,
+        /더워서/, /추워서/, /덥네/, /춥네/, /시원하/, /따뜻하/
+    ];
+    
+    const isContextualExpression = contextualExpressions.some(pattern => pattern.test(message));
+    
+    // 명확한 날씨 키워드가 있고, 날씨 질문 패턴이 있으며, 문맥적 표현이 아닌 경우에만 날씨 요청으로 판단
+    return hasWeatherKeyword && (hasWeatherQuestionPattern || message.includes('날씨')) && !isContextualExpression;
 }
 
 // 도시명 추출 함수
