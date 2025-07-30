@@ -373,6 +373,150 @@ function isGameInfoRequest(message) {
     return gameKeywords.some(keyword => message.includes(keyword));
 }
 
+// 자연스러운 대화 감지 함수
+function isNaturalConversation(message) {
+    // 문맥적 표현이나 일상적 대화 패턴 감지
+    const conversationalPatterns = [
+        /더위에.*어떻게/, /추위에.*어떻게/, /덥.*어떻게/, /춥.*어떻게/,
+        /힘들어/, /어려워/, /답답해/, /괴로워/, /스트레스/, /짜증/,
+        /피곤해/, /지쳐/, /귀찮아/, /골치아파/, /복잡해/,
+        /걱정/, /고민/, /불안/, /어떡하지/, /어쩌지/,
+        /재미있/, /신나/, /좋아/, /기뻐/, /행복해/,
+        /운동.*어떻게/, /다이어트.*어떻게/, /건강.*어떻게/,
+        /일.*힘들/, /공부.*힘들/, /관계.*힘들/
+    ];
+    
+    // 감정적 표현이나 일상적 고민이 있는 경우
+    const hasConversationalPattern = conversationalPatterns.some(pattern => pattern.test(message));
+    
+    // 명확한 정보성 질문이 아닌 경우
+    const isNotInformationalQuery = !/뭐|무엇|언제|어디|왜|누구|얼마|몇|어느|설명|알려|정보|방법/.test(message);
+    
+    // 기존 카테고리에 해당하지 않는 경우
+    const isNotExistingCategory = !isWeatherRequest(message) && 
+                                  !isBirthReportRequest(message) && 
+                                  !isYouTubeSummaryRequest(message);
+    
+    return hasConversationalPattern && isNotInformationalQuery && isNotExistingCategory;
+}
+
+// 자연스러운 응답 생성 함수
+async function generateNaturalResponse(message) {
+    try {
+        console.log(`💬 자연스러운 대화 응답 생성: "${message}"`);
+        
+        // 감정 분석
+        const emotion = analyzeEmotion(message);
+        console.log(`😊 감지된 감정: ${emotion}`);
+        
+        // 상황별 맞춤 응답 생성
+        if (emotion === 'heat_struggle') {
+            return generateHeatStruggleResponse(message);
+        } else if (emotion === 'exercise_concern') {
+            return generateExerciseAdviceResponse(message);
+        } else if (emotion === 'frustration') {
+            return generateFrustrationResponse(message);
+        } else if (emotion === 'worry') {
+            return generateWorryResponse(message);
+        } else if (emotion === 'tiredness') {
+            return generateTirednessResponse(message);
+        } else {
+            return generateGeneralConversationalResponse(message);
+        }
+        
+    } catch (error) {
+        console.error('❌ 자연스러운 응답 생성 오류:', error);
+        return '😊 무엇을 도와드릴까요? 더 구체적으로 말씀해주시면 좋은 조언을 드릴 수 있어요!';
+    }
+}
+
+// 감정 분석 함수
+function analyzeEmotion(message) {
+    if (/더위에.*어떻게|더워서.*어떻게|덥.*어떻게/.test(message)) {
+        return 'heat_struggle';
+    } else if (/운동.*어떻게|유산소.*어떻게|다이어트.*어떻게/.test(message)) {
+        return 'exercise_concern';
+    } else if (/힘들어|어려워|답답해|괴로워|스트레스|짜증/.test(message)) {
+        return 'frustration';
+    } else if (/걱정|고민|불안|어떡하지|어쩌지/.test(message)) {
+        return 'worry';
+    } else if (/피곤해|지쳐|귀찮아/.test(message)) {
+        return 'tiredness';
+    } else {
+        return 'general';
+    }
+}
+
+// 더위 관련 고민 응답
+function generateHeatStruggleResponse(message) {
+    const responses = [
+        `🌡️ 이 더위에 정말 힘드시겠어요!\n\n💡 더위 극복 팁:\n• 실내 운동 (홈트레이닝, 계단 올라가기)\n• 새벽/저녁 시간대 활용 (6-7시, 8-9시)\n• 에어컨 있는 헬스장이나 수영장\n• 충분한 수분 섭취 필수!\n\n😊 무리하지 마시고 건강이 최우선이에요!`,
+        
+        `☀️ 요즘 날씨가 정말 살인적이네요!\n\n🏠 실내 대안:\n• 요가, 필라테스, 스트레칭\n• 계단 오르내리기 (아파트 계단 활용)\n• 온라인 홈트레이닝 영상\n• 쇼핑몰이나 지하철역 걷기\n\n💪 조금씩이라도 꾸준히 하는 게 중요해요!`,
+        
+        `🥵 이런 더위에 운동 생각하시다니 대단해요!\n\n⏰ 시간대별 추천:\n• 새벽 5-6시: 공원 산책, 조깅\n• 밤 9-10시: 야간 운동, 헬스장\n• 실내: 언제든 홈트레이닝\n\n🚿 운동 후엔 시원한 샤워로 체온 조절하세요!`
+    ];
+    
+    return responses[Math.floor(Math.random() * responses.length)];
+}
+
+// 운동 관련 조언 응답
+function generateExerciseAdviceResponse(message) {
+    const responses = [
+        `💪 운동 의지가 대단하세요!\n\n🏃‍♀️ 여름철 운동 팁:\n• 실내 운동: 홈트, 헬스장, 수영\n• 야외 운동: 저녁 8시 이후 추천\n• 수분 보충: 운동 전후 충분히\n• 무리 금물: 몸 상태 체크하며\n\n😊 꾸준함이 가장 중요해요!`,
+        
+        `🎯 건강 관리 의식이 훌륭하네요!\n\n🌙 저녁 운동 추천:\n• 공원 산책 (8-9시)\n• 실내 자전거 타기\n• 요가, 필라테스\n• 헬스장 (에어컨 필수!)\n\n💡 더위 먹지 않게 조심하세요!`
+    ];
+    
+    return responses[Math.floor(Math.random() * responses.length)];
+}
+
+// 좌절감 관련 응답
+function generateFrustrationResponse(message) {
+    const responses = [
+        `😔 힘든 일이 있으신 것 같네요.\n\n🤗 괜찮아요, 다들 그런 때가 있어요!\n• 잠시 쉬어가는 것도 필요해요\n• 좋아하는 음악 들으며 산책\n• 친구나 가족과 대화\n• 충분한 휴식과 수면\n\n💪 이 또한 지나갈 거예요!`,
+        
+        `😊 힘드시는 마음 이해해요.\n\n🌈 기분 전환 방법:\n• 맛있는 것 먹기\n• 좋아하는 영화나 드라마\n• 따뜻한 차 한 잔\n• 반신욕이나 족욕\n\n✨ 내일은 분명 더 나은 날이 될 거예요!`
+    ];
+    
+    return responses[Math.floor(Math.random() * responses.length)];
+}
+
+// 걱정 관련 응답
+function generateWorryResponse(message) {
+    const responses = [
+        `😌 걱정이 많으시군요.\n\n🧘‍♀️ 마음 다스리기:\n• 깊게 숨쉬기 (4초 들이쉬고 6초 내쉬기)\n• 지금 이 순간에 집중\n• 걱정을 종이에 적어보기\n• 해결 가능한 것부터 하나씩\n\n💝 혼자가 아니에요, 괜찮아질 거예요!`,
+        
+        `🤗 걱정되는 마음 충분히 이해해요.\n\n📝 걱정 정리법:\n• 걱정 목록 적어보기\n• 해결 가능한 것과 불가능한 것 구분\n• 작은 것부터 하나씩 해결\n• 전문가나 주변 사람들에게 조언 구하기\n\n🌟 차근차근 해결해나가면 돼요!`
+    ];
+    
+    return responses[Math.floor(Math.random() * responses.length)];
+}
+
+// 피로감 관련 응답
+function generateTirednessResponse(message) {
+    const responses = [
+        `😴 많이 피곤하시겠어요.\n\n💤 피로 회복 팁:\n• 충분한 수면 (7-8시간)\n• 가벼운 스트레칭\n• 따뜻한 물로 샤워\n• 비타민 B 복합체 섭취\n\n🌙 오늘은 일찍 주무세요!`,
+        
+        `🛌 쉬는 것도 중요한 일이에요.\n\n⚡ 에너지 충전법:\n• 20분 낮잠 (너무 길면 더 피곤)\n• 시원한 곳에서 휴식\n• 충분한 수분 섭취\n• 균형 잡힌 식사\n\n😊 몸이 보내는 신호를 잘 들어주세요!`
+    ];
+    
+    return responses[Math.floor(Math.random() * responses.length)];
+}
+
+// 일반적인 대화 응답
+function generateGeneralConversationalResponse(message) {
+    const responses = [
+        `😊 좋은 대화 같아요! 계속 이야기해봐요!\n\n💬 어떤 이야기를 나누고 싶으신가요?\n• 일상적인 고민이나 걱정\n• 취미나 관심사\n• 오늘 있었던 일\n• 궁금한 정보\n\n✨ 편하게 말씀해주세요!`,
+        
+        `🤗 무엇을 도와드릴까요?\n\n🎯 이런 것들을 물어보실 수 있어요:\n• 일상 고민 상담\n• 정보 검색 (뉴스, 맛집, 쇼핑)\n• 영화 추천이나 평점\n• 건강이나 운동 조언\n\n💫 자유롭게 이야기해주세요!`,
+        
+        `😄 재미있는 대화네요!\n\n🌟 더 구체적으로 말씀해주시면:\n• 맞춤형 조언 드릴 수 있어요\n• 정확한 정보 찾아드려요\n• 더 도움이 되는 답변 가능해요\n\n💖 언제든 편하게 물어보세요!`
+    ];
+    
+    return responses[Math.floor(Math.random() * responses.length)];
+}
+
 // Claude AI 버전 문의 감지 함수
 function isClaudeVersionQuery(message) {
     // 1. 필수 키워드: Claude AI 관련 키워드가 있어야 함
@@ -1607,6 +1751,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         else if (debugInfo.isBirthReport) {
             console.log('👶 출산 신고 정보 요청 감지');
             responseText = getBirthReportInfo();
+        }
+        // 💬 자연스러운 대화 처리 (서브에이전트 우회)
+        else if (isNaturalConversation(userMessage)) {
+            console.log('💬 자연스러운 대화 감지');
+            responseText = await generateNaturalResponse(userMessage);
         }
         // 🌤️ 날씨 정보 요청 처리  
         else if (debugInfo.isWeather) {
