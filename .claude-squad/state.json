@@ -1,0 +1,53 @@
+{
+  "help_screens_seen": 14,
+  "instances": [
+    {
+      "title": "deadlock",
+      "path": "/home/aski",
+      "branch": "aski/deadlock",
+      "status": 1,
+      "height": 0,
+      "width": 0,
+      "created_at": "2025-07-30T21:19:35.476649952+09:00",
+      "updated_at": "2025-07-30T21:25:31.950381589+09:00",
+      "auto_yes": false,
+      "program": "/usr/bin/claude",
+      "worktree": {
+        "repo_path": "/home/aski",
+        "worktree_path": "/home/aski/.claude-squad/worktrees/deadlock_185706bbdb33063b",
+        "session_name": "deadlock",
+        "branch_name": "aski/deadlock",
+        "base_commit_sha": "85c117f1b2fdacf6e833b2839dbe9fd243d5c943"
+      },
+      "diff_stats": {
+        "added": 19,
+        "removed": 4,
+        "content": "diff --git a/DeadlockStatsServlet.java b/DeadlockStatsServlet.java\nindex 4a0897c..3df85a1 100644\n--- a/DeadlockStatsServlet.java\n+++ b/DeadlockStatsServlet.java\n@@ -510,6 +510,18 @@ public class DeadlockStatsServlet extends HttpServlet {\n             \n             for (JsonElement itemElement : items) {\n                 JsonObject item = itemElement.getAsJsonObject();\n+                \n+                // 실제 상점 아이템만 필터링 (weapon, ability 제외)\n+                String itemType = item.has(\"type\") ? item.get(\"type\").getAsString() : \"\";\n+                if (\"weapon\".equals(itemType) || \"ability\".equals(itemType)) {\n+                    continue;\n+                }\n+                \n+                // 아이템 이름이 없는 경우 제외\n+                if (!item.has(\"name\") || item.get(\"name\").getAsString().isEmpty()) {\n+                    continue;\n+                }\n+                \n                 int itemId = item.get(\"id\").getAsInt();\n                 \n                 // 아이템 이름 매핑\n@@ -517,15 +529,18 @@ public class DeadlockStatsServlet extends HttpServlet {\n                 String koreanName = ITEM_KOREAN_NAMES.getOrDefault(itemName, itemName);\n                 itemNames.put(itemId, koreanName);\n                 \n-                // 아이템 이미지 매핑\n-                if (item.has(\"shop_image\")) {\n-                    itemImages.put(itemId, item.get(\"shop_image\").getAsString());\n-                } else if (item.has(\"image\")) {\n+                // 아이템 이미지 매핑 (image 필드만 사용)\n+                if (item.has(\"image\")) {\n                     itemImages.put(itemId, item.get(\"image\").getAsString());\n                 }\n+                \n+                System.out.println(\"로드된 아이템: \" + itemId + \" - \" + koreanName + \" (\" + itemType + \")\");\n             }\n+            \n+            System.out.println(\"총 로드된 아이템 수: \" + itemNames.size());\n         } catch (Exception e) {\n             System.err.println(\"아이템 매핑 로드 실패: \" + e.getMessage());\n+            e.printStackTrace();\n         }\n     }\n     \n"
+      }
+    },
+    {
+      "title": "chatbot",
+      "path": "/home/aski",
+      "branch": "aski/chatbot",
+      "status": 0,
+      "height": 0,
+      "width": 0,
+      "created_at": "2025-07-30T21:25:25.999361224+09:00",
+      "updated_at": "2025-07-30T21:25:31.950383833+09:00",
+      "auto_yes": false,
+      "program": "/usr/bin/claude",
+      "worktree": {
+        "repo_path": "/home/aski",
+        "worktree_path": "/home/aski/.claude-squad/worktrees/chatbot_1857070cb8a2d3f6",
+        "session_name": "chatbot",
+        "branch_name": "aski/chatbot",
+        "base_commit_sha": "85c117f1b2fdacf6e833b2839dbe9fd243d5c943"
+      },
+      "diff_stats": {
+        "added": 0,
+        "removed": 0,
+        "content": ""
+      }
+    }
+  ]
+}

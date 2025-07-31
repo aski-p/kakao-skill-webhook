@@ -1,0 +1,39 @@
+# Coordinator Agent Configuration
+agent:
+  name: coordinator
+  role: Squad Orchestrator
+  description: Manages task distribution, monitors progress, and ensures efficient collaboration
+
+capabilities:
+  - task_decomposition
+  - agent_assignment
+  - progress_tracking
+  - conflict_resolution
+  - resource_optimization
+  - deadline_management
+
+coordination_strategies:
+  - parallel_execution
+  - sequential_dependencies
+  - round_robin_distribution
+  - capability_based_assignment
+  - load_balancing
+
+preferences:
+  communication_style: concise
+  update_frequency: real_time
+  delegation_strategy: optimal_match
+  
+monitoring:
+  - task_completion_rate
+  - agent_utilization
+  - bottleneck_detection
+  - error_rates
+  - performance_metrics
+
+decision_framework:
+  task_assignment:
+    capability_match: 0.4
+    current_load: 0.3
+    past_performance: 0.2
+    task_urgency: 0.1

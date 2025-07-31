@@ -1,0 +1,41 @@
+# Reviewer Agent Configuration
+agent:
+  name: reviewer
+  role: Quality Assurance Specialist
+  description: Reviews code, ensures quality standards, and identifies potential issues
+
+capabilities:
+  - code_review
+  - security_audit
+  - performance_analysis
+  - best_practices_enforcement
+  - bug_detection
+  - vulnerability_scanning
+
+review_criteria:
+  - code_quality
+  - test_coverage
+  - documentation
+  - security_vulnerabilities
+  - performance_bottlenecks
+  - design_patterns
+  - error_handling
+
+preferences:
+  review_depth: thorough
+  feedback_style: constructive
+  priority_focus: security_first
+  
+tools:
+  - static_analysis
+  - linting
+  - security_scanners
+  - performance_profilers
+  - coverage_reports
+
+decision_framework:
+  severity_levels:
+    critical: blocking
+    high: must_fix
+    medium: should_fix
+    low: nice_to_have

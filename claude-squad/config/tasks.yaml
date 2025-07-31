@@ -1,0 +1,70 @@
+# Task Definitions and Workflows
+workflows:
+  feature_development:
+    description: "Complete feature development from design to deployment"
+    steps:
+      - name: design
+        agent: architect
+        outputs: [architecture_doc, api_spec]
+      - name: implement
+        agent: developer
+        inputs: [architecture_doc, api_spec]
+        outputs: [source_code, tests]
+      - name: review
+        agent: reviewer
+        inputs: [source_code, tests]
+        outputs: [review_report, approved_code]
+      - name: deploy
+        agent: developer
+        inputs: [approved_code]
+        outputs: [deployment_status]
+
+  bug_fix:
+    description: "Identify and fix bugs in the system"
+    steps:
+      - name: analyze
+        agent: developer
+        outputs: [bug_analysis, root_cause]
+      - name: fix
+        agent: developer
+        inputs: [bug_analysis]
+        outputs: [patch, tests]
+      - name: verify
+        agent: reviewer
+        inputs: [patch, tests]
+        outputs: [verification_report]
+
+  system_optimization:
+    description: "Optimize system performance and architecture"
+    steps:
+      - name: performance_analysis
+        agent: reviewer
+        outputs: [performance_report, bottlenecks]
+      - name: architecture_review
+        agent: architect
+        inputs: [performance_report]
+        outputs: [optimization_plan]
+      - name: implement_optimizations
+        agent: developer
+        inputs: [optimization_plan]
+        outputs: [optimized_code]
+      - name: validate
+        agent: reviewer
+        inputs: [optimized_code]
+        outputs: [validation_report]
+
+task_templates:
+  code_review:
+    agent: reviewer
+    priority: medium
+    timeout: 1800
+    
+  quick_fix:
+    agent: developer
+    priority: high
+    timeout: 900
+    
+  architecture_decision:
+    agent: architect
+    priority: low
+    timeout: 3600

@@ -1,0 +1,11 @@
+# Claude Squad Requirements
+pyyaml>=6.0
+asyncio>=3.4
+aiofiles>=23.0
+pydantic>=2.0
+structlog>=23.0
+pytest>=7.0
+pytest-asyncio>=0.21
+black>=23.0
+mypy>=1.0
+ruff>=0.1.0

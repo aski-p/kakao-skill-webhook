@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "firebase": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\aski\\AppData\\Roaming\\npm\\node_modules\\@modelcontextprotocol\\server-firebase\\dist\\index.js"
+      ],
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "C:\\Users\\aski\\AppData\\Roaming\\Claude\\firebase-config.json",
+        "FIREBASE_PROJECT_ID": "aski-79c05"
+      }
+    }
+  }
+}

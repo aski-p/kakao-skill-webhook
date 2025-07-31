@@ -1,0 +1,42 @@
+{
+  "mcpServers": {
+    "firebase": {
+      "command": "npx",
+      "args": [
+        "@modelcontextprotocol/server-firebase"
+      ],
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "%APPDATA%\\Claude\\firebase-config.json",
+        "FIREBASE_PROJECT_ID": "aski-79c05"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "@modelcontextprotocol/server-filesystem",
+        "/home/aski"
+      ]
+    },
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase"
+      ],
+      "env": {
+        "SUPABASE_URL": "https://dpmoafgaysocfjxlmaum.supabase.co",
+        "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwbW9hZmdheXNvY2ZqeGxtYXVtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTQ2NDMzMSwiZXhwIjoyMDY3MDQwMzMxfQ.G2woWTLhGpc0FOEyfABZs7k1wYTSYCaDeYhYtpoY73c"
+      }
+    },
+    "playwright": {
+      "command": "node",
+      "args": [
+        "/home/aski/mcp-servers/node_modules/@playwright/mcp/index.js"
+      ],
+      "env": {
+        "PLAYWRIGHT_BROWSERS_PATH": "/home/aski/.cache/ms-playwright",
+        "DISPLAY": ":0"
+      }
+    }
+  }
+}

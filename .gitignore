@@ -50,3 +50,20 @@ ENV/
 # 임시 파일
 .DS_Store
 Thumbs.db
+
+# Sensitive files
+firebase-config.json
+mcp-firebase-config.json
+app.py
+.claude.json
+.railway-token
+
+# Embedded git repositories
+.claude-squad/worktrees/
+SuperClaude/
+deadlock-api-korean/
+deadlock-new/
+kakao-skill-webhook/
+
+# System files
+.wget-hsts
