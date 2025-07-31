@@ -5,7 +5,7 @@ const https = require('https');
 const config = require('./config/keywords');
 const MessageClassifier = require('./config/message-classifier');
 const DataExtractor = require('./config/data-extractor');
-const SubAgentManager = require('./agents/sub-agent-manager');
+// const SubAgentManager = require('./agents/sub-agent-manager'); // 서브에이전트 시스템 비활성화
 const movieScheduler = require('./scheduler/movie-update-scheduler');
 const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
@@ -156,8 +156,8 @@ const dataExtractor = new DataExtractor({
     clientSecret: NAVER_CLIENT_SECRET
 });
 
-// [AI] 서브에이전트 관리 시스템 초기화
-const subAgentManager = new SubAgentManager();
+// [AI] 서브에이전트 관리 시스템 초기화 - 비활성화됨
+// const subAgentManager = new SubAgentManager();
 
 // 사실 확인 요청 감지 함수
 function isFactCheckRequest(message) {
@@ -1805,36 +1805,10 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 responseText = '영화 정보 처리 중 오류가 발생했습니다.';
             }
         }
-        // [AI] 서브에이전트 시스템을 통한 지능형 메시지 처리
+        // [AI] 서브에이전트 시스템 비활성화 - 직접 Claude AI 호출로 복원
         else {
-            console.log('[AI] 서브에이전트 시스템 시작');
-            
-            try {
-                // 서브에이전트 매니저로 메시지 라우팅
-                const agentResult = await subAgentManager.routeToAgent(userMessage, userId, {
-                    previousCategory: conversationMemory.get(userId)?.history?.slice(-1)[0]?.intent || null
-                });
-                
-                if (agentResult.success) {
-                    responseText = agentResult.data.message;
-                    
-                    // 대화 히스토리에 에이전트 정보와 함께 저장
-                    addToConversationHistory(userId, userMessage, responseText, agentResult.data.category || 'agent_processed');
-                    
-                    console.log(`[SUCCESS] ${agentResult.agent} 처리 완료`);
-                } else {
-                    // 서브에이전트 처리 실패 시 기존 Claude AI로 폴백
-                    console.log('[LOADING] 서브에이전트 실패, Claude AI 폴백');
-                    responseText = await callClaudeAI(userMessage, userId);
-                }
-                
-            } catch (error) {
-                console.error('[ERROR] 서브에이전트 시스템 오류:', error);
-                
-                // 시스템 오류 시 기존 Claude AI로 폴백
-                console.log('[LOADING] 시스템 오류, Claude AI 폴백');
-                responseText = await callClaudeAI(userMessage, userId);
-            }
+            console.log('[AI] Claude AI 직접 호출 (서브에이전트 시스템 비활성화)');
+            responseText = await callClaudeAI(userMessage, userId);
         }
         
         /* 
