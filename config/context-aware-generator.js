@@ -441,11 +441,20 @@ class ContextAwareGenerator {
 
     // 사용자 패턴 분석
     analyzeUserPatterns(sessionContext) {
+        if (!sessionContext) {
+            return {
+                messageCount: 0,
+                averageMessageLength: 0,
+                preferredTopics: {},
+                responseStyle: 'detailed'
+            };
+        }
+        
         return {
-            messageCount: sessionContext.messageCount,
+            messageCount: sessionContext.messageCount || 0,
             averageMessageLength: this.calculateAverageMessageLength(sessionContext.messages),
             preferredTopics: this.extractPreferredTopics(sessionContext.messages),
-            responseStyle: sessionContext.context.userProfile.responseStyle || 'detailed'
+            responseStyle: (sessionContext.context && sessionContext.context.userProfile && sessionContext.context.userProfile.responseStyle) || 'detailed'
         };
     }
 
@@ -501,6 +510,149 @@ class ContextAwareGenerator {
         });
         
         return Array.from(topics);
+    }
+
+    // 텍스트 이모지를 실제 이모지로 변환
+    convertToEmoji(text) {
+        const emojiMap = {
+            // 기본 감정 이모지
+            '[SMILE]': '😊',
+            '[SPARKLE]': '✨',
+            '[HEART]': '❤️',
+            '[THUMBS_UP]': '👍',
+            '[CLAP]': '👏',
+            '[WAVE]': '👋',
+            '[WINK]': '😉',
+            '[LAUGH]': '😄',
+            '[LOVE]': '🥰',
+            '[HAPPY]': '😆',
+            
+            // 음식 관련 이모지
+            '[FORK]': '🍽️',
+            '[CHEF]': '👨‍🍳',
+            '[YUM]': '😋',
+            '[COOK]': '🍳',
+            '[MEAL]': '🍽️',
+            '[DELICIOUS]': '😋',
+            
+            // 시간/날씨 이모지
+            '[SUN]': '☀️',
+            '[MOON]': '🌙',
+            '[CLOUD]': '☁️',
+            '[RAIN]': '🌧️',
+            '[SNOW]': '❄️',
+            '[HOT]': '🌡️',
+            '[COLD]': '🥶',
+            
+            // 활동 이모지
+            '[THINK]': '🤔',
+            '[IDEAS]': '💡',
+            '[SEARCH]': '🔍',
+            '[INFO]': 'ℹ️',
+            '[TIP]': '💡',
+            '[WARNING]': '⚠️',
+            '[SUCCESS]': '✅',
+            '[ERROR]': '❌',
+            
+            // 대화 관련 이모지
+            '[CHAT]': '💬',
+            '[QUESTION]': '❓',
+            '[EXCLAMATION]': '❗',
+            '[GREETING]': '👋',
+            '[BYE]': '👋',
+            
+            // 기타 유용한 이모지
+            '[FIRE]': '🔥',
+            '[STAR]': '⭐',
+            '[GIFT]': '🎁',
+            '[PARTY]': '🎉',
+            '[MUSIC]': '🎵',
+            '[BOOK]': '📚',
+            '[GAME]': '🎮',
+            '[MOVIE]': '🎬',
+            '[SPORT]': '⚽',
+            '[COFFEE]': '☕',
+            '[TEA]': '🍵'
+        };
+
+        let convertedText = text;
+        
+        // 모든 텍스트 이모지를 실제 이모지로 변환
+        Object.entries(emojiMap).forEach(([textEmoji, realEmoji]) => {
+            const regex = new RegExp(textEmoji.replace(/[[\]]/g, '\\$&'), 'g');
+            convertedText = convertedText.replace(regex, realEmoji);
+        });
+        
+        return convertedText;
+    }
+
+    // 응답에 자연스러운 이모지 추가
+    addNaturalEmojis(text, intent, context) {
+        let enhancedText = text;
+        
+        // 의도에 따른 이모지 추가
+        if (intent === 'FOOD_QUESTION') {
+            // 음식 관련 응답에 적절한 이모지 추가
+            if (!enhancedText.includes('🍽️') && !enhancedText.includes('😋')) {
+                if (context && context.time_period === 'dinner') {
+                    enhancedText = '🌆 ' + enhancedText;
+                } else if (context && context.time_period === 'breakfast') {
+                    enhancedText = '☀️ ' + enhancedText;
+                } else {
+                    enhancedText = '🍽️ ' + enhancedText;
+                }
+            }
+        } else if (intent === 'CASUAL_CONVERSATION') {
+            // 일상 대화에 친근한 이모지 추가
+            if (!enhancedText.includes('😊') && !enhancedText.includes('✨')) {
+                enhancedText = '😊 ' + enhancedText;
+            }
+        }
+        
+        // 마무리에 적절한 이모지 추가
+        if (enhancedText.includes('맛있게') && !enhancedText.includes('😋')) {
+            enhancedText = enhancedText.replace('맛있게', '맛있게 😋');
+        }
+        
+        if (enhancedText.includes('좋은') && !enhancedText.includes('✨')) {
+            enhancedText = enhancedText.replace(/좋은\s+([^\s]+)/, '좋은 $1 ✨');
+        }
+        
+        return enhancedText;
+    }
+
+    // 메인 응답 생성 함수 오버라이드 (이모지 변환 포함)
+    generateContextAwareResponse(intent, message, sessionContext, conversationHistory) {
+        console.log(`[CONTEXT] 컨텍스트 인식 응답 생성: ${intent}`);
+        
+        const context = this.analyzeFullContext(message, sessionContext, conversationHistory);
+        
+        let response = "";
+        
+        switch (intent) {
+            case 'FOOD_QUESTION':
+                response = this.generateFoodResponse(message, context, conversationHistory);
+                break;
+            
+            case 'CASUAL_CONVERSATION':
+                response = this.generateCasualResponse(message, context, conversationHistory);
+                break;
+            
+            case 'INFORMATION_REQUEST':
+                response = this.generateInformationResponse(message, context);
+                break;
+            
+            default:
+                response = this.generateDefaultResponse(message, context);
+        }
+        
+        // 텍스트 이모지를 실제 이모지로 변환
+        response = this.convertToEmoji(response);
+        
+        // 자연스러운 이모지 추가
+        response = this.addNaturalEmojis(response, intent, context);
+        
+        return response;
     }
 }
 
