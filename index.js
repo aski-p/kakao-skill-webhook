@@ -1258,7 +1258,8 @@ function isSpecificRequest(message) {
         /뉴스|맛집|쇼핑|영화|게임|시간|날씨/, // 구체적 도메인
         /추천|검색|찾아|알려|보여|말해/, // 명확한 동작
         /계속|더보기|다음/, // 시스템 명령
-        /영화평|평점|평가|리뷰|별점/ // 영화 평가 요청
+        /영화평|평점|평가|리뷰|별점/, // 영화 평가 요청
+        /먹|음식|야식|시켜|배고|출출/ // 음식 관련 요청
     ];
     
     return requestPatterns.some(pattern => pattern.test(message));
@@ -1797,116 +1798,24 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         const analysis = analyzeMessageWithContext(userId, userMessage);
         console.log(`🧠 의도 분석 결과:`, analysis);
         
-        // 컨텍스트 기반 응답 생성
-        if (analysis.needsGuidance) {
-            // 질문이 아닌 경우 → 안내 메시지
-            const suggestions = analysis.contextInsight.suggestionTopics || ['뉴스 검색', '맛집 추천', '날씨 정보'];
-            
-            responseText = `💬 무엇을 도와드릴까요?\n\n🎯 이런 걸 물어보실 수 있어요:\n${suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\n✨ 또는 자유롭게 질문해주세요!\n• 뉴스, 맛집, 쇼핑 검색\n• 영화 평점, 게임 정보\n• 일반적인 질문도 환영!`;
-            
-            // 대화 히스토리에 저장
-            addToConversationHistory(userId, userMessage, responseText, analysis.intent);
-        }
-        else if (analysis.intent === 'frustrated_user_needs_help') {
-            // 연속된 불만 → 특별한 도움 제공
-            console.log('😅 연속된 불만 감지 - 맞춤형 도움 제공');
-            
-            const helpfulResponses = [
-                `😊 계속 도움이 안 되는 것 같아 죄송해요!\n\n🎯 정확히 뭘 찾고 계신가요?\n• "홍대 맛집" - 맛집 정보\n• "오늘 뉴스" - 최신 뉴스\n• "아이폰 가격" - 쇼핑 정보\n\n💪 구체적으로 말씀해주시면 바로 도와드릴게요!`,
-                
-                `🤗 제가 이해를 못한 것 같네요!\n\n💡 이렇게 질문해주시면 도움이 될 거예요:\n• 구체적인 키워드로 (예: "강남 카페")\n• 원하는 정보 명시 (예: "영화 평점")\n• 간단명료하게 (예: "오늘 날씨")\n\n✨ 다시 시도해보세요!`
-            ];
-            
-            responseText = helpfulResponses[Math.floor(Math.random() * helpfulResponses.length)];
-            addToConversationHistory(userId, userMessage, responseText, analysis.intent);
-        }
-        // 간단한 인사나 기본 질문 처리
-        else if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
-            responseText = `안녕하세요! 현재 시간은 ${koreanTime.formatted}입니다. 무엇을 도와드릴까요?`;
-        }
-        // Claude AI 버전 문의 - 더 정확한 패턴 매칭
-        else if (isClaudeVersionQuery(userMessage)) {
-            responseText = `🤖 현재 Claude AI 정보\n\n📱 모델: Claude 3.5 Sonnet (2024-10-22)\n⚡ 성능: 최신 고성능 모델\n🧠 특징: 향상된 추론 능력과 빠른 응답 속도\n\n⏰ 현재 시간: ${koreanTime.formatted}\n📅 오늘 날짜: ${koreanTime.date}`;
-        }
-        // 즉시 응답 가능한 간단한 질문들
-        else if (/시간|몇시|지금/.test(userMessage)) {
-            responseText = `⏰ 현재 시간: ${koreanTime.formatted}\n\n📅 오늘 날짜: ${koreanTime.date}\n\n⚡ 빠른 응답 모드로 답변드렸어요!`;
-        }
-        // 감사 인사나 칭찬 등 간단한 사회적 응답들
-        else if (/고마워|감사|ㄱㅅ|thanks/.test(userMessage)) {
-            const thankResponses = [
-                `😊 천만에요! 도움이 되었다니 기뻐요!\n\n💪 앞으로도 더 나은 서비스로 보답하겠습니다!`,
-                `🙏 별말씀을요! 언제든 궁금한 게 있으면 물어보세요!\n\n✨ 저는 항상 여기 있어요!`,
-                `😄 네! 도움이 되어서 다행이에요!\n\n🎯 다음에도 필요한 게 있으면 바로 말씀해주세요!`
-            ];
-            responseText = thankResponses[Math.floor(Math.random() * thankResponses.length)];
-        }
-        else if (/괜찮아|좋아|잘해|훌륭|완벽/.test(userMessage)) {
-            const praiseResponses = [
-                `😊 와! 칭찬해주셔서 감사해요!\n\n💪 더 열심히 해서 항상 만족스러운 답변 드릴게요!`,
-                `🥰 그렇게 말씀해주시니 힘이 나네요!\n\n⚡ 앞으로도 빠르고 정확한 정보로 도와드리겠습니다!`,
-                `😄 칭찬 감사드려요! 정말 기뻐요!\n\n🎯 계속 발전하는 AI가 되도록 노력하겠습니다!`
-            ];
-            responseText = praiseResponses[Math.floor(Math.random() * praiseResponses.length)];
-        }
-        // 👶 출산 신고 정보 요청 처리
-        else if (debugInfo.isBirthReport) {
+        // 🤖 AI 우선 접근 - 대부분의 대화를 Claude AI가 직접 처리
+        
+        // 👶 출산 신고 정보 요청 처리 (정확한 정보가 필요한 특수한 경우)
+        if (debugInfo.isBirthReport) {
             console.log('👶 출산 신고 정보 요청 감지');
             responseText = getBirthReportInfo();
         }
-        // 🍽️ 음식 관련 질문 처리 (Enhanced NLP 시스템)
-        else if (/뭐.*먹지|먹을.*뭐|저녁.*뭐|아침.*뭐|점심.*뭐|간식.*뭐|뭐.*마실|마실.*뭐|음식.*뭐|요리.*뭐|배고파|출출해|뭐.*먹을까|먹을까.*뭐/.test(userMessage)) {
-            console.log('🍽️ 음식 관련 질문 감지 - Enhanced NLP 시스템으로 라우팅');
-            responseText = await callEnhancedClaudeAI(userMessage, userId);
-        }
-        // 💬 자연스러운 대화 처리 (서브에이전트 우회)
-        else if (isNaturalConversation(userMessage)) {
-            console.log('💬 자연스러운 대화 감지');
-            responseText = await generateNaturalResponse(userMessage);
-        }
-        // 🌤️ 날씨 정보 요청 처리  
+        // 🌤️ 날씨 정보 요청 처리 (실시간 데이터가 필요한 경우)
         else if (debugInfo.isWeather) {
             console.log('🌤️ 날씨 정보 요청 감지');
             const city = extractCityFromMessage(userMessage);
             console.log(`🏙️ 추출된 도시: ${city.korean} (${city.english})`);
             responseText = await getWeatherInfo(city.korean);
         }
-        // 🎬 모든 영화평 요청을 새로운 종합 시스템에서 처리 (개선된 패턴)
-        else if (/영화.*평점|평점.*영화|영화평|영화.*평가|평가.*영화|영화.*리뷰|리뷰.*영화|영화.*별점|별점.*영화|.*영화.*어때|.*평점.*어때|.*리뷰.*어때|.*별점.*어때|F1|더무비|평가|평점|별점|리뷰/.test(userMessage)) {
-            console.log('🎬 영화평 요청 감지 - 새로운 종합 시스템 실행');
-            
-            try {
-                const classification = messageClassifier.classifyMessage(userMessage);
-                console.log('ℹ️ 영화평 분류 결과:', classification);
-                
-                // MOVIE_REVIEW로 분류되지 않은 경우 강제로 영화평으로 처리
-                if (classification.category !== 'MOVIE_REVIEW') {
-                    console.log('⏳ 강제 영화평 분류 적용');
-                    classification.category = 'MOVIE_REVIEW';
-                    classification.data = {
-                        title: userMessage.replace(/\b(영화평|평점|평가|리뷰|별점|어때|영화|네이버)\b/g, '').trim(),
-                        reviewType: 'general'
-                    };
-                }
-                
-                const extractionResult = await dataExtractor.extractData(classification);
-                console.log('📋 영화평 추출 결과:', extractionResult);
-                
-                if (extractionResult.success) {
-                    responseText = extractionResult.data.message;
-                    console.log('✅ 영화평 새 시스템 성공');
-                } else {
-                    responseText = extractionResult.data.message || '영화 정보를 찾는 중 문제가 발생했습니다.';
-                }
-            } catch (error) {
-                console.error('❌ 영화평 처리 오류:', error);
-                responseText = '영화 정보 처리 중 오류가 발생했습니다.';
-            }
-        }
-        // 🤖 서브에이전트 시스템 비활성화 - 직접 Claude AI 호출로 복원
+        // 🤖 모든 일반 대화는 Enhanced Claude AI 시스템에서 처리
         else {
-            console.log('🤖 Claude AI 직접 호출 (서브에이전트 시스템 비활성화)');
-            responseText = await callClaudeAI(userMessage, userId);
+            console.log('🤖 Enhanced Claude AI 직접 호출 - 자연스러운 대화 처리');
+            responseText = await callEnhancedClaudeAI(userMessage, userId);
         }
         
         /* 

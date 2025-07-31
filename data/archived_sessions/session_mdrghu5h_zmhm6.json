@@ -1,0 +1,43 @@
+{
+  "userId": "test-user-lunch",
+  "sessionId": "mdrghu5h_zmhm6",
+  "startTime": 1753970073317,
+  "lastActivity": 1753970073318,
+  "messageCount": 1,
+  "messages": [
+    {
+      "message": "점심 뭐 먹을까",
+      "timestamp": 1753970073317,
+      "type": "user"
+    },
+    {
+      "message": "늦은 시간이네요! 🌙\n\n🍽️ 야식 메뉴 추천\n\n1. **라면**\n   야식의 정석\n   ⏱️ 조리시간: 10분\n\n2. **치킨**\n   배달 치킨으로 간편하게\n   ⏱️ 조리시간: 30분\n\n3. **과일**\n   가벼운 야식\n   ⏱️ 조리시간: 5분\n\n4. **요거트**\n   부담스럽지 않은 선택\n   ⏱️ 조리시간: 2분\n\n맛있게 드세요! 😋",
+      "timestamp": 1753970073318,
+      "type": "bot",
+      "intent": "FOOD_QUESTION"
+    }
+  ],
+  "context": {
+    "topics": [
+      "FOOD_QUESTION"
+    ],
+    "preferences": {},
+    "emotionalState": "neutral",
+    "conversationFlow": "focused",
+    "lastIntent": "FOOD_QUESTION",
+    "userProfile": {
+      "responseStyle": "detailed",
+      "interactionHistory": [],
+      "preferredLanguage": "ko"
+    },
+    "contextAnalysis": {
+      "time_based": 0,
+      "preference_based": 0,
+      "location_based": 0
+    }
+  },
+  "isActive": true,
+  "archivedAt": 1753970770147,
+  "sessionDuration": 1,
+  "finalMessageCount": 1
+}

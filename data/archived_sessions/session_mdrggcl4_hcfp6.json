@@ -1,0 +1,42 @@
+{
+  "userId": "test-user-1",
+  "sessionId": "mdrggcl4_hcfp6",
+  "startTime": 1753970003896,
+  "lastActivity": 1753970003897,
+  "messageCount": 1,
+  "messages": [
+    {
+      "message": "오늘 저녁 뭐 먹어야 하는지 알려줘",
+      "timestamp": 1753970003896,
+      "type": "user"
+    },
+    {
+      "message": "늦은 시간이네요! 🌙\n\n🍽️ 야식 메뉴 추천\n\n1. **라면**\n   야식의 정석\n   ⏱️ 조리시간: 10분\n\n2. **치킨**\n   배달 치킨으로 간편하게\n   ⏱️ 조리시간: 30분\n\n3. **과일**\n   가벼운 야식\n   ⏱️ 조리시간: 5분\n\n4. **요거트**\n   부담스럽지 않은 선택\n   ⏱️ 조리시간: 2분\n\n맛있게 드세요! 😋",
+      "timestamp": 1753970003897,
+      "type": "bot",
+      "intent": "FOOD_QUESTION"
+    },
+    {
+      "message": "죄송합니다. 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+      "timestamp": 1753970003897,
+      "type": "bot",
+      "intent": "ERROR"
+    }
+  ],
+  "context": {
+    "topics": [],
+    "preferences": {},
+    "emotionalState": "neutral",
+    "conversationFlow": "initial",
+    "lastIntent": "ERROR",
+    "userProfile": {
+      "responseStyle": "detailed",
+      "interactionHistory": [],
+      "preferredLanguage": "ko"
+    }
+  },
+  "isActive": true,
+  "archivedAt": 1753970650148,
+  "sessionDuration": 1,
+  "finalMessageCount": 1
+}
