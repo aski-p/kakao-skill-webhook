@@ -1,8 +1,16 @@
 # 카카오 스킬 웹훅 배포 상태
 
-## 🚀 최근 업데이트 (2025-07-29)
+## 🚀 최근 업데이트 (2025-07-30)
 
-### ✅ 완료된 작업
+### ✅ 완료된 작업 - Railway 크래시 해결
+
+**2025-07-30: Railway 배포 크래시 수정**
+- SubAgentManager에서 누락된 메서드들 추가 (processShoppingQuery, processRestaurantQuery, processNewsQuery, processEntertainmentQuery)
+- TypeError: Cannot read properties of undefined (reading 'bind') 오류 해결
+- 서버 정상 시작 확인 완료
+- GitHub 푸시 및 Railway 자동 배포 트리거 완료
+
+**이전 작업:**
 1. **대규모 한국 영화 데이터 수집**
    - 1917개 영화 코드 수집 완료
    - 345개 영화 상세 정보 처리 완료 (목표 1000개 중 34.5%)

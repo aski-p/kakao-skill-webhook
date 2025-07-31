@@ -166,11 +166,11 @@ class SubAgentManager {
         
         // 1단계: 명확한 패턴 매칭
         const explicitPatterns = {
-            // 정보성 질문 (쇼핑이 아닌)
+            // 정보성 질문 (쇼핑이 아닌, 음식 제외)
             'INFORMATION_QUERY': {
                 patterns: [
                     /^.*(어떻게|왜|무엇|뭐|방법|이유|원리|차이점|특징).*[가-힣]{2,}.*$/,
-                    /^(운동|헬스|건강|다이어트|음식|요리|학습|공부|기술|과학).*방법/,
+                    /^(운동|헬스|건강|다이어트|학습|공부|기술|과학).*방법/,
                     /^.*(효과|장점|단점|차이|비교|설명|정보).*알려.*$/,
                     /^.*(가벼운|쉬운|간단한|좋은|효과적인).*운동.*뭐.*있.*$/,
                     /^.*(운동|헬스|다이어트|건강).*추천.*해.*$/,
@@ -179,7 +179,8 @@ class SubAgentManager {
                 weight: 0.9,
                 exclusions: [
                     /구매|쇼핑|가격|할인|어디서.*사|주문|배송/,
-                    /맛집|식당|카페|음식점/
+                    /맛집|식당|카페|음식점/,
+                    /.*먹.*뭐|.*뭐.*먹|저녁.*먹|점심.*먹|아침.*먹|식사.*뭐|음식.*뭐|뭐.*음식/
                 ]
             },
             
@@ -197,14 +198,18 @@ class SubAgentManager {
                 ]
             },
             
-            // 맛집/레스토랑
+            // 맛집/레스토랑/음식 추천
             'RESTAURANT': {
                 patterns: [
                     /.*맛집.*추천|.*맛집.*어디|.*식당.*좋은곳|.*카페.*추천/,
                     /[가-힣\s]*[구동시군읍면역]\s*(맛집|식당|카페|음식점)/,
-                    /.*먹을곳.*추천|.*음식.*맛있는곳/
+                    /.*먹을곳.*추천|.*음식.*맛있는곳/,
+                    /.*먹.*뭐|.*뭐.*먹|저녁.*먹|점심.*먹|아침.*먹/,
+                    /식사.*뭐|음식.*뭐|뭐.*음식|.*먹으면.*좋/,
+                    /.*음식.*추천|.*메뉴.*추천|.*요리.*추천/,
+                    /배고|허기|뭐.*드시|뭐.*잡수/
                 ],
-                weight: 0.9
+                weight: 0.95
             }
         };
         
@@ -387,15 +392,94 @@ class SubAgentManager {
         
         console.log('레스토랑 에이전트 처리 시작');
         
+        // 음식 추천 로직
+        const foodRecommendation = this.generateFoodRecommendation(message);
+        
         return {
             success: true,
             data: {
-                message: "죄송합니다. 맛집 추천 기능은 현재 개발 중입니다.\n\n다른 질문이 있으시면 언제든 말씀해주세요!",
+                message: foodRecommendation,
                 category: 'RESTAURANT',
                 processedBy: 'restaurant-agent'
             },
             agent: 'restaurant-agent'
         };
+    }
+    
+    // 음식 추천 생성 함수
+    generateFoodRecommendation(message) {
+        // 시간대별 추천
+        const now = new Date();
+        const hour = now.getHours();
+        
+        let timeCategory = '';
+        let recommendations = [];
+        
+        if (message.includes('아침') || (hour >= 6 && hour < 11)) {
+            timeCategory = '아침';
+            recommendations = [
+                '🍳 계란후라이 + 토스트',
+                '🥣 오트밀 + 과일',
+                '🥪 샌드위치',
+                '🍲 미역국 + 밥',
+                '🥛 시리얼 + 우유',
+                '🧇 와플 + 시럽'
+            ];
+        } else if (message.includes('점심') || (hour >= 11 && hour < 15)) {
+            timeCategory = '점심';
+            recommendations = [
+                '🍜 라면 + 김치',
+                '🍱 도시락',
+                '🍲 찌개류 (김치찌개, 된장찌개)',
+                '🍝 파스타',
+                '🍛 덮밥류 (불고기덮밥, 치킨마요덮밥)',
+                '🥘 카레라이스',
+                '🍕 피자',
+                '🍗 치킨'
+            ];
+        } else if (message.includes('저녁') || hour >= 15) {
+            timeCategory = '저녁';
+            recommendations = [
+                '🥩 불고기 + 밥',
+                '🍖 삼겹살 구이',
+                '🐟 생선구이 + 밥',
+                '🍲 전골류 (부대찌개, 김치찌개)',
+                '🍜 국수류 (잔치국수, 냉면)',
+                '🍱 한정식',
+                '🍕 피자',
+                '🍗 치킨 + 맥주',
+                '🍝 파스타',
+                '🥘 중식 (짜장면, 짬뽕)'
+            ];
+        } else {
+            timeCategory = '간식';
+            recommendations = [
+                '🍎 과일',
+                '🥜 견과류',
+                '🍪 쿠키',
+                '☕ 커피 + 케이크',
+                '🧀 치즈 + 크래커',
+                '🥨 프레첼'
+            ];
+        }
+        
+        // 랜덤하게 5개 선택
+        const shuffled = recommendations.sort(() => 0.5 - Math.random());
+        const selected = shuffled.slice(0, 5);
+        
+        let response = `🍽️ ${timeCategory} 메뉴 추천\n\n`;
+        selected.forEach((item, index) => {
+            response += `${index + 1}. ${item}\n`;
+        });
+        
+        response += `\n💡 오늘은 어떤 메뉴가 좋을까요?`;
+        
+        // 특별한 키워드가 있으면 추가 팁 제공
+        if (message.includes('다이어트') || message.includes('건강')) {
+            response += `\n\n🥗 건강 팁: 채소를 충분히 드시고, 기름진 음식은 적당히 드세요!`;
+        }
+        
+        return response;
     }
     
     // 뉴스 에이전트 처리
