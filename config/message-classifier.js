@@ -114,6 +114,9 @@ class MessageClassifier {
                     casual: /뭐해|뭐하고|어디가|어디있어|집에있어|회사에있어/,
                     simple: /^(네|응|아니|그래|맞아|ㅇㅇ|ㄱㅅ|ㄳ|감사|고마워)$/,
                     chat: /대화하자|얘기하자|심심하니|재밌는.*있어|추천.*해줘/,
+                    // 음식 관련 일상 대화 추가 (가장 높은 가중치)
+                    food_casual: /뭐.*먹지|먹을.*뭐|저녁.*뭐|아침.*뭐|점심.*뭐|간식.*뭐|뭐.*마실|마실.*뭐|배고파|출출해|요리.*뭐|음식.*뭐/,
+                    food_suggestions: /음식.*추천|먹을.*것.*추천|뭐.*먹을까|뭐.*드실래|식사.*뭐|메뉴.*추천/,
                     // 일반적인 질문들 추가 (뉴스/데이터 검색이 아닌)
                     general: /오늘.*날짜|몇월.*몇일|무슨.*요일|지금.*시간|현재.*시간|몇시|언제|어떤.*날/,
                     time: /시간.*알려줘|날짜.*알려줘|요일.*알려줘|지금.*몇시/,
@@ -189,6 +192,8 @@ class MessageClassifier {
                     case 'movieKeywords': score += 4; break; // 영화 키워드 높은 가중치
                     case 'weatherSpecific': score += 4; break; // 날씨 특정 키워드 높은 가중치
                     case 'daily': score += 5; break; // 일상 대화 키워드 최고 가중치
+                    case 'food_casual': score += 6; break; // 음식 관련 일상 대화 최고 가중치
+                    case 'food_suggestions': score += 5; break; // 음식 추천 요청 높은 가중치
                     case 'greeting': score += 4; break; // 인사 키워드 높은 가중치
                     case 'casual': score += 4; break; // 캐주얼 대화 키워드 높은 가중치
                     case 'emotion': score += 3; break; // 감정 표현 키워드
@@ -437,6 +442,8 @@ class MessageClassifier {
     // 일상 대화 관련 추출 함수들
     extractConversationType(message) {
         if (/안녕|좋은아침|좋은밤|잘자|굿모닝|굿나잇/.test(message)) return 'greeting';
+        if (/뭐.*먹지|먹을.*뭐|저녁.*뭐|아침.*뭐|점심.*뭐|간식.*뭐|뭐.*마실|마실.*뭐|배고파|출출해/.test(message)) return 'food_casual';
+        if (/음식.*추천|먹을.*것.*추천|뭐.*먹을까|뭐.*드실래|식사.*뭐|메뉴.*추천/.test(message)) return 'food_suggestions';
         if (/오늘.*뭐.*할|뭐.*하고.*있|심심해|재미없어|지루해/.test(message)) return 'daily_chat';
         if (/행복해|기뻐|슬퍼|우울해|화나|짜증나|피곤해|졸려/.test(message)) return 'emotion';
         if (/뭐해|뭐하고|어디가|어디있어/.test(message)) return 'casual_ask';

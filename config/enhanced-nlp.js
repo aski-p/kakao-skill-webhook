@@ -28,11 +28,13 @@ class EnhancedNLP {
                     /뭐해|뭐하고|뭐하니|뭐하세요/,
                     /어떻게.*지내|어떻게.*살|잘.*지내/,
                     /오늘.*어때|기분.*어때|컨디션.*어때/,
+                    /오늘.*있었던.*일|오늘.*일어난.*일|오늘.*무슨.*일/,
+                    /오늘.*뭐.*했|오늘.*어떻게.*보냈/,
                     /안녕|반가워|만나서.*좋|처음.*뵙/,
                     /감사|고마워|정말.*도움/,
                     /힘들어|피곤해|지쳐|스트레스/
                 ],
-                context: ['emotional', 'social', 'personal'],
+                context: ['emotional', 'social', 'personal', 'daily_life'],
                 response_type: 'conversational'
             },
 
@@ -72,7 +74,8 @@ class EnhancedNLP {
             location_based: (msg) => this.analyzeLocationContext(msg),
             emotional: (msg) => this.analyzeEmotionalContext(msg),
             social: (msg) => this.analyzeSocialContext(msg),
-            specific_topic: (msg) => this.analyzeTopicContext(msg)
+            specific_topic: (msg) => this.analyzeTopicContext(msg),
+            daily_life: (msg) => this.analyzeDailyLifeContext(msg)
         };
 
         // 대화 흐름 패턴
@@ -251,6 +254,19 @@ class EnhancedNLP {
         if (/쇼핑|제품|브랜드|가격/.test(message)) topicScore += 0.2;
         
         return topicScore;
+    }
+    
+    // 일상 생활 컨텍스트 분석
+    analyzeDailyLifeContext(message) {
+        let dailyScore = 0;
+        
+        // 일상 관련 표현
+        if (/오늘|어제|내일|이번주|저번주/.test(message)) dailyScore += 0.3;
+        if (/일어난|있었던|벌어진|생긴/.test(message)) dailyScore += 0.2;
+        if (/일상|생활|하루|아침|점심|저녁/.test(message)) dailyScore += 0.2;
+        if (/어떻게|뭐|무슨|어떤/.test(message)) dailyScore += 0.1;
+        
+        return dailyScore;
     }
 
     // 컨텍스트 분석 결과 반환

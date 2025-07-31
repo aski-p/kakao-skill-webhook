@@ -124,7 +124,8 @@ async function callEnhancedClaudeAI(userMessage, userId) {
             // 사용자 컨텍스트 업데이트
             sessionManager.updateUserContext(userId, {
                 lastIntent: intentAnalysis.intent,
-                topics: [...(session.context.topics || []), ...intentAnalysis.context_analysis || {}],
+                topics: [...(session.context.topics || []), intentAnalysis.intent],
+                contextAnalysis: intentAnalysis.context_analysis || {},
                 conversationFlow: enhancedNLP.analyzeConversationFlow(userMessage, conversationHistory).flow_type
             });
             
@@ -469,7 +470,14 @@ function isGameInfoRequest(message) {
 
 // 자연스러운 대화 감지 함수
 function isNaturalConversation(message) {
-    // 문맥적 표현이나 일상적 대화 패턴 감지
+    // 🍽️ 음식 관련 질문은 Enhanced NLP 시스템에서 처리하도록 제외
+    const isFoodQuestion = /뭐.*먹지|먹을.*뭐|저녁.*뭐|아침.*뭐|점심.*뭐|간식.*뭐|뭐.*마실|마실.*뭐|음식.*뭐|요리.*뭐|배고파|출출해/.test(message);
+    if (isFoodQuestion) {
+        console.log('🍽️ 음식 관련 질문 감지 - Enhanced NLP 시스템으로 라우팅');
+        return false;
+    }
+    
+    // 문맥적 표현이나 일상적 대화 패턴 감지 (음식 관련 패턴 제거)
     const conversationalPatterns = [
         /더위에.*어떻게/, /추위에.*어떻게/, /덥.*어떻게/, /춥.*어떻게/,
         /힘들어/, /어려워/, /답답해/, /괴로워/, /스트레스/, /짜증/,
@@ -477,18 +485,14 @@ function isNaturalConversation(message) {
         /걱정/, /고민/, /불안/, /어떡하지/, /어쩌지/,
         /재미있/, /신나/, /좋아/, /기뻐/, /행복해/,
         /운동.*어떻게/, /다이어트.*어떻게/, /건강.*어떻게/,
-        /일.*힘들/, /공부.*힘들/, /관계.*힘들/,
-        // 음식 관련 일상 대화 패턴 추가
-        /뭐.*먹지/, /먹을.*뭐/, /저녁.*뭐/, /아침.*뭐/, /점심.*뭐/, /간식.*뭐/,
-        /배고파/, /출출해/, /뭐.*마실/, /마실.*뭐/, /음식.*뭐/, /요리.*뭐/
+        /일.*힘들/, /공부.*힘들/, /관계.*힘들/
     ];
     
     // 감정적 표현이나 일상적 고민이 있는 경우
     const hasConversationalPattern = conversationalPatterns.some(pattern => pattern.test(message));
     
-    // 명확한 정보성 질문이 아닌 경우 (음식 관련 질문은 제외)
-    const isCasualFoodQuestion = /뭐.*먹|먹을.*뭐|저녁.*뭐|아침.*뭐|점심.*뭐|간식.*뭐|뭐.*마실|마실.*뭐/.test(message);
-    const isNotInformationalQuery = !(/무엇|언제|어디|왜|누구|얼마|몇|어느|설명|알려|정보|방법/.test(message)) || isCasualFoodQuestion;
+    // 명확한 정보성 질문이 아닌 경우
+    const isNotInformationalQuery = !(/무엇|언제|어디|왜|누구|얼마|몇|어느|설명|알려|정보|방법/.test(message));
     
     // 기존 카테고리에 해당하지 않는 경우
     const isNotExistingCategory = !isWeatherRequest(message) && 
@@ -1849,6 +1853,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         else if (debugInfo.isBirthReport) {
             console.log('👶 출산 신고 정보 요청 감지');
             responseText = getBirthReportInfo();
+        }
+        // 🍽️ 음식 관련 질문 처리 (Enhanced NLP 시스템)
+        else if (/뭐.*먹지|먹을.*뭐|저녁.*뭐|아침.*뭐|점심.*뭐|간식.*뭐|뭐.*마실|마실.*뭐|음식.*뭐|요리.*뭐|배고파|출출해|뭐.*먹을까|먹을까.*뭐/.test(userMessage)) {
+            console.log('🍽️ 음식 관련 질문 감지 - Enhanced NLP 시스템으로 라우팅');
+            responseText = await callEnhancedClaudeAI(userMessage, userId);
         }
         // 💬 자연스러운 대화 처리 (서브에이전트 우회)
         else if (isNaturalConversation(userMessage)) {
