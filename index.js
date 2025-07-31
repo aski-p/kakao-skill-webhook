@@ -6,6 +6,11 @@ const config = require('./config/keywords');
 const MessageClassifier = require('./config/message-classifier');
 const DataExtractor = require('./config/data-extractor');
 // const SubAgentManager = require('./agents/sub-agent-manager'); // 서브에이전트 시스템 비활성화
+
+// [ENHANCED] 향상된 자연어 처리 및 세션 관리 시스템
+const EnhancedNLP = require('./config/enhanced-nlp');
+const SessionManager = require('./config/session-manager');
+const ContextAwareGenerator = require('./config/context-aware-generator');
 const movieScheduler = require('./scheduler/movie-update-scheduler');
 const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
@@ -66,23 +71,26 @@ const TIMEOUT_CONFIG = config.timeouts;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 
-// [AI] Claude AI 호출 함수 (네이버 검색 우선)
-async function callClaudeAI(userMessage, userId) {
+// [ENHANCED] 향상된 Claude AI 호출 함수 (컨텍스트 인식)
+async function callEnhancedClaudeAI(userMessage, userId) {
     try {
-        console.log(`[AI] Claude AI 호출 시작: "${userMessage}" (사용자: ${userId})`);
+        console.log(`[ENHANCED] 향상된 Claude AI 호출: "${userMessage}" (사용자: ${userId})`);
         
-        // 정보성 질문인지 확인
-        const isInformationQuery = /어떻게|뭐|무엇|언제|어디|왜|누구|얼마|몇|어느|설명|알려|정보|방법/.test(userMessage);
+        // 세션 관리 및 컨텍스트 수집
+        const session = await sessionManager.createOrUpdateSession(userId, userMessage);
+        const conversationHistory = sessionManager.getConversationHistory(userId, 10);
         
-        if (isInformationQuery) {
-            console.log('[INFO] 정보성 질문 감지 - 네이버 검색 우선 시도');
+        // 향상된 자연어 이해 (의도 분석)
+        const intentAnalysis = enhancedNLP.analyzeIntent(userMessage, conversationHistory);
+        console.log(`[NLP] 감지된 의도: ${intentAnalysis.intent} (신뢰도: ${intentAnalysis.confidence})`);
+        
+        // 검색이 필요한 명시적 요청인지 확인
+        if (intentAnalysis.intent === 'SEARCH_REQUEST' || 
+            (/검색|최신.*뉴스|뉴스.*검색/.test(userMessage) && intentAnalysis.confidence > 0.6)) {
+            console.log('[SEARCH] 명시적 검색 요청 감지 - 네이버 검색 실행');
             
-            // 네이버 뉴스 검색으로 최신 정보 확인
             const searchResults = await getLatestNews(userMessage);
-            
             if (searchResults && searchResults.length > 0) {
-                console.log('[SUCCESS] 네이버 검색 결과 발견 - 확실한 정보 제공');
-                
                 let searchInfo = `[SEARCH] "${userMessage}" 검색 결과\n\n[NEWS] 최신 정보:\n`;
                 searchResults.slice(0, 3).forEach((news, index) => {
                     searchInfo += `${index + 1}. ${news.title}\n`;
@@ -91,36 +99,57 @@ async function callClaudeAI(userMessage, userId) {
                     }
                     searchInfo += `\n`;
                 });
-                
                 const koreanTime = getKoreanDateTime();
                 searchInfo += `[TIP] 더 자세한 정보는 네이버에서 "${userMessage}"를 검색해보세요.\n\n[TIME] 검색 시간: ${koreanTime.formatted}`;
                 
+                // 세션에 응답 저장
+                await sessionManager.addBotResponse(userId, searchInfo, 'SEARCH_REQUEST');
                 return searchInfo;
             }
         }
         
+        // 컨텍스트 인식 응답 생성 (음식, 일상대화 등)
+        if (intentAnalysis.response_type === 'conversational') {
+            console.log('[CONTEXT] 컨텍스트 인식 응답 생성');
+            const contextResponse = contextGenerator.generateContextAwareResponse(
+                intentAnalysis.intent, 
+                userMessage, 
+                session.context, 
+                conversationHistory
+            );
+            
+            // 세션에 응답 저장
+            await sessionManager.addBotResponse(userId, contextResponse, intentAnalysis.intent);
+            
+            // 사용자 컨텍스트 업데이트
+            sessionManager.updateUserContext(userId, {
+                lastIntent: intentAnalysis.intent,
+                topics: [...(session.context.topics || []), ...intentAnalysis.context_analysis || {}],
+                conversationFlow: enhancedNLP.analyzeConversationFlow(userMessage, conversationHistory).flow_type
+            });
+            
+            return contextResponse;
+        }
+        
+        // 일반적인 정보 요청의 경우 Claude AI 호출
         if (!CLAUDE_API_KEY) {
-            console.log('[WARN] Claude API 키가 설정되지 않음 - 네이버 검색 제안');
-            return `[MSG] 안녕하세요! 정확한 정보를 위해 네이버 검색을 추천드려요.\n\n[SEARCH] "${userMessage}"를 네이버에서 검색해보시면 최신 정보를 확인할 수 있습니다.\n\n[TIP] 구체적인 질문이나 검색어로 다시 시도해주세요!`;
+            console.log('[WARN] Claude API 키가 설정되지 않음');
+            const fallbackResponse = `안녕하세요! 구체적인 질문이나 검색어로 다시 시도해주세요.`;
+            await sessionManager.addBotResponse(userId, fallbackResponse, 'FALLBACK');
+            return fallbackResponse;
         }
 
+        // 대화 히스토리를 포함한 컨텍스트 구성
+        const contextPrompt = buildContextualPrompt(userMessage, conversationHistory, session);
+        
         const response = await axios.post(CLAUDE_API_URL, {
             model: "claude-3-5-sonnet-20241022",
             max_tokens: 1000,
             messages: [{
                 role: "user",
-                content: `당신은 신중하고 정확한 한국어 AI 어시스턴트입니다. 
-
-사용자 메시지: "${userMessage}"
-
-답변 가이드라인:
-- 확실하지 않은 정보는 "정확하지 않을 수 있습니다"라고 명시
-- 최신 정보가 필요한 경우 네이버 검색을 추천
-- 간결하고 명확하게 답변 (200자 이내)
-- 추측이나 불확실한 정보는 제공하지 말 것
-- 필요시 "네이버에서 '키워드'를 검색해보세요" 권장`
+                content: contextPrompt
             }],
-            temperature: 0.3
+            temperature: 0.4
         }, {
             headers: {
                 'Content-Type': 'application/json',
@@ -133,20 +162,69 @@ async function callClaudeAI(userMessage, userId) {
         const aiResponse = response.data.content[0].text;
         console.log(`[SUCCESS] Claude AI 응답 성공: "${aiResponse.substring(0, 100)}..."`);
         
-        // AI 응답이 불확실해 보이면 네이버 검색 제안 추가
-        if (/모르겠|확실하지|정확하지|아마|~것 같|추측|불분명/.test(aiResponse)) {
-            console.log('[SEARCH] 불확실한 AI 응답 감지 - 네이버 검색 제안 추가');
-            return `${aiResponse}\n\n[SEARCH] 더 정확한 정보는 네이버에서 "${userMessage}"를 검색해보세요!`;
+        // 세션에 응답 저장
+        await sessionManager.addBotResponse(userId, aiResponse, intentAnalysis.intent);
+        
+        // 응답 품질 개선
+        if (/모르겠|확실하지|정확하지|아마|~것 같/.test(aiResponse)) {
+            console.log('[SEARCH] 불확실한 응답 감지 - 네이버 검색 제안 추가');
+            return `${aiResponse}\n\n💡 더 정확한 정보는 네이버에서 "${userMessage}"를 검색해보세요!`;
         }
         
         return aiResponse;
         
     } catch (error) {
-        console.error('[ERROR] Claude AI 호출 오류:', error.message);
+        console.error('[ERROR] 향상된 Claude AI 호출 오류:', error.message);
         
-        // 에러 시 네이버 검색 제안
-        return `[SEARCH] 정확한 정보 제공을 위해 네이버 검색을 이용해보세요.\n\n[TIP] "${userMessage}"를 네이버에서 검색하시면:\n• 최신 뉴스와 정보\n• 전문가 의견\n• 공식 발표 내용\n\n을 확인할 수 있습니다!`;
+        const errorResponse = `죄송합니다. 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.`;
+        await sessionManager.addBotResponse(userId, errorResponse, 'ERROR');
+        return errorResponse;
     }
+}
+
+// 컨텍스트 기반 프롬프트 구성
+function buildContextualPrompt(currentMessage, conversationHistory, session) {
+    let prompt = `당신은 친근하고 도움이 되는 한국어 AI 어시스턴트입니다.\n\n`;
+    
+    // 대화 히스토리 포함 (최근 3개)
+    if (conversationHistory && conversationHistory.length > 0) {
+        prompt += `대화 맥락:\n`;
+        conversationHistory.slice(-3).forEach(msg => {
+            if (msg.type === 'user') {
+                prompt += `사용자: ${msg.message}\n`;
+            } else {
+                prompt += `AI: ${msg.message.substring(0, 100)}...\n`;
+            }
+        });
+        prompt += `\n`;
+    }
+    
+    // 현재 메시지
+    prompt += `현재 사용자 메시지: "${currentMessage}"\n\n`;
+    
+    // 세션 정보 활용
+    if (session && session.context) {
+        if (session.context.lastIntent) {
+            prompt += `이전 대화 주제: ${session.context.lastIntent}\n`;
+        }
+        if (session.messageCount > 1) {
+            prompt += `이 사용자와 ${session.messageCount}번째 대화입니다.\n`;
+        }
+    }
+    
+    prompt += `\n답변 가이드라인:
+- 대화 맥락을 고려하여 자연스럽게 응답
+- 한국어로 친근하고 도움이 되는 톤으로 답변
+- 불확실한 정보는 명시하고 검색을 권장
+- 간결하면서도 충분한 정보 제공 (300자 이내)
+- 이모지 적절히 활용하여 친근감 표현`;
+    
+    return prompt;
+}
+
+// 기존 호출 함수는 새 함수를 래핑
+async function callClaudeAI(userMessage, userId) {
+    return await callEnhancedClaudeAI(userMessage, userId);
 }
 
 // [BRAIN] 지능형 메시지 분류 및 데이터 추출 시스템 초기화
@@ -158,6 +236,13 @@ const dataExtractor = new DataExtractor({
 
 // [AI] 서브에이전트 관리 시스템 초기화 - 비활성화됨
 // const subAgentManager = new SubAgentManager();
+
+// [ENHANCED] 향상된 시스템 초기화
+const enhancedNLP = new EnhancedNLP();
+const sessionManager = new SessionManager();
+const contextGenerator = new ContextAwareGenerator();
+
+console.log('[ENHANCED] 향상된 자연어 처리 및 세션 관리 시스템 초기화 완료');
 
 // 사실 확인 요청 감지 함수
 function isFactCheckRequest(message) {
@@ -392,14 +477,18 @@ function isNaturalConversation(message) {
         /걱정/, /고민/, /불안/, /어떡하지/, /어쩌지/,
         /재미있/, /신나/, /좋아/, /기뻐/, /행복해/,
         /운동.*어떻게/, /다이어트.*어떻게/, /건강.*어떻게/,
-        /일.*힘들/, /공부.*힘들/, /관계.*힘들/
+        /일.*힘들/, /공부.*힘들/, /관계.*힘들/,
+        // 음식 관련 일상 대화 패턴 추가
+        /뭐.*먹지/, /먹을.*뭐/, /저녁.*뭐/, /아침.*뭐/, /점심.*뭐/, /간식.*뭐/,
+        /배고파/, /출출해/, /뭐.*마실/, /마실.*뭐/, /음식.*뭐/, /요리.*뭐/
     ];
     
     // 감정적 표현이나 일상적 고민이 있는 경우
     const hasConversationalPattern = conversationalPatterns.some(pattern => pattern.test(message));
     
-    // 명확한 정보성 질문이 아닌 경우
-    const isNotInformationalQuery = !/뭐|무엇|언제|어디|왜|누구|얼마|몇|어느|설명|알려|정보|방법/.test(message);
+    // 명확한 정보성 질문이 아닌 경우 (음식 관련 질문은 제외)
+    const isCasualFoodQuestion = /뭐.*먹|먹을.*뭐|저녁.*뭐|아침.*뭐|점심.*뭐|간식.*뭐|뭐.*마실|마실.*뭐/.test(message);
+    const isNotInformationalQuery = !(/무엇|언제|어디|왜|누구|얼마|몇|어느|설명|알려|정보|방법/.test(message)) || isCasualFoodQuestion;
     
     // 기존 카테고리에 해당하지 않는 경우
     const isNotExistingCategory = !isWeatherRequest(message) && 
