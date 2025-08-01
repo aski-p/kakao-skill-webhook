@@ -96,20 +96,20 @@ async function callSimpleClaudeAI(userMessage, userId) {
         const prompt = buildSimplePrompt(userMessage, conversationHistory);
         
         const response = await axios.post(CLAUDE_API_URL, {
-            model: "claude-3-5-sonnet-20241022",
-            max_tokens: 300, // 800 → 300으로 단축 (빠른 응답)
+            model: "claude-3-5-haiku-20241022", // Sonnet → Haiku로 변경 (더 빠른 모델)
+            max_tokens: 150, // 200 → 150으로 더 단축
             messages: [{
                 role: "user",
                 content: prompt
             }],
-            temperature: 0.7
+            temperature: 0.3 // 0.5 → 0.3으로 더 낮춰서 빠른 응답
         }, {
             headers: {
                 'Content-Type': 'application/json',
                 'x-api-key': CLAUDE_API_KEY,
                 'anthropic-version': '2023-06-01'
             },
-            timeout: 4000 // 10초 → 4초로 단축 (카카오톡 5초 제한)
+            timeout: 2500 // 3초 → 2.5초로 더 단축
         });
 
         let aiResponse = response.data.content[0].text;
@@ -331,18 +331,14 @@ function buildSimplePrompt(currentMessage, conversationHistory) {
     else if (hour >= 18 && hour < 22) timeOfDay = "저녁시간";
     else timeOfDay = "야식시간";
     
-    // AI가 모든 요청을 자연스럽게 처리하는 프롬프트
-    let prompt = `당신은 한국어를 구사하는 친근하고 도움이 되는 AI 어시스턴트입니다.
+    // 빠른 응답을 위한 간결한 프롬프트
+    let prompt = `한국어 AI 어시스턴트. 현재 ${timeOfDay}.
 
-현재 시간: ${koreanTime.formatted} (${timeOfDay})
+간결하고 친근하게 답변. 실시간 정보 필요시:
+- 날씨: [🌤️:도시명]
+- 맛집: [🍽️:지역 음식종류]
 
-사용자의 모든 질문에 자연스럽고 도움이 되는 답변을 해주세요.
-
-특별한 요청 표시 방법:
-- 날씨 정보가 필요하면: [🌤️:도시명] (예: [🌤️:서울])
-- 맛집 정보가 필요하면: [🍽️:지역 음식종류] (예: [🍽️:강남 치킨])
-
-200자 이내로 간결하게 답변하고 이모지를 적절히 사용해주세요.`;
+150자 이내 답변.`;
     
     // 최근 대화 맥락 (1개만)
     if (conversationHistory && conversationHistory.length > 0) {
