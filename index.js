@@ -71,7 +71,63 @@ const TIMEOUT_CONFIG = config.timeouts;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 
-// [ENHANCED] 향상된 Claude AI 호출 함수 (컨텍스트 인식)
+// 🧠 완전한 AI 기반 지능형 처리 함수
+async function callIntelligentClaudeAI(userMessage, userId) {
+    try {
+        console.log(`[INTELLIGENT] 지능형 Claude AI 호출: "${userMessage}" (사용자: ${userId})`);
+        
+        // 세션 관리 및 컨텍스트 수집
+        const session = await sessionManager.createOrUpdateSession(userId, userMessage);
+        const conversationHistory = sessionManager.getConversationHistory(userId, 10);
+        
+        if (!CLAUDE_API_KEY) {
+            console.log('⚠️ Claude API 키가 설정되지 않음');
+            const fallbackResponse = `안녕하세요! 무엇을 도와드릴까요?`;
+            await sessionManager.addBotResponse(userId, fallbackResponse, 'FALLBACK');
+            return fallbackResponse;
+        }
+
+        // Claude AI에게 도구 사용 권한과 함께 모든 판단을 위임
+        const contextPrompt = buildIntelligentPrompt(userMessage, conversationHistory, session);
+        
+        const response = await axios.post(CLAUDE_API_URL, {
+            model: "claude-3-5-sonnet-20241022",
+            max_tokens: 1000,
+            messages: [{
+                role: "user",
+                content: contextPrompt
+            }],
+            temperature: 0.7
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': CLAUDE_API_KEY,
+                'anthropic-version': '2023-06-01'
+            },
+            timeout: 8000
+        });
+
+        let aiResponse = response.data.content[0].text;
+        console.log(`✅ Claude AI 1차 응답: "${aiResponse.substring(0, 100)}..."`);
+        
+        // Claude AI가 추가 정보가 필요하다고 판단한 경우 도구 사용
+        aiResponse = await processAIToolRequests(aiResponse, userMessage, userId);
+        
+        // 세션에 응답 저장
+        await sessionManager.addBotResponse(userId, aiResponse, 'AI_INTELLIGENT');
+        
+        return aiResponse;
+        
+    } catch (error) {
+        console.error('❌ 지능형 Claude AI 호출 오류:', error.message);
+        
+        const errorResponse = `죄송합니다. 잠시 문제가 발생했습니다. 다시 말씀해주세요.`;
+        await sessionManager.addBotResponse(userId, errorResponse, 'ERROR');
+        return errorResponse;
+    }
+}
+
+// [ENHANCED] 향상된 Claude AI 호출 함수 (컨텍스트 인식) - 백업용으로 유지
 async function callEnhancedClaudeAI(userMessage, userId) {
     try {
         console.log(`[ENHANCED] 향상된 Claude AI 호출: "${userMessage}" (사용자: ${userId})`);
@@ -183,7 +239,136 @@ async function callEnhancedClaudeAI(userMessage, userId) {
     }
 }
 
-// 컨텍스트 기반 프롬프트 구성
+// 🧠 지능형 프롬프트 구성 - Claude AI가 모든 것을 판단
+function buildIntelligentPrompt(currentMessage, conversationHistory, session) {
+    const now = new Date();
+    const koreanTime = now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+    const hour = now.getHours();
+    
+    let prompt = `당신은 한국어를 구사하는 친근하고 도움이 되는 AI 어시스턴트입니다.
+
+현재 시간: ${koreanTime} (${hour}시)
+
+사용 가능한 도구들:
+1. [SEARCH_NAVER]: 실시간 뉴스, 정보 검색이 필요할 때 사용
+   - 형식: [SEARCH_NAVER:검색어]
+   - 예: [SEARCH_NAVER:오늘 뉴스], [SEARCH_NAVER:날씨 서울]
+
+2. [SEARCH_MOVIE]: 영화 정보, 평점이 필요할 때 사용  
+   - 형식: [SEARCH_MOVIE:영화제목]
+   - 예: [SEARCH_MOVIE:어벤져스]
+
+3. [SEARCH_RESTAURANT]: 맛집 정보가 필요할 때 사용
+   - 형식: [SEARCH_RESTAURANT:지역 음식종류]
+   - 예: [SEARCH_RESTAURANT:강남 일식]
+
+사용자와의 대화:`;
+    
+    // 대화 히스토리 포함 (최근 3개)
+    if (conversationHistory && conversationHistory.length > 0) {
+        prompt += `\n\n최근 대화:`;
+        conversationHistory.slice(-3).forEach(msg => {
+            if (msg.type === 'user') {
+                prompt += `\n사용자: ${msg.message}`;
+            } else {
+                prompt += `\nAI: ${msg.message.substring(0, 100)}...`;
+            }
+        });
+    }
+    
+    prompt += `\n\n현재 사용자 질문: ${currentMessage}
+
+응답 지침:
+- 음식 추천: 현재 시간(${hour}시)을 고려해서 자연스럽게 추천
+- 영화 질문: 구체적인 영화명이 있으면 [SEARCH_MOVIE] 도구 사용  
+- 실시간 정보: 뉴스, 날씨 등은 [SEARCH_NAVER] 도구 사용
+- 맛집 문의: 지역이 명시된 경우 [SEARCH_RESTAURANT] 도구 사용
+- 일반 대화: 도구 없이 자연스럽게 대화
+
+자연스럽고 친근하게 한국어로 답변해주세요.`;
+
+    return prompt;
+}
+
+// 🔧 AI 도구 요청 처리 함수
+async function processAIToolRequests(aiResponse, userMessage, userId) {
+    let processedResponse = aiResponse;
+    
+    try {
+        // 네이버 검색 요청 처리
+        const naverSearchMatch = aiResponse.match(/\[SEARCH_NAVER:([^\]]+)\]/);
+        if (naverSearchMatch) {
+            const searchQuery = naverSearchMatch[1];
+            console.log(`🔍 네이버 검색 요청: "${searchQuery}"`);
+            
+            const searchResults = await getLatestNews(searchQuery);
+            if (searchResults && searchResults.length > 0) {
+                let searchInfo = `\n\n📰 "${searchQuery}" 최신 정보:\n`;
+                searchResults.slice(0, 3).forEach((news, index) => {
+                    searchInfo += `${index + 1}. ${news.title}\n`;
+                    if (news.description) {
+                        searchInfo += `   ${news.description.substring(0, 80)}...\n`;
+                    }
+                });
+                processedResponse = processedResponse.replace(/\[SEARCH_NAVER:[^\]]+\]/, searchInfo);
+            } else {
+                processedResponse = processedResponse.replace(/\[SEARCH_NAVER:[^\]]+\]/, '\n\n죄송합니다. 검색 결과를 가져올 수 없습니다.');
+            }
+        }
+        
+        // 영화 검색 요청 처리  
+        const movieSearchMatch = aiResponse.match(/\[SEARCH_MOVIE:([^\]]+)\]/);
+        if (movieSearchMatch) {
+            const movieTitle = movieSearchMatch[1];
+            console.log(`🎬 영화 검색 요청: "${movieTitle}"`);
+            
+            const movieResults = await getNaverMovieInfo(movieTitle);
+            if (movieResults && movieResults.length > 0) {
+                const movie = movieResults[0];
+                let movieInfo = `\n\n🎬 "${movieTitle}" 정보:\n`;
+                movieInfo += `📍 제목: ${movie.title}\n`;
+                movieInfo += `🎭 감독: ${movie.director}\n`;
+                movieInfo += `👥 출연: ${movie.actor}\n`;
+                movieInfo += `📅 개봉: ${movie.pubDate}\n`;
+                movieInfo += `⭐ 평점: ${movie.userRating}/10`;
+                processedResponse = processedResponse.replace(/\[SEARCH_MOVIE:[^\]]+\]/, movieInfo);
+            } else {
+                processedResponse = processedResponse.replace(/\[SEARCH_MOVIE:[^\]]+\]/, '\n\n죄송합니다. 해당 영화 정보를 찾을 수 없습니다.');
+            }
+        }
+        
+        // 맛집 검색 요청 처리
+        const restaurantSearchMatch = aiResponse.match(/\[SEARCH_RESTAURANT:([^\]]+)\]/);
+        if (restaurantSearchMatch) {
+            const restaurantQuery = restaurantSearchMatch[1];
+            console.log(`🍽️ 맛집 검색 요청: "${restaurantQuery}"`);
+            
+            const restaurantResults = await getLocalRestaurants(restaurantQuery);
+            if (restaurantResults && restaurantResults.length > 0) {
+                let restaurantInfo = `\n\n🍽️ "${restaurantQuery}" 맛집 추천:\n`;
+                restaurantResults.slice(0, 3).forEach((restaurant, index) => {
+                    restaurantInfo += `${index + 1}. ${restaurant.title.replace(/<[^>]*>/g, '')}\n`;
+                    restaurantInfo += `   📍 ${restaurant.address}\n`;
+                    if (restaurant.category) {
+                        restaurantInfo += `   🏷️ ${restaurant.category}\n`;
+                    }
+                });
+                processedResponse = processedResponse.replace(/\[SEARCH_RESTAURANT:[^\]]+\]/, restaurantInfo);
+            } else {
+                processedResponse = processedResponse.replace(/\[SEARCH_RESTAURANT:[^\]]+\]/, '\n\n죄송합니다. 해당 지역 맛집 정보를 찾을 수 없습니다.');
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ 도구 처리 오류:', error.message);
+        // 도구 요청 태그만 제거하고 원본 응답 유지
+        processedResponse = processedResponse.replace(/\[SEARCH_[^\]]+\]/g, '');
+    }
+    
+    return processedResponse;
+}
+
+// 컨텍스트 기반 프롬프트 구성 - 백업용으로 유지
 function buildContextualPrompt(currentMessage, conversationHistory, session) {
     let prompt = `당신은 친근하고 도움이 되는 한국어 AI 어시스턴트입니다.\n\n`;
     
@@ -1798,25 +1983,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         const analysis = analyzeMessageWithContext(userId, userMessage);
         console.log(`🧠 의도 분석 결과:`, analysis);
         
-        // 🤖 AI 우선 접근 - 대부분의 대화를 Claude AI가 직접 처리
-        
-        // 👶 출산 신고 정보 요청 처리 (정확한 정보가 필요한 특수한 경우)
-        if (debugInfo.isBirthReport) {
-            console.log('👶 출산 신고 정보 요청 감지');
-            responseText = getBirthReportInfo();
-        }
-        // 🌤️ 날씨 정보 요청 처리 (실시간 데이터가 필요한 경우)
-        else if (debugInfo.isWeather) {
-            console.log('🌤️ 날씨 정보 요청 감지');
-            const city = extractCityFromMessage(userMessage);
-            console.log(`🏙️ 추출된 도시: ${city.korean} (${city.english})`);
-            responseText = await getWeatherInfo(city.korean);
-        }
-        // 🤖 모든 일반 대화는 Enhanced Claude AI 시스템에서 처리
-        else {
-            console.log('🤖 Enhanced Claude AI 직접 호출 - 자연스러운 대화 처리');
-            responseText = await callEnhancedClaudeAI(userMessage, userId);
-        }
+        // 🤖 완전한 Claude AI 기반 처리 - 모든 대화를 AI가 판단하고 필요시 도구 사용
+        console.log('🤖 Claude AI 메인 처리 시작');
+        responseText = await callIntelligentClaudeAI(userMessage, userId);
         
         /* 
         === 기존 하드코딩된 분기들 제거됨 ===
