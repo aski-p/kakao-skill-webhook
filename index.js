@@ -153,7 +153,7 @@ async function callSimpleClaudeAI(userMessage, userId) {
         
         const response = await axios.post(CLAUDE_API_URL, {
             model: "claude-3-5-sonnet-20241022",
-            max_tokens: 800,
+            max_tokens: 300, // 800 → 300으로 단축 (빠른 응답)
             messages: [{
                 role: "user",
                 content: prompt
@@ -165,7 +165,7 @@ async function callSimpleClaudeAI(userMessage, userId) {
                 'x-api-key': CLAUDE_API_KEY,
                 'anthropic-version': '2023-06-01'
             },
-            timeout: 10000 // 10초로 증가
+            timeout: 4000 // 10초 → 4초로 단축 (카카오톡 5초 제한)
         });
 
         const aiResponse = response.data.content[0].text;
@@ -321,28 +321,20 @@ function buildSimplePrompt(currentMessage, conversationHistory) {
     else if (hour >= 18 && hour < 22) timeOfDay = "저녁시간";
     else timeOfDay = "야식시간";
     
-    let prompt = `당신은 한국어를 구사하는 친근하고 도움이 되는 AI 어시스턴트입니다.
+    // 간결한 프롬프트로 빠른 응답 최적화
+    let prompt = `한국어 AI 어시스턴트입니다. 현재 ${timeOfDay}입니다.
 
-현재 한국 시간: ${koreanTime.formatted} (${hour}시 - ${timeOfDay})
-
-사용자의 질문에 자연스럽고 친근하게 답변해주세요.
-- 현재 시간대에 맞는 음식을 추천해주세요 (${timeOfDay})
-- 간결하고 도움이 되는 답변을 해주세요
-- 이모지를 적절히 사용해서 친근하게 대화하세요`;
+간결하고 친근하게 답변해주세요. 200자 이내로 답변하세요.`;
     
-    // 최근 대화 맥락 (3개)
+    // 최근 대화 맥락 (1개만)
     if (conversationHistory && conversationHistory.length > 0) {
-        prompt += `\n\n최근 대화:`;
-        conversationHistory.slice(-3).forEach(msg => {
-            if (msg.type === 'user') {
-                prompt += `\n사용자: ${msg.message}`;
-            } else {
-                prompt += `\nAI: ${msg.message.substring(0, 80)}...`;
-            }
-        });
+        const lastMsg = conversationHistory[conversationHistory.length - 1];
+        if (lastMsg.type === 'user') {
+            prompt += `\n이전: ${lastMsg.message}`;
+        }
     }
     
-    prompt += `\n\n사용자: ${currentMessage}`;
+    prompt += `\n\n질문: ${currentMessage}`;
     
     return prompt;
 }
@@ -2092,17 +2084,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         const analysis = analyzeMessageWithContext(userId, userMessage);
         console.log(`🧠 의도 분석 결과:`, analysis);
         
-        // 🤖 빠른 응답 테스트 - 타임아웃 방지
-        console.log('🤖 빠른 응답 테스트 시작');
-        
-        // 임시: 즉시 응답으로 타임아웃 문제 해결
-        if (userMessage.includes('야식') || userMessage.includes('먹')) {
-            console.log('🍜 야식 요청 - 즉시 응답');
-            responseText = `🌙 야식 추천!\n\n🍜 라면\n🍗 치킨\n🍕 피자\n🥟 만두\n\n뭐가 땡기세요? 😋`;
-        } else {
-            console.log('🤖 Claude AI 호출');
-            responseText = await callSimpleClaudeAI(userMessage, userId);
-        }
+        // 🤖 최적화된 Claude AI - 빠른 응답으로 타임아웃 방지
+        console.log('🤖 최적화된 Claude AI 호출 시작');
+        responseText = await callSimpleClaudeAI(userMessage, userId);
         
         /* 
         === 기존 하드코딩된 분기들 제거됨 ===
