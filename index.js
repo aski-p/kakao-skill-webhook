@@ -292,8 +292,11 @@ function getQuickResponse(userMessage, conversationHistory) {
     const koreanTime = getKoreanDateTime();
     const hour = new Date().getHours();
     
-    // 음식 관련 즉시 응답
-    if (userMessage.includes('먹') || userMessage.includes('배고') || userMessage.includes('야식')) {
+    // 음식 관련 즉시 응답 (확장된 패턴)
+    if (userMessage.includes('먹') || userMessage.includes('배고') || userMessage.includes('야식') || 
+        userMessage.includes('라면') || userMessage.includes('치킨') || userMessage.includes('피자') || 
+        userMessage.includes('떡볶이') || userMessage.includes('맛집') || userMessage.includes('배달') ||
+        userMessage.includes('주문') || userMessage.includes('음식') || userMessage.includes('닭')) {
         if (userMessage.includes('라면')) {
             if (userMessage.includes('맛집') || userMessage.includes('추천') || userMessage.includes('배달')) {
                 return `🍜 라면 맛집이 필요하시군요!\n\n[🍽️:${extractLocation(userMessage)} 라면]\n\n실시간 맛집 정보를 확인 중입니다! 😋`;
@@ -315,14 +318,18 @@ function getQuickResponse(userMessage, conversationHistory) {
         }
     }
     
-    // 날씨 관련 즉시 응답
-    if (userMessage.includes('날씨') || userMessage.includes('기온') || userMessage.includes('비') || userMessage.includes('눈')) {
+    // 날씨 관련 즉시 응답 (확장된 패턴)
+    if (userMessage.includes('날씨') || userMessage.includes('기온') || userMessage.includes('비') || userMessage.includes('눈') ||
+        userMessage.includes('덥') || userMessage.includes('춥') || userMessage.includes('맑') || userMessage.includes('흐림') ||
+        userMessage.includes('구름') || userMessage.includes('미세먼지') || userMessage.includes('온도') || userMessage.includes('습도')) {
         const city = extractLocation(userMessage) || '서울';
         return `🌤️ ${city} 날씨가 궁금하시군요!\n\n[🌤️:${city}]\n\n실시간 날씨 정보를 확인 중입니다! ☀️`;
     }
     
-    // 인사 관련 즉시 응답  
-    if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
+    // 인사 관련 즉시 응답 (확장된 패턴)
+    if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello') ||
+        userMessage.includes('반가') || userMessage.includes('처음') || userMessage.includes('좋은') ||
+        userMessage.includes('감사') || userMessage.includes('고마') || userMessage.includes('하이')) {
         if (hour >= 0 && hour < 6) {
             return `🌙 안녕하세요! 새벽 시간이네요.\n야식이 생각나지 않으세요? 😊`;
         } else if (hour >= 6 && hour < 12) {
