@@ -2110,7 +2110,14 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             responseText = responseText.substring(0, config.limits.message_truncate_length) + '...';
         }
         
+        // 응답 텍스트 정리 (카카오톡 호환성)
+        if (responseText) {
+            responseText = responseText.trim(); // 앞뒤 공백 제거
+            responseText = responseText.replace(/\n{3,}/g, '\n\n'); // 연속 줄바꿈 정리
+        }
+        
         console.log(`📤 최종 응답 길이: ${responseText ? responseText.length : 0}자`);
+        console.log(`📤 응답 내용 미리보기: "${responseText ? responseText.substring(0, 50) : 'null'}..."`);
         
         // 🎉 카카오톡 스킬 응답 포맷
         const response = {
@@ -2123,6 +2130,8 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 }]
             }
         };
+        
+        console.log('📤 카카오톡 응답 전송:', JSON.stringify(response, null, 2));
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.status(200).json(response);
         
