@@ -71,31 +71,52 @@ const TIMEOUT_CONFIG = config.timeouts;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 
-// 🧠 완전한 AI 기반 지능형 처리 함수
-async function callIntelligentClaudeAI(userMessage, userId) {
+// 🧠 심플한 Claude AI 기반 처리 - 기본은 Sonnet, 영화평만 DB 조회
+async function callSimpleClaudeAI(userMessage, userId) {
     try {
-        console.log(`[INTELLIGENT] 지능형 Claude AI 호출: "${userMessage}" (사용자: ${userId})`);
+        console.log(`[SIMPLE] Claude AI Sonnet 호출: "${userMessage}" (사용자: ${userId})`);
         
-        // 세션 관리 및 컨텍스트 수집
+        // 세션 관리
         const session = await sessionManager.createOrUpdateSession(userId, userMessage);
-        const conversationHistory = sessionManager.getConversationHistory(userId, 10);
+        const conversationHistory = sessionManager.getConversationHistory(userId, 5);
         
         if (!CLAUDE_API_KEY) {
             console.log('⚠️ Claude API 키가 설정되지 않음');
-            const fallbackResponse = `안녕하세요! 무엇을 도와드릴까요?`;
-            await sessionManager.addBotResponse(userId, fallbackResponse, 'FALLBACK');
-            return fallbackResponse;
+            return `안녕하세요! 무엇을 도와드릴까요?`;
         }
 
-        // Claude AI에게 도구 사용 권한과 함께 모든 판단을 위임
-        const contextPrompt = buildIntelligentPrompt(userMessage, conversationHistory, session);
+        // 영화 평점/평가 요청인 경우에만 DB 조회
+        const moviePattern = /영화.*평점|평점.*영화|영화평|영화.*평가|평가.*영화|영화.*리뷰|리뷰.*영화|영화.*별점|별점.*영화/;
+        if (moviePattern.test(userMessage)) {
+            console.log('🎬 영화평 요청 감지 - DB 조회 시도');
+            const movieTitle = userMessage.replace(/영화|평점|평가|리뷰|별점|어때|네이버|뭐야|알려줘/g, '').trim();
+            
+            if (movieTitle) {
+                const movieInfo = await getNaverMovieInfo(movieTitle);
+                if (movieInfo && movieInfo.length > 0) {
+                    const movie = movieInfo[0];
+                    const movieResponse = `🎬 "${movie.title}" 정보\n\n` +
+                        `📍 감독: ${movie.director}\n` +
+                        `👥 출연: ${movie.actor}\n` +
+                        `📅 개봉: ${movie.pubDate}\n` +
+                        `⭐ 평점: ${movie.userRating}/10\n\n` +
+                        `네이버 영화 평점 기준입니다.`;
+                    
+                    await sessionManager.addBotResponse(userId, movieResponse, 'MOVIE_INFO');
+                    return movieResponse;
+                }
+            }
+        }
+
+        // 나머지 모든 대화는 Claude AI Sonnet이 자연스럽게 처리
+        const prompt = buildSimplePrompt(userMessage, conversationHistory);
         
         const response = await axios.post(CLAUDE_API_URL, {
             model: "claude-3-5-sonnet-20241022",
             max_tokens: 1000,
             messages: [{
                 role: "user",
-                content: contextPrompt
+                content: prompt
             }],
             temperature: 0.7
         }, {
@@ -104,26 +125,18 @@ async function callIntelligentClaudeAI(userMessage, userId) {
                 'x-api-key': CLAUDE_API_KEY,
                 'anthropic-version': '2023-06-01'
             },
-            timeout: 8000
+            timeout: 4000
         });
 
-        let aiResponse = response.data.content[0].text;
-        console.log(`✅ Claude AI 1차 응답: "${aiResponse.substring(0, 100)}..."`);
+        const aiResponse = response.data.content[0].text;
+        console.log(`✅ Claude AI 응답 성공: ${aiResponse.substring(0, 100)}...`);
         
-        // Claude AI가 추가 정보가 필요하다고 판단한 경우 도구 사용
-        aiResponse = await processAIToolRequests(aiResponse, userMessage, userId);
-        
-        // 세션에 응답 저장
-        await sessionManager.addBotResponse(userId, aiResponse, 'AI_INTELLIGENT');
-        
+        await sessionManager.addBotResponse(userId, aiResponse, 'AI_RESPONSE');
         return aiResponse;
         
     } catch (error) {
-        console.error('❌ 지능형 Claude AI 호출 오류:', error.message);
-        
-        const errorResponse = `죄송합니다. 잠시 문제가 발생했습니다. 다시 말씀해주세요.`;
-        await sessionManager.addBotResponse(userId, errorResponse, 'ERROR');
-        return errorResponse;
+        console.error('❌ Claude AI 호출 오류:', error.message);
+        return `죄송합니다. 잠시 후 다시 시도해주세요.`;
     }
 }
 
@@ -239,7 +252,37 @@ async function callEnhancedClaudeAI(userMessage, userId) {
     }
 }
 
-// 🧠 지능형 프롬프트 구성 - Claude AI가 모든 것을 판단
+// 🧠 심플한 프롬프트 구성 - 자연스러운 대화에 집중
+function buildSimplePrompt(currentMessage, conversationHistory) {
+    const now = new Date();
+    const hour = now.getHours();
+    
+    let prompt = `당신은 한국어를 구사하는 친근하고 도움이 되는 AI 어시스턴트입니다.
+현재 시간: ${hour}시
+
+사용자의 질문에 자연스럽고 친근하게 답변해주세요.
+- 음식 추천시 현재 시간을 고려하세요 (아침/점심/저녁/야식)
+- 간결하고 도움이 되는 답변을 해주세요
+- 이모지를 적절히 사용해서 친근하게 대화하세요`;
+    
+    // 최근 대화 맥락 (3개)
+    if (conversationHistory && conversationHistory.length > 0) {
+        prompt += `\n\n최근 대화:`;
+        conversationHistory.slice(-3).forEach(msg => {
+            if (msg.type === 'user') {
+                prompt += `\n사용자: ${msg.message}`;
+            } else {
+                prompt += `\nAI: ${msg.message.substring(0, 80)}...`;
+            }
+        });
+    }
+    
+    prompt += `\n\n사용자: ${currentMessage}`;
+    
+    return prompt;
+}
+
+// 🧠 지능형 프롬프트 구성 - Claude AI가 모든 것을 판단 (백업용)
 function buildIntelligentPrompt(currentMessage, conversationHistory, session) {
     const koreanTime = getKoreanDateTime();
     const hour = new Date().getHours();
@@ -1982,16 +2025,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         const analysis = analyzeMessageWithContext(userId, userMessage);
         console.log(`🧠 의도 분석 결과:`, analysis);
         
-        // 🤖 완전한 Claude AI 기반 처리 - 모든 대화를 AI가 판단하고 필요시 도구 사용
-        console.log('🤖 Claude AI 메인 처리 시작');
-        try {
-            // 새로운 지능형 시스템 사용
-            responseText = await callIntelligentClaudeAI(userMessage, userId);
-        } catch (error) {
-            console.error('❌ 지능형 AI 호출 실패, 백업 시스템 사용:', error.message);
-            // 백업: 기존 Enhanced 시스템 사용
-            responseText = await callEnhancedClaudeAI(userMessage, userId);
-        }
+        // 🤖 심플한 Claude AI 기반 처리 - 기본은 Sonnet, 영화평만 DB
+        console.log('🤖 Claude AI Sonnet 처리 시작');
+        responseText = await callSimpleClaudeAI(userMessage, userId);
         
         /* 
         === 기존 하드코딩된 분기들 제거됨 ===
