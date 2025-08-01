@@ -71,18 +71,53 @@ const TIMEOUT_CONFIG = config.timeouts;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 
-// 🧠 심플한 Claude AI 기반 처리 - 기본은 Sonnet, 영화평만 DB 조회
+// 🧠 심플한 Claude AI 기반 처리 - 기본은 Sonnet, 영화평만 DB 조회, 날씨는 네이버
 async function callSimpleClaudeAI(userMessage, userId) {
     try {
         console.log(`[SIMPLE] Claude AI Sonnet 호출: "${userMessage}" (사용자: ${userId})`);
         
-        // 세션 관리
-        const session = await sessionManager.createOrUpdateSession(userId, userMessage);
-        const conversationHistory = sessionManager.getConversationHistory(userId, 5);
+        // 세션 관리 (옵셔널)
+        let conversationHistory = [];
+        try {
+            if (sessionManager) {
+                const session = await sessionManager.createOrUpdateSession(userId, userMessage);
+                conversationHistory = sessionManager.getConversationHistory(userId, 5) || [];
+            }
+        } catch (e) {
+            console.log('세션 관리 스킵:', e.message);
+        }
         
         if (!CLAUDE_API_KEY) {
             console.log('⚠️ Claude API 키가 설정되지 않음');
             return `안녕하세요! 무엇을 도와드릴까요?`;
+        }
+
+        // 날씨 요청인 경우 네이버 날씨 검색
+        const weatherPattern = /날씨|기온|비|눈|미세먼지|날씨.*어때/;
+        if (weatherPattern.test(userMessage)) {
+            console.log('🌤️ 날씨 요청 감지 - 네이버 날씨 검색');
+            const cityMatch = userMessage.match(/(서울|부산|대구|인천|광주|대전|울산|세종|강남|홍대|강북|제주)/);
+            const city = cityMatch ? cityMatch[1] : '서울';
+            
+            const weatherNews = await getLatestNews(`${city} 날씨 오늘`);
+            if (weatherNews && weatherNews.length > 0) {
+                let weatherInfo = `🌤️ ${city} 날씨 정보 (네이버 기준)\n\n`;
+                weatherNews.slice(0, 2).forEach((news, index) => {
+                    weatherInfo += `${news.title}\n`;
+                    if (news.description) {
+                        weatherInfo += `${news.description}\n\n`;
+                    }
+                });
+                weatherInfo += `💡 더 자세한 날씨는 네이버에서 "${city} 날씨"를 검색해보세요!`;
+                
+                try {
+                    if (sessionManager) {
+                        await sessionManager.addBotResponse(userId, weatherInfo, 'WEATHER_INFO');
+                    }
+                } catch (e) {}
+                
+                return weatherInfo;
+            }
         }
 
         // 영화 평점/평가 요청인 경우에만 DB 조회
@@ -102,7 +137,12 @@ async function callSimpleClaudeAI(userMessage, userId) {
                         `⭐ 평점: ${movie.userRating}/10\n\n` +
                         `네이버 영화 평점 기준입니다.`;
                     
-                    await sessionManager.addBotResponse(userId, movieResponse, 'MOVIE_INFO');
+                    try {
+                        if (sessionManager) {
+                            await sessionManager.addBotResponse(userId, movieResponse, 'MOVIE_INFO');
+                        }
+                    } catch (e) {}
+                    
                     return movieResponse;
                 }
             }
@@ -131,7 +171,12 @@ async function callSimpleClaudeAI(userMessage, userId) {
         const aiResponse = response.data.content[0].text;
         console.log(`✅ Claude AI 응답 성공: ${aiResponse.substring(0, 100)}...`);
         
-        await sessionManager.addBotResponse(userId, aiResponse, 'AI_RESPONSE');
+        try {
+            if (sessionManager) {
+                await sessionManager.addBotResponse(userId, aiResponse, 'AI_RESPONSE');
+            }
+        } catch (e) {}
+        
         return aiResponse;
         
     } catch (error) {
