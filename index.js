@@ -2092,9 +2092,17 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         const analysis = analyzeMessageWithContext(userId, userMessage);
         console.log(`🧠 의도 분석 결과:`, analysis);
         
-        // 🤖 Claude AI 기반 처리 - 모든 요청을 Claude AI가 자연스럽게 처리
-        console.log('🤖 Claude AI Sonnet 처리 시작');
-        responseText = await callSimpleClaudeAI(userMessage, userId);
+        // 🤖 빠른 응답 테스트 - 타임아웃 방지
+        console.log('🤖 빠른 응답 테스트 시작');
+        
+        // 임시: 즉시 응답으로 타임아웃 문제 해결
+        if (userMessage.includes('야식') || userMessage.includes('먹')) {
+            console.log('🍜 야식 요청 - 즉시 응답');
+            responseText = `🌙 야식 추천!\n\n🍜 라면\n🍗 치킨\n🍕 피자\n🥟 만두\n\n뭐가 땡기세요? 😋`;
+        } else {
+            console.log('🤖 Claude AI 호출');
+            responseText = await callSimpleClaudeAI(userMessage, userId);
+        }
         
         /* 
         === 기존 하드코딩된 분기들 제거됨 ===
