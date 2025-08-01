@@ -92,10 +92,10 @@ module.exports = {
 
     // 타임아웃 설정 (빠른 응답 최적화)
     timeouts: {
-        naver_api: 3000,        // 네이버 API: 3초로 단축
-        claude_general: 3500,   // Claude 일반: 3.5초로 단축 (빠른 응답)
-        claude_image: 4000,
-        image_download: 3000
+        naver_api: 1500,        // 네이버 API: 1.5초로 대폭 단축
+        claude_general: 2000,   // Claude 일반: 2초로 단축
+        claude_image: 3000,
+        image_download: 2000
     },
 
     // 응답 길이 제한

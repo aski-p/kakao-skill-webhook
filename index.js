@@ -81,7 +81,7 @@ async function callSimpleClaudeAI(userMessage, userId) {
         try {
             if (sessionManager) {
                 const session = await sessionManager.createOrUpdateSession(userId, userMessage);
-                conversationHistory = sessionManager.getConversationHistory(userId, 5) || [];
+                conversationHistory = sessionManager.getConversationHistory(userId, 10) || []; // 5개 → 10개로 확장
             }
         } catch (e) {
             console.log('세션 관리 스킵:', e.message);
@@ -109,7 +109,7 @@ async function callSimpleClaudeAI(userMessage, userId) {
                 'x-api-key': CLAUDE_API_KEY,
                 'anthropic-version': '2023-06-01'
             },
-            timeout: 2500 // 3초 → 2.5초로 더 단축
+            timeout: 2000 // 2.5초 → 2초로 더 단축
         });
 
         let aiResponse = response.data.content[0].text;
@@ -282,28 +282,35 @@ async function processAITags(aiResponse, userMessage) {
             }
         }
         
-        // 맛집 요청 태그 처리 (이모지 버전)
+        // 맛집 요청 태그 처리 (이모지 버전) - 빠른 처리
         const restaurantMatch = aiResponse.match(/\[🍽️:([^\]]+)\]/);
         if (restaurantMatch) {
             const query = restaurantMatch[1];
             console.log(`🍽️ 맛집 API 호출: ${query}`);
             
-            const restaurantResults = await getLocalRestaurants(query);
-            if (restaurantResults && restaurantResults.length > 0) {
-                let restaurantInfo = `🍽️ ${query} 맛집 추천\n\n`;
-                restaurantResults.slice(0, 3).forEach((restaurant, index) => {
-                    const title = restaurant.title.replace(/<[^>]*>/g, '');
-                    restaurantInfo += `${index + 1}. ${title}\n`;
-                    restaurantInfo += `   📍 ${restaurant.address}\n`;
-                    if (restaurant.category) {
-                        restaurantInfo += `   🏷️ ${restaurant.category}\n`;
-                    }
-                    restaurantInfo += `\n`;
-                });
-                restaurantInfo += `💡 더 많은 맛집은 네이버에서 "${query}"를 검색하세요!`;
-                processedResponse = processedResponse.replace(/\[🍽️:[^\]]+\]/, `\n\n${restaurantInfo}`);
-            } else {
-                processedResponse = processedResponse.replace(/\[🍽️:[^\]]+\]/, `\n\n🍽️ ${query} 맛집 정보를 가져올 수 없습니다. 네이버에서 "${query} 맛집"를 검색해보세요!`);
+            try {
+                // 타임아웃을 매우 짧게 설정하여 빠른 응답
+                const restaurantResults = await Promise.race([
+                    getLocalRestaurants(query),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('맛집 API 타임아웃')), 1000))
+                ]);
+                
+                if (restaurantResults && restaurantResults.length > 0) {
+                    let restaurantInfo = `🍽️ ${query} 맛집 추천\n\n`;
+                    restaurantResults.slice(0, 2).forEach((restaurant, index) => {
+                        const title = restaurant.title.replace(/<[^>]*>/g, '');
+                        restaurantInfo += `${index + 1}. ${title}\n`;
+                        if (restaurant.address) {
+                            restaurantInfo += `   📍 ${restaurant.address.substring(0, 30)}...\n`;
+                        }
+                    });
+                    processedResponse = processedResponse.replace(/\[🍽️:[^\]]+\]/, `\n\n${restaurantInfo}`);
+                } else {
+                    processedResponse = processedResponse.replace(/\[🍽️:[^\]]+\]/, `\n\n🍽️ 네이버에서 "${query} 맛집"를 검색해보세요!`);
+                }
+            } catch (error) {
+                console.log(`⚠️ 맛집 API 빠른 실패: ${error.message}`);
+                processedResponse = processedResponse.replace(/\[🍽️:[^\]]+\]/, `\n\n🍽️ 네이버에서 "${query} 맛집"를 검색해보세요!`);
             }
         }
         
@@ -331,24 +338,23 @@ function buildSimplePrompt(currentMessage, conversationHistory) {
     else if (hour >= 18 && hour < 22) timeOfDay = "저녁시간";
     else timeOfDay = "야식시간";
     
-    // 빠른 응답을 위한 간결한 프롬프트
-    let prompt = `한국어 AI 어시스턴트. 현재 ${timeOfDay}.
-
-간결하고 친근하게 답변. 실시간 정보 필요시:
-- 날씨: [🌤️:도시명]
-- 맛집: [🍽️:지역 음식종류]
-
-150자 이내 답변.`;
+    // 10분간 대화 기억하는 자연스러운 프롬프트
+    let prompt = `한국어 AI. 현재 ${timeOfDay}.\n`;
     
-    // 최근 대화 맥락 (1개만)
+    // 최근 3개 대화 맥락 포함 (10분간 기억)
     if (conversationHistory && conversationHistory.length > 0) {
-        const lastMsg = conversationHistory[conversationHistory.length - 1];
-        if (lastMsg.type === 'user') {
-            prompt += `\n\n이전 대화: ${lastMsg.message}`;
-        }
+        prompt += `\n최근 대화:\n`;
+        conversationHistory.slice(-3).forEach((msg, index) => {
+            if (msg.type === 'user') {
+                prompt += `사용자: ${msg.message}\n`;
+            } else if (msg.type === 'bot') {
+                prompt += `AI: ${msg.message.substring(0, 50)}...\n`;
+            }
+        });
     }
     
-    prompt += `\n\n사용자: ${currentMessage}`;
+    prompt += `\n현재 질문: ${currentMessage}\n\n`;
+    prompt += `위 대화 맥락을 기억하며 자연스럽게 이어서 대화하세요.\n실시간 정보 필요시:\n- 날씨: [🌤️:도시명]\n- 맛집: [🍽️:지역 음식종류]\n\n150자 내외 답변.`;
     
     return prompt;
 }
