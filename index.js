@@ -92,39 +92,73 @@ async function callSimpleClaudeAI(userMessage, userId) {
             return `안녕하세요! 무엇을 도와드릴까요?`;
         }
 
-        // 모든 요청을 Claude AI가 자연스럽게 처리
-        const prompt = buildSimplePrompt(userMessage, conversationHistory);
+        // 🚀 즉시 응답 시스템 (타임아웃 방지)
+        console.log('🚀 즉시 응답 시스템 활성화');
         
-        const response = await axios.post(CLAUDE_API_URL, {
-            model: "claude-3-5-haiku-20241022", // Sonnet → Haiku로 변경 (더 빠른 모델)
-            max_tokens: 150, // 200 → 150으로 더 단축
-            messages: [{
-                role: "user",
-                content: prompt
-            }],
-            temperature: 0.3 // 0.5 → 0.3으로 더 낮춰서 빠른 응답
-        }, {
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': CLAUDE_API_KEY,
-                'anthropic-version': '2023-06-01'
-            },
-            timeout: 2000 // 2.5초 → 2초로 더 단축
-        });
-
-        let aiResponse = response.data.content[0].text;
-        console.log(`✅ Claude AI 응답 성공: ${aiResponse.substring(0, 100)}...`);
+        // 긴급 패턴 기반 즉시 응답
+        const quickResponse = getQuickResponse(userMessage, conversationHistory);
+        if (quickResponse) {
+            console.log('⚡ 패턴 기반 즉시 응답 전송');
+            
+            try {
+                if (sessionManager) {
+                    await sessionManager.addBotResponse(userId, quickResponse, 'QUICK_RESPONSE');
+                }
+            } catch (e) {}
+            
+            return quickResponse;
+        }
         
-        // AI 응답에서 특별한 요청 태그 처리
-        aiResponse = await processAITags(aiResponse, userMessage);
-        
+        // Claude AI 호출 (백그라운드에서 실행, 실패시 기본 응답)
         try {
-            if (sessionManager) {
-                await sessionManager.addBotResponse(userId, aiResponse, 'AI_RESPONSE');
-            }
-        } catch (e) {}
-        
-        return aiResponse;
+            const prompt = buildSimplePrompt(userMessage, conversationHistory);
+            
+            const response = await Promise.race([
+                axios.post(CLAUDE_API_URL, {
+                    model: "claude-3-5-haiku-20241022",
+                    max_tokens: 100, // 150 → 100으로 더 단축
+                    messages: [{
+                        role: "user",
+                        content: prompt
+                    }],
+                    temperature: 0.1 // 0.3 → 0.1로 더 빠르게
+                }, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': CLAUDE_API_KEY,
+                        'anthropic-version': '2023-06-01'
+                    },
+                    timeout: 1500
+                }),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Claude AI 타임아웃')), 1500))
+            ]);
+
+            let aiResponse = response.data.content[0].text;
+            console.log(`✅ Claude AI 응답 성공: ${aiResponse.substring(0, 100)}...`);
+            
+            // AI 응답에서 특별한 요청 태그 처리
+            aiResponse = await processAITags(aiResponse, userMessage);
+            
+            try {
+                if (sessionManager) {
+                    await sessionManager.addBotResponse(userId, aiResponse, 'AI_RESPONSE');
+                }
+            } catch (e) {}
+            
+            return aiResponse;
+            
+        } catch (claudeError) {
+            console.log(`⚠️ Claude AI 실패, 기본 응답 사용: ${claudeError.message}`);
+            const fallbackResponse = getFallbackResponse(userMessage, conversationHistory);
+            
+            try {
+                if (sessionManager) {
+                    await sessionManager.addBotResponse(userId, fallbackResponse, 'FALLBACK_RESPONSE');
+                }
+            } catch (e) {}
+            
+            return fallbackResponse;
+        }
         
     } catch (error) {
         console.error('❌ Claude AI 호출 오류:', error.message);
@@ -251,6 +285,82 @@ async function callEnhancedClaudeAI(userMessage, userId) {
         await sessionManager.addBotResponse(userId, errorResponse, 'ERROR');
         return errorResponse;
     }
+}
+
+// ⚡ 즉시 응답 시스템 (패턴 기반 빠른 답변)  
+function getQuickResponse(userMessage, conversationHistory) {
+    const koreanTime = getKoreanDateTime();
+    const hour = new Date().getHours();
+    
+    // 음식 관련 즉시 응답
+    if (userMessage.includes('먹') || userMessage.includes('배고') || userMessage.includes('야식')) {
+        if (userMessage.includes('라면')) {
+            if (userMessage.includes('맛집') || userMessage.includes('추천') || userMessage.includes('배달')) {
+                return `🍜 라면 맛집이 필요하시군요!\n\n[🍽️:${extractLocation(userMessage)} 라면]\n\n실시간 맛집 정보를 확인 중입니다! 😋`;
+            } else {
+                return `🍜 라면이 땡기는 시간이네요!\n\n• 신라면 + 계란\n• 너구리 + 대파\n• 짜파게티 + 양파\n\n집에서 간단하게 끓여드세요! 🔥`;
+            }
+        } else if (userMessage.includes('치킨') || userMessage.includes('닭')) {
+            return `🍗 치킨 생각나는 시간!\n\n• 후라이드\n• 양념치킨\n• 간장치킨\n\n배달 앱에서 주문해보세요! 🛵`;
+        } else if (userMessage.includes('피자')) {
+            return `🍕 피자가 땡기시는군요!\n\n• 페퍼로니\n• 불고기\n• 치즈크러스트\n\n따뜻한 피자 한 판 어떠세요? 🔥`;
+        } else if (userMessage.includes('떡볶이')) {
+            return `🥘 떡볶이 좋죠!\n\n• 매운맛\n• 순한맛\n• 치즈 추가\n\n분식집이나 배달로 주문하세요! 🌶️`;
+        } else {
+            if (hour >= 22 || hour <= 6) {
+                return `🌙 야식 시간이네요!\n\n🍜 라면\n🍗 치킨\n🍕 피자\n🥟 만두\n\n뭐가 제일 땡기세요? 😋`;
+            } else {
+                return `😋 배고프시군요!\n\n현재 ${hour}시니까 이런 음식 어때요?\n• 김밥\n• 샌드위치\n• 덮밥\n• 파스타\n\n맛있게 드세요! 🍽️`;
+            }
+        }
+    }
+    
+    // 날씨 관련 즉시 응답
+    if (userMessage.includes('날씨') || userMessage.includes('기온') || userMessage.includes('비') || userMessage.includes('눈')) {
+        const city = extractLocation(userMessage) || '서울';
+        return `🌤️ ${city} 날씨가 궁금하시군요!\n\n[🌤️:${city}]\n\n실시간 날씨 정보를 확인 중입니다! ☀️`;
+    }
+    
+    // 인사 관련 즉시 응답  
+    if (userMessage.includes('안녕') || userMessage.includes('hi') || userMessage.includes('hello')) {
+        if (hour >= 0 && hour < 6) {
+            return `🌙 안녕하세요! 새벽 시간이네요.\n야식이 생각나지 않으세요? 😊`;
+        } else if (hour >= 6 && hour < 12) {
+            return `☀️ 좋은 아침이에요!\n오늘 하루 어떻게 보내실 예정인가요? 😊`;
+        } else if (hour >= 12 && hour < 18) {
+            return `🌞 안녕하세요! 좋은 오후에요.\n점심은 드셨나요? 😊`;
+        } else {
+            return `🌆 안녕하세요! 좋은 저녁이에요.\n오늘 하루 어떠셨나요? 😊`;
+        }
+    }
+    
+    return null; // 패턴 매칭 실패시 Claude AI로 넘김
+}
+
+// 🔄 폴백 응답 시스템 (Claude AI 실패시)
+function getFallbackResponse(userMessage, conversationHistory) {
+    const hour = new Date().getHours();
+    
+    if (userMessage.includes('먹') || userMessage.includes('라면') || userMessage.includes('야식')) {
+        return `🍜 음식 추천이 필요하시군요!\n\n네이버에서 "${extractLocation(userMessage)} 맛집"을 검색해보세요!\n\n지금은 ${hour}시니까 이런 것들 어때요?\n• 라면 🍜\n• 치킨 🍗\n• 피자 🍕`;
+    } else if (userMessage.includes('날씨')) {
+        const city = extractLocation(userMessage) || '서울';
+        return `🌤️ ${city} 날씨 정보가 필요하시군요!\n\n네이버나 기상청에서 "${city} 날씨"를 검색해보세요! ☀️`;
+    } else {
+        return `😊 안녕하세요!\n\n죄송하지만 지금 시스템이 바쁩니다.\n간단한 질문으로 다시 시도해주세요!\n\n• 음식 추천\n• 날씨 정보\n• 일반 대화 등`;
+    }
+}
+
+// 🗺️ 지역명 추출 함수
+function extractLocation(message) {
+    const locations = ['서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종', '강남', '홍대', '신촌', '명동', '번동', '강북', '강서', '강동', '송파', '서초', '종로', '중구', '용산', '마포', '성북', '동대문', '성동', '광진', '중랑', '노원', '도봉', '은평', '서대문', '양천', '구로', '금천', '영등포', '동작', '관악', '금정', '범계', '분당', '판교', '일산'];
+    
+    for (const location of locations) {
+        if (message.includes(location)) {
+            return location;
+        }
+    }
+    return null;
 }
 
 // 🔧 AI 응답에서 특별한 태그 처리 (네이버 API 연동)
