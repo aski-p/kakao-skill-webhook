@@ -2006,8 +2006,10 @@ app.get('/api/scheduler-status', (req, res) => {
 
 // 🎯 카카오톡 스킬 메인 엔드포인트
 app.post('/kakao-skill-webhook', async (req, res) => {
-    console.log('🔔 카카오 웹훅 요청 받음!');
+    const timestamp = new Date().toISOString();
+    console.log(`🔔 [${timestamp}] 카카오 웹훅 요청 받음!`);
     console.log('요청 본문:', JSON.stringify(req.body, null, 2));
+    console.log('요청 헤더:', JSON.stringify(req.headers, null, 2));
     
     try {
         const userMessage = req.body.userRequest?.utterance || '';
@@ -2134,6 +2136,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         console.log('📤 카카오톡 응답 전송:', JSON.stringify(response, null, 2));
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.status(200).json(response);
+        console.log(`✅ [${timestamp}] 응답 전송 완료 - Status: 200`);
         
     } catch (error) {
         console.error('❌ 전체 요청 처리 중 오류:', error);
