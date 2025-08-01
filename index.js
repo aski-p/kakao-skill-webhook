@@ -2092,7 +2092,14 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         // 🤖 심플한 Claude AI 기반 처리 - 기본은 Sonnet, 영화평만 DB
         console.log('🤖 Claude AI Sonnet 처리 시작');
-        responseText = await callSimpleClaudeAI(userMessage, userId);
+        
+        // 임시 디버깅: 야식 요청에 대해 간단한 테스트 응답
+        if (userMessage.includes('야식') || userMessage.includes('먹')) {
+            console.log('🍜 야식 요청 감지 - 테스트 응답 전송');
+            responseText = '🌙 야식 시간이네요! 라면 어때요? 😋';
+        } else {
+            responseText = await callSimpleClaudeAI(userMessage, userId);
+        }
         
         /* 
         === 기존 하드코딩된 분기들 제거됨 ===
