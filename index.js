@@ -153,7 +153,7 @@ async function callSimpleClaudeAI(userMessage, userId) {
         
         const response = await axios.post(CLAUDE_API_URL, {
             model: "claude-3-5-sonnet-20241022",
-            max_tokens: 1000,
+            max_tokens: 800,
             messages: [{
                 role: "user",
                 content: prompt
@@ -165,7 +165,7 @@ async function callSimpleClaudeAI(userMessage, userId) {
                 'x-api-key': CLAUDE_API_KEY,
                 'anthropic-version': '2023-06-01'
             },
-            timeout: 4000
+            timeout: 10000 // 10초로 증가
         });
 
         const aiResponse = response.data.content[0].text;
@@ -181,7 +181,16 @@ async function callSimpleClaudeAI(userMessage, userId) {
         
     } catch (error) {
         console.error('❌ Claude AI 호출 오류:', error.message);
-        return `죄송합니다. 잠시 후 다시 시도해주세요.`;
+        
+        // 타임아웃이거나 API 에러인 경우 기본 응답 제공
+        if (error.message.includes('timeout') || error.message.includes('exceeded')) {
+            const hour = new Date().getHours();
+            if (userMessage.includes('야식') || userMessage.includes('먹') && hour >= 22 || hour <= 6) {
+                return `🌙 야식 시간이네요! 이런 메뉴는 어때요?\n\n🍜 라면 - 간단하고 맛있어요\n🍗 치킨 - 배달로 주문하기 좋아요\n🍕 피자 - 친구들과 함께\n🥟 만두 - 든든한 야식\n\n오늘은 뭐가 땡기시나요? 😋`;
+            }
+        }
+        
+        return `죄송합니다. 서버가 바쁜 것 같아요. 잠시 후 다시 시도해주세요! 🙏`;
     }
 }
 
