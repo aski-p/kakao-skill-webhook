@@ -241,13 +241,12 @@ async function callEnhancedClaudeAI(userMessage, userId) {
 
 // 🧠 지능형 프롬프트 구성 - Claude AI가 모든 것을 판단
 function buildIntelligentPrompt(currentMessage, conversationHistory, session) {
-    const now = new Date();
-    const koreanTime = now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-    const hour = now.getHours();
+    const koreanTime = getKoreanDateTime();
+    const hour = new Date().getHours();
     
     let prompt = `당신은 한국어를 구사하는 친근하고 도움이 되는 AI 어시스턴트입니다.
 
-현재 시간: ${koreanTime} (${hour}시)
+현재 시간: ${koreanTime.formatted} (${hour}시)
 
 사용 가능한 도구들:
 1. [SEARCH_NAVER]: 실시간 뉴스, 정보 검색이 필요할 때 사용
@@ -1985,7 +1984,14 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         // 🤖 완전한 Claude AI 기반 처리 - 모든 대화를 AI가 판단하고 필요시 도구 사용
         console.log('🤖 Claude AI 메인 처리 시작');
-        responseText = await callIntelligentClaudeAI(userMessage, userId);
+        try {
+            // 새로운 지능형 시스템 사용
+            responseText = await callIntelligentClaudeAI(userMessage, userId);
+        } catch (error) {
+            console.error('❌ 지능형 AI 호출 실패, 백업 시스템 사용:', error.message);
+            // 백업: 기존 Enhanced 시스템 사용
+            responseText = await callEnhancedClaudeAI(userMessage, userId);
+        }
         
         /* 
         === 기존 하드코딩된 분기들 제거됨 ===
