@@ -299,14 +299,25 @@ async function callEnhancedClaudeAI(userMessage, userId) {
 
 // 🧠 심플한 프롬프트 구성 - 자연스러운 대화에 집중
 function buildSimplePrompt(currentMessage, conversationHistory) {
+    const koreanTime = getKoreanDateTime();
     const now = new Date();
-    const hour = now.getHours();
+    const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+    const hour = koreaTime.getHours();
+    
+    let timeOfDay = "";
+    if (hour >= 0 && hour < 6) timeOfDay = "새벽/야식시간";
+    else if (hour >= 6 && hour < 10) timeOfDay = "아침시간";
+    else if (hour >= 10 && hour < 14) timeOfDay = "점심시간";
+    else if (hour >= 14 && hour < 18) timeOfDay = "오후시간";
+    else if (hour >= 18 && hour < 22) timeOfDay = "저녁시간";
+    else timeOfDay = "야식시간";
     
     let prompt = `당신은 한국어를 구사하는 친근하고 도움이 되는 AI 어시스턴트입니다.
-현재 시간: ${hour}시
+
+현재 한국 시간: ${koreanTime.formatted} (${hour}시 - ${timeOfDay})
 
 사용자의 질문에 자연스럽고 친근하게 답변해주세요.
-- 음식 추천시 현재 시간을 고려하세요 (아침/점심/저녁/야식)
+- 현재 시간대에 맞는 음식을 추천해주세요 (${timeOfDay})
 - 간결하고 도움이 되는 답변을 해주세요
 - 이모지를 적절히 사용해서 친근하게 대화하세요`;
     
