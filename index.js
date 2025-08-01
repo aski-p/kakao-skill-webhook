@@ -258,8 +258,8 @@ async function processAITags(aiResponse, userMessage) {
     try {
         let processedResponse = aiResponse;
         
-        // 날씨 요청 태그 처리
-        const weatherMatch = aiResponse.match(/\[WEATHER:([^\]]+)\]/);
+        // 날씨 요청 태그 처리 (이모지 버전)
+        const weatherMatch = aiResponse.match(/\[🌤️:([^\]]+)\]/);
         if (weatherMatch) {
             const city = weatherMatch[1] || '서울';
             console.log(`🌤️ 날씨 API 호출: ${city}`);
@@ -276,14 +276,14 @@ async function processAITags(aiResponse, userMessage) {
                     }
                 });
                 weatherInfo += `💡 더 자세한 정보는 네이버에서 "${city} 날씨"를 검색하세요!`;
-                processedResponse = processedResponse.replace(/\[WEATHER:[^\]]+\]/, `\n\n${weatherInfo}`);
+                processedResponse = processedResponse.replace(/\[🌤️:[^\]]+\]/, `\n\n${weatherInfo}`);
             } else {
-                processedResponse = processedResponse.replace(/\[WEATHER:[^\]]+\]/, `\n\n🌤️ ${city} 날씨 정보를 가져올 수 없습니다. 네이버에서 "${city} 날씨"를 검색해보세요!`);
+                processedResponse = processedResponse.replace(/\[🌤️:[^\]]+\]/, `\n\n🌤️ ${city} 날씨 정보를 가져올 수 없습니다. 네이버에서 "${city} 날씨"를 검색해보세요!`);
             }
         }
         
-        // 맛집 요청 태그 처리
-        const restaurantMatch = aiResponse.match(/\[RESTAURANT:([^\]]+)\]/);
+        // 맛집 요청 태그 처리 (이모지 버전)
+        const restaurantMatch = aiResponse.match(/\[🍽️:([^\]]+)\]/);
         if (restaurantMatch) {
             const query = restaurantMatch[1];
             console.log(`🍽️ 맛집 API 호출: ${query}`);
@@ -301,9 +301,9 @@ async function processAITags(aiResponse, userMessage) {
                     restaurantInfo += `\n`;
                 });
                 restaurantInfo += `💡 더 많은 맛집은 네이버에서 "${query}"를 검색하세요!`;
-                processedResponse = processedResponse.replace(/\[RESTAURANT:[^\]]+\]/, `\n\n${restaurantInfo}`);
+                processedResponse = processedResponse.replace(/\[🍽️:[^\]]+\]/, `\n\n${restaurantInfo}`);
             } else {
-                processedResponse = processedResponse.replace(/\[RESTAURANT:[^\]]+\]/, `\n\n🍽️ ${query} 맛집 정보를 가져올 수 없습니다. 네이버에서 "${query} 맛집"를 검색해보세요!`);
+                processedResponse = processedResponse.replace(/\[🍽️:[^\]]+\]/, `\n\n🍽️ ${query} 맛집 정보를 가져올 수 없습니다. 네이버에서 "${query} 맛집"를 검색해보세요!`);
             }
         }
         
@@ -312,7 +312,7 @@ async function processAITags(aiResponse, userMessage) {
     } catch (error) {
         console.error('❌ AI 태그 처리 오류:', error.message);
         // 태그만 제거하고 원본 응답 반환
-        return aiResponse.replace(/\[WEATHER:[^\]]+\]/g, '').replace(/\[RESTAURANT:[^\]]+\]/g, '');
+        return aiResponse.replace(/\[🌤️:[^\]]+\]/g, '').replace(/\[🍽️:[^\]]+\]/g, '');
     }
 }
 
@@ -339,8 +339,8 @@ function buildSimplePrompt(currentMessage, conversationHistory) {
 사용자의 모든 질문에 자연스럽고 도움이 되는 답변을 해주세요.
 
 특별한 요청 표시 방법:
-- 날씨 정보가 필요하면: [WEATHER:도시명] (예: [WEATHER:서울])
-- 맛집 정보가 필요하면: [RESTAURANT:지역 음식종류] (예: [RESTAURANT:강남 치킨])
+- 날씨 정보가 필요하면: [🌤️:도시명] (예: [🌤️:서울])
+- 맛집 정보가 필요하면: [🍽️:지역 음식종류] (예: [🍽️:강남 치킨])
 
 200자 이내로 간결하게 답변하고 이모지를 적절히 사용해주세요.`;
     
