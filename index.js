@@ -92,63 +92,7 @@ async function callSimpleClaudeAI(userMessage, userId) {
             return `안녕하세요! 무엇을 도와드릴까요?`;
         }
 
-        // 날씨 요청인 경우 네이버 날씨 검색
-        const weatherPattern = /날씨|기온|비|눈|미세먼지|날씨.*어때/;
-        if (weatherPattern.test(userMessage)) {
-            console.log('🌤️ 날씨 요청 감지 - 네이버 날씨 검색');
-            const cityMatch = userMessage.match(/(서울|부산|대구|인천|광주|대전|울산|세종|강남|홍대|강북|제주)/);
-            const city = cityMatch ? cityMatch[1] : '서울';
-            
-            const weatherNews = await getLatestNews(`${city} 날씨 오늘`);
-            if (weatherNews && weatherNews.length > 0) {
-                let weatherInfo = `🌤️ ${city} 날씨 정보 (네이버 기준)\n\n`;
-                weatherNews.slice(0, 2).forEach((news, index) => {
-                    weatherInfo += `${news.title}\n`;
-                    if (news.description) {
-                        weatherInfo += `${news.description}\n\n`;
-                    }
-                });
-                weatherInfo += `💡 더 자세한 날씨는 네이버에서 "${city} 날씨"를 검색해보세요!`;
-                
-                try {
-                    if (sessionManager) {
-                        await sessionManager.addBotResponse(userId, weatherInfo, 'WEATHER_INFO');
-                    }
-                } catch (e) {}
-                
-                return weatherInfo;
-            }
-        }
-
-        // 영화 평점/평가 요청인 경우에만 DB 조회
-        const moviePattern = /영화.*평점|평점.*영화|영화평|영화.*평가|평가.*영화|영화.*리뷰|리뷰.*영화|영화.*별점|별점.*영화/;
-        if (moviePattern.test(userMessage)) {
-            console.log('🎬 영화평 요청 감지 - DB 조회 시도');
-            const movieTitle = userMessage.replace(/영화|평점|평가|리뷰|별점|어때|네이버|뭐야|알려줘/g, '').trim();
-            
-            if (movieTitle) {
-                const movieInfo = await getNaverMovieInfo(movieTitle);
-                if (movieInfo && movieInfo.length > 0) {
-                    const movie = movieInfo[0];
-                    const movieResponse = `🎬 "${movie.title}" 정보\n\n` +
-                        `📍 감독: ${movie.director}\n` +
-                        `👥 출연: ${movie.actor}\n` +
-                        `📅 개봉: ${movie.pubDate}\n` +
-                        `⭐ 평점: ${movie.userRating}/10\n\n` +
-                        `네이버 영화 평점 기준입니다.`;
-                    
-                    try {
-                        if (sessionManager) {
-                            await sessionManager.addBotResponse(userId, movieResponse, 'MOVIE_INFO');
-                        }
-                    } catch (e) {}
-                    
-                    return movieResponse;
-                }
-            }
-        }
-
-        // 나머지 모든 대화는 Claude AI Sonnet이 자연스럽게 처리
+        // 모든 요청을 Claude AI가 자연스럽게 처리
         const prompt = buildSimplePrompt(userMessage, conversationHistory);
         
         const response = await axios.post(CLAUDE_API_URL, {
@@ -168,8 +112,11 @@ async function callSimpleClaudeAI(userMessage, userId) {
             timeout: 4000 // 10초 → 4초로 단축 (카카오톡 5초 제한)
         });
 
-        const aiResponse = response.data.content[0].text;
+        let aiResponse = response.data.content[0].text;
         console.log(`✅ Claude AI 응답 성공: ${aiResponse.substring(0, 100)}...`);
+        
+        // AI 응답에서 특별한 요청 태그 처리
+        aiResponse = await processAITags(aiResponse, userMessage);
         
         try {
             if (sessionManager) {
@@ -306,6 +253,69 @@ async function callEnhancedClaudeAI(userMessage, userId) {
     }
 }
 
+// 🔧 AI 응답에서 특별한 태그 처리 (네이버 API 연동)
+async function processAITags(aiResponse, userMessage) {
+    try {
+        let processedResponse = aiResponse;
+        
+        // 날씨 요청 태그 처리
+        const weatherMatch = aiResponse.match(/\[WEATHER:([^\]]+)\]/);
+        if (weatherMatch) {
+            const city = weatherMatch[1] || '서울';
+            console.log(`🌤️ 날씨 API 호출: ${city}`);
+            
+            const weatherNews = await getLatestNews(`${city} 날씨 오늘`);
+            if (weatherNews && weatherNews.length > 0) {
+                let weatherInfo = `🌤️ ${city} 날씨 정보\n\n`;
+                weatherNews.slice(0, 2).forEach((news, index) => {
+                    const title = news.title.replace(/<[^>]*>/g, '');
+                    weatherInfo += `${title}\n`;
+                    if (news.description) {
+                        const desc = news.description.replace(/<[^>]*>/g, '');
+                        weatherInfo += `${desc.substring(0, 80)}...\n\n`;
+                    }
+                });
+                weatherInfo += `💡 더 자세한 정보는 네이버에서 "${city} 날씨"를 검색하세요!`;
+                processedResponse = processedResponse.replace(/\[WEATHER:[^\]]+\]/, `\n\n${weatherInfo}`);
+            } else {
+                processedResponse = processedResponse.replace(/\[WEATHER:[^\]]+\]/, `\n\n🌤️ ${city} 날씨 정보를 가져올 수 없습니다. 네이버에서 "${city} 날씨"를 검색해보세요!`);
+            }
+        }
+        
+        // 맛집 요청 태그 처리
+        const restaurantMatch = aiResponse.match(/\[RESTAURANT:([^\]]+)\]/);
+        if (restaurantMatch) {
+            const query = restaurantMatch[1];
+            console.log(`🍽️ 맛집 API 호출: ${query}`);
+            
+            const restaurantResults = await getLocalRestaurants(query);
+            if (restaurantResults && restaurantResults.length > 0) {
+                let restaurantInfo = `🍽️ ${query} 맛집 추천\n\n`;
+                restaurantResults.slice(0, 3).forEach((restaurant, index) => {
+                    const title = restaurant.title.replace(/<[^>]*>/g, '');
+                    restaurantInfo += `${index + 1}. ${title}\n`;
+                    restaurantInfo += `   📍 ${restaurant.address}\n`;
+                    if (restaurant.category) {
+                        restaurantInfo += `   🏷️ ${restaurant.category}\n`;
+                    }
+                    restaurantInfo += `\n`;
+                });
+                restaurantInfo += `💡 더 많은 맛집은 네이버에서 "${query}"를 검색하세요!`;
+                processedResponse = processedResponse.replace(/\[RESTAURANT:[^\]]+\]/, `\n\n${restaurantInfo}`);
+            } else {
+                processedResponse = processedResponse.replace(/\[RESTAURANT:[^\]]+\]/, `\n\n🍽️ ${query} 맛집 정보를 가져올 수 없습니다. 네이버에서 "${query} 맛집"를 검색해보세요!`);
+            }
+        }
+        
+        return processedResponse;
+        
+    } catch (error) {
+        console.error('❌ AI 태그 처리 오류:', error.message);
+        // 태그만 제거하고 원본 응답 반환
+        return aiResponse.replace(/\[WEATHER:[^\]]+\]/g, '').replace(/\[RESTAURANT:[^\]]+\]/g, '');
+    }
+}
+
 // 🧠 심플한 프롬프트 구성 - 자연스러운 대화에 집중
 function buildSimplePrompt(currentMessage, conversationHistory) {
     const koreanTime = getKoreanDateTime();
@@ -321,20 +331,28 @@ function buildSimplePrompt(currentMessage, conversationHistory) {
     else if (hour >= 18 && hour < 22) timeOfDay = "저녁시간";
     else timeOfDay = "야식시간";
     
-    // 간결한 프롬프트로 빠른 응답 최적화
-    let prompt = `한국어 AI 어시스턴트입니다. 현재 ${timeOfDay}입니다.
+    // AI가 모든 요청을 자연스럽게 처리하는 프롬프트
+    let prompt = `당신은 한국어를 구사하는 친근하고 도움이 되는 AI 어시스턴트입니다.
 
-간결하고 친근하게 답변해주세요. 200자 이내로 답변하세요.`;
+현재 시간: ${koreanTime.formatted} (${timeOfDay})
+
+사용자의 모든 질문에 자연스럽고 도움이 되는 답변을 해주세요.
+
+특별한 요청 표시 방법:
+- 날씨 정보가 필요하면: [WEATHER:도시명] (예: [WEATHER:서울])
+- 맛집 정보가 필요하면: [RESTAURANT:지역 음식종류] (예: [RESTAURANT:강남 치킨])
+
+200자 이내로 간결하게 답변하고 이모지를 적절히 사용해주세요.`;
     
     // 최근 대화 맥락 (1개만)
     if (conversationHistory && conversationHistory.length > 0) {
         const lastMsg = conversationHistory[conversationHistory.length - 1];
         if (lastMsg.type === 'user') {
-            prompt += `\n이전: ${lastMsg.message}`;
+            prompt += `\n\n이전 대화: ${lastMsg.message}`;
         }
     }
     
-    prompt += `\n\n질문: ${currentMessage}`;
+    prompt += `\n\n사용자: ${currentMessage}`;
     
     return prompt;
 }
@@ -2027,62 +2045,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         const koreanTime = getKoreanDateTime();
         console.log(`⏰ 현재 한국 시간: ${koreanTime.formatted}`);
         
-        // 키워드 감지 디버깅
-        const debugInfo = {
-            isNews: isNewsRequest(userMessage),
-            isShopping: isShoppingRequest(userMessage), 
-            isRestaurant: isRestaurantRequest(userMessage),
-            isReviewQuestion: config.shopping.review_keywords.some(keyword => userMessage.includes(keyword)),
-            isFactCheck: isFactCheckRequest(userMessage),
-            isYouTubeSummary: isYouTubeSummaryRequest(userMessage),
-            isMovieReview: isMovieReviewRequest(userMessage),
-            isBirthReport: isBirthReportRequest(userMessage),
-            isWeather: isWeatherRequest(userMessage),
-            youtubeUrl: extractYouTubeUrl(userMessage),
-            message: userMessage
-        };
-        
-        // 맛집 요청인 경우 추가 디버깅 정보
-        if (debugInfo.isRestaurant) {
-            const hasRestaurantKeyword = config.restaurant.food.some(keyword => userMessage.includes(keyword));
-            const allLocationKeywords = [
-                ...config.restaurant.locations.seoul,
-                ...config.restaurant.locations.gyeonggi,
-                ...config.restaurant.locations.major_cities,
-                ...config.restaurant.locations.general
-            ];
-            const hasLocationKeyword = allLocationKeywords.some(keyword => userMessage.includes(keyword));
-            
-            const locationPatterns = [
-                /\w+구(?:\s|$)/,     // OO구
-                /\w+동(?:\s|$)/,     // OO동
-                /\w+시(?:\s|$)/,     // OO시
-                /\w+군(?:\s|$)/,     // OO군
-                /\w+읍(?:\s|$)/,     // OO읍
-                /\w+면(?:\s|$)/,     // OO면
-                /\w+역(?:\s|$)/,     // OO역
-                /\w+로(?:\s|$)/,     // OO로
-                /\w+거리(?:\s|$)/,   // OO거리
-            ];
-            const hasLocationPattern = locationPatterns.some(pattern => pattern.test(userMessage));
-            
-            debugInfo.restaurantDebug = {
-                hasRestaurantKeyword,
-                hasLocationKeyword, 
-                hasLocationPattern,
-                foundRestaurantKeywords: config.restaurant.food.filter(keyword => userMessage.includes(keyword)),
-                foundLocationKeywords: allLocationKeywords.filter(keyword => userMessage.includes(keyword)),
-                locationPatternMatches: locationPatterns.filter(pattern => pattern.test(userMessage)).map(pattern => pattern.toString())
-            };
-        }
-        
-        console.log(`🔍 키워드 감지 결과:`, debugInfo);
-        
         let responseText;
-        
-        // 🧠 컨텍스트 기반 의도 분석 (대화 메모리 활용)
-        const analysis = analyzeMessageWithContext(userId, userMessage);
-        console.log(`🧠 의도 분석 결과:`, analysis);
         
         // 🤖 최적화된 Claude AI - 빠른 응답으로 타임아웃 방지
         console.log('🤖 최적화된 Claude AI 호출 시작');
