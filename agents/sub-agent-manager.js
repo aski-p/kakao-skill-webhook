@@ -403,12 +403,22 @@ class SubAgentManager {
             const locationInfo = this.extractLocationFromMessage(message);
             console.log('📍 추출된 위치 정보:', locationInfo);
             
-            // 1단계: 네이버 지역검색 API로 실제 맛집 검색
+            // 1단계: 네이버 지역검색 API로 실제 맛집 검색 (타임아웃 짧게)
             const searchQuery = this.buildSearchQuery(message, locationInfo);
             console.log(`🔍 네이버 지역검색 쿼리: "${searchQuery}"`);
             
-            const restaurants = await this.getNaverLocalRestaurants(searchQuery);
-            console.log(`📊 네이버 API 응답 결과: ${restaurants ? restaurants.length : 0}개`);
+            let restaurants = null;
+            try {
+                // 네이버 API 호출 (2초 타임아웃)
+                restaurants = await Promise.race([
+                    this.getNaverLocalRestaurants(searchQuery),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 타임아웃')), 2000))
+                ]);
+                console.log(`📊 네이버 API 응답 결과: ${restaurants ? restaurants.length : 0}개`);
+            } catch (apiError) {
+                console.log('⚠️ 네이버 API 호출 실패 또는 타임아웃:', apiError.message);
+                restaurants = null;
+            }
             
             if (restaurants && restaurants.length > 0) {
                 console.log('✅ 네이버 API 결과 있음, 실제 맛집 데이터로 응답 생성');
@@ -426,16 +436,15 @@ class SubAgentManager {
                     agent: 'restaurant-agent'
                 };
             } else {
-                // 검색 결과가 없으면 Claude AI 폴백
-                console.log('⚠️ 네이버 API 결과 없음, Claude AI 폴백 시도');
-                const restaurantPrompt = this.buildRestaurantPrompt(message, locationInfo);
-                const response = await this.callClaudeForRestaurant(restaurantPrompt);
-                console.log(`📤 Claude AI 폴백 응답 길이: ${response.length}자`);
+                // 네이버 API 실패시 즉시 스마트 폴백 응답 생성
+                console.log('⚠️ 네이버 API 결과 없음, 스마트 폴백 응답 생성');
+                const smartResponse = this.generateSmartRestaurantResponse(message, locationInfo);
+                console.log(`📤 스마트 폴백 응답 길이: ${smartResponse.length}자`);
                 
                 return {
                     success: true,
                     data: {
-                        message: response,
+                        message: smartResponse,
                         category: 'RESTAURANT',
                         processedBy: 'restaurant-agent'
                     },
@@ -666,6 +675,72 @@ class SubAgentManager {
 맛있는 식사 되세요! 😋`;
     }
     
+    // 스마트 레스토랑 응답 생성 (API 실패시 지능형 폴백)
+    generateSmartRestaurantResponse(message, locationInfo) {
+        const currentTime = new Date();
+        const hour = currentTime.getHours();
+        const timeOfDay = this.getTimeOfDay(hour);
+        
+        let locationText = "해당 지역";
+        if (locationInfo.hasLocation) {
+            if (locationInfo.specific) {
+                locationText = locationInfo.specific;
+            } else if (locationInfo.area) {
+                locationText = locationInfo.area;
+            }
+        }
+        
+        // 시간대별 음식 추천
+        let timeBasedSuggestions = [];
+        if (timeOfDay === '야식') {
+            timeBasedSuggestions = ['치킨', '피자', '족발보쌈', '라면', '분식', '24시간 한식'];
+        } else if (timeOfDay === '점심') {
+            timeBasedSuggestions = ['한식', '중식', '일식', '양식', '분식', '도시락'];
+        } else if (timeOfDay === '저녁') {
+            timeBasedSuggestions = ['한식', '치킨', '중식', '일식', '고기집', '회식장소'];
+        } else {
+            timeBasedSuggestions = ['카페', '브런치', '베이커리', '샐러드', '간단한 식사'];
+        }
+        
+        // 메시지에서 특정 음식 키워드 확인
+        const foodKeywords = ['만두', '치킨', '피자', '한식', '중식', '일식', '양식', '카페', '분식'];
+        let specificFood = null;
+        for (const keyword of foodKeywords) {
+            if (message.includes(keyword)) {
+                specificFood = keyword;
+                break;
+            }
+        }
+        
+        let response = `🍽️ ${locationText} ${timeOfDay} 맛집 추천\n\n`;
+        
+        if (specificFood) {
+            response += `🎯 **${specificFood} 전문점 찾기:**\n`;
+            response += `• 네이버 지도: "${locationText} ${specificFood}"\n`;
+            response += `• 배달앱: "${locationText} ${specificFood}" 검색\n\n`;
+        }
+        
+        response += `⏰ **${timeOfDay} 시간대 인기 메뉴:**\n`;
+        timeBasedSuggestions.slice(0, 4).forEach((food, index) => {
+            response += `${index + 1}. **${food}** - ${locationText}에서 인기\n`;
+        });
+        
+        response += `\n🔍 **추천 검색 방법:**\n`;
+        response += `• 네이버 지도: "${locationText} + 원하는 음식"\n`;
+        response += `• 배달앱: 배달의민족, 요기요\n`;
+        response += `• 망고플레이트: 실제 후기 확인\n\n`;
+        
+        if (locationText.includes('동')) {
+            response += `💡 **${locationText} 주변 팁:**\n`;
+            response += `• 주변 상권과 골목길 맛집 탐방\n`;
+            response += `• 현지 주민 추천 로컬 맛집\n\n`;
+        }
+        
+        response += `맛있는 ${timeOfDay} 되세요! 😋`;
+        
+        return response;
+    }
+    
     // === 네이버 API 연동 함수들 ===
     
     // 검색 쿼리 생성
@@ -723,7 +798,7 @@ class SubAgentManager {
                     'X-Naver-Client-Id': NAVER_CLIENT_ID,
                     'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
                 },
-                timeout: 4000
+                timeout: 2000
             };
             
             console.log('📡 API 요청 파라미터:', requestConfig.params);
