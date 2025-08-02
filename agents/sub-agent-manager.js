@@ -58,7 +58,7 @@ class SubAgentManager {
     
     // 메인 라우팅 함수
     async routeToAgent(userMessage, userId, context = {}) {
-        console.log(`서브에이전트 라우팅 시작: "${userMessage}"`);
+        console.log(`🤖 서브에이전트 라우팅 시작: "${userMessage}"`);
         
         try {
             // 1단계: 의도 분류 에이전트로 메시지 분석
@@ -73,10 +73,11 @@ class SubAgentManager {
             }
             
             const classification = intentResult.data;
-            console.log(`분류 결과: ${classification.category} (신뢰도: ${classification.confidence})`);
+            console.log(`🎯 메인 라우팅 분류 결과: ${classification.category} (신뢰도: ${classification.confidence.toFixed(3)})`);
             
             // 2단계: 분류된 의도에 따라 적절한 전문 에이전트로 라우팅
             const targetAgent = this.selectTargetAgent(classification);
+            console.log(`🎭 선택된 타겟 에이전트: ${targetAgent || 'information-agent (기본값)'}`);
             
             if (!targetAgent) {
                 // 일반적인 질문이나 대화는 정보 에이전트가 처리
@@ -262,7 +263,8 @@ class SubAgentManager {
             console.log(`컨텍스트 조정: 이전 카테고리 ${context.previousCategory}`);
         }
         
-        console.log(`분류 결과: ${bestMatch.category} (신뢰도: ${bestMatch.confidence.toFixed(3)})`);
+        console.log(`🎯 분류 결과: ${bestMatch.category} (신뢰도: ${bestMatch.confidence.toFixed(3)})`);
+        console.log(`📊 분류 세부정보:`, bestMatch.matchDetails);
         
         return {
             category: bestMatch.category,
@@ -391,21 +393,28 @@ class SubAgentManager {
     async processRestaurantQuery(taskData) {
         const { message, userId, classification } = taskData;
         
-        console.log('레스토랑 에이전트 처리 시작');
+        console.log('🍽️ 레스토랑 에이전트 처리 시작');
+        console.log(`📝 사용자 메시지: "${message}"`);
+        console.log(`👤 사용자 ID: ${userId}`);
+        console.log(`🏷️ 분류 결과:`, classification);
         
         try {
             // 위치 정보 추출
             const locationInfo = this.extractLocationFromMessage(message);
+            console.log('📍 추출된 위치 정보:', locationInfo);
             
             // 1단계: 네이버 지역검색 API로 실제 맛집 검색
             const searchQuery = this.buildSearchQuery(message, locationInfo);
             console.log(`🔍 네이버 지역검색 쿼리: "${searchQuery}"`);
             
             const restaurants = await this.getNaverLocalRestaurants(searchQuery);
+            console.log(`📊 네이버 API 응답 결과: ${restaurants ? restaurants.length : 0}개`);
             
             if (restaurants && restaurants.length > 0) {
+                console.log('✅ 네이버 API 결과 있음, 실제 맛집 데이터로 응답 생성');
                 // 실제 맛집 데이터로 응답 생성
                 const response = this.formatRestaurantResults(restaurants, locationInfo, message);
+                console.log(`📤 최종 응답 길이: ${response.length}자`);
                 
                 return {
                     success: true,
@@ -418,9 +427,10 @@ class SubAgentManager {
                 };
             } else {
                 // 검색 결과가 없으면 Claude AI 폴백
-                console.log('네이버 API 결과 없음, Claude AI 폴백 시도');
+                console.log('⚠️ 네이버 API 결과 없음, Claude AI 폴백 시도');
                 const restaurantPrompt = this.buildRestaurantPrompt(message, locationInfo);
                 const response = await this.callClaudeForRestaurant(restaurantPrompt);
+                console.log(`📤 Claude AI 폴백 응답 길이: ${response.length}자`);
                 
                 return {
                     success: true,
@@ -434,11 +444,13 @@ class SubAgentManager {
             }
             
         } catch (error) {
-            console.error('레스토랑 에이전트 처리 오류:', error);
+            console.error('❌ 레스토랑 에이전트 처리 오류:', error);
+            console.error('❌ 에러 스택:', error.stack);
             
             // 에러 시 기본 검색 안내
             const locationInfo = this.extractLocationFromMessage(message);
             const fallbackResponse = this.generateRestaurantFallback(message, locationInfo);
+            console.log(`📤 폴백 응답 길이: ${fallbackResponse.length}자`);
             
             return {
                 success: true,
@@ -490,6 +502,8 @@ class SubAgentManager {
     
     // 메시지에서 위치 정보 추출
     extractLocationFromMessage(message) {
+        console.log(`📍 위치 추출 시작: "${message}"`);
+        
         const locationInfo = {
             area: null,
             district: null,
@@ -510,17 +524,21 @@ class SubAgentManager {
         // 패턴 검색
         for (const [type, pattern] of Object.entries(patterns)) {
             const match = message.match(pattern);
+            console.log(`🔍 패턴 "${type}" 테스트:`, pattern.toString(), '→', match ? `매칭됨: "${match[1]}"` : '매칭안됨');
             if (match) {
                 if (type === 'dong' || type === 'specific_dong') {
                     locationInfo.specific = match[1];
+                    console.log(`✅ 구체적 위치 설정: ${match[1]}`);
                 } else {
                     locationInfo.area = match[1];
+                    console.log(`✅ 일반 위치 설정: ${match[1]}`);
                 }
                 locationInfo.hasLocation = true;
                 break;
             }
         }
         
+        console.log(`📍 최종 위치 정보:`, locationInfo);
         return locationInfo;
     }
     
@@ -680,17 +698,21 @@ class SubAgentManager {
     async getNaverLocalRestaurants(query) {
         const axios = require('axios');
         
+        console.log(`🔍 네이버 API 호출 시작: "${query}"`);
+        
         // 환경변수에서 네이버 API 키 가져오기
         const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
         const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
         
+        console.log(`🔑 네이버 API 키 상태: CLIENT_ID=${NAVER_CLIENT_ID ? '설정됨' : '미설정'}, CLIENT_SECRET=${NAVER_CLIENT_SECRET ? '설정됨' : '미설정'}`);
+        
         if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
-            console.log('⚠️ 네이버 API 키가 설정되지 않음');
+            console.log('❌ 네이버 API 키가 설정되지 않음 - null 반환');
             return null;
         }
         
         try {
-            const response = await axios.get('https://openapi.naver.com/v1/search/local.json', {
+            const requestConfig = {
                 params: {
                     query: query,
                     display: 5,
@@ -702,17 +724,40 @@ class SubAgentManager {
                     'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
                 },
                 timeout: 4000
+            };
+            
+            console.log('📡 API 요청 파라미터:', requestConfig.params);
+            
+            const response = await axios.get('https://openapi.naver.com/v1/search/local.json', requestConfig);
+            
+            console.log(`📈 API 응답 상태: ${response.status} ${response.statusText}`);
+            console.log(`📊 API 응답 데이터:`, {
+                total: response.data.total || 0,
+                start: response.data.start || 0,
+                display: response.data.display || 0,
+                itemsCount: response.data.items?.length || 0
             });
             
             const items = response.data.items;
-            console.log(`✅ 네이버 API 결과: ${items ? items.length : 0}개 맛집 발견`);
             
             if (!items || items.length === 0) {
+                console.log('⚠️ 네이버 API 검색 결과 없음');
                 return null;
             }
             
+            console.log(`✅ 네이버 API 결과: ${items.length}개 맛집 발견`);
+            
+            // 첫 번째 결과 샘플 로깅
+            if (items.length > 0) {
+                console.log(`🏪 첫 번째 결과 샘플:`, {
+                    title: items[0].title?.replace(/<[^>]*>/g, ''),
+                    category: items[0].category,
+                    address: items[0].address
+                });
+            }
+            
             // HTML 태그 제거 및 정리
-            return items.map(item => ({
+            const cleanedItems = items.map(item => ({
                 title: item.title.replace(/<[^>]*>/g, ''),
                 category: item.category,
                 address: item.address,
@@ -721,8 +766,16 @@ class SubAgentManager {
                 description: item.description ? item.description.replace(/<[^>]*>/g, '') : ''
             }));
             
+            console.log(`🔄 데이터 정리 완료: ${cleanedItems.length}개 항목`);
+            return cleanedItems;
+            
         } catch (error) {
             console.error('❌ 네이버 지역검색 API 오류:', error.message);
+            console.error('❌ 에러 세부사항:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data
+            });
             return null;
         }
     }
