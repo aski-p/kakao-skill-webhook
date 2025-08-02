@@ -5,7 +5,7 @@ const https = require('https');
 const config = require('./config/keywords');
 const MessageClassifier = require('./config/message-classifier');
 const DataExtractor = require('./config/data-extractor');
-// const SubAgentManager = require('./agents/sub-agent-manager'); // 서브에이전트 시스템 비활성화
+const SubAgentManager = require('./agents/sub-agent-manager'); // 서브에이전트 시스템 활성화
 
 // [ENHANCED] 향상된 자연어 처리 및 세션 관리 시스템
 const EnhancedNLP = require('./config/enhanced-nlp');
@@ -292,31 +292,7 @@ function getQuickResponse(userMessage, conversationHistory) {
     const koreanTime = getKoreanDateTime();
     const hour = new Date().getHours();
     
-    // 음식 관련 즉시 응답 (확장된 패턴)
-    if (userMessage.includes('먹') || userMessage.includes('배고') || userMessage.includes('야식') || 
-        userMessage.includes('라면') || userMessage.includes('치킨') || userMessage.includes('피자') || 
-        userMessage.includes('떡볶이') || userMessage.includes('맛집') || userMessage.includes('배달') ||
-        userMessage.includes('주문') || userMessage.includes('음식') || userMessage.includes('닭')) {
-        if (userMessage.includes('라면')) {
-            if (userMessage.includes('맛집') || userMessage.includes('추천') || userMessage.includes('배달')) {
-                return `🍜 라면 맛집이 필요하시군요!\n\n[🍽️:${extractLocation(userMessage)} 라면]\n\n실시간 맛집 정보를 확인 중입니다! 😋`;
-            } else {
-                return `🍜 라면이 땡기는 시간이네요!\n\n• 신라면 + 계란\n• 너구리 + 대파\n• 짜파게티 + 양파\n\n집에서 간단하게 끓여드세요! 🔥`;
-            }
-        } else if (userMessage.includes('치킨') || userMessage.includes('닭')) {
-            return `🍗 치킨 생각나는 시간!\n\n• 후라이드\n• 양념치킨\n• 간장치킨\n\n배달 앱에서 주문해보세요! 🛵`;
-        } else if (userMessage.includes('피자')) {
-            return `🍕 피자가 땡기시는군요!\n\n• 페퍼로니\n• 불고기\n• 치즈크러스트\n\n따뜻한 피자 한 판 어떠세요? 🔥`;
-        } else if (userMessage.includes('떡볶이')) {
-            return `🥘 떡볶이 좋죠!\n\n• 매운맛\n• 순한맛\n• 치즈 추가\n\n분식집이나 배달로 주문하세요! 🌶️`;
-        } else {
-            if (hour >= 22 || hour <= 6) {
-                return `🌙 야식 시간이네요!\n\n🍜 라면\n🍗 치킨\n🍕 피자\n🥟 만두\n\n뭐가 제일 땡기세요? 😋`;
-            } else {
-                return `😋 배고프시군요!\n\n현재 ${hour}시니까 이런 음식 어때요?\n• 김밥\n• 샌드위치\n• 덮밥\n• 파스타\n\n맛있게 드세요! 🍽️`;
-            }
-        }
-    }
+    // 음식 관련 즉시 응답 제거됨 - 서브에이전트 시스템에서 처리
     
     // 날씨 관련 즉시 응답 (확장된 패턴)
     if (userMessage.includes('날씨') || userMessage.includes('기온') || userMessage.includes('비') || userMessage.includes('눈') ||
@@ -656,8 +632,8 @@ const dataExtractor = new DataExtractor({
     clientSecret: NAVER_CLIENT_SECRET
 });
 
-// 🤖 서브에이전트 관리 시스템 초기화 - 비활성화됨
-// const subAgentManager = new SubAgentManager();
+// 🤖 서브에이전트 관리 시스템 초기화
+const subAgentManager = new SubAgentManager();
 
 // [ENHANCED] 향상된 시스템 초기화
 const enhancedNLP = new EnhancedNLP();
@@ -2167,9 +2143,29 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         let responseText;
         
-        // 🤖 최적화된 Claude AI - 빠른 응답으로 타임아웃 방지
-        console.log('🤖 최적화된 Claude AI 호출 시작');
-        responseText = await callSimpleClaudeAI(userMessage, userId);
+        // 🤖 서브에이전트 시스템을 통한 지능형 메시지 처리
+        console.log('🤖 서브에이전트 시스템 시작');
+        
+        try {
+            // 서브에이전트 매니저로 메시지 라우팅
+            const agentResult = await subAgentManager.routeToAgent(userMessage, userId, {});
+            
+            if (agentResult.success) {
+                responseText = agentResult.data.message;
+                console.log(`✅ ${agentResult.agent} 처리 완료`);
+            } else {
+                // 서브에이전트 처리 실패 시 기존 Claude AI로 폴백
+                console.log('⚠️ 서브에이전트 실패, Claude AI 폴백');
+                responseText = await callSimpleClaudeAI(userMessage, userId);
+            }
+            
+        } catch (error) {
+            console.error('❌ 서브에이전트 시스템 오류:', error);
+            
+            // 시스템 오류 시 기존 Claude AI로 폴백
+            console.log('⚠️ 시스템 오류, Claude AI 폴백');
+            responseText = await callSimpleClaudeAI(userMessage, userId);
+        }
         
         /* 
         === 기존 하드코딩된 분기들 제거됨 ===
