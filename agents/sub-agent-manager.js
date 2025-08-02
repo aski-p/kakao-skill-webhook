@@ -397,23 +397,46 @@ class SubAgentManager {
             // 위치 정보 추출
             const locationInfo = this.extractLocationFromMessage(message);
             
-            // Claude AI를 사용해 맞춤형 맛집 추천 생성
-            const restaurantPrompt = this.buildRestaurantPrompt(message, locationInfo);
-            const response = await this.callClaudeForRestaurant(restaurantPrompt);
+            // 1단계: 네이버 지역검색 API로 실제 맛집 검색
+            const searchQuery = this.buildSearchQuery(message, locationInfo);
+            console.log(`🔍 네이버 지역검색 쿼리: "${searchQuery}"`);
             
-            return {
-                success: true,
-                data: {
-                    message: response,
-                    category: 'RESTAURANT',
-                    processedBy: 'restaurant-agent'
-                },
-                agent: 'restaurant-agent'
-            };
+            const restaurants = await this.getNaverLocalRestaurants(searchQuery);
+            
+            if (restaurants && restaurants.length > 0) {
+                // 실제 맛집 데이터로 응답 생성
+                const response = this.formatRestaurantResults(restaurants, locationInfo, message);
+                
+                return {
+                    success: true,
+                    data: {
+                        message: response,
+                        category: 'RESTAURANT',
+                        processedBy: 'restaurant-agent'
+                    },
+                    agent: 'restaurant-agent'
+                };
+            } else {
+                // 검색 결과가 없으면 Claude AI 폴백
+                console.log('네이버 API 결과 없음, Claude AI 폴백 시도');
+                const restaurantPrompt = this.buildRestaurantPrompt(message, locationInfo);
+                const response = await this.callClaudeForRestaurant(restaurantPrompt);
+                
+                return {
+                    success: true,
+                    data: {
+                        message: response,
+                        category: 'RESTAURANT',
+                        processedBy: 'restaurant-agent'
+                    },
+                    agent: 'restaurant-agent'
+                };
+            }
+            
         } catch (error) {
             console.error('레스토랑 에이전트 처리 오류:', error);
             
-            // 에러 시 기본 네이버 검색 제안
+            // 에러 시 기본 검색 안내
             const locationInfo = this.extractLocationFromMessage(message);
             const fallbackResponse = this.generateRestaurantFallback(message, locationInfo);
             
@@ -623,6 +646,122 @@ class SubAgentManager {
 (예: "${locationText} 삼겹살", "${locationText} 파스타")
 
 맛있는 식사 되세요! 😋`;
+    }
+    
+    // === 네이버 API 연동 함수들 ===
+    
+    // 검색 쿼리 생성
+    buildSearchQuery(message, locationInfo) {
+        let location = "서울";
+        
+        if (locationInfo.hasLocation) {
+            if (locationInfo.specific) {
+                location = locationInfo.specific;
+            } else if (locationInfo.area) {
+                location = locationInfo.area;
+            }
+        }
+        
+        // 메시지에서 음식 키워드 추출
+        const foodKeywords = ['야식', '만두', '치킨', '피자', '한식', '중식', '일식', '양식', '카페', '분식', '맛집'];
+        let foodType = '맛집';
+        
+        for (const keyword of foodKeywords) {
+            if (message.includes(keyword)) {
+                foodType = keyword;
+                break;
+            }
+        }
+        
+        return `${location} ${foodType}`;
+    }
+    
+    // 네이버 지역검색 API 호출
+    async getNaverLocalRestaurants(query) {
+        const axios = require('axios');
+        
+        // 환경변수에서 네이버 API 키 가져오기
+        const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
+        const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
+        
+        if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
+            console.log('⚠️ 네이버 API 키가 설정되지 않음');
+            return null;
+        }
+        
+        try {
+            const response = await axios.get('https://openapi.naver.com/v1/search/local.json', {
+                params: {
+                    query: query,
+                    display: 5,
+                    start: 1,
+                    sort: 'comment'  // 리뷰 많은 순
+                },
+                headers: {
+                    'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                    'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+                },
+                timeout: 4000
+            });
+            
+            const items = response.data.items;
+            console.log(`✅ 네이버 API 결과: ${items ? items.length : 0}개 맛집 발견`);
+            
+            if (!items || items.length === 0) {
+                return null;
+            }
+            
+            // HTML 태그 제거 및 정리
+            return items.map(item => ({
+                title: item.title.replace(/<[^>]*>/g, ''),
+                category: item.category,
+                address: item.address,
+                roadAddress: item.roadAddress,
+                telephone: item.telephone || '전화번호 없음',
+                description: item.description ? item.description.replace(/<[^>]*>/g, '') : ''
+            }));
+            
+        } catch (error) {
+            console.error('❌ 네이버 지역검색 API 오류:', error.message);
+            return null;
+        }
+    }
+    
+    // 네이버 API 결과를 사용자 친화적으로 포맷팅
+    formatRestaurantResults(restaurants, locationInfo, originalMessage) {
+        const currentTime = new Date();
+        const hour = currentTime.getHours();
+        const timeOfDay = this.getTimeOfDay(hour);
+        
+        let locationText = "해당 지역";
+        if (locationInfo.hasLocation) {
+            if (locationInfo.specific) {
+                locationText = locationInfo.specific;
+            } else if (locationInfo.area) {
+                locationText = locationInfo.area;
+            }
+        }
+        
+        let response = `🍽️ ${locationText} 맛집 추천 (${timeOfDay} 시간대)\n\n`;
+        
+        restaurants.slice(0, 4).forEach((restaurant, index) => {
+            response += `${index + 1}. **${restaurant.title}**\n`;
+            response += `   📍 ${restaurant.address}\n`;
+            if (restaurant.category) {
+                response += `   🏷️ ${restaurant.category}\n`;
+            }
+            if (restaurant.telephone && restaurant.telephone !== '전화번호 없음') {
+                response += `   📞 ${restaurant.telephone}\n`;
+            }
+            response += `\n`;
+        });
+        
+        response += `💡 **더 많은 정보:**\n`;
+        response += `• 네이버 지도에서 "${locationText} 맛집" 검색\n`;
+        response += `• 배달앱으로 주변 맛집 확인\n\n`;
+        response += `맛있는 식사 되세요! 😋`;
+        
+        return response;
     }
     
     createErrorResponse(message) {
