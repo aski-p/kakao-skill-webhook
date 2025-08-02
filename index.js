@@ -918,7 +918,8 @@ function isNaturalConversation(message) {
     // 기존 카테고리에 해당하지 않는 경우
     const isNotExistingCategory = !isWeatherRequest(message) && 
                                   !isBirthReportRequest(message) && 
-                                  !isYouTubeSummaryRequest(message);
+                                  !isYouTubeSummaryRequest(message) &&
+                                  !isRestaurantRequest(message);
     
     return hasConversationalPattern && isNotInformationalQuery && isNotExistingCategory;
 }

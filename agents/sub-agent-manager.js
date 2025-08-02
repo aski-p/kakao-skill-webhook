@@ -166,11 +166,11 @@ class SubAgentManager {
         
         // 1단계: 명확한 패턴 매칭
         const explicitPatterns = {
-            // 정보성 질문 (쇼핑이 아닌, 음식 제외)
+            // 정보성 질문 (쇼핑이 아닌)
             'INFORMATION_QUERY': {
                 patterns: [
                     /^.*(어떻게|왜|무엇|뭐|방법|이유|원리|차이점|특징).*[가-힣]{2,}.*$/,
-                    /^(운동|헬스|건강|다이어트|학습|공부|기술|과학).*방법/,
+                    /^(운동|헬스|건강|다이어트|음식|요리|학습|공부|기술|과학).*방법/,
                     /^.*(효과|장점|단점|차이|비교|설명|정보).*알려.*$/,
                     /^.*(가벼운|쉬운|간단한|좋은|효과적인).*운동.*뭐.*있.*$/,
                     /^.*(운동|헬스|다이어트|건강).*추천.*해.*$/,
@@ -179,8 +179,7 @@ class SubAgentManager {
                 weight: 0.9,
                 exclusions: [
                     /구매|쇼핑|가격|할인|어디서.*사|주문|배송/,
-                    /맛집|식당|카페|음식점/,
-                    /.*먹.*뭐|.*뭐.*먹|저녁.*먹|점심.*먹|아침.*먹|식사.*뭐|음식.*뭐|뭐.*음식/
+                    /맛집|식당|카페|음식점/
                 ]
             },
             
@@ -198,18 +197,20 @@ class SubAgentManager {
                 ]
             },
             
-            // 맛집/레스토랑/음식 추천
+            // 맛집/레스토랑
             'RESTAURANT': {
                 patterns: [
                     /.*맛집.*추천|.*맛집.*어디|.*식당.*좋은곳|.*카페.*추천/,
                     /[가-힣\s]*[구동시군읍면역]\s*(맛집|식당|카페|음식점)/,
                     /.*먹을곳.*추천|.*음식.*맛있는곳/,
-                    /.*먹.*뭐|.*뭐.*먹|저녁.*먹|점심.*먹|아침.*먹/,
-                    /식사.*뭐|음식.*뭐|뭐.*음식|.*먹으면.*좋/,
-                    /.*음식.*추천|.*메뉴.*추천|.*요리.*추천/,
-                    /배고|허기|뭐.*드시|뭐.*잡수/
+                    /.*(식당|맛집|카페|음식점|치킨|피자|한식|중식|일식|양식).*추천/,
+                    /.*(야식|점심|저녁|아침).*추천.*[구동시군읍면역]/,
+                    /.*추천.*주변.*식당|.*식당.*추천/,
+                    /.*[구동시군읍면역].*야식|.*야식.*[구동시군읍면역]/,
+                    /.*[0-9]+동.*식당|.*식당.*[0-9]+동/,
+                    /.*(만두|떡볶이|치킨|피자|햄버거|라면|국밥|찌개).*추천.*[구동시군읍면역]/
                 ],
-                weight: 0.95
+                weight: 0.9
             }
         };
         
@@ -392,94 +393,40 @@ class SubAgentManager {
         
         console.log('레스토랑 에이전트 처리 시작');
         
-        // 음식 추천 로직
-        const foodRecommendation = this.generateFoodRecommendation(message);
-        
-        return {
-            success: true,
-            data: {
-                message: foodRecommendation,
-                category: 'RESTAURANT',
-                processedBy: 'restaurant-agent'
-            },
-            agent: 'restaurant-agent'
-        };
-    }
-    
-    // 음식 추천 생성 함수
-    generateFoodRecommendation(message) {
-        // 시간대별 추천
-        const now = new Date();
-        const hour = now.getHours();
-        
-        let timeCategory = '';
-        let recommendations = [];
-        
-        if (message.includes('아침') || (hour >= 6 && hour < 11)) {
-            timeCategory = '아침';
-            recommendations = [
-                '🍳 계란후라이 + 토스트',
-                '🥣 오트밀 + 과일',
-                '🥪 샌드위치',
-                '🍲 미역국 + 밥',
-                '🥛 시리얼 + 우유',
-                '🧇 와플 + 시럽'
-            ];
-        } else if (message.includes('점심') || (hour >= 11 && hour < 15)) {
-            timeCategory = '점심';
-            recommendations = [
-                '🍜 라면 + 김치',
-                '🍱 도시락',
-                '🍲 찌개류 (김치찌개, 된장찌개)',
-                '🍝 파스타',
-                '🍛 덮밥류 (불고기덮밥, 치킨마요덮밥)',
-                '🥘 카레라이스',
-                '🍕 피자',
-                '🍗 치킨'
-            ];
-        } else if (message.includes('저녁') || hour >= 15) {
-            timeCategory = '저녁';
-            recommendations = [
-                '🥩 불고기 + 밥',
-                '🍖 삼겹살 구이',
-                '🐟 생선구이 + 밥',
-                '🍲 전골류 (부대찌개, 김치찌개)',
-                '🍜 국수류 (잔치국수, 냉면)',
-                '🍱 한정식',
-                '🍕 피자',
-                '🍗 치킨 + 맥주',
-                '🍝 파스타',
-                '🥘 중식 (짜장면, 짬뽕)'
-            ];
-        } else {
-            timeCategory = '간식';
-            recommendations = [
-                '🍎 과일',
-                '🥜 견과류',
-                '🍪 쿠키',
-                '☕ 커피 + 케이크',
-                '🧀 치즈 + 크래커',
-                '🥨 프레첼'
-            ];
+        try {
+            // 위치 정보 추출
+            const locationInfo = this.extractLocationFromMessage(message);
+            
+            // Claude AI를 사용해 맞춤형 맛집 추천 생성
+            const restaurantPrompt = this.buildRestaurantPrompt(message, locationInfo);
+            const response = await this.callClaudeForRestaurant(restaurantPrompt);
+            
+            return {
+                success: true,
+                data: {
+                    message: response,
+                    category: 'RESTAURANT',
+                    processedBy: 'restaurant-agent'
+                },
+                agent: 'restaurant-agent'
+            };
+        } catch (error) {
+            console.error('레스토랑 에이전트 처리 오류:', error);
+            
+            // 에러 시 기본 네이버 검색 제안
+            const locationInfo = this.extractLocationFromMessage(message);
+            const fallbackResponse = this.generateRestaurantFallback(message, locationInfo);
+            
+            return {
+                success: true,
+                data: {
+                    message: fallbackResponse,
+                    category: 'RESTAURANT',
+                    processedBy: 'restaurant-agent'
+                },
+                agent: 'restaurant-agent'
+            };
         }
-        
-        // 랜덤하게 5개 선택
-        const shuffled = recommendations.sort(() => 0.5 - Math.random());
-        const selected = shuffled.slice(0, 5);
-        
-        let response = `🍽️ ${timeCategory} 메뉴 추천\n\n`;
-        selected.forEach((item, index) => {
-            response += `${index + 1}. ${item}\n`;
-        });
-        
-        response += `\n💡 오늘은 어떤 메뉴가 좋을까요?`;
-        
-        // 특별한 키워드가 있으면 추가 팁 제공
-        if (message.includes('다이어트') || message.includes('건강')) {
-            response += `\n\n🥗 건강 팁: 채소를 충분히 드시고, 기름진 음식은 적당히 드세요!`;
-        }
-        
-        return response;
     }
     
     // 뉴스 에이전트 처리
@@ -517,6 +464,166 @@ class SubAgentManager {
     }
     
     // === 헬퍼 함수들 ===
+    
+    // 메시지에서 위치 정보 추출
+    extractLocationFromMessage(message) {
+        const locationInfo = {
+            area: null,
+            district: null,
+            specific: null,
+            hasLocation: false
+        };
+        
+        // 지역 패턴 매칭 (더 구체적인 패턴을 먼저 체크)
+        const patterns = {
+            specific_dong: /(번\d+동)(?:\s|이야|$)/,
+            district: /(\w+구)(?:\s|$)/,
+            dong: /(\w+동)(?:\s|이야|$)/,
+            city: /(\w+시)(?:\s|$)/,
+            station: /(\w+역)(?:\s|근처|주변|$)/,
+            area: /(강남|홍대|신촌|명동|이태원|압구정|청담|가로수길|종로|인사동|을지로|성수|합정|망원|연남|서울대|건대|잠실|송파|강서|노원|수원|부천|인천|용산|마포|서초|관악|동작|영등포|구로|금천|성북|중랑|도봉|은평|서대문|양천|강동)/
+        };
+        
+        // 패턴 검색
+        for (const [type, pattern] of Object.entries(patterns)) {
+            const match = message.match(pattern);
+            if (match) {
+                if (type === 'dong' || type === 'specific_dong') {
+                    locationInfo.specific = match[1];
+                } else {
+                    locationInfo.area = match[1];
+                }
+                locationInfo.hasLocation = true;
+                break;
+            }
+        }
+        
+        return locationInfo;
+    }
+    
+    // 레스토랑 추천을 위한 프롬프트 생성
+    buildRestaurantPrompt(message, locationInfo) {
+        const currentTime = new Date();
+        const hour = currentTime.getHours();
+        const timeOfDay = this.getTimeOfDay(hour);
+        
+        let locationText = "일반적인 지역";
+        if (locationInfo.hasLocation) {
+            if (locationInfo.specific) {
+                locationText = locationInfo.specific;
+            } else if (locationInfo.area) {
+                locationText = locationInfo.area;
+            }
+        }
+        
+        const basePrompt = `당신은 한국의 맛집과 식당을 잘 아는 친근한 음식 전문가입니다. 사용자의 요청에 맞는 실용적인 음식점 추천을 해주세요.
+
+사용자 요청: "${message}"
+위치: ${locationText}
+현재 시간: ${timeOfDay} (${hour}시)
+
+답변 가이드라인:
+- ${locationText}에서 실제로 찾을 수 있는 음식점 유형을 추천하세요
+- 현재 시간대(${timeOfDay})에 적합한 메뉴를 제안하세요
+- 3-4개의 구체적인 음식점 유형이나 메뉴를 추천하세요
+- 각 추천마다 간단한 설명과 특징을 포함하세요
+- 배달 앱이나 지도 검색 방법을 안내하세요
+- 친근하고 도움이 되는 톤으로 작성하세요
+- 답변은 400자 이내로 간결하게 작성하세요
+
+예시 답변 형식:
+"${locationText} 맛집 추천드릴게요! 🍽️
+
+1. **한식당** - 집밥 같은 든든한 한식
+2. **치킨집** - 바삭한 치킨과 맥주  
+3. **분식집** - 떡볶이, 순대 등 간단한 분식
+4. **카페** - 음료와 간단한 디저트
+
+🔍 **찾는 방법:**
+- 네이버 지도에서 '${locationText} + 원하는 음식' 검색
+- 배달 앱(배민, 요기요)에서 주변 음식점 확인
+
+맛있는 식사 되세요! 😋"`;
+
+        return basePrompt;
+    }
+    
+    // 시간대 분석
+    getTimeOfDay(hour) {
+        if (hour >= 6 && hour < 10) return '아침';
+        if (hour >= 10 && hour < 14) return '점심';
+        if (hour >= 14 && hour < 18) return '오후';
+        if (hour >= 18 && hour < 22) return '저녁';
+        return '야식';
+    }
+    
+    // Claude AI 호출 (레스토랑 추천용)
+    async callClaudeForRestaurant(prompt) {
+        const axios = require('axios');
+        
+        if (!process.env.CLAUDE_API_KEY) {
+            console.log('Claude API 키가 설정되지 않음 - 기본 응답 반환');
+            throw new Error('Claude API 키가 설정되지 않음');
+        }
+        
+        try {
+            const response = await axios.post('https://api.anthropic.com/v1/messages', {
+                model: "claude-3-5-sonnet-20241022",
+                max_tokens: 600,
+                messages: [{
+                    role: "user",
+                    content: prompt
+                }],
+                temperature: 0.8
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': process.env.CLAUDE_API_KEY,
+                    'anthropic-version': '2023-06-01'
+                },
+                timeout: 4000
+            });
+            
+            return response.data.content[0].text;
+            
+        } catch (error) {
+            console.error('Claude AI 호출 오류 (레스토랑):', error.message);
+            throw error;
+        }
+    }
+    
+    // 레스토랑 추천 폴백 응답 생성
+    generateRestaurantFallback(_, locationInfo) {
+        let locationText = "해당 지역";
+        if (locationInfo.hasLocation) {
+            if (locationInfo.specific) {
+                locationText = locationInfo.specific;
+            } else if (locationInfo.area) {
+                locationText = locationInfo.area;
+            }
+        }
+        
+        const currentTime = new Date();
+        const hour = currentTime.getHours();
+        const timeOfDay = this.getTimeOfDay(hour);
+        
+        return `${locationText} 맛집 정보를 찾아드릴게요! 🍽️
+
+🔍 **추천 검색 방법:**
+• 네이버 지도: "${locationText} 맛집" 검색
+• 배달 앱: 배달의민족, 요기요에서 주변 맛집 확인  
+• 망고플레이트: 실제 후기가 많은 맛집 앱
+
+⏰ **${timeOfDay} 시간대 추천:**
+• 한식, 중식, 일식, 양식 등 다양한 선택지
+• 카페나 디저트 맛집도 좋은 선택
+
+💡 **팁:** 
+구체적인 음식 종류를 함께 검색하면 더 정확한 결과를 얻을 수 있어요!
+(예: "${locationText} 삼겹살", "${locationText} 파스타")
+
+맛있는 식사 되세요! 😋`;
+    }
     
     createErrorResponse(message) {
         return {
