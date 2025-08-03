@@ -601,9 +601,10 @@ class SubAgentManager {
     
     // 레스토랑 추천을 위한 프롬프트 생성
     buildRestaurantPrompt(message, locationInfo) {
+        const timeOfDay = this.getTimeOfDay(); // 자동으로 한국 시간 계산
         const currentTime = new Date();
-        const hour = currentTime.getHours();
-        const timeOfDay = this.getTimeOfDay(hour);
+        const koreaTime = new Date(currentTime.getTime() + (9 * 60 * 60 * 1000));
+        const hour = koreaTime.getUTCHours();
         
         let locationText = "일반적인 지역";
         if (locationInfo.hasLocation) {
@@ -643,12 +644,14 @@ class SubAgentManager {
 4. **분식집** - 떡볶이, 김밥 등 간단한 식사
 5. **도시락집** - 간편한 도시락`;
         } else {
-            timeSpecificPrompt = `- ${timeOfDay} 시간대(${hour}시)에 적합한 음식을 추천하세요`;
-            exampleRecommendations = `1. **카페** - 음료와 간단한 디저트
-2. **한식당** - 가벼운 한식
-3. **분식집** - 떡볶이, 순대 등 간단한 분식
-4. **브런치카페** - 브런치와 음료
-5. **베이커리** - 빵과 음료`;
+            timeSpecificPrompt = `- ${timeOfDay} 시간대(${hour}시)에 적합한 식당을 추천하세요
+- 카페, 브런치카페, 베이커리, 패스트푸드는 추천하지 마세요
+- 한식, 중식, 일식, 양식, 분식 등 제대로 된 식당만 추천하세요`;
+            exampleRecommendations = `1. **한식당** - 든든한 한국 요리
+2. **중식당** - 짜장면, 짬뽕 등 중국 요리
+3. **일식당** - 초밥, 돈카츠 등 일본 요리
+4. **양식당** - 파스타, 스테이크 등 서양 요리
+5. **분식집** - 떡볶이, 순대 등 분식`;
         }
 
         const basePrompt = `당신은 한국의 맛집과 식당을 잘 아는 친근한 음식 전문가입니다. 사용자의 요청에 맞는 실용적인 음식점 추천을 해주세요.
@@ -680,12 +683,34 @@ ${exampleRecommendations}
         return basePrompt;
     }
     
-    // 시간대 분석
-    getTimeOfDay(hour) {
-        if (hour >= 6 && hour < 10) return '아침';
-        if (hour >= 10 && hour < 14) return '점심';
-        if (hour >= 14 && hour < 18) return '오후';
-        if (hour >= 18 && hour < 22) return '저녁';
+    // 시간대 분석 (한국 시간 기준)
+    getTimeOfDay(hour = null) {
+        // 한국 시간 기준으로 현재 시간 계산
+        if (hour === null) {
+            const now = new Date();
+            const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+            hour = koreaTime.getUTCHours();
+        }
+        
+        console.log(`⏰ 시간대 분석: ${hour}시`);
+        
+        if (hour >= 6 && hour < 10) {
+            console.log(`🌅 아침 시간대 (${hour}시)`);
+            return '아침';
+        }
+        if (hour >= 10 && hour < 14) {
+            console.log(`☀️ 점심 시간대 (${hour}시)`);
+            return '점심';
+        }
+        if (hour >= 14 && hour < 18) {
+            console.log(`🌤️ 오후 시간대 (${hour}시)`);
+            return '오후';
+        }
+        if (hour >= 18 && hour < 22) {
+            console.log(`🌆 저녁 시간대 (${hour}시)`);
+            return '저녁';
+        }
+        console.log(`🌙 야식 시간대 (${hour}시)`);
         return '야식';
     }
     
@@ -735,9 +760,7 @@ ${exampleRecommendations}
             }
         }
         
-        const currentTime = new Date();
-        const hour = currentTime.getHours();
-        const timeOfDay = this.getTimeOfDay(hour);
+        const timeOfDay = this.getTimeOfDay(); // 자동으로 한국 시간 계산
         
         return `${locationText} 맛집 정보를 찾아드릴게요! 🍽️
 
@@ -759,9 +782,7 @@ ${exampleRecommendations}
     
     // 스마트 레스토랑 응답 생성 (API 실패시 지능형 폴백)
     generateSmartRestaurantResponse(message, locationInfo) {
-        const currentTime = new Date();
-        const hour = currentTime.getHours();
-        const timeOfDay = this.getTimeOfDay(hour);
+        const timeOfDay = this.getTimeOfDay(); // 자동으로 한국 시간 계산
         
         let locationText = "해당 지역";
         if (locationInfo.hasLocation) {
@@ -860,23 +881,19 @@ ${exampleRecommendations}
             }
         }
         
-        // 시간대별 맛집 타입 결정
-        const currentTime = new Date();
-        const hour = currentTime.getHours();
-        const timeOfDay = this.getTimeOfDay(hour);
+        // 시간대별 맛집 타입 결정 (한국 시간 기준)
+        const timeOfDay = this.getTimeOfDay(); // 자동으로 한국 시간 계산
         
         let restaurantTypes = [];
         if (timeOfDay === '야식') {
             restaurantTypes = ['치킨집', '피자집', '족발보쌈', '24시간식당', '분식집'];
         } else if (timeOfDay === '점심') {
-            restaurantTypes = ['한식당', '중식당', '일식당', '분식집', '도시락집'];
+            restaurantTypes = ['한식당', '중식당', '일식당', '분식집', '정식집'];
         } else if (timeOfDay === '저녁') {
             restaurantTypes = ['한식당', '고기집', '치킨집', '일식당', '중식당'];
-        } else if (timeOfDay === '아침') {
-            restaurantTypes = ['카페', '브런치카페', '베이커리', '분식집', '한식당'];
         } else {
-            // 오후 시간대 (14-18시)
-            restaurantTypes = ['한식당', '카페', '분식집', '중식당', '일식당'];
+            // 오후나 기타 시간대 - 카페/패스트푸드 완전 제거
+            restaurantTypes = ['한식당', '중식당', '일식당', '양식당', '분식집'];
         }
         
         // 가상 맛집 데이터 생성
@@ -918,10 +935,8 @@ ${exampleRecommendations}
             }
         }
         
-        // 시간대 확인
-        const currentTime = new Date();
-        const hour = currentTime.getHours();
-        const timeOfDay = this.getTimeOfDay(hour);
+        // 시간대 확인 (한국 시간 기준)
+        const timeOfDay = this.getTimeOfDay(); // 자동으로 한국 시간 계산
         
         // 메시지에서 음식 키워드 추출 (우선순위 순서)
         const foodKeywords = ['만두', '치킨', '피자', '족발', '보쌈', '떡볶이', '라면', '한식', '중식', '일식', '양식', '분식', '야식'];
@@ -1043,9 +1058,7 @@ ${exampleRecommendations}
     
     // 네이버 API 결과를 사용자 친화적으로 포맷팅
     formatRestaurantResults(restaurants, locationInfo, originalMessage) {
-        const currentTime = new Date();
-        const hour = currentTime.getHours();
-        const timeOfDay = this.getTimeOfDay(hour);
+        const timeOfDay = this.getTimeOfDay(); // 자동으로 한국 시간 계산
         
         let locationText = "해당 지역";
         if (locationInfo.hasLocation) {
