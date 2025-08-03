@@ -546,10 +546,25 @@ class SubAgentManager {
             area: null,
             district: null,
             specific: null,
-            hasLocation: false
+            hasLocation: false,
+            fullLocation: null // 전체 위치 정보 저장
         };
         
-        // 지역 패턴 매칭 (더 구체적인 패턴을 먼저 체크)
+        // 구+동 조합 패턴 우선 체크 (예: "강북구 번3동")
+        const districtDongPattern = /(\w+구)\s*(\w*\d*동)/;
+        const districtDongMatch = message.match(districtDongPattern);
+        
+        if (districtDongMatch) {
+            locationInfo.district = districtDongMatch[1]; // 강북구
+            locationInfo.specific = districtDongMatch[2]; // 번3동
+            locationInfo.fullLocation = `${districtDongMatch[1]} ${districtDongMatch[2]}`; // 강북구 번3동
+            locationInfo.hasLocation = true;
+            console.log(`✅ 구+동 조합 발견: ${locationInfo.fullLocation}`);
+            console.log(`📍 최종 위치 정보:`, locationInfo);
+            return locationInfo;
+        }
+        
+        // 단일 패턴 매칭 (기존 로직)
         const patterns = {
             specific_dong: /(번\d+동)(?:\s|이야|$)/,
             district: /(\w+구)(?:\s|$)/,
@@ -567,6 +582,9 @@ class SubAgentManager {
                 if (type === 'dong' || type === 'specific_dong') {
                     locationInfo.specific = match[1];
                     console.log(`✅ 구체적 위치 설정: ${match[1]}`);
+                } else if (type === 'district') {
+                    locationInfo.district = match[1];
+                    console.log(`✅ 구 위치 설정: ${match[1]}`);
                 } else {
                     locationInfo.area = match[1];
                     console.log(`✅ 일반 위치 설정: ${match[1]}`);
@@ -867,11 +885,20 @@ ${exampleRecommendations}
             console.log(`❌ 1차 네이버 API 실패: ${error.message}`);
         }
         
-        // 2차: 확장 검색 시도 (지역명만으로)
+        // 2차: 확장 검색 시도 (구 단위로)
         try {
             let location = "서울";
             if (locationInfo.hasLocation) {
-                location = locationInfo.specific || locationInfo.area || "서울";
+                // 구가 있으면 구만, 없으면 동만, 모두 없으면 서울
+                if (locationInfo.district) {
+                    location = locationInfo.district; // "강북구"
+                } else if (locationInfo.specific) {
+                    location = locationInfo.specific; // "번3동"
+                } else if (locationInfo.area) {
+                    location = locationInfo.area; // "강남"
+                } else {
+                    location = "서울";
+                }
             }
             const simpleQuery = `${location} 맛집`;
             console.log(`🚀 2차 시도: 확장 검색 "${simpleQuery}"`);
@@ -972,10 +999,17 @@ ${exampleRecommendations}
         let location = "서울";
         
         if (locationInfo.hasLocation) {
-            if (locationInfo.specific) {
-                location = locationInfo.specific;
+            // 우선순위: 전체위치 > 구+동 조합 > 구체적위치 > 일반위치
+            if (locationInfo.fullLocation) {
+                location = locationInfo.fullLocation; // "강북구 번3동"
+            } else if (locationInfo.district && locationInfo.specific) {
+                location = `${locationInfo.district} ${locationInfo.specific}`; // "강북구 번3동"
+            } else if (locationInfo.specific) {
+                location = locationInfo.specific; // "번3동"
+            } else if (locationInfo.district) {
+                location = locationInfo.district; // "강북구"
             } else if (locationInfo.area) {
-                location = locationInfo.area;
+                location = locationInfo.area; // "강남"
             }
         }
         
@@ -1134,10 +1168,17 @@ ${exampleRecommendations}
         
         let locationText = "해당 지역";
         if (locationInfo.hasLocation) {
-            if (locationInfo.specific) {
-                locationText = locationInfo.specific;
+            // 우선순위: 전체위치 > 구+동 조합 > 구체적위치 > 구 > 일반위치
+            if (locationInfo.fullLocation) {
+                locationText = locationInfo.fullLocation; // "강북구 번3동"
+            } else if (locationInfo.district && locationInfo.specific) {
+                locationText = `${locationInfo.district} ${locationInfo.specific}`; // "강북구 번3동"
+            } else if (locationInfo.specific) {
+                locationText = locationInfo.specific; // "번3동"
+            } else if (locationInfo.district) {
+                locationText = locationInfo.district; // "강북구"
             } else if (locationInfo.area) {
-                locationText = locationInfo.area;
+                locationText = locationInfo.area; // "강남"
             }
         }
         
