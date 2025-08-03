@@ -948,12 +948,14 @@ ${exampleRecommendations}
     
     // === 네이버 API 연동 함수들 ===
     
-    // 네이버 API 시도 + 대체 데이터 생성 (GPS 좌표 기반)
+    // 네이버 API 시도 + 대체 데이터 생성 (GPS 좌표 기반) - v2.0
     async tryNaverAPIWithFallback(searchQuery, locationInfo) {
-        console.log(`🔄 GPS 좌표 기반 네이버 API 시도: "${searchQuery}"`);
+        console.log(`🔄 GPS 좌표 기반 네이버 API 시도 v2.0: "${searchQuery}"`);
+        console.log(`🎯 위치 정보:`, locationInfo);
         
         // GPS 좌표 계산
         const coordinates = this.getGPSCoordinates(locationInfo);
+        console.log(`🗺️ 계산된 GPS 좌표:`, coordinates);
         
         // 1차: GPS 좌표 기반 검색 시도 (10초 타임아웃)
         if (coordinates) {
