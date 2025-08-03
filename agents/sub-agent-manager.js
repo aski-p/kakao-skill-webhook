@@ -554,14 +554,20 @@ class SubAgentManager {
         const districtDongPattern = /(\w+구)\s*(\w*\d*동)/;
         const districtDongMatch = message.match(districtDongPattern);
         
+        console.log(`🔍 구+동 조합 패턴 테스트: "${districtDongPattern}" → "${message}"`);
+        console.log(`🔍 매칭 결과:`, districtDongMatch);
+        
         if (districtDongMatch) {
             locationInfo.district = districtDongMatch[1]; // 강북구
             locationInfo.specific = districtDongMatch[2]; // 번3동
             locationInfo.fullLocation = `${districtDongMatch[1]} ${districtDongMatch[2]}`; // 강북구 번3동
             locationInfo.hasLocation = true;
             console.log(`✅ 구+동 조합 발견: ${locationInfo.fullLocation}`);
+            console.log(`📍 district: ${locationInfo.district}, specific: ${locationInfo.specific}`);
             console.log(`📍 최종 위치 정보:`, locationInfo);
             return locationInfo;
+        } else {
+            console.log(`❌ 구+동 조합 매칭 실패 - 단일 패턴으로 진행`);
         }
         
         // 단일 패턴 매칭 (기존 로직)
@@ -1083,6 +1089,7 @@ ${exampleRecommendations}
             };
             
             console.log('📡 API 요청 파라미터:', requestConfig.params);
+            console.log('🌐 네이버 API 전체 요청 URL:', `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=10&start=1&sort=comment`);
             
             const response = await axios.get('https://openapi.naver.com/v1/search/local.json', requestConfig);
             
@@ -1103,14 +1110,11 @@ ${exampleRecommendations}
             
             console.log(`✅ 네이버 API 결과: ${items.length}개 맛집 발견`);
             
-            // 첫 번째 결과 샘플 로깅
-            if (items.length > 0) {
-                console.log(`🏪 첫 번째 결과 샘플:`, {
-                    title: items[0].title?.replace(/<[^>]*>/g, ''),
-                    category: items[0].category,
-                    address: items[0].address
-                });
-            }
+            // 모든 결과 로깅 (디버깅용)
+            console.log(`🏪 네이버 API 원본 결과들:`);
+            items.forEach((item, index) => {
+                console.log(`${index + 1}. ${item.title?.replace(/<[^>]*>/g, '')} (${item.category}) - ${item.address}`);
+            });
             
             // HTML 태그 제거 및 정리
             const cleanedItems = items.map(item => ({
@@ -1127,24 +1131,39 @@ ${exampleRecommendations}
                 const category = item.category ? item.category.toLowerCase() : '';
                 const title = item.title ? item.title.toLowerCase() : '';
                 
-                // 제외할 카테고리들
+                // 제외할 카테고리들 (강화)
                 const excludeKeywords = [
-                    '카페', 'cafe', '커피', 'coffee', '스타벅스', '투썸', '엔젤리너스', 
-                    '편의점', 'gs25', 'cu', '세븐일레븐', '이마트24',
-                    '베이커리', '빵집', 'bakery', '던킨', '크리스피',
-                    '패스트푸드', '맥도날드', '버거킹', 'kfc', '롯데리아', '맘스터치',
-                    '주유소', '마트', '할인점', '약국', '병원', '은행', '학원'
+                    // 카페/커피
+                    '카페', 'cafe', '커피', 'coffee', '스타벅스', '투썸', '엔젤리너스', '이디야', '할리스',
+                    // 편의점
+                    '편의점', 'gs25', 'cu', '세븐일레븐', '이마트24', 'ministop',
+                    // 베이커리
+                    '베이커리', '빵집', 'bakery', '던킨', '크리스피', '파리바게뜨', '뚜레쥬르',
+                    // 패스트푸드
+                    '패스트푸드', '맥도날드', '버거킹', 'kfc', '롯데리아', '맘스터치', '서브웨이',
+                    // 쇼핑/유통 (새로 추가)
+                    '백화점', '쇼핑센터', '할인매장', '쇼핑몰', '마트', '할인점', '대형마트', '아울렛',
+                    'nc백화점', '아이파크몰', '롯데백화점', '신세계백화점', '현대백화점',
+                    // 기타 비식당
+                    '주유소', '약국', '병원', '은행', '학원', '미용실', '네일샵', '피시방', '노래방'
                 ];
                 
                 // 제외 키워드가 포함되어 있으면 필터링
                 for (const keyword of excludeKeywords) {
                     if (category.includes(keyword) || title.includes(keyword)) {
-                        console.log(`🚫 제외됨: ${item.title} (${item.category})`);
+                        console.log(`🚫 카테고리 제외됨: ${item.title} (${item.category}) - 키워드: ${keyword}`);
                         return false;
                     }
                 }
                 
-                console.log(`✅ 포함됨: ${item.title} (${item.category})`);
+                // 주소 기반 지역 필터링 (강북구 검색시 다른 구는 제외)
+                const address = item.address ? item.address.toLowerCase() : '';
+                if (query.includes('강북구') && !address.includes('강북구')) {
+                    console.log(`🚫 지역 불일치 제외됨: ${item.title} (${item.address}) - 강북구 검색이지만 다른 지역`);
+                    return false;
+                }
+                
+                console.log(`✅ 포함됨: ${item.title} (${item.category}) - ${item.address}`);
                 return true;
             });
             
