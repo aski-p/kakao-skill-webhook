@@ -848,25 +848,69 @@ ${exampleRecommendations}
     
     // 네이버 API 시도 + 대체 데이터 생성
     async tryNaverAPIWithFallback(searchQuery, locationInfo) {
-        console.log(`🔄 네이버 API + 대체 데이터 시도: "${searchQuery}"`);
+        console.log(`🔄 네이버 API 우선 시도: "${searchQuery}"`);
         
-        // 1차: 네이버 API 시도 (5초 타임아웃)
+        // 1차: 기본 검색 시도 (10초 타임아웃으로 연장)
         try {
+            console.log(`🚀 1차 시도: 기본 검색 "${searchQuery}"`);
             const apiRestaurants = await Promise.race([
                 this.getNaverLocalRestaurants(searchQuery),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 5초 타임아웃')), 5000))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 10초 타임아웃')), 10000))
             ]);
             
             if (apiRestaurants && apiRestaurants.length > 0) {
-                console.log(`✅ 네이버 API 성공: ${apiRestaurants.length}개 맛집 조회`);
+                console.log(`✅ 1차 네이버 API 성공: ${apiRestaurants.length}개 실제 맛집 발견`);
                 return apiRestaurants;
             }
+            console.log(`⚠️ 1차 검색 결과 없음`);
         } catch (error) {
-            console.log(`⚠️ 네이버 API 실패: ${error.message}`);
+            console.log(`❌ 1차 네이버 API 실패: ${error.message}`);
         }
         
-        // 2차: 대체 맛집 데이터 생성 (실제 같은 가상 데이터)
-        console.log('🎯 대체 맛집 데이터 생성 시작...');
+        // 2차: 확장 검색 시도 (지역명만으로)
+        try {
+            let location = "서울";
+            if (locationInfo.hasLocation) {
+                location = locationInfo.specific || locationInfo.area || "서울";
+            }
+            const simpleQuery = `${location} 맛집`;
+            console.log(`🚀 2차 시도: 확장 검색 "${simpleQuery}"`);
+            
+            const apiRestaurants = await Promise.race([
+                this.getNaverLocalRestaurants(simpleQuery),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 10초 타임아웃')), 10000))
+            ]);
+            
+            if (apiRestaurants && apiRestaurants.length > 0) {
+                console.log(`✅ 2차 네이버 API 성공: ${apiRestaurants.length}개 실제 맛집 발견`);
+                return apiRestaurants;
+            }
+            console.log(`⚠️ 2차 검색 결과 없음`);
+        } catch (error) {
+            console.log(`❌ 2차 네이버 API 실패: ${error.message}`);
+        }
+        
+        // 3차: 광역 검색 시도 (서울 전체)
+        try {
+            const broadQuery = "서울 맛집";
+            console.log(`🚀 3차 시도: 광역 검색 "${broadQuery}"`);
+            
+            const apiRestaurants = await Promise.race([
+                this.getNaverLocalRestaurants(broadQuery),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 10초 타임아웃')), 10000))
+            ]);
+            
+            if (apiRestaurants && apiRestaurants.length > 0) {
+                console.log(`✅ 3차 네이버 API 성공: ${apiRestaurants.length}개 실제 맛집 발견 (광역)`);
+                return apiRestaurants;
+            }
+            console.log(`⚠️ 3차 검색 결과 없음`);
+        } catch (error) {
+            console.log(`❌ 3차 네이버 API 실패: ${error.message}`);
+        }
+        
+        // 모든 시도 실패시만 대체 데이터 생성
+        console.log('❌ 모든 네이버 API 시도 실패 - 대체 데이터 생성');
         return this.generateFallbackRestaurantData(searchQuery, locationInfo);
     }
     
@@ -991,15 +1035,17 @@ ${exampleRecommendations}
             const requestConfig = {
                 params: {
                     query: query,
-                    display: 5,
+                    display: 10, // 더 많은 결과 요청
                     start: 1,
                     sort: 'comment'  // 리뷰 많은 순
                 },
                 headers: {
                     'X-Naver-Client-Id': NAVER_CLIENT_ID,
-                    'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+                    'X-Naver-Client-Secret': NAVER_CLIENT_SECRET,
+                    'User-Agent': 'Mozilla/5.0 (compatible; KakaoBot/1.0)',
+                    'Accept': 'application/json'
                 },
-                timeout: 6000
+                timeout: 10000 // 타임아웃 증가
             };
             
             console.log('📡 API 요청 파라미터:', requestConfig.params);
@@ -1042,8 +1088,34 @@ ${exampleRecommendations}
                 description: item.description ? item.description.replace(/<[^>]*>/g, '') : ''
             }));
             
-            console.log(`🔄 데이터 정리 완료: ${cleanedItems.length}개 항목`);
-            return cleanedItems;
+            // 카페/편의점/패스트푸드 제외하고 실제 식당만 필터링
+            const restaurantItems = cleanedItems.filter(item => {
+                const category = item.category ? item.category.toLowerCase() : '';
+                const title = item.title ? item.title.toLowerCase() : '';
+                
+                // 제외할 카테고리들
+                const excludeKeywords = [
+                    '카페', 'cafe', '커피', 'coffee', '스타벅스', '투썸', '엔젤리너스', 
+                    '편의점', 'gs25', 'cu', '세븐일레븐', '이마트24',
+                    '베이커리', '빵집', 'bakery', '던킨', '크리스피',
+                    '패스트푸드', '맥도날드', '버거킹', 'kfc', '롯데리아', '맘스터치',
+                    '주유소', '마트', '할인점', '약국', '병원', '은행', '학원'
+                ];
+                
+                // 제외 키워드가 포함되어 있으면 필터링
+                for (const keyword of excludeKeywords) {
+                    if (category.includes(keyword) || title.includes(keyword)) {
+                        console.log(`🚫 제외됨: ${item.title} (${item.category})`);
+                        return false;
+                    }
+                }
+                
+                console.log(`✅ 포함됨: ${item.title} (${item.category})`);
+                return true;
+            });
+            
+            console.log(`🔄 데이터 정리 완료: ${cleanedItems.length}개 항목 → ${restaurantItems.length}개 실제 식당`);
+            return restaurantItems;
             
         } catch (error) {
             console.error('❌ 네이버 지역검색 API 오류:', error.message);
