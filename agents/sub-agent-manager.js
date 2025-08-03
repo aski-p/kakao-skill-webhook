@@ -1302,7 +1302,7 @@ ${exampleRecommendations}
                 
                 // 강화된 주소 기반 지역 필터링
                 const address = item.address ? item.address.toLowerCase() : '';
-                const title = item.title ? item.title.toLowerCase() : '';
+                // title은 이미 위에서 선언됨
                 
                 // 명동교자 강제 제외 (항상 잘못된 결과로 나오므로)
                 if (title.includes('명동교자') || address.includes('명동')) {
