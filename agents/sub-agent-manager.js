@@ -389,7 +389,7 @@ class SubAgentManager {
                     'x-api-key': process.env.CLAUDE_API_KEY,
                     'anthropic-version': '2023-06-01'
                 },
-                timeout: 4000
+                timeout: 8000
             });
             
             return response.data.content[0].text;
@@ -397,13 +397,17 @@ class SubAgentManager {
         } catch (error) {
             console.error('Claude AI 호출 오류:', error.message);
             
-            // 간단한 폴백 응답
-            if (prompt.includes('운동') || prompt.includes('헬스')) {
-                return `가벼운 유산소 운동 추천\n\n1. **걷기** - 하루 30분, 빠른 걸음으로\n2. **계단 오르기** - 일상에서 쉽게 실천 가능\n3. **제자리 걷기** - 실내에서도 가능\n4. **스트레칭** - 관절 운동과 함께\n5. **자전거 타기** - 무릎에 부담 적음\n\n팁: 본인 체력에 맞춰 강도 조절하고, 꾸준히 하는 것이 가장 중요해요!`;
-            }
-            
-            return `죄송합니다. 현재 일시적인 서비스 문제로 정확한 정보를 제공하기 어렵습니다.\n\n잠시 후 다시 질문해주시거나, 더 구체적인 키워드로 검색해보세요.`;
+            // 메시지 기반 지능형 폴백 응답
+            return this.generateIntelligentFallback(prompt);
         }
+    }
+    
+    // 지능형 폴백 응답 생성 (Claude AI 실패시)
+    generateIntelligentFallback(prompt) {
+        console.log('🤖 지능형 폴백 응답 생성 시작');
+        
+        // 단순한 타임아웃 안내로 변경 (하드코딩 제거)
+        return `😊 죄송합니다. 현재 AI 서비스가 일시적으로 바쁩니다.\n\n⏰ 잠시 후 다시 질문해주시면 더 좋은 답변을 드릴 수 있어요.\n\n언제든 도움이 필요하시면 말씀해주세요! 🙏`;
     }
     
     // 쇼핑 에이전트 처리
@@ -791,11 +795,11 @@ class SubAgentManager {
     async tryNaverAPIWithFallback(searchQuery, locationInfo) {
         console.log(`🔄 네이버 API + 대체 데이터 시도: "${searchQuery}"`);
         
-        // 1차: 네이버 API 시도 (1.5초 타임아웃)
+        // 1차: 네이버 API 시도 (5초 타임아웃)
         try {
             const apiRestaurants = await Promise.race([
                 this.getNaverLocalRestaurants(searchQuery),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 1.5초 타임아웃')), 1500))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 5초 타임아웃')), 5000))
             ]);
             
             if (apiRestaurants && apiRestaurants.length > 0) {
@@ -920,7 +924,7 @@ class SubAgentManager {
                     'X-Naver-Client-Id': NAVER_CLIENT_ID,
                     'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
                 },
-                timeout: 2000
+                timeout: 6000
             };
             
             console.log('📡 API 요청 파라미터:', requestConfig.params);
