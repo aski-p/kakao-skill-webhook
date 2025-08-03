@@ -8,7 +8,7 @@ const DataExtractor = require('./config/data-extractor');
 const SubAgentManager = require('./agents/sub-agent-manager'); // 서브에이전트 시스템 활성화
 
 // [ENHANCED] 향상된 자연어 처리 및 세션 관리 시스템 (안전한 로딩)
-let enhancedNLP, safeSessionManager, contextAwareGenerator, movieScheduler, naverWeatherCrawler;
+let enhancedNLP, sessionManager, contextAwareGenerator, movieScheduler, naverWeatherCrawler;
 
 try {
     enhancedNLP = require('./config/enhanced-nlp');
@@ -18,7 +18,8 @@ try {
 }
 
 try {
-    safeSessionManager = require('./config/session-manager');
+    const SessionManagerClass = require('./config/session-manager');
+    sessionManager = new SessionManagerClass();
     console.log('✅ Session Manager 로드됨');
 } catch (error) {
     console.error('❌ Session Manager 로드 실패:', error.message);
@@ -668,28 +669,28 @@ const subAgentManager = new SubAgentManager();
 // 인스턴스 생성은 필요시에만 하므로 여기서는 로딩 확인만
 console.log('[ENHANCED] 향상된 자연어 처리 및 세션 관리 시스템 초기화 완료');
 
-// 안전한 safeSessionManager 래퍼
+// 안전한 sessionManager 래퍼
 const safeSessionManager = {
     async createOrUpdateSession(userId, message) {
-        if (safeSessionManager && typeof safeSessionManager.createOrUpdateSession === 'function') {
-            return await safeSessionManager.createOrUpdateSession(userId, message);
+        if (sessionManager && typeof sessionManager.createOrUpdateSession === 'function') {
+            return await sessionManager.createOrUpdateSession(userId, message);
         }
         return null;
     },
     getConversationHistory(userId, limit) {
-        if (safeSessionManager && typeof safeSessionManager.getConversationHistory === 'function') {
-            return safeSessionManager.getConversationHistory(userId, limit);
+        if (sessionManager && typeof sessionManager.getConversationHistory === 'function') {
+            return sessionManager.getConversationHistory(userId, limit);
         }
         return [];
     },
     async addBotResponse(userId, response, type) {
-        if (safeSessionManager && typeof safeSessionManager.addBotResponse === 'function') {
-            return await safeSessionManager.addBotResponse(userId, response, type);
+        if (sessionManager && typeof sessionManager.addBotResponse === 'function') {
+            return await sessionManager.addBotResponse(userId, response, type);
         }
     },
     updateUserContext(userId, context) {
-        if (safeSessionManager && typeof safeSessionManager.updateUserContext === 'function') {
-            safeSessionManager.updateUserContext(userId, context);
+        if (sessionManager && typeof sessionManager.updateUserContext === 'function') {
+            sessionManager.updateUserContext(userId, context);
         }
     }
 };
