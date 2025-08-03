@@ -7,12 +7,43 @@ const MessageClassifier = require('./config/message-classifier');
 const DataExtractor = require('./config/data-extractor');
 const SubAgentManager = require('./agents/sub-agent-manager'); // 서브에이전트 시스템 활성화
 
-// [ENHANCED] 향상된 자연어 처리 및 세션 관리 시스템
-const EnhancedNLP = require('./config/enhanced-nlp');
-const SessionManager = require('./config/session-manager');
-const ContextAwareGenerator = require('./config/context-aware-generator');
-const movieScheduler = require('./scheduler/movie-update-scheduler');
-const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
+// [ENHANCED] 향상된 자연어 처리 및 세션 관리 시스템 (안전한 로딩)
+let enhancedNLP, sessionManager, contextAwareGenerator, movieScheduler, naverWeatherCrawler;
+
+try {
+    enhancedNLP = require('./config/enhanced-nlp');
+    console.log('✅ Enhanced NLP 로드됨');
+} catch (error) {
+    console.error('❌ Enhanced NLP 로드 실패:', error.message);
+}
+
+try {
+    sessionManager = require('./config/session-manager');
+    console.log('✅ Session Manager 로드됨');
+} catch (error) {
+    console.error('❌ Session Manager 로드 실패:', error.message);
+}
+
+try {
+    contextAwareGenerator = require('./config/context-aware-generator');
+    console.log('✅ Context Aware Generator 로드됨');
+} catch (error) {
+    console.error('❌ Context Aware Generator 로드 실패:', error.message);
+}
+
+try {
+    movieScheduler = require('./scheduler/movie-update-scheduler');
+    console.log('✅ Movie Scheduler 로드됨');
+} catch (error) {
+    console.error('❌ Movie Scheduler 로드 실패:', error.message);
+}
+
+try {
+    naverWeatherCrawler = require('./crawlers/naver-weather-crawler');
+    console.log('✅ Naver Weather Crawler 로드됨');
+} catch (error) {
+    console.error('❌ Naver Weather Crawler 로드 실패:', error.message);
+}
 
 // HTTP Keep-Alive 최적화 및 연결 안정성 향상
 const httpAgent = new http.Agent({ 
@@ -2227,10 +2258,27 @@ app.post('/kakao-skill-webhook', async (req, res) => {
     }
 });
 
-// 🎬 영화진흥위원회 API 엔드포인트 추가
-app.use('/api', require('./api/kofic-crawl'));
-app.use('/api', require('./api/full-crawling'));
-app.use('/api', require('./api/direct-crawling'));
+// 🎬 영화진흥위원회 API 엔드포인트 추가 (안전한 로딩)
+try {
+    app.use('/api', require('./api/kofic-crawl'));
+    console.log('✅ KOFIC API 라우터 로드됨');
+} catch (error) {
+    console.error('❌ KOFIC API 라우터 로드 실패:', error.message);
+}
+
+try {
+    app.use('/api', require('./api/full-crawling'));
+    console.log('✅ Full crawling API 라우터 로드됨');
+} catch (error) {
+    console.error('❌ Full crawling API 라우터 로드 실패:', error.message);
+}
+
+try {
+    app.use('/api', require('./api/direct-crawling'));
+    console.log('✅ Direct crawling API 라우터 로드됨');
+} catch (error) {
+    console.error('❌ Direct crawling API 라우터 로드 실패:', error.message);
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
@@ -2243,9 +2291,13 @@ app.listen(PORT, () => {
     
     // 영화 데이터 자동 업데이트 스케줄러 시작
     try {
-        movieScheduler.start();
-        console.log('📅 영화 데이터 자동 업데이트 스케줄러 시작됨');
+        if (movieScheduler && typeof movieScheduler.start === 'function') {
+            movieScheduler.start();
+            console.log('📅 영화 데이터 자동 업데이트 스케줄러 시작됨');
+        } else {
+            console.log('⚠️ Movie Scheduler가 로드되지 않아 스케줄러를 시작하지 않습니다');
+        }
     } catch (error) {
-        console.error('❌ 스케줄러 시작 실패:', error);
+        console.error('❌ 스케줄러 시작 실패:', error.message);
     }
 });
