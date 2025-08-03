@@ -959,17 +959,18 @@ ${exampleRecommendations}
         
         // 강북구 번3동인 경우 즉시 전용 데이터 반환 (네이버 API 우회)
         if (locationInfo.district === '강북구' && locationInfo.specific === '번3동') {
-            console.log(`🎯 강북구 번3동 감지 - 전용 맛집 데이터 우선 제공`);
+            console.log(`🎯 강북구 번3동 감지 - API 우회하여 로컬 맛집 데이터 제공`);
+            console.log(`⚠️ 네이버 API GPS 검색이 대전/전북/충남 결과를 잘못 반환하여 로컬 데이터 우선 사용`);
             return this.generateFallbackRestaurantData(searchQuery, locationInfo);
         }
         
-        // 1차: GPS 좌표 기반 검색 시도 (10초 타임아웃)
+        // 1차: GPS 좌표 기반 검색 시도 (3초 타임아웃)
         if (coordinates) {
             try {
                 console.log(`🚀 1차 시도: GPS 좌표 기반 검색 (lat: ${coordinates.lat}, lng: ${coordinates.lng})`);
                 const apiRestaurants = await Promise.race([
                     this.getNaverLocalRestaurants('맛집', coordinates),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 10초 타임아웃')), 10000))
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 3초 타임아웃')), 3000))
                 ]);
                 
                 if (apiRestaurants && apiRestaurants.length > 0) {
@@ -994,7 +995,7 @@ ${exampleRecommendations}
             console.log(`🚀 2차 시도: 텍스트 기반 검색 "${searchQuery}"`);
             const apiRestaurants = await Promise.race([
                 this.getNaverLocalRestaurants(searchQuery),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 10초 타임아웃')), 10000))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 3초 타임아웃')), 3000))
             ]);
             
             if (apiRestaurants && apiRestaurants.length > 0) {
@@ -1254,12 +1255,6 @@ ${exampleRecommendations}
             
             console.log(`✅ 네이버 API 결과: ${items.length}개 맛집 발견`);
             
-            // 모든 결과 로깅 (디버깅용)
-            console.log(`🏪 네이버 API 원본 결과들:`);
-            items.forEach((item, index) => {
-                console.log(`${index + 1}. ${item.title?.replace(/<[^>]*>/g, '')} (${item.category}) - ${item.address}`);
-            });
-            
             // HTML 태그 제거 및 정리
             const cleanedItems = items.map(item => ({
                 title: item.title.replace(/<[^>]*>/g, ''),
@@ -1310,10 +1305,25 @@ ${exampleRecommendations}
                     return false;
                 }
                 
-                // 천안시, 충청남도 등 서울 밖 지역 제외
-                if (address.includes('천안시') || address.includes('충청남도') || address.includes('충청북도') || 
-                    address.includes('경기도') || address.includes('인천시') || address.includes('부산시')) {
-                    console.log(`🚫 서울 외 지역 제외됨: ${item.title} (${item.address})`);
+                // 서울 밖 지역 강화 필터링 (완전한 지역 제외)
+                const nonSeoulRegions = [
+                    '천안시', '충청남도', '충청북도', '대전광역시', '대전시', '전라북도', '전북특별자치도', 
+                    '전주시', '군산시', '경기도', '인천시', '인천광역시', '부산시', '부산광역시',
+                    '대구시', '대구광역시', '광주시', '광주광역시', '울산시', '울산광역시',
+                    '세종시', '세종특별자치시', '강원도', '강원특별자치도', '경상북도', '경상남도',
+                    '전라남도', '제주도', '제주특별자치도'
+                ];
+                
+                for (const region of nonSeoulRegions) {
+                    if (address.includes(region) || title.includes(region)) {
+                        console.log(`🚫 서울 외 지역 제외됨: ${item.title} (${item.address}) - 지역: ${region}`);
+                        return false;
+                    }
+                }
+                
+                // 서울 지역만 허용 (서울특별시 또는 서울시 포함)
+                if (!address.includes('서울특별시') && !address.includes('서울시') && !address.includes('서울')) {
+                    console.log(`🚫 서울 지역 아님: ${item.title} (${item.address})`);
                     return false;
                 }
                 
@@ -1334,6 +1344,12 @@ ${exampleRecommendations}
             });
             
             console.log(`🔄 데이터 정리 완료: ${cleanedItems.length}개 항목 → ${restaurantItems.length}개 실제 식당`);
+            
+            if (restaurantItems.length === 0) {
+                console.log('⚠️ 필터링 후 유효한 식당이 없음 - 네이버 API가 잘못된 지역 결과 반환');
+                console.log('💡 로컬 맛집 데이터로 전환하여 사용자에게 유용한 정보 제공');
+            }
+            
             return restaurantItems;
             
         } catch (error) {
