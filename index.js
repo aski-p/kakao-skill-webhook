@@ -8,7 +8,7 @@ const DataExtractor = require('./config/data-extractor');
 const SubAgentManager = require('./agents/sub-agent-manager'); // 서브에이전트 시스템 활성화
 
 // [ENHANCED] 향상된 자연어 처리 및 세션 관리 시스템 (안전한 로딩)
-let enhancedNLP, sessionManager, contextAwareGenerator, movieScheduler, naverWeatherCrawler;
+let enhancedNLP, safeSessionManager, contextAwareGenerator, movieScheduler, naverWeatherCrawler;
 
 try {
     enhancedNLP = require('./config/enhanced-nlp');
@@ -18,7 +18,7 @@ try {
 }
 
 try {
-    sessionManager = require('./config/session-manager');
+    safeSessionManager = require('./config/session-manager');
     console.log('✅ Session Manager 로드됨');
 } catch (error) {
     console.error('❌ Session Manager 로드 실패:', error.message);
@@ -110,10 +110,8 @@ async function callSimpleClaudeAI(userMessage, userId) {
         // 세션 관리 (옵셔널)
         let conversationHistory = [];
         try {
-            if (sessionManager) {
-                const session = await sessionManager.createOrUpdateSession(userId, userMessage);
-                conversationHistory = sessionManager.getConversationHistory(userId, 10) || []; // 5개 → 10개로 확장
-            }
+            const session = await safeSessionManager.createOrUpdateSession(userId, userMessage);
+            conversationHistory = safeSessionManager.getConversationHistory(userId, 10) || []; // 5개 → 10개로 확장
         } catch (e) {
             console.log('세션 관리 스킵:', e.message);
         }
@@ -132,8 +130,8 @@ async function callSimpleClaudeAI(userMessage, userId) {
             console.log('⚡ 패턴 기반 즉시 응답 전송');
             
             try {
-                if (sessionManager) {
-                    await sessionManager.addBotResponse(userId, quickResponse, 'QUICK_RESPONSE');
+                if (safeSessionManager) {
+                    await safeSessionManager.addBotResponse(userId, quickResponse, 'QUICK_RESPONSE');
                 }
             } catch (e) {}
             
@@ -171,8 +169,8 @@ async function callSimpleClaudeAI(userMessage, userId) {
             aiResponse = await processAITags(aiResponse, userMessage);
             
             try {
-                if (sessionManager) {
-                    await sessionManager.addBotResponse(userId, aiResponse, 'AI_RESPONSE');
+                if (safeSessionManager) {
+                    await safeSessionManager.addBotResponse(userId, aiResponse, 'AI_RESPONSE');
                 }
             } catch (e) {}
             
@@ -183,8 +181,8 @@ async function callSimpleClaudeAI(userMessage, userId) {
             const fallbackResponse = getFallbackResponse(userMessage, conversationHistory);
             
             try {
-                if (sessionManager) {
-                    await sessionManager.addBotResponse(userId, fallbackResponse, 'FALLBACK_RESPONSE');
+                if (safeSessionManager) {
+                    await safeSessionManager.addBotResponse(userId, fallbackResponse, 'FALLBACK_RESPONSE');
                 }
             } catch (e) {}
             
@@ -212,8 +210,8 @@ async function callEnhancedClaudeAI(userMessage, userId) {
         console.log(`[ENHANCED] 향상된 Claude AI 호출: "${userMessage}" (사용자: ${userId})`);
         
         // 세션 관리 및 컨텍스트 수집
-        const session = await sessionManager.createOrUpdateSession(userId, userMessage);
-        const conversationHistory = sessionManager.getConversationHistory(userId, 10);
+        const session = await safeSessionManager.createOrUpdateSession(userId, userMessage);
+        const conversationHistory = safeSessionManager.getConversationHistory(userId, 10);
         
         // 향상된 자연어 이해 (의도 분석)
         const intentAnalysis = enhancedNLP.analyzeIntent(userMessage, conversationHistory);
@@ -238,7 +236,7 @@ async function callEnhancedClaudeAI(userMessage, userId) {
                 searchInfo += `💡 더 자세한 정보는 네이버에서 "${userMessage}"를 검색해보세요.\n\n⏰ 검색 시간: ${koreanTime.formatted}`;
                 
                 // 세션에 응답 저장
-                await sessionManager.addBotResponse(userId, searchInfo, 'SEARCH_REQUEST');
+                await safeSessionManager.addBotResponse(userId, searchInfo, 'SEARCH_REQUEST');
                 return searchInfo;
             }
         }
@@ -254,10 +252,10 @@ async function callEnhancedClaudeAI(userMessage, userId) {
             );
             
             // 세션에 응답 저장
-            await sessionManager.addBotResponse(userId, contextResponse, intentAnalysis.intent);
+            await safeSessionManager.addBotResponse(userId, contextResponse, intentAnalysis.intent);
             
             // 사용자 컨텍스트 업데이트
-            sessionManager.updateUserContext(userId, {
+            safeSessionManager.updateUserContext(userId, {
                 lastIntent: intentAnalysis.intent,
                 topics: [...(session.context.topics || []), intentAnalysis.intent],
                 contextAnalysis: intentAnalysis.context_analysis || {},
@@ -271,7 +269,7 @@ async function callEnhancedClaudeAI(userMessage, userId) {
         if (!CLAUDE_API_KEY) {
             console.log('⚠️ Claude API 키가 설정되지 않음');
             const fallbackResponse = `안녕하세요! 구체적인 질문이나 검색어로 다시 시도해주세요.`;
-            await sessionManager.addBotResponse(userId, fallbackResponse, 'FALLBACK');
+            await safeSessionManager.addBotResponse(userId, fallbackResponse, 'FALLBACK');
             return fallbackResponse;
         }
 
@@ -299,7 +297,7 @@ async function callEnhancedClaudeAI(userMessage, userId) {
         console.log(`✅ Claude AI 응답 성공: "${aiResponse.substring(0, 100)}..."`);
         
         // 세션에 응답 저장
-        await sessionManager.addBotResponse(userId, aiResponse, intentAnalysis.intent);
+        await safeSessionManager.addBotResponse(userId, aiResponse, intentAnalysis.intent);
         
         // 응답 품질 개선
         if (/모르겠|확실하지|정확하지|아마|~것 같/.test(aiResponse)) {
@@ -313,7 +311,7 @@ async function callEnhancedClaudeAI(userMessage, userId) {
         console.error('❌ 향상된 Claude AI 호출 오류:', error.message);
         
         const errorResponse = `죄송합니다. 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.`;
-        await sessionManager.addBotResponse(userId, errorResponse, 'ERROR');
+        await safeSessionManager.addBotResponse(userId, errorResponse, 'ERROR');
         return errorResponse;
     }
 }
@@ -666,12 +664,35 @@ const dataExtractor = new DataExtractor({
 // 🤖 서브에이전트 관리 시스템 초기화
 const subAgentManager = new SubAgentManager();
 
-// [ENHANCED] 향상된 시스템 초기화
-const enhancedNLP = new EnhancedNLP();
-const sessionManager = new SessionManager();
-const contextGenerator = new ContextAwareGenerator();
-
+// [ENHANCED] 향상된 시스템 초기화 (이미 선언된 변수들 사용)
+// 인스턴스 생성은 필요시에만 하므로 여기서는 로딩 확인만
 console.log('[ENHANCED] 향상된 자연어 처리 및 세션 관리 시스템 초기화 완료');
+
+// 안전한 safeSessionManager 래퍼
+const safeSessionManager = {
+    async createOrUpdateSession(userId, message) {
+        if (safeSessionManager && typeof safeSessionManager.createOrUpdateSession === 'function') {
+            return await safeSessionManager.createOrUpdateSession(userId, message);
+        }
+        return null;
+    },
+    getConversationHistory(userId, limit) {
+        if (safeSessionManager && typeof safeSessionManager.getConversationHistory === 'function') {
+            return safeSessionManager.getConversationHistory(userId, limit);
+        }
+        return [];
+    },
+    async addBotResponse(userId, response, type) {
+        if (safeSessionManager && typeof safeSessionManager.addBotResponse === 'function') {
+            return await safeSessionManager.addBotResponse(userId, response, type);
+        }
+    },
+    updateUserContext(userId, context) {
+        if (safeSessionManager && typeof safeSessionManager.updateUserContext === 'function') {
+            safeSessionManager.updateUserContext(userId, context);
+        }
+    }
+};
 
 // 사실 확인 요청 감지 함수
 function isFactCheckRequest(message) {
