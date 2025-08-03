@@ -614,6 +614,43 @@ class SubAgentManager {
             }
         }
         
+        // 시간대별 맞춤 추천 생성
+        let timeSpecificPrompt = "";
+        let exampleRecommendations = "";
+        
+        if (timeOfDay === '야식') {
+            timeSpecificPrompt = `- 야식 시간대(${hour}시)에 적합한 음식만 추천하세요 (카페, 브런치 등은 절대 추천하지 마세요)
+- 치킨, 피자, 족발보쌈, 라면, 분식, 24시간 한식당 등 야식 전용 메뉴 위주로 추천하세요`;
+            exampleRecommendations = `1. **치킨집** - 바삭한 치킨과 시원한 맥주
+2. **피자집** - 따뜻한 피자 배달
+3. **족발보쌈** - 든든한 야식 메뉴
+4. **24시간 한식당** - 밤늦게도 든든한 한식
+5. **분식집** - 떡볶이, 라면 등 간단한 야식`;
+        } else if (timeOfDay === '저녁') {
+            timeSpecificPrompt = `- 저녁 시간대(${hour}시)에 적합한 음식을 추천하세요
+- 한식, 고기집, 치킨, 일식, 중식 등 저녁 식사 메뉴 위주로 추천하세요`;
+            exampleRecommendations = `1. **한식당** - 집밥 같은 든든한 한식
+2. **고기집** - 삼겹살, 갈비 등 고기 요리
+3. **치킨집** - 바삭한 치킨과 맥주
+4. **일식당** - 신선한 일본 요리
+5. **중식당** - 따뜻한 중국 요리`;
+        } else if (timeOfDay === '점심') {
+            timeSpecificPrompt = `- 점심 시간대(${hour}시)에 적합한 음식을 추천하세요
+- 한식, 중식, 일식, 분식, 도시락 등 점심 식사 메뉴 위주로 추천하세요`;
+            exampleRecommendations = `1. **한식당** - 집밥 같은 든든한 한식
+2. **중식당** - 짜장면, 짬뽕 등 중국 요리
+3. **일식당** - 초밥, 돈카츠 등 일본 요리
+4. **분식집** - 떡볶이, 김밥 등 간단한 식사
+5. **도시락집** - 간편한 도시락`;
+        } else {
+            timeSpecificPrompt = `- ${timeOfDay} 시간대(${hour}시)에 적합한 음식을 추천하세요`;
+            exampleRecommendations = `1. **카페** - 음료와 간단한 디저트
+2. **한식당** - 가벼운 한식
+3. **분식집** - 떡볶이, 순대 등 간단한 분식
+4. **브런치카페** - 브런치와 음료
+5. **베이커리** - 빵과 음료`;
+        }
+
         const basePrompt = `당신은 한국의 맛집과 식당을 잘 아는 친근한 음식 전문가입니다. 사용자의 요청에 맞는 실용적인 음식점 추천을 해주세요.
 
 사용자 요청: "${message}"
@@ -622,26 +659,23 @@ class SubAgentManager {
 
 답변 가이드라인:
 - ${locationText}에서 실제로 찾을 수 있는 음식점 유형을 추천하세요
-- 현재 시간대(${timeOfDay})에 적합한 메뉴를 제안하세요
-- 3-4개의 구체적인 음식점 유형이나 메뉴를 추천하세요
+${timeSpecificPrompt}
+- 4-5개의 구체적인 음식점 유형이나 메뉴를 추천하세요
 - 각 추천마다 간단한 설명과 특징을 포함하세요
 - 배달 앱이나 지도 검색 방법을 안내하세요
 - 친근하고 도움이 되는 톤으로 작성하세요
-- 답변은 400자 이내로 간결하게 작성하세요
+- 답변은 500자 이내로 간결하게 작성하세요
 
 예시 답변 형식:
-"${locationText} 맛집 추천드릴게요! 🍽️
+"${locationText} ${timeOfDay} 맛집 추천드릴게요! 🍽️
 
-1. **한식당** - 집밥 같은 든든한 한식
-2. **치킨집** - 바삭한 치킨과 맥주  
-3. **분식집** - 떡볶이, 순대 등 간단한 분식
-4. **카페** - 음료와 간단한 디저트
+${exampleRecommendations}
 
 🔍 **찾는 방법:**
 - 네이버 지도에서 '${locationText} + 원하는 음식' 검색
 - 배달 앱(배민, 요기요)에서 주변 음식점 확인
 
-맛있는 식사 되세요! 😋"`;
+맛있는 ${timeOfDay} 되세요! 😋"`;
 
         return basePrompt;
     }
@@ -838,8 +872,11 @@ class SubAgentManager {
             restaurantTypes = ['한식당', '중식당', '일식당', '분식집', '도시락집'];
         } else if (timeOfDay === '저녁') {
             restaurantTypes = ['한식당', '고기집', '치킨집', '일식당', '중식당'];
-        } else {
+        } else if (timeOfDay === '아침') {
             restaurantTypes = ['카페', '브런치카페', '베이커리', '분식집', '한식당'];
+        } else {
+            // 오후 시간대 (14-18시)
+            restaurantTypes = ['한식당', '카페', '분식집', '중식당', '일식당'];
         }
         
         // 가상 맛집 데이터 생성
@@ -881,14 +918,37 @@ class SubAgentManager {
             }
         }
         
-        // 메시지에서 음식 키워드 추출
-        const foodKeywords = ['야식', '만두', '치킨', '피자', '한식', '중식', '일식', '양식', '카페', '분식', '맛집'];
-        let foodType = '맛집';
+        // 시간대 확인
+        const currentTime = new Date();
+        const hour = currentTime.getHours();
+        const timeOfDay = this.getTimeOfDay(hour);
+        
+        // 메시지에서 음식 키워드 추출 (우선순위 순서)
+        const foodKeywords = ['만두', '치킨', '피자', '족발', '보쌈', '떡볶이', '라면', '한식', '중식', '일식', '양식', '분식', '야식'];
+        let foodType = null;
         
         for (const keyword of foodKeywords) {
             if (message.includes(keyword)) {
                 foodType = keyword;
                 break;
+            }
+        }
+        
+        // 야식 시간대이고 특정 음식이 없으면 야식 전용 키워드 사용
+        if (!foodType && timeOfDay === '야식') {
+            foodType = '치킨'; // 야식의 대표 메뉴
+        }
+        
+        // 여전히 음식 타입이 없으면 시간대별 기본값
+        if (!foodType) {
+            if (timeOfDay === '야식') {
+                foodType = '치킨';
+            } else if (timeOfDay === '저녁') {
+                foodType = '맛집';
+            } else if (timeOfDay === '점심') {
+                foodType = '맛집';
+            } else {
+                foodType = '맛집';
             }
         }
         
