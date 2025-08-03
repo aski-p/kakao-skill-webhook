@@ -538,6 +538,84 @@ class SubAgentManager {
     
     // === 헬퍼 함수들 ===
     
+    // 지역명을 GPS 좌표로 변환
+    getGPSCoordinates(locationInfo) {
+        console.log(`🗺️ GPS 좌표 변환 시작:`, locationInfo);
+        
+        // 서울시 구별 GPS 좌표 데이터베이스
+        const seoulDistrictCoords = {
+            '강북구': { lat: 37.6369, lng: 127.0256 },
+            '강남구': { lat: 37.5173, lng: 127.0473 },
+            '강동구': { lat: 37.5301, lng: 127.1238 },
+            '강서구': { lat: 37.5509, lng: 126.8495 },
+            '관악구': { lat: 37.4784, lng: 126.9516 },
+            '광진구': { lat: 37.5384, lng: 127.0823 },
+            '구로구': { lat: 37.4954, lng: 126.8874 },
+            '금천구': { lat: 37.4569, lng: 126.8955 },
+            '노원구': { lat: 37.6542, lng: 127.0568 },
+            '도봉구': { lat: 37.6688, lng: 127.0471 },
+            '동대문구': { lat: 37.5744, lng: 127.0396 },
+            '동작구': { lat: 37.5124, lng: 126.9393 },
+            '마포구': { lat: 37.5662, lng: 126.9019 },
+            '서대문구': { lat: 37.5794, lng: 126.9368 },
+            '서초구': { lat: 37.4836, lng: 127.0327 },
+            '성동구': { lat: 37.5634, lng: 127.0365 },
+            '성북구': { lat: 37.5894, lng: 127.0167 },
+            '송파구': { lat: 37.5145, lng: 127.1065 },
+            '양천구': { lat: 37.5168, lng: 126.8664 },
+            '영등포구': { lat: 37.5263, lng: 126.8962 },
+            '용산구': { lat: 37.5384, lng: 126.9654 },
+            '은평구': { lat: 37.6027, lng: 126.9291 },
+            '종로구': { lat: 37.5735, lng: 126.9788 },
+            '중구': { lat: 37.5640, lng: 126.9970 },
+            '중랑구': { lat: 37.6063, lng: 127.0925 }
+        };
+        
+        // 강북구 동별 세부 좌표
+        const kangbukDongCoords = {
+            '번1동': { lat: 37.6380, lng: 127.0250 },
+            '번2동': { lat: 37.6390, lng: 127.0270 },
+            '번3동': { lat: 37.6418, lng: 127.0259 }, // 강북구 번3동 정확한 좌표
+            '번4동': { lat: 37.6445, lng: 127.0240 },
+            '수유1동': { lat: 37.6383, lng: 127.0170 },
+            '수유2동': { lat: 37.6403, lng: 127.0190 },
+            '수유3동': { lat: 37.6423, lng: 127.0210 },
+            '우이동': { lat: 37.6632, lng: 127.0126 },
+            '인수동': { lat: 37.6590, lng: 127.0100 }
+        };
+        
+        let coordinates = null;
+        
+        // 1. 구+동 조합이 있는 경우 (강북구 번3동)
+        if (locationInfo.district && locationInfo.specific) {
+            if (locationInfo.district === '강북구' && kangbukDongCoords[locationInfo.specific]) {
+                coordinates = kangbukDongCoords[locationInfo.specific];
+                console.log(`✅ 정확한 동 좌표 발견: ${locationInfo.district} ${locationInfo.specific} → lat: ${coordinates.lat}, lng: ${coordinates.lng}`);
+            } else {
+                // 다른 구의 경우 구 중심 좌표 사용
+                coordinates = seoulDistrictCoords[locationInfo.district];
+                console.log(`📍 구 중심 좌표 사용: ${locationInfo.district} → lat: ${coordinates.lat}, lng: ${coordinates.lng}`);
+            }
+        }
+        // 2. 구만 있는 경우
+        else if (locationInfo.district && seoulDistrictCoords[locationInfo.district]) {
+            coordinates = seoulDistrictCoords[locationInfo.district];
+            console.log(`📍 구 좌표 발견: ${locationInfo.district} → lat: ${coordinates.lat}, lng: ${coordinates.lng}`);
+        }
+        // 3. 동만 있는 경우 (강북구로 가정)
+        else if (locationInfo.specific && kangbukDongCoords[locationInfo.specific]) {
+            coordinates = kangbukDongCoords[locationInfo.specific];
+            console.log(`📍 동 좌표 발견 (강북구 가정): ${locationInfo.specific} → lat: ${coordinates.lat}, lng: ${coordinates.lng}`);
+        }
+        // 4. 기본값: 서울시청
+        else {
+            coordinates = { lat: 37.5665, lng: 126.9780 };
+            console.log(`📍 기본 좌표 사용 (서울시청): lat: ${coordinates.lat}, lng: ${coordinates.lng}`);
+        }
+        
+        return coordinates;
+    }
+    
     // 메시지에서 위치 정보 추출
     extractLocationFromMessage(message) {
         console.log(`📍 위치 추출 시작: "${message}"`);
@@ -870,79 +948,50 @@ ${exampleRecommendations}
     
     // === 네이버 API 연동 함수들 ===
     
-    // 네이버 API 시도 + 대체 데이터 생성
+    // 네이버 API 시도 + 대체 데이터 생성 (GPS 좌표 기반)
     async tryNaverAPIWithFallback(searchQuery, locationInfo) {
-        console.log(`🔄 네이버 API 우선 시도: "${searchQuery}"`);
+        console.log(`🔄 GPS 좌표 기반 네이버 API 시도: "${searchQuery}"`);
         
-        // 1차: 기본 검색 시도 (10초 타임아웃으로 연장)
+        // GPS 좌표 계산
+        const coordinates = this.getGPSCoordinates(locationInfo);
+        
+        // 1차: GPS 좌표 기반 검색 시도 (10초 타임아웃)
+        if (coordinates) {
+            try {
+                console.log(`🚀 1차 시도: GPS 좌표 기반 검색 (lat: ${coordinates.lat}, lng: ${coordinates.lng})`);
+                const apiRestaurants = await Promise.race([
+                    this.getNaverLocalRestaurants('맛집', coordinates),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 10초 타임아웃')), 10000))
+                ]);
+                
+                if (apiRestaurants && apiRestaurants.length > 0) {
+                    console.log(`✅ 1차 GPS 기반 네이버 API 성공: ${apiRestaurants.length}개 실제 맛집 발견`);
+                    return apiRestaurants;
+                }
+                console.log(`⚠️ 1차 GPS 기반 검색 결과 없음`);
+            } catch (error) {
+                console.log(`❌ 1차 GPS 기반 네이버 API 실패: ${error.message}`);
+            }
+        }
+        
+        // 2차: 텍스트 기반 검색 시도 (GPS 실패시 백업)
         try {
-            console.log(`🚀 1차 시도: 기본 검색 "${searchQuery}"`);
+            console.log(`🚀 2차 시도: 텍스트 기반 검색 "${searchQuery}"`);
             const apiRestaurants = await Promise.race([
                 this.getNaverLocalRestaurants(searchQuery),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 10초 타임아웃')), 10000))
             ]);
             
             if (apiRestaurants && apiRestaurants.length > 0) {
-                console.log(`✅ 1차 네이버 API 성공: ${apiRestaurants.length}개 실제 맛집 발견`);
+                console.log(`✅ 2차 텍스트 기반 네이버 API 성공: ${apiRestaurants.length}개 실제 맛집 발견`);
                 return apiRestaurants;
             }
-            console.log(`⚠️ 1차 검색 결과 없음`);
+            console.log(`⚠️ 2차 텍스트 기반 검색 결과 없음`);
         } catch (error) {
-            console.log(`❌ 1차 네이버 API 실패: ${error.message}`);
+            console.log(`❌ 2차 텍스트 기반 네이버 API 실패: ${error.message}`);
         }
         
-        // 2차: 확장 검색 시도 (구 단위로)
-        try {
-            let location = "서울";
-            if (locationInfo.hasLocation) {
-                // 구가 있으면 구만, 없으면 동만, 모두 없으면 서울
-                if (locationInfo.district) {
-                    location = locationInfo.district; // "강북구"
-                } else if (locationInfo.specific) {
-                    location = locationInfo.specific; // "번3동"
-                } else if (locationInfo.area) {
-                    location = locationInfo.area; // "강남"
-                } else {
-                    location = "서울";
-                }
-            }
-            const simpleQuery = `${location} 맛집`;
-            console.log(`🚀 2차 시도: 확장 검색 "${simpleQuery}"`);
-            
-            const apiRestaurants = await Promise.race([
-                this.getNaverLocalRestaurants(simpleQuery),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 10초 타임아웃')), 10000))
-            ]);
-            
-            if (apiRestaurants && apiRestaurants.length > 0) {
-                console.log(`✅ 2차 네이버 API 성공: ${apiRestaurants.length}개 실제 맛집 발견`);
-                return apiRestaurants;
-            }
-            console.log(`⚠️ 2차 검색 결과 없음`);
-        } catch (error) {
-            console.log(`❌ 2차 네이버 API 실패: ${error.message}`);
-        }
-        
-        // 3차: 광역 검색 시도 (서울 전체)
-        try {
-            const broadQuery = "서울 맛집";
-            console.log(`🚀 3차 시도: 광역 검색 "${broadQuery}"`);
-            
-            const apiRestaurants = await Promise.race([
-                this.getNaverLocalRestaurants(broadQuery),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('네이버 API 10초 타임아웃')), 10000))
-            ]);
-            
-            if (apiRestaurants && apiRestaurants.length > 0) {
-                console.log(`✅ 3차 네이버 API 성공: ${apiRestaurants.length}개 실제 맛집 발견 (광역)`);
-                return apiRestaurants;
-            }
-            console.log(`⚠️ 3차 검색 결과 없음`);
-        } catch (error) {
-            console.log(`❌ 3차 네이버 API 실패: ${error.message}`);
-        }
-        
-        // 모든 시도 실패시만 대체 데이터 생성
+        // 모든 API 시도 실패시 대체 데이터 생성
         console.log('❌ 모든 네이버 API 시도 실패 - 대체 데이터 생성');
         return this.generateFallbackRestaurantData(searchQuery, locationInfo);
     }
@@ -1117,11 +1166,14 @@ ${exampleRecommendations}
         return `${location} ${foodType}`;
     }
     
-    // 네이버 지역검색 API 호출
-    async getNaverLocalRestaurants(query) {
+    // 네이버 지역검색 API 호출 (GPS 좌표 기반)
+    async getNaverLocalRestaurants(query, coordinates = null) {
         const axios = require('axios');
         
         console.log(`🔍 네이버 API 호출 시작: "${query}"`);
+        if (coordinates) {
+            console.log(`🗺️ GPS 좌표 기반 검색: lat=${coordinates.lat}, lng=${coordinates.lng}`);
+        }
         
         // 환경변수에서 네이버 API 키 가져오기
         const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
@@ -1135,13 +1187,22 @@ ${exampleRecommendations}
         }
         
         try {
+            // GPS 좌표가 있으면 좌표 기반 검색, 없으면 기존 텍스트 검색
+            const requestParams = {
+                query: coordinates ? '맛집' : query, // 좌표 기반일 때는 단순히 "맛집"만 검색
+                display: 10,
+                start: 1,
+                sort: 'comment'  // 리뷰 많은 순
+            };
+            
+            // GPS 좌표가 있으면 위치 파라미터 추가
+            if (coordinates) {
+                requestParams.x = coordinates.lng; // 경도 (longitude)
+                requestParams.y = coordinates.lat; // 위도 (latitude)
+            }
+            
             const requestConfig = {
-                params: {
-                    query: query,
-                    display: 10, // 더 많은 결과 요청
-                    start: 1,
-                    sort: 'comment'  // 리뷰 많은 순
-                },
+                params: requestParams,
                 headers: {
                     'X-Naver-Client-Id': NAVER_CLIENT_ID,
                     'X-Naver-Client-Secret': NAVER_CLIENT_SECRET,
@@ -1152,7 +1213,12 @@ ${exampleRecommendations}
             };
             
             console.log('📡 API 요청 파라미터:', requestConfig.params);
-            console.log('🌐 네이버 API 전체 요청 URL:', `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=10&start=1&sort=comment`);
+            
+            if (coordinates) {
+                console.log('🌐 네이버 API GPS 기반 요청 URL:', `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(requestParams.query)}&x=${coordinates.lng}&y=${coordinates.lat}&display=10&start=1&sort=comment`);
+            } else {
+                console.log('🌐 네이버 API 텍스트 기반 요청 URL:', `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=10&start=1&sort=comment`);
+            }
             
             const response = await axios.get('https://openapi.naver.com/v1/search/local.json', requestConfig);
             
