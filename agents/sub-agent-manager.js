@@ -198,22 +198,47 @@ class SubAgentManager {
                 ]
             },
             
-            // 맛집/레스토랑
+            // 맛집/레스토랑 (명확한 지역명이 포함된 경우만)
             'RESTAURANT': {
                 patterns: [
                     /.*맛집.*추천|.*맛집.*어디|.*식당.*좋은곳|.*카페.*추천/,
                     /[가-힣\s]*[구동시군읍면역]\s*(맛집|식당|카페|음식점)/,
                     /.*먹을곳.*추천|.*음식.*맛있는곳/,
-                    /.*(식당|맛집|카페|음식점|치킨|피자|한식|중식|일식|양식).*추천/,
+                    /.*(식당|맛집|카페|음식점|치킨|피자|한식|중식|일식|양식).*추천.*[구동시군읍면역]/,
                     /.*(야식|점심|저녁|아침).*추천.*[구동시군읍면역]/,
                     /.*추천.*주변.*식당|.*식당.*추천/,
                     /.*[구동시군읍면역].*야식|.*야식.*[구동시군읍면역]/,
-                    /.*[0-9]+동.*식당|.*식당.*[0-9]+동/,
-                    /.*(만두|떡볶이|치킨|피자|햄버거|라면|국밥|찌개).*추천.*[구동시군읍면역]/
+                    /.*[0-9]+동.*(식당|맛집|음식|야식|점심|저녁)/,
+                    /.*(만두|떡볶이|치킨|피자|햄버거|라면|국밥|찌개).*추천.*[구동시군읍면역]/,
+                    // 반드시 지역명이 포함된 패턴만 추가
+                    /.*번\d+동.*(맛집|식당|음식|야식|점심|저녁)/
                 ],
-                weight: 0.9
+                weight: 0.9,
+                requiredContext: ['location'] // 지역명이 필수
             }
         };
+        
+        // 1.5단계: 지역명 없는 일반 음식 질문 사전 필터링
+        const generalFoodQuestions = [
+            /^(오늘|내일|이번주|이번달)?\s*(아침|점심|저녁|야식)?\s*(뭐|무엇을?)?\s*먹지/,
+            /^(아침|점심|저녁|야식)\s*(뭐|무엇을?)?\s*먹을까/,
+            /^뭐\s*먹을까/,
+            /^먹을\s*거\s*추천/,
+            /^음식\s*추천$/
+        ];
+        
+        for (const pattern of generalFoodQuestions) {
+            if (pattern.test(message)) {
+                console.log(`🚫 일반 음식 질문 감지: "${message}" - Claude AI로 처리`);
+                return {
+                    category: 'GENERAL_QUESTION',
+                    confidence: 0.9,
+                    originalMessage: message,
+                    matchDetails: { reason: 'general_food_question' },
+                    timestamp: new Date().toISOString()
+                };
+            }
+        }
         
         // 2단계: 패턴 매칭 및 점수 계산
         let bestMatch = { category: 'GENERAL_QUESTION', confidence: 0.3 };
@@ -221,6 +246,15 @@ class SubAgentManager {
         for (const [category, config] of Object.entries(explicitPatterns)) {
             let score = 0;
             let matchCount = 0;
+            
+            // 레스토랑 카테고리의 경우 지역명 확인
+            if (category === 'RESTAURANT') {
+                const hasLocation = this.checkLocationInMessage(message);
+                if (!hasLocation) {
+                    console.log(`🚫 레스토랑 패턴이지만 지역명 없음: "${message}"`);
+                    continue; // 지역명이 없으면 RESTAURANT 카테고리 제외
+                }
+            }
             
             // 긍정 패턴 체크
             for (const pattern of config.patterns) {
@@ -540,6 +574,25 @@ class SubAgentManager {
         
         console.log(`📍 최종 위치 정보:`, locationInfo);
         return locationInfo;
+    }
+    
+    // 메시지에 지역명이 포함되어 있는지 확인
+    checkLocationInMessage(message) {
+        const locationPatterns = [
+            /(번\d+동)(?:\s|이야|$)/,
+            /(\w+구)(?:\s|$)/,
+            /(\w+동)(?:\s|이야|$)/,
+            /(\w+시)(?:\s|$)/,
+            /(\w+역)(?:\s|근처|주변|$)/,
+            /(강남|홍대|신촌|명동|이태원|압구정|청담|가로수길|종로|인사동|을지로|성수|합정|망원|연남|서울대|건대|잠실|송파|강서|노원|수원|부천|인천|용산|마포|서초|관악|동작|영등포|구로|금천|성북|중랑|도봉|은평|서대문|양천|강동)/
+        ];
+        
+        for (const pattern of locationPatterns) {
+            if (pattern.test(message)) {
+                return true;
+            }
+        }
+        return false;
     }
     
     // 레스토랑 추천을 위한 프롬프트 생성
