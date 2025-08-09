@@ -22,13 +22,13 @@ class MessageClassifier {
             },
             
             WEATHER: {
-                priority: 8, // 우선순위를 대폭 낮춤 (일상 대화와 혼동 방지)
+                priority: 2, // 우선순위 높임 (날씨는 중요한 질문)
                 patterns: {
                     content: /날씨|기온|온도|기상|비|눈|바람|습도|미세먼지|맑음|흐림|구름|폭염|태풍|장마/,
-                    action: /알려줘|어때|어떻게|확인|궁금/,
-                    weatherSpecific: /날씨.*알려줘|기온.*어때|온도.*궁금|날씨.*어때|오늘.*날씨|내일.*날씨/,
+                    action: /알려줘|어때|어떻게|확인|궁금|말해줘/,
+                    weatherSpecific: /날씨.*알려줘|기온.*어때|온도.*궁금|날씨.*어때|오늘.*날씨|내일.*날씨|날씨.*말해줘/,
                     location: /([가-힣]{2,}(?:시|구|군|동|역|읍|면))/,
-                    time: /내일|모레|이번주|다음주|주말/ // "오늘" 제거하여 일상 대화와 구분
+                    time: /오늘|내일|모레|이번주|다음주|주말/ // "오늘" 복원
                 },
                 extractors: {
                     location: this.extractLocation.bind(this),
@@ -183,14 +183,20 @@ class MessageClassifier {
         let score = 0;
         const patterns = category.patterns;
         
-        // 각 패턴별로 가중치 적용
+        // exclude 패턴 먼저 확인 - 매칭되면 점수 0 리턴
+        if (patterns.exclude && patterns.exclude.test(message)) {
+            return 0;
+        }
+        
+        // 각 패턴별로 가중치 적용 (exclude는 건너뜀)
         for (const [patternType, pattern] of Object.entries(patterns)) {
+            if (patternType === 'exclude') continue; // exclude는 이미 위에서 처리
             if (pattern.test && pattern.test(message)) {
                 switch (patternType) {
                     case 'content': score += 3; break;
                     case 'action': score += 2; break;
                     case 'movieKeywords': score += 4; break; // 영화 키워드 높은 가중치
-                    case 'weatherSpecific': score += 4; break; // 날씨 특정 키워드 높은 가중치
+                    case 'weatherSpecific': score += 10; break; // 날씨 특정 키워드 최고 가중치
                     case 'daily': score += 5; break; // 일상 대화 키워드 최고 가중치
                     case 'food_casual': score += 6; break; // 음식 관련 일상 대화 최고 가중치
                     case 'food_suggestions': score += 5; break; // 음식 추천 요청 높은 가중치

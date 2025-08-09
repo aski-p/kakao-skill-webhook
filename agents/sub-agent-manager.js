@@ -389,7 +389,7 @@ class SubAgentManager {
                     'x-api-key': process.env.CLAUDE_API_KEY,
                     'anthropic-version': '2023-06-01'
                 },
-                timeout: 8000
+                timeout: 4000  // 카카오톡 5초 제한에 맞춰 4초로 단축
             });
             
             return response.data.content[0].text;
@@ -1225,7 +1225,7 @@ ${exampleRecommendations}
                     'User-Agent': 'Mozilla/5.0 (compatible; KakaoBot/1.0)',
                     'Accept': 'application/json'
                 },
-                timeout: 10000 // 타임아웃 증가
+                timeout: 4000  // 카카오톡 5초 제한에 맞춰 4초로 단축
             };
             
             console.log('📡 API 요청 파라미터:', requestConfig.params);
