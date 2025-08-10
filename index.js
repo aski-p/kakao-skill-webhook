@@ -663,7 +663,7 @@ async function handleMovieQuery(message, userId) {
     }
 }
 
-// 날씨 쿼리 처리 함수 - 네이버 날씨 크롤러 사용
+// 날씨 쿼리 처리 함수 - 네이버 검색 API 사용
 async function handleWeatherQuery(message) {
     try {
         // 지역 추출 (제주도, 도 단위도 포함)
@@ -683,80 +683,71 @@ async function handleWeatherQuery(message) {
             }
         }
         
-        if (!naverWeatherCrawler) {
-            console.log('⚠️ 네이버 날씨 크롤러가 로드되지 않음, 네이버 API 사용');
-            // 크롤러가 없으면 네이버 뉴스 API로 날씨 정보 검색
-            try {
-                const weatherNews = await getLatestNews(`${location} 날씨 기온`);
-                if (weatherNews && weatherNews.length > 0) {
-                    let response = `🌤️ **${location} 날씨 정보**\n\n`;
-                    response += `📰 최신 날씨 뉴스:\n`;
-                    weatherNews.slice(0, 2).forEach((news, index) => {
-                        response += `${index + 1}. ${news.title}\n`;
-                        if (news.description) {
-                            response += `   ${news.description.substring(0, 100)}...\n`;
-                        }
-                    });
-                    return response;
+        console.log(`🌤️ 날씨 정보 요청: ${location} (네이버 검색 API 사용)`);
+        
+        // 네이버 검색 API로 날씨 정보 검색
+        try {
+            // 뉴스 API로 최신 날씨 정보 검색
+            const weatherNews = await getLatestNews(`${location} 날씨 기온 온도`);
+            
+            // 로컬 검색 API로 날씨 관련 정보 검색 (추가 정보용)
+            const localWeatherInfo = await getLocalInfo(`${location} 날씨`);
+            
+            if (weatherNews && weatherNews.length > 0) {
+                let response = `🌤️ **${location} 날씨 정보**\n\n`;
+                
+                // 뉴스에서 기온/날씨 정보 추출 시도
+                const firstNews = weatherNews[0];
+                const tempMatch = firstNews.title.match(/(\d+(?:\.\d+)?)\s*도|(\d+(?:\.\d+)?)\s*℃/);
+                const weatherMatch = firstNews.title.match(/(맑음|흐림|비|눈|구름|안개|소나기|천둥|폭우|폭설)/);
+                
+                if (tempMatch) {
+                    const temperature = tempMatch[1] || tempMatch[2];
+                    response += `🌡️ 현재 기온: ${temperature}°C\n`;
                 }
-            } catch (e) {
-                console.log('네이버 API 날씨 검색도 실패:', e.message);
+                
+                if (weatherMatch) {
+                    response += `☁️ 날씨: ${weatherMatch[1]}\n`;
+                }
+                
+                response += `\n📰 최신 날씨 뉴스:\n`;
+                weatherNews.slice(0, 2).forEach((news, index) => {
+                    response += `${index + 1}. ${news.title}\n`;
+                    if (news.description) {
+                        response += `   ${news.description.substring(0, 80)}...\n`;
+                    }
+                });
+                
+                // 지역별 맞춤 조언
+                const hour = new Date().getHours();
+                if (location.includes('제주')) {
+                    response += `\n💡 제주도는 날씨 변화가 빠르니 우산을 챙기세요!`;
+                } else if (hour < 12) {
+                    response += `\n💡 좋은 아침이에요! 오늘 날씨를 확인하고 외출하세요.`;
+                } else {
+                    response += `\n💡 더 정확한 날씨는 네이버에서 "${location} 날씨"를 검색해보세요.`;
+                }
+                
+                return response;
             }
             
-            // 모든 방법이 실패한 경우 기본 메시지
-            return `🌤️ ${location} 날씨 정보를 가져올 수 없었습니다.\n\n💡 다른 방법으로 날씨를 확인해보세요:\n• 네이버 날씨 검색\n• 기상청 앱 사용\n• "날씨" 앱 확인`;
+            // 뉴스 검색이 실패한 경우 로컬 검색 결과 활용
+            if (localWeatherInfo && localWeatherInfo.length > 0) {
+                let response = `🌤️ **${location} 날씨 정보**\n\n`;
+                response += `📍 ${location} 날씨 관련 정보:\n`;
+                localWeatherInfo.slice(0, 2).forEach((info, index) => {
+                    response += `${index + 1}. ${info.title}\n`;
+                });
+                response += `\n💡 정확한 날씨는 네이버에서 "${location} 날씨"를 검색해보세요.`;
+                return response;
+            }
+            
+        } catch (apiError) {
+            console.log('네이버 API 날씨 검색 실패:', apiError.message);
         }
         
-        console.log(`🌤️ 날씨 정보 요청: ${location}`);
-        
-        // 네이버 날씨 크롤러 실행
-        const weatherData = await naverWeatherCrawler.getWeatherInfo(location);
-        
-        if (weatherData) {
-            let response = `🌤️ **${location} 날씨 정보**\n\n`;
-            
-            // 온도 정보
-            if (weatherData.temperature && weatherData.temperature !== '정보 없음') {
-                response += `🌡️ 현재 기온: ${weatherData.temperature}\n`;
-                if (weatherData.feels_like) {
-                    response += `🌡️ 체감 온도: ${weatherData.feels_like}\n`;
-                }
-            }
-            
-            // 날씨 상태
-            if (weatherData.condition) {
-                response += `☁️ 날씨: ${weatherData.condition}\n`;
-            }
-            
-            // 습도
-            if (weatherData.humidity) {
-                response += `💧 습도: ${weatherData.humidity}\n`;
-            }
-            
-            // 미세먼지
-            if (weatherData.fineDust) {
-                response += `🌫️ 미세먼지: ${weatherData.fineDust}\n`;
-            }
-            if (weatherData.ultraFineDust) {
-                response += `😷 초미세먼지: ${weatherData.ultraFineDust}\n`;
-            }
-            
-            // 바람
-            if (weatherData.wind) {
-                response += `🌬️ 바람: ${weatherData.wind}\n`;
-            }
-            
-            // 강수
-            if (weatherData.rainfall) {
-                response += `🌧️ 강수: ${weatherData.rainfall}\n`;
-            }
-            
-            response += `\n💡 ${weatherData.recommendation || '오늘도 좋은 하루 보내세요!'}`;
-            
-            return response;
-        }
-        
-        return null;
+        // 모든 방법이 실패한 경우 기본 메시지
+        return `🌤️ ${location} 날씨 정보를 가져올 수 없었습니다.\n\n💡 다른 방법으로 날씨를 확인해보세요:\n• 네이버에서 "${location} 날씨" 검색\n• 기상청 날씨누리 사이트\n• 휴대폰 기본 날씨 앱`;
         
     } catch (error) {
         console.error('❌ 날씨 쿼리 처리 오류:', error);
@@ -2210,6 +2201,57 @@ async function getLatestNews(query = '오늘 뉴스') {
         
     } catch (error) {
         console.error('❌ 네이버 뉴스 API 오류:', error.response?.data || error.message);
+        return null;
+    }
+}
+
+// 네이버 로컬 검색 함수 (장소, 업체 검색)
+async function getLocalInfo(query) {
+    try {
+        if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
+            console.log('⚠️ 네이버 API 키가 설정되지 않았습니다.');
+            return null;
+        }
+        
+        const params = {
+            query: query,
+            display: 5,
+            start: 1,
+            sort: 'random'
+        };
+        
+        console.log(`📍 네이버 로컬 검색: "${query}"`);
+        
+        const response = await axios.get(NAVER_LOCAL_API_URL, {
+            params: params,
+            headers: {
+                'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+            },
+            timeout: TIMEOUT_CONFIG.naver_api
+        });
+        
+        const items = response.data.items;
+        if (!items || items.length === 0) {
+            console.log('📍 검색된 로컬 정보가 없습니다.');
+            return null;
+        }
+        
+        console.log(`✅ ${items.length}개의 로컬 정보를 찾았습니다.`);
+        
+        return items.map((item, index) => ({
+            rank: index + 1,
+            title: item.title.replace(/<[^>]*>/g, ''),
+            address: item.address || '',
+            roadAddress: item.roadAddress || '',
+            telephone: item.telephone || '',
+            link: item.link,
+            category: item.category || '',
+            description: item.description ? item.description.replace(/<[^>]*>/g, '') : ''
+        }));
+        
+    } catch (error) {
+        console.error('❌ 네이버 로컬 API 오류:', error.response?.data || error.message);
         return null;
     }
 }
