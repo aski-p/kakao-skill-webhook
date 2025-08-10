@@ -2622,10 +2622,53 @@ app.get('/debug-status', (req, res) => {
             NAVER_CLIENT_ID: process.env.NAVER_CLIENT_ID ? `설정됨 (${process.env.NAVER_CLIENT_ID})` : '❌ 없음',
             NAVER_CLIENT_SECRET: process.env.NAVER_CLIENT_SECRET ? '설정됨' : '❌ 없음'
         },
-        version: '2.0-fixed-model-name',
-        latest_commit: '92731fc - Fix Claude API model name'
+        version: '2.0-timeout-fixed',
+        latest_commit: '746cdf9 - Fix Claude API timeout'
     };
     res.json(status);
+});
+
+// 🧪 Claude API 직접 테스트 엔드포인트
+app.get('/test-claude', async (req, res) => {
+    try {
+        console.log('🧪 Claude API 직접 테스트 시작');
+        const testMessage = req.query.message || '안녕하세요';
+        
+        const response = await axios.post(CLAUDE_API_URL, {
+            model: "claude-3-5-sonnet-20240620",
+            max_tokens: 100,
+            messages: [{
+                role: "user",
+                content: testMessage
+            }],
+            temperature: 0.7
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': CLAUDE_API_KEY,
+                'anthropic-version': '2023-06-01'
+            },
+            timeout: 10000
+        });
+        
+        const aiResponse = response.data.content[0].text;
+        console.log('✅ Claude API 테스트 성공:', aiResponse);
+        
+        res.json({
+            success: true,
+            input: testMessage,
+            output: aiResponse,
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Claude API 테스트 실패:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 
 // 🎯 카카오톡 스킬 메인 엔드포인트
