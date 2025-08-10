@@ -165,19 +165,15 @@ async function callSimpleClaudeAI(userMessage, userId) {
             
             const response = await Promise.race([
                 axios.post(CLAUDE_API_URL, {
-                    model: "claude-3-5-sonnet-20241022", // Sonnet 모델로 정확성 향상
-                    max_tokens: 300, // 자연스러운 대화를 위해 토큰 증가
+                    model: "claude-3-5-sonnet-20240620", 
+                    max_tokens: 300,
                     messages: [
                         {
-                            role: "system",
-                            content: "당신은 친근하고 자연스러운 대화를 나누는 AI 친구입니다. 일상적인 질문에 따뜻하고 도움이 되는 답변을 제공하세요. 음식 추천, 일반 대화, 조언 등을 자연스럽게 해주세요. 200자 이내로 간결하게 답변하세요."
-                        },
-                        {
                             role: "user",
-                            content: userMessage
+                            content: `당신은 친근하고 자연스러운 대화를 나누는 AI 친구입니다. 음식 추천, 일반 대화 등을 자연스럽게 해주세요. 200자 이내로 간결하게 답변하세요.\n\n사용자 질문: ${userMessage}`
                         }
                     ],
-                    temperature: 0.7 // 자연스러운 대화를 위해 창의성 증가
+                    temperature: 0.7
                 }, {
                     headers: {
                         'Content-Type': 'application/json',
@@ -197,7 +193,17 @@ async function callSimpleClaudeAI(userMessage, userId) {
             return aiResponse;
             
         } catch (claudeError) {
-            console.log(`❌ Claude AI 호출 실패: ${claudeError.message}`);
+            console.error(`❌ Claude AI 호출 실패: ${claudeError.message}`);
+            if (claudeError.response) {
+                console.error('응답 상태:', claudeError.response.status);
+                console.error('응답 데이터:', JSON.stringify(claudeError.response.data, null, 2));
+            }
+            console.error('요청 설정:', {
+                model: "claude-3-5-sonnet-20241022",
+                max_tokens: 300,
+                temperature: 0.7,
+                userMessage: userMessage
+            });
             return `죄송합니다. 잠시 후 다시 시도해주세요.`;
         }
         
