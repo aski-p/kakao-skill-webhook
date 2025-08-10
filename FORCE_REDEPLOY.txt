@@ -1,8 +1,10 @@
-Railway 강제 재배포 트리거 - 향상된 AI 챗봇 배포
-Sat Aug 10 05:07:00 KST 2025
+Railway 강제 재배포 트리거 - 날씨 쿼리 에러 수정
+Sat Aug 10 05:15:00 KST 2025
 
-🚀 Enhanced AI Chatbot Deployment:
-- Claude AI accuracy improvements (Sonnet model)
-- Supabase movie database integration  
-- Naver weather API optimization
-- Enhanced conversation context management
+🔧 Weather Query Error Fix:
+- Enhanced location pattern matching (제주도, 경기도 etc.)
+- Improved weather crawler fallback system
+- Better error handling for weather queries
+- Prevents generic timeout messages
+
+🌤️ Now supports: "오늘 제주도 날씨 말해줘"
