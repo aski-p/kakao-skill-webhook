@@ -694,38 +694,86 @@ async function handleWeatherQuery(message) {
             const localWeatherInfo = await getLocalInfo(`${location} 날씨`);
             
             if (weatherNews && weatherNews.length > 0) {
-                let response = `🌤️ **${location} 날씨 정보**\n\n`;
+                let response = `🌤️ ${location} 날씨 정보\n\n`;
                 
-                // 뉴스에서 기온/날씨 정보 추출 시도
-                const firstNews = weatherNews[0];
-                const tempMatch = firstNews.title.match(/(\d+(?:\.\d+)?)\s*도|(\d+(?:\.\d+)?)\s*℃/);
-                const weatherMatch = firstNews.title.match(/(맑음|흐림|비|눈|구름|안개|소나기|천둥|폭우|폭설)/);
+                // 뉴스에서 기온/날씨 정보 추출 (더 정확한 패턴)
+                const allTitles = weatherNews.map(news => news.title).join(' ');
                 
-                if (tempMatch) {
-                    const temperature = tempMatch[1] || tempMatch[2];
-                    response += `🌡️ 현재 기온: ${temperature}°C\n`;
+                // 온도 추출 - 더 다양한 패턴 지원
+                const tempPatterns = [
+                    /(\d+(?:\.\d+)?)\s*도(?:\s|,|$)/,
+                    /(\d+(?:\.\d+)?)\s*℃/,
+                    /기온\s*(\d+(?:\.\d+)?)/,
+                    /온도\s*(\d+(?:\.\d+)?)/,
+                    /(\d+(?:\.\d+)?)도씨/
+                ];
+                
+                let temperature = null;
+                for (const pattern of tempPatterns) {
+                    const match = allTitles.match(pattern);
+                    if (match) {
+                        temperature = match[1];
+                        break;
+                    }
                 }
                 
-                if (weatherMatch) {
-                    response += `☁️ 날씨: ${weatherMatch[1]}\n`;
+                // 날씨 상태 추출 - 더 다양한 패턴 지원  
+                const weatherPatterns = [
+                    /(맑음|맑은|맑고)/,
+                    /(흐림|흐린|흐리고)/,
+                    /(비|비가|강우|소나기)/,
+                    /(눈|눈이|적설|폭설)/,
+                    /(구름|구름많음)/,
+                    /(안개|안개끼)/,
+                    /(천둥|번개)/,
+                    /(무더위|더위)/,
+                    /(추위|한파)/
+                ];
+                
+                let weatherCondition = null;
+                for (const pattern of weatherPatterns) {
+                    const match = allTitles.match(pattern);
+                    if (match) {
+                        weatherCondition = match[1];
+                        break;
+                    }
+                }
+                
+                // 온도 정보 표시
+                if (temperature) {
+                    response += `🌡️ 기온: ${temperature}°C\n`;
+                } else {
+                    response += `🌡️ 기온: 정보 확인 중\n`;
+                }
+                
+                // 날씨 상태 표시
+                if (weatherCondition) {
+                    response += `☁️ 날씨: ${weatherCondition}\n`;
+                } else {
+                    response += `☁️ 날씨: 정보 확인 중\n`;
                 }
                 
                 response += `\n📰 최신 날씨 뉴스:\n`;
                 weatherNews.slice(0, 2).forEach((news, index) => {
-                    response += `${index + 1}. ${news.title}\n`;
-                    if (news.description) {
-                        response += `   ${news.description.substring(0, 80)}...\n`;
-                    }
+                    const cleanTitle = news.title.replace(/<[^>]*>/g, ''); // HTML 태그 제거
+                    response += `• ${cleanTitle}\n`;
                 });
                 
                 // 지역별 맞춤 조언
                 const hour = new Date().getHours();
+                response += `\n💡 `;
                 if (location.includes('제주')) {
-                    response += `\n💡 제주도는 날씨 변화가 빠르니 우산을 챙기세요!`;
+                    response += `제주도는 날씨 변화가 빠르니 우산을 챙기세요!`;
+                } else if (weatherCondition && weatherCondition.includes('비')) {
+                    response += `비 소식이 있으니 우산을 챙기세요!`;
+                } else if (temperature && parseInt(temperature) > 28) {
+                    response += `더운 날씨예요. 충분한 수분 섭취하세요!`;
+                } else if (temperature && parseInt(temperature) < 10) {
+                    response += `쌀쌀한 날씨예요. 따뜻하게 입으세요!`;
                 } else if (hour < 12) {
-                    response += `\n💡 좋은 아침이에요! 오늘 날씨를 확인하고 외출하세요.`;
+                    response += `좋은 아침이에요! 안전한 하루 보내세요.`;
                 } else {
-                    response += `\n💡 더 정확한 날씨는 네이버에서 "${location} 날씨"를 검색해보세요.`;
+                    response += `더 자세한 날씨는 네이버에서 확인하세요.`;
                 }
                 
                 return response;
@@ -2611,28 +2659,40 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         let responseText;
         
-        // 🤖 서브에이전트 시스템을 통한 지능형 메시지 처리
-        console.log('🤖 서브에이전트 시스템 시작');
-        
-        try {
-            // 서브에이전트 매니저로 메시지 라우팅
-            const agentResult = await subAgentManager.routeToAgent(userMessage, userId, {});
+        // 🌤️ 날씨 질문 우선 처리 (Claude AI 우회)
+        if (isWeatherQuery(userMessage)) {
+            console.log('🌤️ 날씨 질문 감지 - 네이버 API 직접 호출');
+            try {
+                responseText = await handleWeatherQuery(userMessage);
+                if (responseText) {
+                    console.log('✅ 네이버 API 날씨 응답 성공');
+                } else {
+                    responseText = '🌤️ 날씨 정보를 가져올 수 없었습니다.\n\n네이버에서 "날씨"를 검색해보세요.';
+                }
+            } catch (weatherError) {
+                console.error('❌ 네이버 날씨 API 오류:', weatherError);
+                responseText = '🌤️ 날씨 정보를 확인하는 중 오류가 발생했습니다.\n\n잠시 후 다시 시도해주세요.';
+            }
+        } else {
+            // 🤖 서브에이전트 시스템을 통한 지능형 메시지 처리
+            console.log('🤖 서브에이전트 시스템 시작');
             
-            if (agentResult.success) {
-                responseText = agentResult.data.message;
-                console.log(`✅ ${agentResult.agent} 처리 완료`);
-            } else {
-                // 서브에이전트 처리 실패 시 기존 Claude AI로 폴백
-                console.log('⚠️ 서브에이전트 실패, Claude AI 폴백');
+            try {
+                // 서브에이전트 매니저로 메시지 라우팅
+                const agentResult = await subAgentManager.routeToAgent(userMessage, userId, {});
+                
+                if (agentResult.success) {
+                    responseText = agentResult.data.message;
+                    console.log(`✅ ${agentResult.agent} 처리 완료`);
+                } else {
+                    // 서브에이전트 처리 실패 시 기존 Claude AI로 폴백
+                    console.log('⚠️ 서브에이전트 실패, Claude AI 폴백');
+                    responseText = await callSimpleClaudeAI(userMessage, userId);
+                }
+            } catch (subAgentError) {
+                console.error('❌ 서브에이전트 오류:', subAgentError);
                 responseText = await callSimpleClaudeAI(userMessage, userId);
             }
-            
-        } catch (error) {
-            console.error('❌ 서브에이전트 시스템 오류:', error);
-            
-            // 시스템 오류 시 기존 Claude AI로 폴백
-            console.log('⚠️ 시스템 오류, Claude AI 폴백');
-            responseText = await callSimpleClaudeAI(userMessage, userId);
         }
         
         /* 
