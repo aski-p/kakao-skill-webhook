@@ -245,6 +245,23 @@ async function callSimpleClaudeAI(userMessage, userId) {
             }
         }
         
+        // 날씨 질문인 경우 특별 처리
+        if (isWeatherQuery(userMessage)) {
+            try {
+                const weatherResponse = await handleWeatherQuery(userMessage);
+                if (weatherResponse) {
+                    return weatherResponse;
+                }
+            } catch (weatherError) {
+                console.log('날씨 처리 중 에러:', weatherError.message);
+            }
+            
+            // 지역 추출해서 기본 날씨 응답
+            const locationMatch = userMessage.match(/([가-힣]+(?:도|시|구))/);
+            const location = locationMatch ? locationMatch[1] : '해당 지역';
+            return `🌤️ ${location} 날씨 정보를 확인 중입니다.\n\n💡 정확한 날씨는 다음에서 확인하세요:\n• 네이버에서 "${location} 날씨" 검색\n• 기상청 날씨 앱\n• 휴대폰 기본 날씨 앱`;
+        }
+        
         return `죄송합니다. 서버가 바쁜 것 같아요. 잠시 후 다시 시도해주세요! 🙏`;
     }
 }
@@ -649,14 +666,46 @@ async function handleMovieQuery(message, userId) {
 // 날씨 쿼리 처리 함수 - 네이버 날씨 크롤러 사용
 async function handleWeatherQuery(message) {
     try {
-        if (!naverWeatherCrawler) {
-            console.log('⚠️ 네이버 날씨 크롤러가 로드되지 않음');
-            return null;
+        // 지역 추출 (제주도, 도 단위도 포함)
+        const locationPatterns = [
+            /([가-힣]+(?:시|구|동|읍|면|도))\s*날씨/,
+            /날씨\s*([가-힣]+(?:시|구|동|읍|면|도))/,
+            /([가-힣]+)\s*날씨/,
+            /날씨\s*([가-힣]+)/
+        ];
+        
+        let location = '서울'; // 기본값
+        for (const pattern of locationPatterns) {
+            const match = message.match(pattern);
+            if (match && match[1]) {
+                location = match[1].replace(/날씨/g, '').trim();
+                break;
+            }
         }
         
-        // 지역 추출
-        const locationMatch = message.match(/([가-힣]+(?:시|구|동|읍|면))\s*날씨/);
-        const location = locationMatch ? locationMatch[1] : '서울';
+        if (!naverWeatherCrawler) {
+            console.log('⚠️ 네이버 날씨 크롤러가 로드되지 않음, 네이버 API 사용');
+            // 크롤러가 없으면 네이버 뉴스 API로 날씨 정보 검색
+            try {
+                const weatherNews = await getLatestNews(`${location} 날씨 기온`);
+                if (weatherNews && weatherNews.length > 0) {
+                    let response = `🌤️ **${location} 날씨 정보**\n\n`;
+                    response += `📰 최신 날씨 뉴스:\n`;
+                    weatherNews.slice(0, 2).forEach((news, index) => {
+                        response += `${index + 1}. ${news.title}\n`;
+                        if (news.description) {
+                            response += `   ${news.description.substring(0, 100)}...\n`;
+                        }
+                    });
+                    return response;
+                }
+            } catch (e) {
+                console.log('네이버 API 날씨 검색도 실패:', e.message);
+            }
+            
+            // 모든 방법이 실패한 경우 기본 메시지
+            return `🌤️ ${location} 날씨 정보를 가져올 수 없었습니다.\n\n💡 다른 방법으로 날씨를 확인해보세요:\n• 네이버 날씨 검색\n• 기상청 앱 사용\n• "날씨" 앱 확인`;
+        }
         
         console.log(`🌤️ 날씨 정보 요청: ${location}`);
         
