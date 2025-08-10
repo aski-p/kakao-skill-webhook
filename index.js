@@ -129,12 +129,32 @@ async function callSimpleClaudeAI(userMessage, userId) {
         // 세션 관리로 대화 연속성 강화
         let conversationHistory = [];
         let sessionContext = {};
+        console.log(`🔍 [SESSION DEBUG] 사용자 ID: ${userId}, 메시지: ${userMessage}`);
+        console.log(`🔍 [SESSION DEBUG] sessionManager 존재: ${!!sessionManager}`);
+        console.log(`🔍 [SESSION DEBUG] safeSessionManager 함수들:`, {
+            createOrUpdateSession: typeof safeSessionManager.createOrUpdateSession,
+            getConversationHistory: typeof safeSessionManager.getConversationHistory
+        });
+        
         try {
+            console.log(`🔍 [SESSION DEBUG] 세션 생성 시작...`);
             const session = await safeSessionManager.createOrUpdateSession(userId, userMessage);
+            console.log(`🔍 [SESSION DEBUG] 세션 생성 결과:`, session ? 'SUCCESS' : 'FAILED');
+            if (session) {
+                console.log(`🔍 [SESSION DEBUG] 세션 정보:`, {
+                    sessionId: session.sessionId,
+                    messageCount: session.messageCount,
+                    messagesLength: session.messages?.length
+                });
+            }
+            
             conversationHistory = safeSessionManager.getConversationHistory(userId, 15) || []; // 대화 히스토리 15개로 확장
+            console.log(`🔍 [SESSION DEBUG] 대화 히스토리 길이: ${conversationHistory.length}`);
+            
             sessionContext = session?.context || {};
         } catch (e) {
-            console.log('세션 관리 스킵:', e.message);
+            console.error('❌ [SESSION DEBUG] 세션 관리 오류:', e.message);
+            console.error('❌ [SESSION DEBUG] 스택 트레이스:', e.stack);
         }
         
         if (!CLAUDE_API_KEY) {
