@@ -2612,6 +2612,22 @@ app.get('/api/scheduler-status', (req, res) => {
     }
 });
 
+// 🩺 디버그용 상태 확인 엔드포인트
+app.get('/debug-status', (req, res) => {
+    const status = {
+        timestamp: new Date().toISOString(),
+        environment: {
+            NODE_ENV: process.env.NODE_ENV,
+            CLAUDE_API_KEY: process.env.CLAUDE_API_KEY ? `설정됨 (${process.env.CLAUDE_API_KEY.substring(0, 15)}...)` : '❌ 없음',
+            NAVER_CLIENT_ID: process.env.NAVER_CLIENT_ID ? `설정됨 (${process.env.NAVER_CLIENT_ID})` : '❌ 없음',
+            NAVER_CLIENT_SECRET: process.env.NAVER_CLIENT_SECRET ? '설정됨' : '❌ 없음'
+        },
+        version: '2.0-fixed-model-name',
+        latest_commit: '92731fc - Fix Claude API model name'
+    };
+    res.json(status);
+});
+
 // 🎯 카카오톡 스킬 메인 엔드포인트
 app.post('/kakao-skill-webhook', async (req, res) => {
     const timestamp = new Date().toISOString();
