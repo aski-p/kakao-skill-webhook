@@ -1,3 +1,6 @@
+// 환경변수 로드 (Railway 배포용)
+require('dotenv').config();
+
 const express = require('express');
 const axios = require('axios');
 const http = require('http');
