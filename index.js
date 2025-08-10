@@ -1,6 +1,21 @@
 // 환경변수 로드 (Railway 배포용)
 require('dotenv').config();
 
+// 환경변수 로드 확인 로그 (API 키는 마스킹)
+console.log('🔧 환경변수 로드 상태:');
+console.log('- CLAUDE_API_KEY:', process.env.CLAUDE_API_KEY ? `설정됨 (${process.env.CLAUDE_API_KEY.substring(0, 10)}...)` : '❌ 없음');
+console.log('- NAVER_CLIENT_ID:', process.env.NAVER_CLIENT_ID ? `설정됨 (${process.env.NAVER_CLIENT_ID.substring(0, 5)}...)` : '❌ 없음');
+console.log('- NAVER_CLIENT_SECRET:', process.env.NAVER_CLIENT_SECRET ? '설정됨' : '❌ 없음');
+
+// Railway에서 환경변수가 설정되지 않은 경우 에러 로그
+if (!process.env.CLAUDE_API_KEY) {
+    console.error('❌ CLAUDE_API_KEY 환경변수가 설정되지 않았습니다!');
+    console.error('Railway 대시보드에서 Variables 탭에 다음을 설정하세요:');
+    console.error('CLAUDE_API_KEY = [Claude API 키]');
+    console.error('NAVER_CLIENT_ID = [네이버 클라이언트 ID]');
+    console.error('NAVER_CLIENT_SECRET = [네이버 클라이언트 시크릿]');
+}
+
 const express = require('express');
 const axios = require('axios');
 const http = require('http');
