@@ -162,6 +162,19 @@ async function callSimpleClaudeAI(userMessage, userId) {
         
         // Claude AI 호출 - 자연스러운 대화
         try {
+            // 대화 히스토리 포맷팅
+            let conversationContext = '';
+            if (conversationHistory && conversationHistory.length > 0) {
+                conversationContext = '\n\n이전 대화 내용:\n';
+                conversationHistory.forEach(msg => {
+                    if (msg.type === 'user') {
+                        conversationContext += `사용자: ${msg.message}\n`;
+                    } else if (msg.type === 'bot') {
+                        conversationContext += `AI: ${msg.message}\n`;
+                    }
+                });
+                conversationContext += '\n---\n';
+            }
             
             const response = await Promise.race([
                 axios.post(CLAUDE_API_URL, {
@@ -170,7 +183,7 @@ async function callSimpleClaudeAI(userMessage, userId) {
                     messages: [
                         {
                             role: "user",
-                            content: `당신은 친근하고 자연스러운 대화를 나누는 AI 친구입니다. 음식 추천, 일반 대화 등을 자연스럽게 해주세요. 200자 이내로 간결하게 답변하세요.\n\n사용자 질문: ${userMessage}`
+                            content: `당신은 친근하고 자연스러운 대화를 나누는 AI 친구입니다. 음식 추천, 일반 대화 등을 자연스럽게 해주세요. 이전 대화 내용을 참고해서 연속성 있는 대화를 해주세요. 200자 이내로 간결하게 답변하세요.${conversationContext}\n현재 사용자 질문: ${userMessage}`
                         }
                     ],
                     temperature: 0.7
@@ -188,7 +201,13 @@ async function callSimpleClaudeAI(userMessage, userId) {
             let aiResponse = response.data.content[0].text;
             console.log(`✅ Claude AI 응답 성공: ${aiResponse.substring(0, 100)}...`);
             
-            // 자연스러운 대화를 위해 추가 처리 제거
+            // 봇 응답을 세션에 저장
+            try {
+                await safeSessionManager.addBotResponse(userId, aiResponse, 'GENERAL');
+                console.log('✅ 봇 응답 세션에 저장 완료');
+            } catch (sessionError) {
+                console.log('⚠️ 세션 저장 실패:', sessionError.message);
+            }
             
             return aiResponse;
             
