@@ -199,7 +199,7 @@ async function callSimpleClaudeAI(userMessage, userId) {
                 console.error('응답 데이터:', JSON.stringify(claudeError.response.data, null, 2));
             }
             console.error('요청 설정:', {
-                model: "claude-3-5-sonnet-20241022",
+                model: "claude-3-5-sonnet-20240620",
                 max_tokens: 300,
                 temperature: 0.7,
                 userMessage: userMessage
@@ -306,7 +306,7 @@ async function callEnhancedClaudeAI(userMessage, userId) {
         const contextPrompt = buildContextualPrompt(userMessage, conversationHistory, session);
         
         const response = await axios.post(CLAUDE_API_URL, {
-            model: "claude-3-5-sonnet-20241022",
+            model: "claude-3-5-sonnet-20240620",
             max_tokens: 1000,
             messages: [{
                 role: "user",
@@ -1767,7 +1767,7 @@ async function getYouTubeSummary(youtubeData) {
         const claudeResponse = await axios.post(
             'https://api.anthropic.com/v1/messages',
             {
-                model: "claude-3-5-sonnet-20241022",
+                model: "claude-3-5-sonnet-20240620",
                 system: systemPrompt,
                 messages: [{
                     role: "user", 

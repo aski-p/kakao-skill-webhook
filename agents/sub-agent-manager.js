@@ -378,7 +378,7 @@ class SubAgentManager {
             console.log('🤖 Claude AI 호출 시도...');
             
             const response = await axios.post('https://api.anthropic.com/v1/messages', {
-                model: "claude-3-5-sonnet-20241022",
+                model: "claude-3-5-sonnet-20240620",
                 max_tokens: 400,
                 messages: [{
                     role: "user", 
@@ -881,7 +881,7 @@ ${exampleRecommendations}
         
         try {
             const response = await axios.post('https://api.anthropic.com/v1/messages', {
-                model: "claude-3-5-sonnet-20241022",
+                model: "claude-3-5-sonnet-20240620",
                 max_tokens: 600,
                 messages: [{
                     role: "user",
