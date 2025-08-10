@@ -180,9 +180,9 @@ async function callSimpleClaudeAI(userMessage, userId) {
                         'x-api-key': CLAUDE_API_KEY,
                         'anthropic-version': '2023-06-01'
                     },
-                    timeout: 2500 // 더 나은 응답을 위해 타임아웃 약간 증가
+                    timeout: 10000 // 10초로 타임아웃 증가
                 }),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Claude AI 타임아웃')), 2500))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Claude AI 타임아웃')), 10000))
             ]);
 
             let aiResponse = response.data.content[0].text;
@@ -319,7 +319,7 @@ async function callEnhancedClaudeAI(userMessage, userId) {
                 'x-api-key': CLAUDE_API_KEY,
                 'anthropic-version': '2023-06-01'
             },
-            timeout: 4000
+            timeout: 10000
         });
 
         const aiResponse = response.data.content[0].text;
