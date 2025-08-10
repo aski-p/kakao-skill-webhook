@@ -140,42 +140,26 @@ async function callSimpleClaudeAI(userMessage, userId) {
             }
         }
 
-        // 🚀 즉시 응답 시스템 (타임아웃 방지)
-        console.log('🚀 즉시 응답 시스템 활성화');
+        // 즉시 응답 시스템 제거 - 자연스러운 대화를 위해 Claude AI에 위임
         
-        // 긴급 패턴 기반 즉시 응답
-        const quickResponse = getQuickResponse(userMessage, conversationHistory);
-        if (quickResponse) {
-            console.log('⚡ 패턴 기반 즉시 응답 전송');
-            
-            try {
-                if (safeSessionManager) {
-                    await safeSessionManager.addBotResponse(userId, quickResponse, 'QUICK_RESPONSE');
-                }
-            } catch (e) {}
-            
-            return quickResponse;
-        }
-        
-        // Claude AI 호출 - 정확성 향상을 위한 시스템 프롬프트 강화
+        // Claude AI 호출 - 자연스러운 대화
         try {
-            const enhancedPrompt = buildEnhancedPrompt(userMessage, conversationHistory, sessionContext);
             
             const response = await Promise.race([
                 axios.post(CLAUDE_API_URL, {
                     model: "claude-3-5-sonnet-20241022", // Sonnet 모델로 정확성 향상
-                    max_tokens: 200, // 더 완전한 답변을 위해 토큰 증가
+                    max_tokens: 300, // 자연스러운 대화를 위해 토큰 증가
                     messages: [
                         {
                             role: "system",
-                            content: "당신은 정확하고 신뢰할 수 있는 AI 어시스턴트입니다. 사실 기반의 정확한 정보만 제공하며, 불확실한 경우 명확히 밝힙니다. 대화의 맥락을 기억하고 일관성 있게 응답합니다."
+                            content: "당신은 친근하고 자연스러운 대화를 나누는 AI 친구입니다. 일상적인 질문에 따뜻하고 도움이 되는 답변을 제공하세요. 음식 추천, 일반 대화, 조언 등을 자연스럽게 해주세요. 200자 이내로 간결하게 답변하세요."
                         },
                         {
                             role: "user",
-                            content: enhancedPrompt
+                            content: userMessage
                         }
                     ],
-                    temperature: 0.3 // 균형잡힌 창의성과 정확성
+                    temperature: 0.7 // 자연스러운 대화를 위해 창의성 증가
                 }, {
                     headers: {
                         'Content-Type': 'application/json',
@@ -190,59 +174,21 @@ async function callSimpleClaudeAI(userMessage, userId) {
             let aiResponse = response.data.content[0].text;
             console.log(`✅ Claude AI 응답 성공: ${aiResponse.substring(0, 100)}...`);
             
-            // AI 응답에서 특별한 요청 태그 처리
-            aiResponse = await processAITags(aiResponse, userMessage, userId);
-            
-            // 컨텍스트 분석 및 연속성 강화
-            const contextAnalysis = analyzeConversationContext(userMessage, conversationHistory, sessionContext);
-            const contextualPrefix = generateContextualResponse(userMessage, contextAnalysis, sessionContext);
-            
-            // 컨텍스트 기반 응답 강화
-            if (contextualPrefix && !aiResponse.includes(contextualPrefix)) {
-                aiResponse = contextualPrefix + ' ' + aiResponse;
-            }
-            
-            // 세션에 응답 저장 및 컨텍스트 업데이트
-            try {
-                if (safeSessionManager) {
-                    await safeSessionManager.addBotResponse(userId, aiResponse, 'AI_RESPONSE');
-                    // 대화 주제 및 컨텍스트 업데이트
-                    const topic = extractTopicFromMessage(userMessage);
-                    if (topic) {
-                        safeSessionManager.updateUserContext(userId, { 
-                            lastTopic: topic,
-                            conversationFlow: contextAnalysis.conversationFlow,
-                            emotionalState: contextAnalysis.emotionalState,
-                            lastIntent: contextAnalysis.userIntent
-                        });
-                    }
-                }
-            } catch (e) {}
+            // 자연스러운 대화를 위해 추가 처리 제거
             
             return aiResponse;
             
         } catch (claudeError) {
-            console.log(`⚠️ Claude AI 실패, 기본 응답 사용: ${claudeError.message}`);
-            const fallbackResponse = getFallbackResponse(userMessage, conversationHistory);
-            
-            try {
-                if (safeSessionManager) {
-                    await safeSessionManager.addBotResponse(userId, fallbackResponse, 'FALLBACK_RESPONSE');
-                }
-            } catch (e) {}
-            
-            return fallbackResponse;
+            console.log(`❌ Claude AI 호출 실패: ${claudeError.message}`);
+            return `죄송합니다. 잠시 후 다시 시도해주세요.`;
         }
         
     } catch (error) {
         console.error('❌ Claude AI 호출 오류:', error.message);
         
-        // 타임아웃이거나 API 에러인 경우 기본 응답 제공
+        // 타임아웃이거나 API 에러인 경우 간단한 안내만 제공
         if (error.message.includes('timeout') || error.message.includes('exceeded')) {
-            const hour = new Date().getHours();
-            if (userMessage.includes('야식') || userMessage.includes('먹') && hour >= 22 || hour <= 6) {
-                return `🌙 야식 시간이네요! 이런 메뉴는 어때요?\n\n🍜 라면 - 간단하고 맛있어요\n🍗 치킨 - 배달로 주문하기 좋아요\n🍕 피자 - 친구들과 함께\n🥟 만두 - 든든한 야식\n\n오늘은 뭐가 땡기시나요? 😋`;
-            }
+            return `⏰ 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요.`;
         }
         
         // 날씨 질문인 경우 특별 처리
@@ -256,13 +202,10 @@ async function callSimpleClaudeAI(userMessage, userId) {
                 console.log('날씨 처리 중 에러:', weatherError.message);
             }
             
-            // 지역 추출해서 기본 날씨 응답
-            const locationMatch = userMessage.match(/([가-힣]+(?:도|시|구))/);
-            const location = locationMatch ? locationMatch[1] : '해당 지역';
-            return `🌤️ ${location} 날씨 정보를 확인 중입니다.\n\n💡 정확한 날씨는 다음에서 확인하세요:\n• 네이버에서 "${location} 날씨" 검색\n• 기상청 날씨 앱\n• 휴대폰 기본 날씨 앱`;
+            return `🌤️ 날씨 정보를 확인 중입니다. 잠시 후 다시 시도해주세요.`;
         }
         
-        return `죄송합니다. 서버가 바쁜 것 같아요. 잠시 후 다시 시도해주세요! 🙏`;
+        return `잠시 후 다시 시도해주세요.`;
     }
 }
 
@@ -412,18 +355,7 @@ function getQuickResponse(userMessage, conversationHistory) {
 }
 
 // 🔄 폴백 응답 시스템 (Claude AI 실패시)
-function getFallbackResponse(userMessage, conversationHistory) {
-    const hour = new Date().getHours();
-    
-    if (userMessage.includes('먹') || userMessage.includes('라면') || userMessage.includes('야식')) {
-        return `🍜 음식 추천이 필요하시군요!\n\n네이버에서 "${extractLocation(userMessage)} 맛집"을 검색해보세요!\n\n지금은 ${hour}시니까 이런 것들 어때요?\n• 라면 🍜\n• 치킨 🍗\n• 피자 🍕`;
-    } else if (userMessage.includes('날씨')) {
-        const city = extractLocation(userMessage) || '서울';
-        return `🌤️ ${city} 날씨 정보가 필요하시군요!\n\n네이버나 기상청에서 "${city} 날씨"를 검색해보세요! ☀️`;
-    } else {
-        return `😊 안녕하세요!\n\n죄송하지만 지금 시스템이 바쁩니다.\n간단한 질문으로 다시 시도해주세요!\n\n• 음식 추천\n• 날씨 정보\n• 일반 대화 등`;
-    }
-}
+// getFallbackResponse 함수 제거 - 자연스러운 대화를 위해 Claude AI에 위임
 
 // 🗺️ 지역명 추출 함수
 function extractLocation(message) {
@@ -2704,34 +2636,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 responseText = '🌤️ 날씨 정보를 확인하는 중 오류가 발생했습니다.\n\n잠시 후 다시 시도해주세요.';
             }
         } else {
-            // 🤖 일반 대화는 우선 Claude AI로 직접 처리
-            console.log('🤖 일반 대화 처리 시작');
-            
-            try {
-                // 간단한 일상 대화는 Claude AI 직접 호출
-                const isSimple = isSimpleConversation(userMessage);
-                
-                if (isSimple) {
-                    console.log('💭 간단한 대화로 판단 - Claude AI 직접 호출');
-                    responseText = await callSimpleClaudeAI(userMessage, userId);
-                } else {
-                    // 복잡한 요청은 서브에이전트 시스템 사용
-                    console.log('🤖 복잡한 요청 - 서브에이전트 시스템 사용');
-                    const agentResult = await subAgentManager.routeToAgent(userMessage, userId, {});
-                    
-                    if (agentResult.success) {
-                        responseText = agentResult.data.message;
-                        console.log(`✅ ${agentResult.agent} 처리 완료`);
-                    } else {
-                        // 서브에이전트 실패 시 Claude AI로 폴백
-                        console.log('⚠️ 서브에이전트 실패, Claude AI 폴백');
-                        responseText = await callSimpleClaudeAI(userMessage, userId);
-                    }
-                }
-            } catch (error) {
-                console.error('❌ 대화 처리 오류:', error);
-                responseText = await callSimpleClaudeAI(userMessage, userId);
-            }
+            // 🤖 모든 일반 대화는 Claude AI로 직접 처리 (자연스러운 대화를 위해)
+            console.log('💭 일반 대화 - Claude AI 직접 호출');
+            responseText = await callSimpleClaudeAI(userMessage, userId);
         }
         
         /* 
