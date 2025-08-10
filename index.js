@@ -2690,6 +2690,43 @@ app.get('/test-claude', async (req, res) => {
     }
 });
 
+// 🔍 세션 디버그 엔드포인트
+app.get('/debug-session/:userId', async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        console.log('🔍 세션 디버그 요청:', userId);
+        
+        // 세션 정보 가져오기
+        const session = sessionManager ? sessionManager.getSession(userId) : null;
+        const conversationHistory = safeSessionManager.getConversationHistory(userId, 10);
+        
+        const debugInfo = {
+            timestamp: new Date().toISOString(),
+            userId: userId,
+            sessionExists: !!session,
+            sessionManager: !!sessionManager,
+            session: session ? {
+                sessionId: session.sessionId,
+                lastActivity: new Date(session.lastActivity).toISOString(),
+                messageCount: session.messageCount,
+                messagesLength: session.messages?.length || 0
+            } : null,
+            conversationHistory: conversationHistory,
+            conversationHistoryLength: conversationHistory?.length || 0
+        };
+        
+        console.log('🔍 세션 디버그 결과:', JSON.stringify(debugInfo, null, 2));
+        res.json(debugInfo);
+        
+    } catch (error) {
+        console.error('❌ 세션 디버그 오류:', error.message);
+        res.status(500).json({
+            error: error.message,
+            stack: error.stack
+        });
+    }
+});
+
 // 🎯 카카오톡 스킬 메인 엔드포인트
 app.post('/kakao-skill-webhook', async (req, res) => {
     const timestamp = new Date().toISOString();
