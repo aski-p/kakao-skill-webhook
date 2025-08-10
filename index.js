@@ -714,15 +714,41 @@ async function handleWeatherQuery(message) {
         
         if (weatherData) {
             let response = `🌤️ **${location} 날씨 정보**\n\n`;
-            response += `🌡️ 현재 기온: ${weatherData.temperature}°C\n`;
-            response += `💧 습도: ${weatherData.humidity}%\n`;
-            response += `☁️ 날씨: ${weatherData.condition}\n`;
             
+            // 온도 정보
+            if (weatherData.temperature && weatherData.temperature !== '정보 없음') {
+                response += `🌡️ 현재 기온: ${weatherData.temperature}\n`;
+                if (weatherData.feels_like) {
+                    response += `🌡️ 체감 온도: ${weatherData.feels_like}\n`;
+                }
+            }
+            
+            // 날씨 상태
+            if (weatherData.condition) {
+                response += `☁️ 날씨: ${weatherData.condition}\n`;
+            }
+            
+            // 습도
+            if (weatherData.humidity) {
+                response += `💧 습도: ${weatherData.humidity}\n`;
+            }
+            
+            // 미세먼지
             if (weatherData.fineDust) {
                 response += `🌫️ 미세먼지: ${weatherData.fineDust}\n`;
             }
             if (weatherData.ultraFineDust) {
                 response += `😷 초미세먼지: ${weatherData.ultraFineDust}\n`;
+            }
+            
+            // 바람
+            if (weatherData.wind) {
+                response += `🌬️ 바람: ${weatherData.wind}\n`;
+            }
+            
+            // 강수
+            if (weatherData.rainfall) {
+                response += `🌧️ 강수: ${weatherData.rainfall}\n`;
             }
             
             response += `\n💡 ${weatherData.recommendation || '오늘도 좋은 하루 보내세요!'}`;

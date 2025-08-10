@@ -28,7 +28,28 @@ class NaverWeatherCrawler {
             '전주': '전주날씨',
             '천안': '천안날씨',
             '안양': '안양날씨',
-            '인덕원': '안양날씨' // 인덕원은 안양시
+            '인덕원': '안양날씨', // 인덕원은 안양시
+            '제주': '제주날씨',
+            '제주도': '제주날씨',
+            '제주시': '제주날씨',
+            '서귀포': '서귀포날씨',
+            '서귀포시': '서귀포날씨',
+            '경기': '경기도날씨',
+            '경기도': '경기도날씨',
+            '강원': '강원도날씨',
+            '강원도': '강원도날씨',
+            '충북': '충청북도날씨',
+            '충청북도': '충청북도날씨',
+            '충남': '충청남도날씨',
+            '충청남도': '충청남도날씨',
+            '전북': '전라북도날씨',
+            '전라북도': '전라북도날씨',
+            '전남': '전라남도날씨',
+            '전라남도': '전라남도날씨',
+            '경북': '경상북도날씨',
+            '경상북도': '경상북도날씨',
+            '경남': '경상남도날씨',
+            '경상남도': '경상남도날씨'
         };
         
         return cityMapping[cityKorean] || `${cityKorean}날씨`;
@@ -124,55 +145,50 @@ class NaverWeatherCrawler {
             
         } catch (error) {
             console.error('[ERROR] 네이버 날씨 크롤링 오류:', error.message);
-            return null;
+            
+            // 크롤링 실패 시 기본 응답 반환
+            return {
+                temperature: '정보 없음',
+                condition: '날씨 정보를 가져올 수 없습니다',
+                humidity: '',
+                fineDust: '',
+                ultraFineDust: '',
+                recommendation: `${cityKorean} 날씨 정보를 일시적으로 확인할 수 없습니다. 잠시 후 다시 시도해주세요.`
+            };
         }
     }
 
     formatWeatherResponse(city, data) {
-        let response = `[WEATHER] ${city} 날씨 정보\n\n`;
+        // 카카오톡 스킬용 응답 포맷으로 수정
+        const weatherInfo = {
+            temperature: data.temperature || '정보 없음',
+            condition: data.condition || '날씨 정보 없음',
+            humidity: data.humidity || '',
+            fineDust: data.fineDust || '',
+            ultraFineDust: data.ultraFineDust || '',
+            feels_like: data.feels_like || '',
+            wind: data.wind || '',
+            rainfall: data.rainfall || '',
+            recommendation: ''
+        };
         
-        // 현재 날씨
-        if (data.temperature) {
-            response += `[TEMP] 현재 기온: ${data.temperature}\n`;
-            if (data.feels_like) {
-                response += `[FEEL] 체감 온도: ${data.feels_like}\n`;
+        // 추천 메시지 생성
+        if (data.temperature && data.temperature !== '정보 없음') {
+            const temp = parseFloat(data.temperature.replace(/[^0-9.-]/g, ''));
+            if (!isNaN(temp)) {
+                if (temp < 5) {
+                    weatherInfo.recommendation = '매우 추워요. 따뜻하게 입으세요!';
+                } else if (temp < 15) {
+                    weatherInfo.recommendation = '쌀쌀해요. 겉옷을 챙기세요!';
+                } else if (temp < 25) {
+                    weatherInfo.recommendation = '날씨가 좋네요. 야외활동하기 좋아요!';
+                } else {
+                    weatherInfo.recommendation = '더워요. 시원하게 지내세요!';
+                }
             }
-            if (data.condition) {
-                response += `[CLOUD] 날씨 상태: ${data.condition}\n`;
-            }
-            response += `\n`;
         }
         
-        // 대기 정보
-        if (data.fineDust || data.ultraFineDust) {
-            response += `[AIR] 대기 정보\n`;
-            if (data.fineDust) response += `• 미세먼지: ${data.fineDust}\n`;
-            if (data.ultraFineDust) response += `• 초미세먼지: ${data.ultraFineDust}\n`;
-            response += `\n`;
-        }
-        
-        // 상세 정보
-        if (data.humidity || data.wind || data.rainfall) {
-            response += `[INFO] 상세 정보\n`;
-            if (data.humidity) response += `• 습도: ${data.humidity}\n`;
-            if (data.wind) response += `• 바람: ${data.wind}\n`;
-            if (data.rainfall) response += `• 강수: ${data.rainfall}\n`;
-            response += `\n`;
-        }
-        
-        // 내일 날씨
-        if (data.tomorrow && data.tomorrow.day) {
-            response += `[TOMORROW] 내일 날씨\n`;
-            response += `• ${data.tomorrow.day}: ${data.tomorrow.condition}\n`;
-            response += `• 최고/최저: ${data.tomorrow.tempHigh}/${data.tomorrow.tempLow}\n\n`;
-        }
-        
-        // 안내 메시지
-        const koreanTime = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-        response += `[TIME] 조회 시간: ${koreanTime}\n`;
-        response += `[TIP] 자세한 정보: weather.naver.com`;
-        
-        return response;
+        return weatherInfo;
     }
 }
 
