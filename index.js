@@ -605,6 +605,36 @@ function isWeatherQuery(message) {
     return weatherKeywords.some(keyword => message.toLowerCase().includes(keyword));
 }
 
+// 간단한 대화인지 판단하는 함수
+function isSimpleConversation(message) {
+    const simpleConversationKeywords = [
+        // 음식 관련
+        '먹', '음식', '메뉴', '요리', '맛있', '배고', '식사', '점심', '저녁', '아침', '야식',
+        // 인사/일반 대화
+        '안녕', '반가', '고마', '감사', '미안', '죄송', '좋다', '싫다', '기분', '힘들', '행복', '슬프',
+        // 간단한 질문
+        '뭐해', '어때', '괜찮', '좋아', '시간', '오늘', '내일', '언제', '어디', '누구',
+        // 일반적인 대화
+        '그래', '응', '네', '예', '아니', '맞아', '틀려', '몰라', '알아'
+    ];
+    
+    const message_lower = message.toLowerCase();
+    
+    // 복잡한 요청이 아닌 일반 대화로 분류
+    const complexKeywords = [
+        '검색', '찾아', '추천', '비교', '분석', '계산', '번역', '설명', '정보',
+        '쇼핑', '구매', '가격', '상품', '리뷰', 'http', 'www', '.com', '링크'
+    ];
+    
+    // 복잡한 키워드가 있으면 간단한 대화가 아님
+    if (complexKeywords.some(keyword => message_lower.includes(keyword))) {
+        return false;
+    }
+    
+    // 간단한 대화 키워드가 있거나, 짧은 메시지면 간단한 대화로 분류
+    return simpleConversationKeywords.some(keyword => message_lower.includes(keyword)) || message.length < 20;
+}
+
 // 영화 쿼리 처리 함수 - Supabase 연동
 async function handleMovieQuery(message, userId) {
     try {
@@ -2674,23 +2704,32 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                 responseText = '🌤️ 날씨 정보를 확인하는 중 오류가 발생했습니다.\n\n잠시 후 다시 시도해주세요.';
             }
         } else {
-            // 🤖 서브에이전트 시스템을 통한 지능형 메시지 처리
-            console.log('🤖 서브에이전트 시스템 시작');
+            // 🤖 일반 대화는 우선 Claude AI로 직접 처리
+            console.log('🤖 일반 대화 처리 시작');
             
             try {
-                // 서브에이전트 매니저로 메시지 라우팅
-                const agentResult = await subAgentManager.routeToAgent(userMessage, userId, {});
+                // 간단한 일상 대화는 Claude AI 직접 호출
+                const isSimple = isSimpleConversation(userMessage);
                 
-                if (agentResult.success) {
-                    responseText = agentResult.data.message;
-                    console.log(`✅ ${agentResult.agent} 처리 완료`);
-                } else {
-                    // 서브에이전트 처리 실패 시 기존 Claude AI로 폴백
-                    console.log('⚠️ 서브에이전트 실패, Claude AI 폴백');
+                if (isSimple) {
+                    console.log('💭 간단한 대화로 판단 - Claude AI 직접 호출');
                     responseText = await callSimpleClaudeAI(userMessage, userId);
+                } else {
+                    // 복잡한 요청은 서브에이전트 시스템 사용
+                    console.log('🤖 복잡한 요청 - 서브에이전트 시스템 사용');
+                    const agentResult = await subAgentManager.routeToAgent(userMessage, userId, {});
+                    
+                    if (agentResult.success) {
+                        responseText = agentResult.data.message;
+                        console.log(`✅ ${agentResult.agent} 처리 완료`);
+                    } else {
+                        // 서브에이전트 실패 시 Claude AI로 폴백
+                        console.log('⚠️ 서브에이전트 실패, Claude AI 폴백');
+                        responseText = await callSimpleClaudeAI(userMessage, userId);
+                    }
                 }
-            } catch (subAgentError) {
-                console.error('❌ 서브에이전트 오류:', subAgentError);
+            } catch (error) {
+                console.error('❌ 대화 처리 오류:', error);
                 responseText = await callSimpleClaudeAI(userMessage, userId);
             }
         }

@@ -370,16 +370,18 @@ class SubAgentManager {
         const axios = require('axios');
         
         if (!process.env.CLAUDE_API_KEY) {
-            console.log('Claude API 키가 설정되지 않음 - 기본 응답 반환');
-            return `죄송합니다. 현재 AI 서비스가 일시적으로 사용할 수 없습니다.\n\n잠시 후 다시 시도해주세요.`;
+            console.log('Claude API 키가 설정되지 않음 - 폴백 응답 사용');
+            return this.generateIntelligentFallback(prompt);
         }
         
         try {
+            console.log('🤖 Claude AI 호출 시도...');
+            
             const response = await axios.post('https://api.anthropic.com/v1/messages', {
                 model: "claude-3-5-sonnet-20241022",
-                max_tokens: 500,
+                max_tokens: 400,
                 messages: [{
-                    role: "user",
+                    role: "user", 
                     content: prompt
                 }],
                 temperature: 0.7
@@ -389,15 +391,18 @@ class SubAgentManager {
                     'x-api-key': process.env.CLAUDE_API_KEY,
                     'anthropic-version': '2023-06-01'
                 },
-                timeout: 4000  // 카카오톡 5초 제한에 맞춰 4초로 단축
+                timeout: 3500  // 3.5초로 단축 (카카오톡 5초 제한 고려)
             });
             
-            return response.data.content[0].text;
+            const aiResponse = response.data.content[0].text;
+            console.log('✅ Claude AI 응답 성공:', aiResponse.substring(0, 100) + '...');
+            return aiResponse;
             
         } catch (error) {
-            console.error('Claude AI 호출 오류:', error.message);
+            console.error('❌ Claude AI 호출 실패:', error.response?.status || error.code || error.message);
             
-            // 메시지 기반 지능형 폴백 응답
+            // API 실패 시 지능형 폴백 응답 사용
+            console.log('🔄 지능형 폴백 응답으로 전환');
             return this.generateIntelligentFallback(prompt);
         }
     }
@@ -406,8 +411,57 @@ class SubAgentManager {
     generateIntelligentFallback(prompt) {
         console.log('🤖 지능형 폴백 응답 생성 시작');
         
-        // 단순한 타임아웃 안내로 변경 (하드코딩 제거)
-        return `😊 죄송합니다. 현재 AI 서비스가 일시적으로 바쁩니다.\n\n⏰ 잠시 후 다시 질문해주시면 더 좋은 답변을 드릴 수 있어요.\n\n언제든 도움이 필요하시면 말씀해주세요! 🙏`;
+        // 프롬프트에서 사용자 질문 추출
+        const userMessageMatch = prompt.match(/사용자 질문: "([^"]+)"/);
+        const userMessage = userMessageMatch ? userMessageMatch[1] : '';
+        
+        console.log(`폴백 처리 대상 메시지: "${userMessage}"`);
+        
+        // 키워드 기반 패턴 매칭으로 실용적인 응답 제공
+        const message = userMessage.toLowerCase();
+        
+        // 음식 관련 질문
+        if (message.includes('먹') || message.includes('음식') || message.includes('메뉴') || message.includes('요리')) {
+            if (message.includes('저녁') || message.includes('밤')) {
+                return `🍽️ 저녁 메뉴 추천드려요!\n\n🍜 간단한 선택:\n• 라면 + 김치\n• 볶음밥\n• 계란덮밥\n\n🍖 든든한 선택:\n• 치킨 배달\n• 피자 주문\n• 삼겹살 구이\n\n🥗 건강한 선택:\n• 샐러드\n• 두부김치\n• 야채볶음\n\n어떤 기분이신가요? 😊`;
+            } else if (message.includes('점심')) {
+                return `🍱 점심 메뉴 추천!\n\n• 김치찌개 + 밥\n• 파스타\n• 덮밥류\n• 국밥\n• 샌드위치\n\n근처 맛집이나 배달 앱도 확인해보세요! 🍴`;
+            } else {
+                return `🍽️ 맛있는 음식 추천!\n\n오늘 기분에 따라 선택해보세요:\n• 매운맛: 김치찌개, 떡볶이\n• 담백한맛: 미역국, 두부요리\n• 든든한 것: 삼겹살, 치킨\n• 간단한 것: 라면, 볶음밥\n\n뭐가 땡기세요? 😋`;
+            }
+        }
+        
+        // 날씨 관련 (이미 따로 처리되지만 폴백용)
+        if (message.includes('날씨')) {
+            return `🌤️ 네이버에서 "날씨"를 검색하시면 정확한 날씨 정보를 확인하실 수 있어요!\n\n또는 "지역명 + 날씨"로 물어보세요.`;
+        }
+        
+        // 쇼핑 관련
+        if (message.includes('사고싶') || message.includes('구매') || message.includes('쇼핑')) {
+            return `🛒 쇼핑 도움말:\n\n• 네이버 쇼핑에서 가격 비교\n• 쿠팡, 11번가 등에서 할인 확인\n• 리뷰 꼼꼼히 읽어보세요\n• 반품/교환 정책 확인\n\n무엇을 찾고 계신가요?`;
+        }
+        
+        // 운동/건강 관련
+        if (message.includes('운동') || message.includes('다이어트') || message.includes('건강')) {
+            return `💪 건강 관리 팁:\n\n🏃‍♂️ 가벼운 운동:\n• 걷기 30분\n• 계단 오르기\n• 스트레칭\n\n🥗 건강한 식습구:\n• 물 많이 마시기\n• 야채 늘리기\n• 규칙적인 식사\n\n꾸준함이 가장 중요해요! 😊`;
+        }
+        
+        // 일반적인 대화나 인사
+        if (message.includes('안녕') || message.includes('안녕하') || message.includes('반가')) {
+            return `안녕하세요! 😊\n\n무엇을 도와드릴까요?\n\n• 음식/메뉴 추천\n• 날씨 정보\n• 일상 대화\n• 정보 검색\n\n언제든 편하게 말씀하세요!`;
+        }
+        
+        // 감정 표현이 있는 경우
+        if (message.includes('힘들') || message.includes('우울') || message.includes('슬프')) {
+            return `😔 힘든 시간을 보내고 계시는군요.\n\n가끔은 쉬어가는 것도 필요해요.\n• 좋아하는 음식 먹기\n• 산책하기\n• 좋은 음악 듣기\n• 충분한 휴식\n\n내일은 더 좋은 날이 될 거예요! 💪`;
+        }
+        
+        if (message.includes('좋다') || message.includes('기분좋') || message.includes('행복')) {
+            return `😄 기분이 좋으시다니 저도 기뻐요!\n\n좋은 에너지를 계속 이어가세요!\n• 좋아하는 활동 하기\n• 맛있는 것 먹기\n• 사랑하는 사람과 시간 보내기\n\n오늘도 좋은 하루 되세요! ✨`;
+        }
+        
+        // 기본 응답 (패턴 매칭 실패시)
+        return `😊 안녕하세요!\n\n구체적으로 무엇을 도와드릴까요?\n\n💬 가능한 도움:\n• 음식/메뉴 추천\n• 날씨 정보 확인\n• 일반적인 질문 답변\n• 일상 대화\n\n편하게 말씀해주세요! 🙂`;
     }
     
     // 쇼핑 에이전트 처리
