@@ -648,7 +648,7 @@ async function handleMovieQuery(message, userId) {
         // Supabase 연결 확인
         const { createClient } = require('@supabase/supabase-js');
         const supabaseUrl = process.env.SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_ANON_KEY;
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
         
         if (!supabaseUrl || !supabaseKey) {
             console.log('⚠️ Supabase 설정이 없어 네이버 API 사용');
