@@ -681,12 +681,63 @@ async function handleMovieQuery(message, userId) {
         }
         
         if (movieTitle) {
-            // Supabase에서 영화 검색
-            const { data: movies, error } = await supabase
+            // 영화 제목 검색 개선: 띄어쓰기 변형도 검색
+            let searchResults = [];
+            
+            // 1. 원본 제목으로 검색
+            const { data: directSearch, error: directError } = await supabase
                 .from('movies')
                 .select('*')
                 .ilike('title', `%${movieTitle}%`)
                 .limit(5);
+                
+            if (directSearch && directSearch.length > 0) {
+                searchResults = directSearch;
+            }
+            
+            // 2. 검색 결과가 없으면 띄어쓰기 변형으로 재검색
+            if (searchResults.length === 0) {
+                const variations = [
+                    movieTitle.replace(/\s+/g, ''),  // 모든 공백 제거
+                    movieTitle.replace(/\s+/g, ' '), // 다중 공백을 단일 공백으로
+                    movieTitle.split('').join(' '),  // 글자 사이에 공백 추가
+                    movieTitle.replace(/([가-힣])([a-zA-Z0-9])/g, '$1 $2'), // 한글과 영숫자 사이 공백
+                    movieTitle.replace(/([a-zA-Z0-9])([가-힣])/g, '$1 $2')  // 영숫자와 한글 사이 공백
+                ];
+                
+                for (const variant of variations) {
+                    if (variant !== movieTitle) {
+                        const { data: variantSearch } = await supabase
+                            .from('movies')
+                            .select('*')
+                            .ilike('title', `%${variant}%`)
+                            .limit(5);
+                            
+                        if (variantSearch && variantSearch.length > 0) {
+                            searchResults = variantSearch;
+                            console.log(`✅ 영화 검색 성공: "${movieTitle}" -> "${variant}"`);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // 3. 여전히 없으면 키워드 검색
+            if (searchResults.length === 0) {
+                const { data: keywordSearch } = await supabase
+                    .from('movies')
+                    .select('*')
+                    .contains('keywords', [movieTitle])
+                    .limit(5);
+                    
+                if (keywordSearch && keywordSearch.length > 0) {
+                    searchResults = keywordSearch;
+                    console.log(`✅ 키워드 검색 성공: "${movieTitle}"`);
+                }
+            }
+            
+            const movies = searchResults;
+            const error = directError;
             
             if (!error && movies && movies.length > 0) {
                 const movie = movies[0];
