@@ -2917,8 +2917,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
                     }]
                 }
             };
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.status(200).json(response);
+            
+            if (!res.headersSent) {
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.status(200).json(response);
+            }
             return;
         }
         
@@ -2985,25 +2988,36 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         };
         
         console.log('📤 카카오톡 응답 전송:', JSON.stringify(response, null, 2));
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.status(200).json(response);
-        console.log(`✅ [${timestamp}] 응답 전송 완료 - Status: 200`);
+        
+        // 응답이 이미 전송되었는지 확인
+        if (!res.headersSent) {
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.status(200).json(response);
+            console.log(`✅ [${timestamp}] 응답 전송 완료 - Status: 200`);
+        } else {
+            console.log('⚠️ 응답이 이미 전송되어 추가 응답을 보낼 수 없습니다.');
+        }
         
     } catch (error) {
         console.error('❌ 전체 요청 처리 중 오류:', error);
         
-        const errorResponse = {
-            version: "2.0",
-            template: {
-                outputs: [{
-                    simpleText: {
-                        text: '⚠️ 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
-                    }
-                }]
-            }
-        };
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.status(200).json(errorResponse);
+        // 응답이 이미 전송되었는지 확인
+        if (!res.headersSent) {
+            const errorResponse = {
+                version: "2.0",
+                template: {
+                    outputs: [{
+                        simpleText: {
+                            text: '⚠️ 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
+                        }
+                    }]
+                }
+            };
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.status(200).json(errorResponse);
+        } else {
+            console.log('⚠️ 응답이 이미 전송되어 에러 응답을 보낼 수 없습니다.');
+        }
     }
 });
 
