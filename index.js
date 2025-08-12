@@ -2976,14 +2976,38 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         console.log(`📤 응답 내용 미리보기: "${responseText ? responseText.substring(0, 50) : 'null'}..."`);
         
         // 🎉 카카오톡 스킬 응답 포맷
+        // 긴 응답을 2개로 분할하여 전송 (카카오톡 길이 제한 대응)
+        const finalText = responseText || '죄송합니다. 응답을 생성하는 중 문제가 발생했습니다.';
+        let outputs = [];
+        
+        if (finalText.length > 500) {
+            // 500자 이상이면 2개로 분할
+            const midPoint = Math.floor(finalText.length / 2);
+            let splitPoint = finalText.lastIndexOf('\n\n', midPoint); // 문단 경계에서 분할
+            
+            if (splitPoint === -1 || splitPoint < midPoint - 100) {
+                // 적절한 문단 경계가 없으면 문장 끝에서 분할
+                splitPoint = finalText.lastIndexOf('.', midPoint);
+                if (splitPoint === -1) splitPoint = midPoint;
+            }
+            
+            const part1 = finalText.substring(0, splitPoint + 1).trim();
+            const part2 = finalText.substring(splitPoint + 1).trim();
+            
+            outputs = [
+                { simpleText: { text: part1 } },
+                { simpleText: { text: part2 } }
+            ];
+            
+            console.log(`📝 긴 응답 분할: ${finalText.length}자 → ${part1.length}자 + ${part2.length}자`);
+        } else {
+            outputs = [{ simpleText: { text: finalText } }];
+        }
+        
         const response = {
             version: "2.0",
             template: {
-                outputs: [{
-                    simpleText: {
-                        text: responseText || '죄송합니다. 응답을 생성하는 중 문제가 발생했습니다.'
-                    }
-                }]
+                outputs: outputs
             }
         };
         
