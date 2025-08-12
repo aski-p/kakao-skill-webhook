@@ -217,7 +217,7 @@ async function callSimpleClaudeAI(userMessage, userId) {
 질문: ${userMessage}`
                         }
                     ],
-                    temperature: 0.7
+                    temperature: 1.2 // 창의성 대폭 증가
                 }, {
                     headers: {
                         'Content-Type': 'application/json',
@@ -362,7 +362,7 @@ async function callEnhancedClaudeAI(userMessage, userId) {
                 role: "user",
                 content: contextPrompt
             }],
-            temperature: 0.4
+            temperature: 1.2 // 창의성 대폭 증가
         }, {
             headers: {
                 'Content-Type': 'application/json',
