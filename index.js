@@ -2978,19 +2978,36 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         // 카카오톡 응답 (단일 메시지로 단순화)
         const finalText = responseText || '죄송합니다. 응답을 생성하는 중 문제가 발생했습니다.';
         
-        // 300자를 넘으면 잘라내기
+        // 300자를 넘으면 잘라내기 및 특수문자 정리
         let displayText = finalText;
         if (displayText.length > 300) {
             displayText = displayText.substring(0, 297) + '...';
             console.log(`📝 응답 길이 조정: ${finalText.length}자 → ${displayText.length}자`);
         }
         
-        const outputs = [{ simpleText: { text: displayText } }];
+        // 카카오톡 호환성을 위한 텍스트 정리
+        displayText = displayText
+            .replace(/[^\w\sㄱ-ㅎㅏ-ㅣ가-힣.,!?()]/g, '') // 특수문자 제거 (한글, 영숫자, 기본 문장부호만 유지)
+            .replace(/\s+/g, ' ') // 다중 공백 정리
+            .trim();
+            
+        console.log(`📝 정리된 텍스트: "${displayText.substring(0, 50)}..."`);
+        
+        // 빈 응답 방지
+        if (!displayText || displayText.length < 5) {
+            displayText = '안녕하세요! 무엇을 도와드릴까요?';
+        }
         
         const response = {
-            version: "2.0",
-            template: {
-                outputs: outputs
+            "version": "2.0",
+            "template": {
+                "outputs": [
+                    {
+                        "simpleText": {
+                            "text": displayText
+                        }
+                    }
+                ]
             }
         };
         
