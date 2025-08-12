@@ -199,11 +199,23 @@ async function callSimpleClaudeAI(userMessage, userId) {
             const response = await Promise.race([
                 axios.post(CLAUDE_API_URL, {
                     model: "claude-3-5-sonnet-20240620", 
-                    max_tokens: 300,
+                    max_tokens: 1000,
                     messages: [
                         {
                             role: "user",
-                            content: `당신은 친근하고 자연스러운 대화를 나누는 AI 친구입니다. 음식 추천, 일반 대화 등을 자연스럽게 해주세요. 이전 대화 내용을 참고해서 연속성 있는 대화를 해주세요. 200자 이내로 간결하게 답변하세요.${conversationContext}\n현재 사용자 질문: ${userMessage}`
+                            content: `당신은 친근하고 자연스러운 대화를 나누는 AI 친구입니다. 음식 추천, 일반 대화, 운세, 날씨, 뉴스 등 다양한 주제에 대해 상세하고 풍부한 답변을 제공해주세요. 
+                            
+답변 가이드라인:
+- 최소 400자 이상의 상세한 답변을 제공하세요
+- 구체적인 예시와 설명을 포함하세요
+- 여러 가지 관점이나 옵션을 제시하세요
+- 유용한 팁이나 추가 정보를 포함하세요
+- 이모지를 적절히 사용하여 친근감을 더하세요
+- 운세의 경우 다양한 분야(전반운, 애정운, 금전운, 건강운, 학업/사업운)를 포함하세요
+
+이전 대화 내용을 참고해서 연속성 있는 대화를 해주세요.${conversationContext}
+
+현재 사용자 질문: ${userMessage}`
                         }
                     ],
                     temperature: 0.7
@@ -239,7 +251,7 @@ async function callSimpleClaudeAI(userMessage, userId) {
             }
             console.error('요청 설정:', {
                 model: "claude-3-5-sonnet-20240620",
-                max_tokens: 300,
+                max_tokens: 1000,
                 temperature: 0.7,
                 userMessage: userMessage
             });
