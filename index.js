@@ -2976,30 +2976,51 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         console.log(`📤 응답 내용 미리보기: "${responseText ? responseText.substring(0, 50) : 'null'}..."`);
         
         // 🎉 카카오톡 스킬 응답 포맷
-        // 긴 응답을 2개로 분할하여 전송 (카카오톡 길이 제한 대응)
+        // 긴 응답을 여러 개로 분할하여 전송 (카카오톡 길이 제한 대응)
         const finalText = responseText || '죄송합니다. 응답을 생성하는 중 문제가 발생했습니다.';
         let outputs = [];
         
-        if (finalText.length > 500) {
-            // 500자 이상이면 2개로 분할
-            const midPoint = Math.floor(finalText.length / 2);
-            let splitPoint = finalText.lastIndexOf('\n\n', midPoint); // 문단 경계에서 분할
+        if (finalText.length > 200) {
+            // 200자 이상이면 여러 개로 분할
+            const maxLength = 220; // 각 메시지 최대 220자
+            const parts = [];
+            let currentText = finalText;
             
-            if (splitPoint === -1 || splitPoint < midPoint - 100) {
-                // 적절한 문단 경계가 없으면 문장 끝에서 분할
-                splitPoint = finalText.lastIndexOf('.', midPoint);
-                if (splitPoint === -1) splitPoint = midPoint;
+            while (currentText.length > maxLength) {
+                let splitPoint = maxLength;
+                
+                // 더 자연스러운 분할점 찾기
+                const boundaries = [
+                    currentText.lastIndexOf('\n\n', maxLength),
+                    currentText.lastIndexOf('\n', maxLength),
+                    currentText.lastIndexOf('.', maxLength),
+                    currentText.lastIndexOf('!', maxLength),
+                    currentText.lastIndexOf('?', maxLength),
+                    currentText.lastIndexOf(' ', maxLength)
+                ];
+                
+                for (const boundary of boundaries) {
+                    if (boundary > maxLength - 50 && boundary !== -1) {
+                        splitPoint = boundary + 1;
+                        break;
+                    }
+                }
+                
+                const part = currentText.substring(0, splitPoint).trim();
+                if (part.length > 0) {
+                    parts.push(part);
+                }
+                currentText = currentText.substring(splitPoint).trim();
             }
             
-            const part1 = finalText.substring(0, splitPoint + 1).trim();
-            const part2 = finalText.substring(splitPoint + 1).trim();
+            if (currentText.length > 0) {
+                parts.push(currentText);
+            }
             
-            outputs = [
-                { simpleText: { text: part1 } },
-                { simpleText: { text: part2 } }
-            ];
+            outputs = parts.map(part => ({ simpleText: { text: part } }));
             
-            console.log(`📝 긴 응답 분할: ${finalText.length}자 → ${part1.length}자 + ${part2.length}자`);
+            const partLengths = parts.map(p => p.length).join('자 + ');
+            console.log(`📝 긴 응답 분할: ${finalText.length}자 → ${parts.length}개 메시지 (${partLengths}자)`);
         } else {
             outputs = [{ simpleText: { text: finalText } }];
         }
