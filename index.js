@@ -77,7 +77,7 @@ const httpsAgent = new https.Agent({
 });
 axios.defaults.httpAgent = httpAgent;
 axios.defaults.httpsAgent = httpsAgent;
-axios.defaults.timeout = 4000; // 전역 타임아웃 4초로 단축
+// 전역 타임아웃 제거 - 개별 API별로 적절한 타임아웃 설정
 
 const app = express();
 app.use(express.json());
@@ -225,9 +225,9 @@ async function callSimpleClaudeAI(userMessage, userId) {
                         'x-api-key': CLAUDE_API_KEY,
                         'anthropic-version': '2023-06-01'
                     },
-                    timeout: 10000 // 10초로 타임아웃 증가
+                    timeout: 15000 // 15초로 타임아웃 증가
                 }),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Claude AI 타임아웃')), 10000))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Claude AI 타임아웃')), 15000))
             ]);
 
             let aiResponse = response.data.content[0].text;
@@ -370,7 +370,7 @@ async function callEnhancedClaudeAI(userMessage, userId) {
                 'x-api-key': CLAUDE_API_KEY,
                 'anthropic-version': '2023-06-01'
             },
-            timeout: 10000
+            timeout: 15000
         });
 
         const aiResponse = response.data.content[0].text;
@@ -2834,7 +2834,7 @@ app.get('/test-claude', async (req, res) => {
                 'x-api-key': CLAUDE_API_KEY,
                 'anthropic-version': '2023-06-01'
             },
-            timeout: 10000
+            timeout: 15000
         });
         
         const aiResponse = response.data.content[0].text;
