@@ -657,9 +657,28 @@ async function handleMovieQuery(message, userId) {
         
         const supabase = createClient(supabaseUrl, supabaseKey);
         
-        // 영화 제목 추출
-        const movieTitleMatch = message.match(/["'「」『』]([^"'「」『』]+)["'「」『』]|([가-힣a-zA-Z0-9]+)\s*영화/);
-        const movieTitle = movieTitleMatch ? (movieTitleMatch[1] || movieTitleMatch[2]) : null;
+        // 영화 제목 추출 (개선된 로직)
+        let movieTitle = null;
+        
+        // 1. 따옴표로 둘러싸인 제목 추출
+        const quotedMatch = message.match(/["'「」『』]([^"'「」『』]+)["'「」『』]/);
+        if (quotedMatch) {
+            movieTitle = quotedMatch[1];
+        }
+        // 2. "OOO 영화" 패턴
+        else {
+            const moviePatternMatch = message.match(/([가-힣a-zA-Z0-9\s]+)\s*(영화|무비|movie)/i);
+            if (moviePatternMatch) {
+                movieTitle = moviePatternMatch[1].trim();
+            }
+        }
+        // 3. "영화평", "평점", "리뷰" 앞의 단어 추출
+        if (!movieTitle) {
+            const reviewPatternMatch = message.match(/([가-힣a-zA-Z0-9\s]+)\s*(영화평|평점|리뷰|평가)/i);
+            if (reviewPatternMatch) {
+                movieTitle = reviewPatternMatch[1].trim();
+            }
+        }
         
         if (movieTitle) {
             // Supabase에서 영화 검색
@@ -688,11 +707,16 @@ async function handleMovieQuery(message, userId) {
                 }
                 
                 return response;
+            } else {
+                // DB에서 찾지 못한 경우 상세한 안내 메시지
+                console.log(`⚠️ "${movieTitle}" 영화를 DB에서 찾을 수 없음`);
+                return `🎬 **"${movieTitle}"** 영화 정보\n\n❌ 죄송합니다. 현재 데이터베이스에 "${movieTitle}" 영화 정보가 없습니다.\n\n💡 **가능한 원인:**\n• 영화 제목 오타나 띄어쓰기 차이\n• 아직 데이터베이스에 등록되지 않은 영화\n• 개봉 예정작이거나 구작\n\n🔍 **다시 시도해보세요:**\n• 정확한 영화 제목으로 검색\n• 영어 제목이나 한글 제목으로 시도\n• "영화 제목 + 영화평" 형식으로 질문\n\n📝 **예시:**\n• "베놈 영화평"\n• "어벤져스 평점"\n• "기생충 리뷰"\n\n현재 ${new Date().toLocaleDateString('ko-KR')} 기준으로 최신 영화 정보를 주기적으로 업데이트하고 있습니다.`;
             }
         }
         
-        // Supabase에서 찾지 못한 경우 네이버 API 사용
-        return null;
+        // 영화 제목을 추출하지 못한 경우
+        console.log('⚠️ 메시지에서 영화 제목을 추출할 수 없음');
+        return `🎬 **영화 정보 요청**\n\n영화에 대한 정보를 찾고 계시는군요! 더 정확한 정보를 드리기 위해 구체적인 영화 제목을 알려주세요.\n\n🎯 **이렇게 질문해보세요:**\n• "베놈 영화평"\n• "기생충 평점 알려줘"\n• "어벤져스 리뷰"\n• "탑건 매버릭 어때?"\n\n현재 데이터베이스에는 최신 한국영화와 인기 해외영화 정보가 저장되어 있습니다. 정확한 제목으로 다시 질문해주시면 상세한 정보를 드릴게요! 🎭`;
         
     } catch (error) {
         console.error('❌ 영화 쿼리 처리 오류:', error);
