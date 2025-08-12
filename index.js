@@ -199,23 +199,22 @@ async function callSimpleClaudeAI(userMessage, userId) {
             const response = await Promise.race([
                 axios.post(CLAUDE_API_URL, {
                     model: "claude-3-5-sonnet-20240620", 
-                    max_tokens: 1000,
+                    max_tokens: 400, // 300자 응답에 맞춰 토큰 수 감소
                     messages: [
                         {
                             role: "user",
-                            content: `당신은 친근하고 자연스러운 대화를 나누는 AI 친구입니다. 음식 추천, 일반 대화, 운세, 날씨, 뉴스 등 다양한 주제에 대해 상세하고 풍부한 답변을 제공해주세요. 
-                            
+                            content: `당신은 친근하고 간결한 대화를 나누는 AI 친구입니다. 
+
 답변 가이드라인:
-- 최소 400자 이상의 상세한 답변을 제공하세요
-- 구체적인 예시와 설명을 포함하세요
-- 여러 가지 관점이나 옵션을 제시하세요
-- 유용한 팁이나 추가 정보를 포함하세요
+- 300자 내외의 간단명료한 답변을 제공하세요
+- 핵심 정보만 포함하되 친근하게 답변하세요  
 - 이모지를 적절히 사용하여 친근감을 더하세요
-- 운세의 경우 다양한 분야(전반운, 애정운, 금전운, 건강운, 학업/사업운)를 포함하세요
+- 구체적이고 실용적인 답변을 해주세요
+- 카카오톡 메시지에 적합한 길이로 답변하세요
 
-이전 대화 내용을 참고해서 연속성 있는 대화를 해주세요.${conversationContext}
+이전 대화: ${conversationContext}
 
-현재 사용자 질문: ${userMessage}`
+질문: ${userMessage}`
                         }
                     ],
                     temperature: 0.7
@@ -251,7 +250,7 @@ async function callSimpleClaudeAI(userMessage, userId) {
             }
             console.error('요청 설정:', {
                 model: "claude-3-5-sonnet-20240620",
-                max_tokens: 1000,
+                max_tokens: 400, // 300자 응답에 맞춰 축소
                 temperature: 0.7,
                 userMessage: userMessage
             });
@@ -358,7 +357,7 @@ async function callEnhancedClaudeAI(userMessage, userId) {
         
         const response = await axios.post(CLAUDE_API_URL, {
             model: "claude-3-5-sonnet-20240620",
-            max_tokens: 1000,
+            max_tokens: 400, // 300자 응답에 맞춰 축소
             messages: [{
                 role: "user",
                 content: contextPrompt
@@ -2976,54 +2975,17 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         console.log(`📤 응답 내용 미리보기: "${responseText ? responseText.substring(0, 50) : 'null'}..."`);
         
         // 🎉 카카오톡 스킬 응답 포맷
-        // 긴 응답을 여러 개로 분할하여 전송 (카카오톡 길이 제한 대응)
+        // 카카오톡 응답 (단일 메시지로 단순화)
         const finalText = responseText || '죄송합니다. 응답을 생성하는 중 문제가 발생했습니다.';
-        let outputs = [];
         
-        if (finalText.length > 200) {
-            // 200자 이상이면 여러 개로 분할
-            const maxLength = 220; // 각 메시지 최대 220자
-            const parts = [];
-            let currentText = finalText;
-            
-            while (currentText.length > maxLength) {
-                let splitPoint = maxLength;
-                
-                // 더 자연스러운 분할점 찾기
-                const boundaries = [
-                    currentText.lastIndexOf('\n\n', maxLength),
-                    currentText.lastIndexOf('\n', maxLength),
-                    currentText.lastIndexOf('.', maxLength),
-                    currentText.lastIndexOf('!', maxLength),
-                    currentText.lastIndexOf('?', maxLength),
-                    currentText.lastIndexOf(' ', maxLength)
-                ];
-                
-                for (const boundary of boundaries) {
-                    if (boundary > maxLength - 50 && boundary !== -1) {
-                        splitPoint = boundary + 1;
-                        break;
-                    }
-                }
-                
-                const part = currentText.substring(0, splitPoint).trim();
-                if (part.length > 0) {
-                    parts.push(part);
-                }
-                currentText = currentText.substring(splitPoint).trim();
-            }
-            
-            if (currentText.length > 0) {
-                parts.push(currentText);
-            }
-            
-            outputs = parts.map(part => ({ simpleText: { text: part } }));
-            
-            const partLengths = parts.map(p => p.length).join('자 + ');
-            console.log(`📝 긴 응답 분할: ${finalText.length}자 → ${parts.length}개 메시지 (${partLengths}자)`);
-        } else {
-            outputs = [{ simpleText: { text: finalText } }];
+        // 300자를 넘으면 잘라내기
+        let displayText = finalText;
+        if (displayText.length > 300) {
+            displayText = displayText.substring(0, 297) + '...';
+            console.log(`📝 응답 길이 조정: ${finalText.length}자 → ${displayText.length}자`);
         }
+        
+        const outputs = [{ simpleText: { text: displayText } }];
         
         const response = {
             version: "2.0",
