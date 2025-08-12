@@ -3029,6 +3029,26 @@ try {
     console.error('❌ Direct crawling API 라우터 로드 실패:', error.message);
 }
 
+// 임시 환경변수 확인 엔드포인트 (디버깅용)
+app.get('/debug/env', (req, res) => {
+    const envStatus = {
+        CLAUDE_API_KEY: process.env.CLAUDE_API_KEY ? `설정됨 (${process.env.CLAUDE_API_KEY.length}자)` : '❌ 미설정',
+        NAVER_CLIENT_ID: process.env.NAVER_CLIENT_ID ? `설정됨 (${process.env.NAVER_CLIENT_ID.length}자)` : '❌ 미설정',
+        NAVER_CLIENT_SECRET: process.env.NAVER_CLIENT_SECRET ? '설정됨' : '❌ 미설정',
+        SUPABASE_URL: process.env.SUPABASE_URL ? '설정됨' : '❌ 미설정',
+        SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? `설정됨 (${process.env.SUPABASE_SERVICE_ROLE_KEY.length}자)` : '❌ 미설정',
+        KOFIC_API_KEY: process.env.KOFIC_API_KEY ? '설정됨' : '❌ 미설정',
+        NODE_ENV: process.env.NODE_ENV || '미설정',
+        PORT: process.env.PORT || '미설정'
+    };
+    
+    res.json({
+        message: '환경변수 상태 확인',
+        timestamp: new Date().toISOString(),
+        environment: envStatus
+    });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`✅ 서버가 포트 ${PORT}에서 실행 중입니다.`);
