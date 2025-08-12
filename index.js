@@ -858,8 +858,28 @@ async function handleWeatherQuery(message) {
         
         // 네이버 검색 API로 날씨 정보 검색
         try {
-            // 뉴스 API로 최신 날씨 정보 검색
-            const weatherNews = await getLatestNews(`${location} 날씨 기온 온도`);
+            // 지역별 검색 키워드 생성 (폴백 지역 포함)
+            const searchKeywords = [
+                `${location} 날씨 기온 온도`,
+                `${location} 오늘 날씨`,
+                `경기도 날씨 기온`, // 수도권 지역 폴백
+                `서울 날씨 기온`,   // 서울 폴백  
+                `전국 날씨 기온 온도` // 전국 폴백
+            ];
+            
+            let weatherNews = null;
+            
+            // 여러 키워드로 순차적으로 검색
+            for (const keyword of searchKeywords) {
+                console.log(`🔍 날씨 검색 시도: "${keyword}"`);
+                const news = await getLatestNews(keyword);
+                
+                if (news && news.length > 0) {
+                    weatherNews = news;
+                    console.log(`✅ 날씨 뉴스 발견: ${news.length}개 (키워드: ${keyword})`);
+                    break;
+                }
+            }
             
             // 로컬 검색 API로 날씨 관련 정보 검색 (추가 정보용)
             const localWeatherInfo = await getLocalInfo(`${location} 날씨`);
@@ -870,8 +890,12 @@ async function handleWeatherQuery(message) {
                 // 뉴스에서 기온/날씨 정보 추출 (더 정확한 패턴)
                 const allTitles = weatherNews.map(news => news.title).join(' ');
                 
-                // 온도 추출 - 훨씬 더 다양한 패턴 지원
+                // 온도 추출 - 훨씬 더 다양한 패턴 지원 (오늘, 내일, 시간대별 포함)
                 const tempPatterns = [
+                    /오늘.*?(\d+(?:\.\d+)?)\s*도/i,
+                    /현재.*?(\d+(?:\.\d+)?)\s*도/i,
+                    /아침.*?(\d+(?:\.\d+)?)\s*도/i,
+                    /낮.*?(\d+(?:\.\d+)?)\s*도/i,
                     /(\d+(?:\.\d+)?)\s*도(?:\s|,|$|\.)/,
                     /(\d+(?:\.\d+)?)\s*℃/,
                     /기온\s*(\d+(?:\.\d+)?)/,
@@ -879,12 +903,13 @@ async function handleWeatherQuery(message) {
                     /(\d+(?:\.\d+)?)도씨/,
                     /(\d+(?:\.\d+)?)\s*°C/,
                     /(\d+)℃/,
-                    /(\d+)도/,
                     /최고.*?(\d+)/,
                     /최저.*?(\d+)/,
-                    /(\d+).*?도/,
                     /영상\s*(\d+)/,
-                    /영하\s*(\d+)/
+                    /영하\s*(-?\d+)/,
+                    /(\d+)도\s*(?:내외|정도|안팎)/,
+                    /기온.*?(\d+)도/,
+                    /(\d+)도.*?기록/
                 ];
                 
                 let temperature = null;
