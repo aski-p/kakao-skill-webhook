@@ -870,58 +870,76 @@ async function handleWeatherQuery(message) {
                 // 뉴스에서 기온/날씨 정보 추출 (더 정확한 패턴)
                 const allTitles = weatherNews.map(news => news.title).join(' ');
                 
-                // 온도 추출 - 더 다양한 패턴 지원
+                // 온도 추출 - 훨씬 더 다양한 패턴 지원
                 const tempPatterns = [
-                    /(\d+(?:\.\d+)?)\s*도(?:\s|,|$)/,
+                    /(\d+(?:\.\d+)?)\s*도(?:\s|,|$|\.)/,
                     /(\d+(?:\.\d+)?)\s*℃/,
                     /기온\s*(\d+(?:\.\d+)?)/,
                     /온도\s*(\d+(?:\.\d+)?)/,
-                    /(\d+(?:\.\d+)?)도씨/
+                    /(\d+(?:\.\d+)?)도씨/,
+                    /(\d+(?:\.\d+)?)\s*°C/,
+                    /(\d+)℃/,
+                    /(\d+)도/,
+                    /최고.*?(\d+)/,
+                    /최저.*?(\d+)/,
+                    /(\d+).*?도/,
+                    /영상\s*(\d+)/,
+                    /영하\s*(\d+)/
                 ];
                 
                 let temperature = null;
+                console.log('🔍 온도 추출 시도 중...', allTitles.substring(0, 200));
+                
                 for (const pattern of tempPatterns) {
                     const match = allTitles.match(pattern);
-                    if (match) {
+                    if (match && match[1]) {
                         temperature = match[1];
+                        console.log(`✅ 온도 발견: ${temperature}°C (패턴: ${pattern})`);
                         break;
                     }
                 }
                 
                 // 날씨 상태 추출 - 더 다양한 패턴 지원  
                 const weatherPatterns = [
-                    /(맑음|맑은|맑고)/,
-                    /(흐림|흐린|흐리고)/,
-                    /(비|비가|강우|소나기)/,
-                    /(눈|눈이|적설|폭설)/,
-                    /(구름|구름많음)/,
-                    /(안개|안개끼)/,
-                    /(천둥|번개)/,
-                    /(무더위|더위)/,
-                    /(추위|한파)/
+                    /(맑음|맑은|맑고|화창)/,
+                    /(흐림|흐린|흐리고|구름많음|구름많은)/,
+                    /(비|비가|강우|소나기|장마|비바람|폭우|호우)/,
+                    /(눈|눈이|적설|폭설|눈바람|대설)/,
+                    /(구름|구름끼)/,
+                    /(안개|안개끼|짙은안개)/,
+                    /(천둥|번개|뇌우)/,
+                    /(무더위|더위|폭염)/,
+                    /(추위|한파|강추위|혹한)/,
+                    /(바람|강풍|돌풍)/
                 ];
                 
                 let weatherCondition = null;
+                console.log('🔍 날씨 상태 추출 시도 중...');
+                
                 for (const pattern of weatherPatterns) {
                     const match = allTitles.match(pattern);
-                    if (match) {
+                    if (match && match[1]) {
                         weatherCondition = match[1];
+                        console.log(`✅ 날씨 상태 발견: ${weatherCondition}`);
                         break;
                     }
                 }
                 
-                // 온도 정보 표시
-                if (temperature) {
-                    response += `🌡️ 기온: ${temperature}°C\n`;
-                } else {
-                    response += `🌡️ 기온: 정보 확인 중\n`;
-                }
-                
-                // 날씨 상태 표시
-                if (weatherCondition) {
+                // 온도와 날씨 정보 표시
+                if (temperature && weatherCondition) {
+                    response += `🌡️ 현재 기온: ${temperature}°C\n`;
+                    response += `☁️ 날씨: ${weatherCondition}\n`;
+                } else if (temperature) {
+                    response += `🌡️ 현재 기온: ${temperature}°C\n`;
+                    response += `☁️ 날씨: 날씨 상태 확인 중\n`;
+                } else if (weatherCondition) {
+                    response += `🌡️ 기온: 온도 정보 확인 중\n`;
                     response += `☁️ 날씨: ${weatherCondition}\n`;
                 } else {
-                    response += `☁️ 날씨: 정보 확인 중\n`;
+                    // 둘 다 없으면 기본 메시지
+                    response += `🌡️ 기온: 실시간 정보 수집 중\n`;
+                    response += `☁️ 날씨: 현재 상태 확인 중\n`;
+                    console.log('⚠️ 온도와 날씨 상태를 모두 찾지 못함');
                 }
                 
                 response += `\n📰 최신 날씨 뉴스:\n`;
