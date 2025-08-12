@@ -690,21 +690,81 @@ async function handleMovieQuery(message, userId) {
             
             if (!error && movies && movies.length > 0) {
                 const movie = movies[0];
-                let response = `🎬 **${movie.title}** 정보\n\n`;
-                response += `📅 개봉일: ${movie.release_date || '정보 없음'}\n`;
-                response += `🎭 감독: ${movie.director || '정보 없음'}\n`;
-                response += `👥 출연: ${movie.actors || '정보 없음'}\n`;
-                response += `⭐ 평점: ${movie.rating || '정보 없음'}/10\n`;
+                let response = `🎬 **${movie.title}** 영화 정보\n\n`;
                 
-                if (movie.critic_score !== null) {
-                    response += `🎭 평론가 평점: ${movie.critic_score}/10\n`;
+                // 기본 정보
+                response += `🎭 **감독:** ${movie.director || '정보 없음'}\n`;
+                
+                // 출연진 (cast_members 또는 actors 필드 사용)
+                const cast = movie.cast_members || movie.actors;
+                if (cast && Array.isArray(cast) && cast.length > 0) {
+                    response += `👥 **출연:** ${cast.slice(0, 5).join(', ')}\n`;
+                } else if (cast && typeof cast === 'string') {
+                    response += `👥 **출연:** ${cast}\n`;
+                } else {
+                    response += `👥 **출연:** 정보 없음\n`;
                 }
-                if (movie.audience_score !== null) {
-                    response += `👥 관객 평점: ${movie.audience_score}/10\n`;
+                
+                // 장르
+                if (movie.genre) {
+                    response += `🎪 **장르:** ${movie.genre}\n`;
                 }
+                
+                // 개봉 정보
+                if (movie.release_year) {
+                    response += `📅 **개봉:** ${movie.release_year}년\n`;
+                } else if (movie.release_date) {
+                    response += `📅 **개봉:** ${movie.release_date}\n`;
+                } else {
+                    response += `📅 **개봉:** 정보 없음\n`;
+                }
+                
+                // 상영시간
+                if (movie.runtime_minutes) {
+                    response += `⏰ **상영시간:** ${movie.runtime_minutes}분\n`;
+                }
+                
+                // 평점 정보
+                response += `\n📊 **평점 정보:**\n`;
+                if (movie.naver_rating) {
+                    const rating = parseFloat(movie.naver_rating);
+                    const stars = '⭐'.repeat(Math.round(rating / 2));
+                    response += `• 네이버 평점: ${rating}/10 ${stars}\n`;
+                    
+                    // 평점 분석
+                    if (rating >= 8.0) {
+                        response += `  💫 **매우 높은 평점!** 강력 추천작입니다\n`;
+                    } else if (rating >= 7.0) {
+                        response += `  👍 **좋은 평점!** 볼만한 작품입니다\n`;
+                    } else if (rating >= 6.0) {
+                        response += `  😊 **무난한 평점** 적당히 즐길 수 있어요\n`;
+                    }
+                } else {
+                    response += `• 네이버 평점: 정보 없음\n`;
+                }
+                
+                if (movie.critic_score !== null && movie.critic_score !== undefined) {
+                    response += `• 평론가 평점: ${movie.critic_score}/10\n`;
+                }
+                if (movie.audience_score !== null && movie.audience_score !== undefined) {
+                    response += `• 관객 평점: ${movie.audience_score}/10\n`;
+                }
+                
+                // 줄거리
                 if (movie.description) {
-                    response += `\n📝 줄거리: ${movie.description.substring(0, 200)}...`;
+                    response += `\n📝 **줄거리:**\n${movie.description.substring(0, 300)}${movie.description.length > 300 ? '...' : ''}\n`;
                 }
+                
+                // 추가 정보
+                response += `\n🎯 **추가 정보:**\n`;
+                if (movie.country) {
+                    response += `• 제작국가: ${movie.country}\n`;
+                }
+                if (movie.naver_movie_id) {
+                    response += `• 네이버 영화 상세: https://movie.naver.com/movie/bi/mi/basic.naver?code=${movie.naver_movie_id}\n`;
+                }
+                
+                response += `\n마지막 업데이트: ${new Date(movie.updated_at).toLocaleDateString('ko-KR')}`;
                 
                 return response;
             } else {
