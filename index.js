@@ -905,7 +905,7 @@ async function handleWeatherQuery(message) {
                 response += `${'─'.repeat(25)}\n`;
             }
             
-            response += `\n💡 네이버 날씨에서 더 자세히 보기`;
+            response += `\n💡 더 자세한 날씨는 아래 버튼을 클릭하세요`;
             return response;
         }
         
@@ -2938,12 +2938,35 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         
         let responseText;
         
+        let isWeatherResponse = false;
+        let weatherLocation = null;
+
         // 🌤️ 날씨 질문 우선 처리 (Claude AI 우회)
         if (isWeatherQuery(userMessage)) {
             console.log('🌤️ 날씨 질문 감지 - 네이버 API 직접 호출');
             try {
-                responseText = await handleWeatherQuery(userMessage);
-                if (responseText) {
+                const weatherResult = await handleWeatherQuery(userMessage);
+                if (weatherResult) {
+                    responseText = weatherResult;
+                    isWeatherResponse = true;
+                    
+                    // Extract location for button URL
+                    const locationPatterns = [
+                        /([가-힣]+(?:시|구|동|읍|면|도))\s*날씨/,
+                        /날씨\s*([가-힣]+(?:시|구|동|읍|면|도))/,
+                        /([가-힣]+)\s*날씨/,
+                        /날씨\s*([가-힣]+)/
+                    ];
+                    
+                    weatherLocation = '서울'; // 기본값
+                    for (const pattern of locationPatterns) {
+                        const match = userMessage.match(pattern);
+                        if (match && match[1]) {
+                            weatherLocation = match[1].replace(/날씨/g, '').trim();
+                            break;
+                        }
+                    }
+                    
                     console.log('✅ 네이버 API 날씨 응답 성공');
                 } else {
                     responseText = '🌤️ 날씨 정보를 가져올 수 없었습니다.\n\n네이버에서 "날씨"를 검색해보세요.';
@@ -3007,18 +3030,46 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             displayText = '안녕하세요! 무엇을 도와드릴까요?';
         }
         
-        const response = {
-            "version": "2.0",
-            "template": {
-                "outputs": [
-                    {
-                        "simpleText": {
-                            "text": displayText
+        let response;
+        
+        // 날씨 응답인 경우 버튼 추가
+        if (isWeatherResponse && weatherLocation) {
+            const searchQuery = encodeURIComponent(`${weatherLocation} 날씨`);
+            const naverWeatherUrl = `https://search.naver.com/search.naver?query=${searchQuery}`;
+            
+            response = {
+                "version": "2.0",
+                "template": {
+                    "outputs": [
+                        {
+                            "simpleText": {
+                                "text": displayText
+                            }
                         }
-                    }
-                ]
-            }
-        };
+                    ],
+                    "quickReplies": [
+                        {
+                            "label": "🌤️ 네이버 날씨 보기",
+                            "action": "webLink",
+                            "webLinkUrl": naverWeatherUrl
+                        }
+                    ]
+                }
+            };
+        } else {
+            response = {
+                "version": "2.0",
+                "template": {
+                    "outputs": [
+                        {
+                            "simpleText": {
+                                "text": displayText
+                            }
+                        }
+                    ]
+                }
+            };
+        }
         
         console.log('📤 카카오톡 응답 전송:', JSON.stringify(response, null, 2));
         
