@@ -834,6 +834,23 @@ async function handleMovieQuery(message, userId) {
     }
 }
 
+// 날씨 아이콘 반환 함수
+function getWeatherIcon(condition) {
+    if (!condition) return '🌤️';
+    
+    const lowerCondition = condition.toLowerCase();
+    
+    if (lowerCondition.includes('맑') || lowerCondition.includes('화창')) return '☀️';
+    if (lowerCondition.includes('구름많') || lowerCondition.includes('흐림')) return '☁️';
+    if (lowerCondition.includes('구름조금')) return '⛅';
+    if (lowerCondition.includes('비') || lowerCondition.includes('소나기')) return '🌧️';
+    if (lowerCondition.includes('눈')) return '❄️';
+    if (lowerCondition.includes('번개') || lowerCondition.includes('뇌우')) return '⛈️';
+    if (lowerCondition.includes('안개')) return '🌫️';
+    
+    return '🌤️';
+}
+
 // 날씨 쿼리 처리 함수 - 네이버 날씨 페이지 직접 크롤링
 async function handleWeatherQuery(message) {
     try {
@@ -860,32 +877,35 @@ async function handleWeatherQuery(message) {
         const weatherData = await getNaverWeatherData(location);
         
         if (weatherData) {
-            let response = `🌤️ ${location} 날씨 정보\n\n`;
+            let response = `📍 ${location} 날씨\n`;
+            response += `${'━'.repeat(20)}\n\n`;
             
-            // 현재 날씨
+            // 현재 날씨 - 더 깔끔한 포맷
             if (weatherData.current) {
-                response += `🌡️ 현재 기온: ${weatherData.current.temp}°C\n`;
-                response += `☁️ 현재 날씨: ${weatherData.current.condition}\n`;
+                const currentIcon = getWeatherIcon(weatherData.current.condition);
+                response += `【 현재 날씨 】\n`;
+                response += `${currentIcon} ${weatherData.current.temp}°C │ ${weatherData.current.condition}\n`;
                 if (weatherData.current.humidity) {
-                    response += `💧 습도: ${weatherData.current.humidity}%\n`;
+                    response += `💧 습도 ${weatherData.current.humidity}%\n`;
                 }
             }
             
-            // 시간별 예보 (표 형식)
+            // 시간별 예보 - 더 보기 좋은 테이블 형식
             if (weatherData.hourly && weatherData.hourly.length > 0) {
-                response += `\n⏰ 시간별 예보:\n`;
-                response += `시간 | 온도 | 날씨\n`;
-                response += `─────────────\n`;
+                response += `\n【 시간별 예보 】\n`;
+                response += `${'─'.repeat(25)}\n`;
                 
-                for (let i = 0; i < Math.min(6, weatherData.hourly.length); i++) {
+                for (let i = 0; i < Math.min(8, weatherData.hourly.length); i++) {
                     const hour = weatherData.hourly[i];
-                    const time = hour.time.padEnd(4);
-                    const temp = (hour.temp + '°C').padEnd(5);
-                    response += `${time} | ${temp} | ${hour.condition}\n`;
+                    const time = hour.time.padEnd(5);
+                    const temp = hour.temp.toString().padStart(2);
+                    const weatherIcon = getWeatherIcon(hour.condition);
+                    response += `${time} │ ${temp}° │ ${weatherIcon} ${hour.condition}\n`;
                 }
+                response += `${'─'.repeat(25)}\n`;
             }
             
-            response += `\n💡 더 자세한 날씨는 네이버에서 확인하세요.`;
+            response += `\n💡 네이버 날씨에서 더 자세히 보기`;
             return response;
         }
         
