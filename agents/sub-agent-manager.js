@@ -1518,97 +1518,45 @@ ${exampleRecommendations}
         const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][today.getDay()];
         
         // 다양한 운세 요소들
-        const luckLevels = ['매우 좋음', '좋음', '보통', '주의 필요'];
         const luckyColors = ['파란색', '빨간색', '노란색', '초록색', '보라색', '흰색', '검은색', '주황색'];
         const luckyNumbers = [3, 7, 8, 9, 11, 21, 27, 33, 42];
-        const luckyDirections = ['동쪽', '서쪽', '남쪽', '북쪽', '남동쪽', '북서쪽'];
-        const luckyTimes = ['오전 9-11시', '오후 2-4시', '저녁 6-8시', '오전 7-9시', '오후 1-3시'];
         
         // 랜덤하게 선택
-        const randomLuck = luckLevels[Math.floor(Math.random() * 2)]; // 주로 긍정적으로
         const randomColor = luckyColors[Math.floor(Math.random() * luckyColors.length)];
         const randomNumber = luckyNumbers[Math.floor(Math.random() * luckyNumbers.length)];
-        const randomDirection = luckyDirections[Math.floor(Math.random() * luckyDirections.length)];
-        const randomTime = luckyTimes[Math.floor(Math.random() * luckyTimes.length)];
         
         // 각 운세 점수 (1-10)
-        const overallScore = 6 + Math.floor(Math.random() * 4);
         const loveScore = 5 + Math.floor(Math.random() * 5);
         const moneyScore = 5 + Math.floor(Math.random() * 5);
         const healthScore = 6 + Math.floor(Math.random() * 4);
-        const workScore = 5 + Math.floor(Math.random() * 5);
         
         let response = `🔮 **${month}월 ${day}일 ${dayOfWeek}요일 오늘의 운세**\n\n`;
-        response += `📊 **전반적인 운세: ${randomLuck} (${overallScore}/10점)**\n`;
-        response += `오늘은 전반적으로 ${randomLuck === '매우 좋음' ? '매우 좋은 기운이 감도는' : '긍정적인 에너지가 느껴지는'} 날입니다. `;
-        response += `특히 ${randomTime}에 중요한 일을 처리하시면 좋은 결과를 얻을 수 있을 것 같아요. `;
-        response += `주변 사람들과의 관계에서도 원활한 소통이 이루어질 것으로 보입니다.\n\n`;
+        response += `안녕하세요! 오늘의 운세를 간단히 알려드릴게요 😊\n\n`;
+        response += `전반적으로 긍정적인 에너지가 가득한 하루예요. 새로운 아이디어가 떠오를 수 있으니 메모해두세요.\n\n`;
         
-        response += `💕 **애정운 (${loveScore}/10점)**\n`;
-        if (loveScore >= 8) {
-            response += `연인이 있다면 오늘은 특별한 데이트를 계획해보세요. 로맨틱한 분위기를 연출하면 관계가 더욱 깊어질 수 있습니다. `;
-            response += `싱글이라면 새로운 만남의 기회가 찾아올 수 있으니 외출 시 좀 더 신경 써서 준비하세요.\n\n`;
-        } else if (loveScore >= 6) {
-            response += `평온하고 안정적인 애정운입니다. 연인과 함께라면 소소한 일상을 즐기며 행복을 느낄 수 있을 거예요. `;
-            response += `싱글이라면 자신을 돌아보고 내면을 가꾸는 시간을 가져보세요.\n\n`;
+        // 간단한 운세 정보
+        if (loveScore >= 7) {
+            response += `💕 **애정운**: 대인관계에서 좋은 인연을 만날 수 있어요.\n`;
         } else {
-            response += `애정운이 다소 불안정할 수 있습니다. 연인과 사소한 다툼이 있을 수 있으니 서로를 이해하려고 노력하세요. `;
-            response += `싱글이라면 오늘은 혼자만의 시간을 즐기며 재충전하는 것이 좋겠습니다.\n\n`;
+            response += `💕 **애정운**: 차근차근 관계를 발전시켜 나가세요.\n`;
         }
         
-        response += `💰 **금전운 (${moneyScore}/10점)**\n`;
-        if (moneyScore >= 8) {
-            response += `금전운이 상승하는 날입니다! 예상치 못한 수입이나 보너스가 들어올 수 있어요. `;
-            response += `투자나 재테크에 관심이 있다면 오늘 정보를 수집해보는 것도 좋겠네요. 다만 과도한 욕심은 금물입니다.\n\n`;
-        } else if (moneyScore >= 6) {
-            response += `안정적인 금전 흐름이 예상됩니다. 계획적인 소비를 유지하면서 저축을 늘려가세요. `;
-            response += `충동구매는 피하고, 꼭 필요한 물건만 구입하는 것이 좋겠습니다.\n\n`;
+        if (moneyScore >= 7) {
+            response += `💰 **금전운**: 경제적으로 안정적인 하루가 될 것 같아요.\n`;
         } else {
-            response += `금전 관리에 주의가 필요한 날입니다. 불필요한 지출을 줄이고 절약하는 자세가 필요해요. `;
-            response += `친구들과의 모임이나 외식 비용도 적절히 조절하는 것이 좋겠습니다.\n\n`;
+            response += `💰 **금전운**: 계획적인 소비를 하시면 좋겠어요.\n`;
         }
         
-        response += `🏃 **건강운 (${healthScore}/10점)**\n`;
-        if (healthScore >= 8) {
-            response += `건강 상태가 매우 좋습니다! 활력이 넘치는 하루가 될 것 같아요. `;
-            response += `운동을 시작하기에 좋은 시기이니, 가벼운 조깅이나 요가를 시도해보세요.\n\n`;
-        } else if (healthScore >= 6) {
-            response += `무난한 건강 상태입니다. 규칙적인 생활 리듬을 유지하고 충분한 수면을 취하세요. `;
-            response += `스트레칭이나 가벼운 산책으로 몸을 움직여주는 것이 좋겠습니다.\n\n`;
+        if (healthScore >= 7) {
+            response += `💪 **건강운**: 건강에 신경 쓰면 활력 넘치는 하루 보낼 수 있어요.\n\n`;
         } else {
-            response += `건강 관리에 신경 써야 할 때입니다. 과로를 피하고 충분한 휴식을 취하세요. `;
-            response += `면역력이 떨어질 수 있으니 비타민을 챙겨 먹고 따뜻한 차를 자주 마시는 것이 좋겠습니다.\n\n`;
+            response += `💪 **건강운**: 충분한 휴식을 취하시길 바라요.\n\n`;
         }
         
-        response += `💼 **학업/사업운 (${workScore}/10점)**\n`;
-        if (workScore >= 8) {
-            response += `업무나 학업에서 큰 성과를 거둘 수 있는 날입니다. 집중력이 높아져 어려운 과제도 쉽게 해결할 수 있을 거예요. `;
-            response += `동료나 동급생들과의 협력도 원활하게 이루어질 것으로 보입니다.\n\n`;
-        } else if (workScore >= 6) {
-            response += `평소와 같은 페이스로 일을 진행하면 무난한 결과를 얻을 수 있습니다. `;
-            response += `새로운 도전보다는 현재 하고 있는 일에 집중하는 것이 좋겠습니다.\n\n`;
-        } else {
-            response += `업무나 학업에서 약간의 어려움이 있을 수 있습니다. 서두르지 말고 차근차근 해결해 나가세요. `;
-            response += `필요하다면 주변 사람들에게 도움을 요청하는 것도 좋은 방법입니다.\n\n`;
-        }
+        response += `🍀 **행운의 색**: ${randomColor}\n`;
+        response += `🎯 **행운의 숫자**: ${randomNumber}\n\n`;
         
-        response += `🎯 **오늘의 행운 아이템**\n`;
-        response += `• 행운의 색: ${randomColor}\n`;
-        response += `• 행운의 숫자: ${randomNumber}\n`;
-        response += `• 행운의 방향: ${randomDirection}\n`;
-        response += `• 행운의 시간대: ${randomTime}\n\n`;
-        
-        response += `💡 **오늘의 조언**\n`;
-        const advices = [
-            '긍정적인 마음가짐으로 하루를 시작하세요. 좋은 일이 생길 거예요!',
-            '작은 친절이 큰 행운으로 돌아올 수 있는 날입니다.',
-            '오늘은 새로운 시도를 해보기 좋은 날이에요. 용기를 내보세요!',
-            '주변 사람들과의 소통을 늘려보세요. 좋은 정보를 얻을 수 있습니다.',
-            '자신감을 갖고 적극적으로 행동하면 원하는 것을 얻을 수 있을 거예요.'
-        ];
-        response += advices[Math.floor(Math.random() * advices.length)] + '\n\n';
-        
-        response += `오늘 하루도 행복하고 즐거운 시간 보내세요! 🌟`;
+        response += `오늘 하루도 힘내세요! 화이팅! 🌟`;
         
         return response;
     }
