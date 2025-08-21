@@ -212,6 +212,11 @@ async function callSimpleClaudeAI(userMessage, userId) {
 - 구체적이고 실용적인 답변을 해주세요
 - 카카오톡 메시지에 적합한 길이로 답변하세요
 
+운세 관련 특별 지침:
+- "오늘 운세", "내 운세", "운세 알려줘" 등 명확한 운세 질문을 받으면 간단하고 긍정적인 운세를 생성해주세요
+- 오늘의 행운 색상, 숫자 등도 포함하면 좋습니다
+- 하지만 운세와 관련 없는 일반적인 질문은 자연스럽게 대화로 답변해주세요
+
 이전 대화: ${conversationContext}
 
 질문: ${userMessage}`
@@ -611,19 +616,6 @@ function isWeatherQuery(message) {
     return weatherKeywords.some(keyword => message.toLowerCase().includes(keyword));
 }
 
-// 운세 관련 질문인지 판단하는 함수
-function isFortuneQuery(message) {
-    const fortuneKeywords = [
-        '운세', '운', '행운', '불운', '길일', '흉일',
-        '띠', '별자리', '탄생', '사주', '팔자', '궁합', '점', '점괘',
-        '금전운', '재물운', '애정운', '연애운', '건강운', '사업운', '학업운', '시험운',
-        '오늘의 운세', '오늘 운세', '내일의 운세', '내일 운세',
-        '이번주 운세', '이번달 운세', '운세 알려', '운세 봐',
-        '운 어때', '운 좋', '운 나쁘', '행운의 색', '행운의 숫자', '행운 아이템'
-    ];
-    const lowerMessage = message.toLowerCase();
-    return fortuneKeywords.some(keyword => lowerMessage.includes(keyword));
-}
 
 
 // 간단한 대화인지 판단하는 함수
@@ -2956,19 +2948,8 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         let isWeatherResponse = false;
         let weatherLocation = null;
 
-        // 🔮 운세 질문 우선 처리 (SubAgentManager의 generateFortuneResponse 직접 호출)
-        if (isFortuneQuery(userMessage)) {
-            console.log('🔮 운세 질문 감지 - SubAgentManager.generateFortuneResponse 호출');
-            try {
-                responseText = subAgentManager.generateFortuneResponse();
-                console.log('✅ 운세 응답 성공');
-            } catch (fortuneError) {
-                console.error('❌ 운세 처리 오류:', fortuneError);
-                responseText = '🔮 운세 정보를 확인하는 중 오류가 발생했습니다.\n\n잠시 후 다시 시도해주세요.';
-            }
-        }
         // 🌤️ 날씨 질문 우선 처리 (Claude AI 우회)
-        else if (isWeatherQuery(userMessage)) {
+        if (isWeatherQuery(userMessage)) {
             console.log('🌤️ 날씨 질문 감지 - 네이버 API 직접 호출');
             try {
                 const weatherResult = await handleWeatherQuery(userMessage);
