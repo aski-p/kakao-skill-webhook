@@ -212,6 +212,11 @@ async function callSimpleClaudeAI(userMessage, userId) {
 - 구체적이고 실용적인 답변을 해주세요
 - 카카오톡 메시지에 적합한 길이로 답변하세요
 
+특별 지침:
+- 운세 질문을 받으면 재미있고 긍정적인 운세를 창의적으로 만들어 답변하세요
+- 오늘의 행운 색상, 숫자, 방향 등도 포함하면 좋습니다
+- 금전운, 애정운, 건강운, 학업운 등 구체적 운세도 재미있게 답변하세요
+
 이전 대화: ${conversationContext}
 
 질문: ${userMessage}`
@@ -610,6 +615,7 @@ function isWeatherQuery(message) {
     const weatherKeywords = ['날씨', '기온', '온도', '비', '눈', '맑음', '흐림', '구름', '습도', '미세먼지', '날씨어때', '오늘날씨', '내일날씨'];
     return weatherKeywords.some(keyword => message.toLowerCase().includes(keyword));
 }
+
 
 // 간단한 대화인지 판단하는 함수
 function isSimpleConversation(message) {
