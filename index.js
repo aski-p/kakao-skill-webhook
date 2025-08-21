@@ -3153,6 +3153,62 @@ app.get('/debug/env', (req, res) => {
     });
 });
 
+// 디버깅용 엔드포인트 추가
+app.post('/debug-fortune', async (req, res) => {
+    console.log('🔮 디버깅 엔드포인트 호출됨');
+    
+    const userMessage = "오늘 내 운세는?";
+    const userId = "debug-user";
+    
+    console.log('환경변수 확인:');
+    console.log('- CLAUDE_API_KEY:', process.env.CLAUDE_API_KEY ? '설정됨' : '❌ 없음');
+    console.log('- NODE_ENV:', process.env.NODE_ENV);
+    console.log('- PORT:', process.env.PORT);
+    
+    const isWeather = isWeatherQuery(userMessage);
+    console.log(`날씨 질문 감지: ${isWeather}`);
+    
+    if (!isWeather) {
+        console.log('→ Claude AI 처리 경로');
+        
+        if (!process.env.CLAUDE_API_KEY) {
+            console.log('❌ Claude API 키 없음');
+            res.json({
+                success: false,
+                message: "Claude API 키가 설정되지 않음",
+                debug: { userMessage, isWeather, hasApiKey: false }
+            });
+            return;
+        }
+        
+        try {
+            const result = await callSimpleClaudeAI(userMessage, userId);
+            console.log('✅ Claude AI 응답 성공');
+            
+            res.json({
+                success: true,
+                message: result,
+                debug: { userMessage, isWeather, hasApiKey: true, responseLength: result.length }
+            });
+            
+        } catch (error) {
+            console.error('❌ Claude AI 호출 실패:', error.message);
+            
+            res.json({
+                success: false,
+                message: `Claude AI 오류: ${error.message}`,
+                debug: { userMessage, isWeather, hasApiKey: true, error: error.message }
+            });
+        }
+    } else {
+        res.json({
+            success: false,
+            message: "날씨 질문으로 분류됨",
+            debug: { userMessage, isWeather }
+        });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`✅ 서버가 포트 ${PORT}에서 실행 중입니다.`);
