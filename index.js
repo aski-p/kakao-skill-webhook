@@ -2956,18 +2956,12 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         let isWeatherResponse = false;
         let weatherLocation = null;
 
-        // 🔮 운세 질문 우선 처리 (SubAgentManager 활용)
+        // 🔮 운세 질문 우선 처리 (SubAgentManager의 generateFortuneResponse 직접 호출)
         if (isFortuneQuery(userMessage)) {
-            console.log('🔮 운세 질문 감지 - SubAgentManager 호출');
+            console.log('🔮 운세 질문 감지 - SubAgentManager.generateFortuneResponse 호출');
             try {
-                const fortuneResult = await subAgentManager.processMessage(userMessage, userId);
-                if (fortuneResult && fortuneResult.success) {
-                    responseText = fortuneResult.data.message;
-                    console.log('✅ 운세 응답 성공');
-                } else {
-                    // 운세 처리 실패시 기본 응답
-                    responseText = subAgentManager.generateFortuneResponse();
-                }
+                responseText = subAgentManager.generateFortuneResponse();
+                console.log('✅ 운세 응답 성공');
             } catch (fortuneError) {
                 console.error('❌ 운세 처리 오류:', fortuneError);
                 responseText = '🔮 운세 정보를 확인하는 중 오류가 발생했습니다.\n\n잠시 후 다시 시도해주세요.';
