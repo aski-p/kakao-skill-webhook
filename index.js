@@ -832,9 +832,17 @@ async function handleMovieQuery(message, userId) {
                 if (movie.country) {
                     response += `• 제작국가: ${movie.country}\n`;
                 }
+                
+                // 네이버 링크 추가 (영화 상세 정보)
+                response += `\n🔗 **더 자세한 정보:**\n`;
                 if (movie.naver_movie_id) {
-                    response += `• 네이버 영화 상세: https://movie.naver.com/movie/bi/mi/basic.naver?code=${movie.naver_movie_id}\n`;
+                    response += `• 네이버 영화: https://movie.naver.com/movie/bi/mi/basic.naver?code=${movie.naver_movie_id}\n`;
                 }
+                
+                // 네이버 검색 링크 추가
+                const searchTitle = encodeURIComponent(movie.title);
+                response += `• 네이버 검색: https://search.naver.com/search.naver?query=${searchTitle}+영화\n`;
+                response += `• 관련 뉴스: https://search.naver.com/search.naver?query=${searchTitle}+영화+리뷰\n`;
                 
                 response += `\n마지막 업데이트: ${new Date(movie.updated_at).toLocaleDateString('ko-KR')}`;
                 
