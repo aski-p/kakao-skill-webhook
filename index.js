@@ -612,8 +612,23 @@ function isMovieRelatedQuery(message) {
 
 // 날씨 관련 질문 감지 함수
 function isWeatherQuery(message) {
-    const weatherKeywords = ['날씨', '기온', '온도', '비', '눈', '맑음', '흐림', '구름', '습도', '미세먼지', '날씨어때', '오늘날씨', '내일날씨'];
-    return weatherKeywords.some(keyword => message.toLowerCase().includes(keyword));
+    const lowerMessage = message.toLowerCase();
+    
+    // 명확한 날씨 패턴들
+    const weatherPatterns = [
+        /날씨/,
+        /기온/,
+        /온도/,
+        /습도/,
+        /미세먼지/,
+        /\b비\s*(오|올|와|내려|그치)/,  // "비 온다", "비 와", "비 내려" 등만 매칭
+        /\b눈\s*(오|올|와|내려|그치)/,  // "눈 온다", "눈 와", "눈 내려" 등만 매칭
+        /(맑|흐림|구름)/,
+        /(오늘|내일|지금).*날씨/,
+        /날씨.*(어때|알려|궁금)/
+    ];
+    
+    return weatherPatterns.some(pattern => pattern.test(lowerMessage));
 }
 
 
