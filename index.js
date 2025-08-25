@@ -212,10 +212,12 @@ async function callSimpleClaudeAI(userMessage, userId) {
 - 구체적이고 실용적인 답변을 해주세요
 - 카카오톡 메시지에 적합한 길이로 답변하세요
 
-운세 관련 특별 지침:
+특별 지침:
 - "오늘 운세", "내 운세", "운세 알려줘" 등 명확한 운세 질문을 받으면 간단하고 긍정적인 운세를 생성해주세요
 - 오늘의 행운 색상, 숫자 등도 포함하면 좋습니다
-- 하지만 운세와 관련 없는 일반적인 질문은 자연스럽게 대화로 답변해주세요
+- "뭐먹지", "야식으로 뭐", "음식 추천" 등 음식 관련 질문을 받으면 시간대를 고려해서 구체적인 음식을 3-4개 추천해주세요
+- 추천 이유나 간단한 설명도 포함하면 좋습니다
+- 하지만 특정 주제와 관련 없는 일반적인 질문은 자연스럽게 대화로 답변해주세요
 
 이전 대화: ${conversationContext}
 
@@ -1561,11 +1563,11 @@ function isGameInfoRequest(message) {
 
 // 자연스러운 대화 감지 함수
 function isNaturalConversation(message) {
-    // 🍽️ 음식 관련 질문은 Enhanced NLP 시스템에서 처리하도록 제외
-    const isFoodQuestion = /뭐.*먹지|먹을.*뭐|저녁.*뭐|아침.*뭐|점심.*뭐|간식.*뭐|뭐.*마실|마실.*뭐|음식.*뭐|요리.*뭐|배고파|출출해/.test(message);
+    // 🍽️ 음식 관련 질문 처리 로직 단순화 - Claude AI가 직접 처리하도록 변경
+    const isFoodQuestion = /뭐.*먹지|먹을.*뭐|저녁.*뭐|아침.*뭐|점심.*뭐|간식.*뭐|뭐.*마실|마실.*뭐|음식.*뭐|요리.*뭐|배고파|출출해|야식.*뭐/.test(message);
     if (isFoodQuestion) {
-        console.log('🍽️ 음식 관련 질문 감지 - Enhanced NLP 시스템으로 라우팅');
-        return false;
+        console.log('🍽️ 음식 관련 질문 감지 - Claude AI가 직접 처리');
+        return true; // Claude AI가 처리하도록 변경
     }
     
     // 문맥적 표현이나 일상적 대화 패턴 감지 (음식 관련 패턴 제거)
