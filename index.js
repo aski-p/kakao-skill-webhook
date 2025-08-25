@@ -835,16 +835,16 @@ async function handleMovieQuery(message, userId) {
                     response += `• 제작국가: ${movie.country}\n`;
                 }
                 
-                // 네이버 링크 추가 (영화 상세 정보)
-                response += `\n🔗 **더 자세한 정보:**\n`;
+                // 네이버 링크 추가 (카카오톡 호환 포맷)
+                response += `\n🔗 더 자세한 정보:\n`;
                 if (movie.naver_movie_id) {
-                    response += `• 네이버 영화:\nhttps://movie.naver.com/movie/bi/mi/basic.naver?code=${movie.naver_movie_id}\n\n`;
+                    response += `네이버 영화: https://movie.naver.com/movie/bi/mi/basic.naver?code=${movie.naver_movie_id}\n\n`;
                 }
                 
-                // 네이버 검색 링크 추가 (간단한 URL로 변경)
+                // 간단한 네이버 검색 링크 (URL 단축)
                 const searchTitle = encodeURIComponent(movie.title);
-                response += `• 네이버 검색:\nhttps://search.naver.com/search.naver?query=${searchTitle}\n\n`;
-                response += `• 관련 뉴스:\nhttps://search.naver.com/search.naver?where=news&query=${searchTitle}\n`;
+                response += `네이버에서 "${movie.title}" 검색:\nhttps://search.naver.com/search.naver?query=${searchTitle}\n\n`;
+                response += `관련 뉴스:\nhttps://search.naver.com/search.naver?where=news&query=${searchTitle}`;
                 
                 response += `\n마지막 업데이트: ${new Date(movie.updated_at).toLocaleDateString('ko-KR')}`;
                 
