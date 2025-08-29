@@ -216,6 +216,7 @@ async function callSimpleClaudeAI(userMessage, userId) {
 - "오늘 운세", "내 운세", "운세 알려줘" 등 명확한 운세 질문을 받으면 간단하고 긍정적인 운세를 생성해주세요
 - 오늘의 행운 색상, 숫자 등도 포함하면 좋습니다
 - "뭐먹지", "야식으로 뭐", "음식 추천" 등 음식 관련 질문을 받으면 시간대를 고려해서 구체적인 음식을 3-4개 추천해주세요
+- "전주 맛집", "강남 맛집" 등 지역 맛집 검색 질문을 받으면 [🍽️:지역명] 태그를 사용해주세요
 - 추천 이유나 간단한 설명도 포함하면 좋습니다
 - 하지만 특정 주제와 관련 없는 일반적인 질문은 자연스럽게 대화로 답변해주세요
 
@@ -479,35 +480,47 @@ async function processAITags(aiResponse, userMessage) {
             }
         }
         
-        // 맛집 요청 태그 처리 (이모지 버전) - 빠른 처리
+        // 맛집 요청 태그 처리 (이모지 버전) - 개선된 버전
         const restaurantMatch = aiResponse.match(/\[🍽️:([^\]]+)\]/);
         if (restaurantMatch) {
             const query = restaurantMatch[1];
             console.log(`🍽️ 맛집 API 호출: ${query}`);
             
             try {
-                // 타임아웃을 매우 짧게 설정하여 빠른 응답
+                // 타임아웃을 3초로 늘리고 더 안정적인 처리
                 const restaurantResults = await Promise.race([
-                    getLocalRestaurants(query),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('맛집 API 타임아웃')), 1000))
+                    getLocalRestaurants(`${query} 맛집`),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('맛집 API 타임아웃')), 3000))
                 ]);
                 
                 if (restaurantResults && restaurantResults.length > 0) {
-                    let restaurantInfo = `🍽️ ${query} 맛집 추천\n\n`;
-                    restaurantResults.slice(0, 2).forEach((restaurant, index) => {
+                    let restaurantInfo = `🍽️ ${query} 맛집 추천 (식당 위주)\n\n`;
+                    restaurantResults.slice(0, 5).forEach((restaurant, index) => {
                         const title = restaurant.title.replace(/<[^>]*>/g, '');
                         restaurantInfo += `${index + 1}. ${title}\n`;
                         if (restaurant.address) {
-                            restaurantInfo += `   📍 ${restaurant.address.substring(0, 30)}...\n`;
+                            restaurantInfo += `📍 ${restaurant.address}\n`;
+                        }
+                        if (restaurant.category) {
+                            restaurantInfo += `🏷️ ${restaurant.category}\n\n`;
+                        } else {
+                            restaurantInfo += `\n`;
                         }
                     });
+                    
+                    // 네이버 검색 링크 추가
+                    const searchQuery = encodeURIComponent(`${query} 맛집`);
+                    restaurantInfo += `더 많은 맛집:\nhttps://search.naver.com/search.naver?query=${searchQuery}`;
+                    
                     processedResponse = processedResponse.replace(/\[🍽️:[^\]]+\]/, `\n\n${restaurantInfo}`);
                 } else {
-                    processedResponse = processedResponse.replace(/\[🍽️:[^\]]+\]/, `\n\n🍽️ 네이버에서 "${query} 맛집"를 검색해보세요!`);
+                    const searchQuery = encodeURIComponent(`${query} 맛집`);
+                    processedResponse = processedResponse.replace(/\[🍽️:[^\]]+\]/, `\n\n🍽️ ${query} 맛집 정보를 찾을 수 없습니다.\n\n네이버 검색:\nhttps://search.naver.com/search.naver?query=${searchQuery}`);
                 }
             } catch (error) {
-                console.log(`⚠️ 맛집 API 빠른 실패: ${error.message}`);
-                processedResponse = processedResponse.replace(/\[🍽️:[^\]]+\]/, `\n\n🍽️ 네이버에서 "${query} 맛집"를 검색해보세요!`);
+                console.log(`⚠️ 맛집 API 실패: ${error.message}`);
+                const searchQuery = encodeURIComponent(`${query} 맛집`);
+                processedResponse = processedResponse.replace(/\[🍽️:[^\]]+\]/, `\n\n🍽️ 맛집 정보를 가져오는 중 문제가 발생했습니다.\n\n네이버 검색:\nhttps://search.naver.com/search.naver?query=${searchQuery}`);
             }
         }
         
