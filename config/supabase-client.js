@@ -279,6 +279,101 @@ class SupabaseClient {
         }
     }
 
+    // ========== 일정 관리 기능 ==========
+    
+    // 일정 등록
+    async addSchedule(date, title, time, description, userId) {
+        try {
+            if (!this.client) {
+                console.log('[ERROR] Supabase 클라이언트가 초기화되지 않았습니다.');
+                return null;
+            }
+
+            console.log(`[SCHEDULE] 일정 등록: ${date} ${time} - ${title}`);
+
+            const scheduleData = {
+                date: date,
+                title: title,
+                time: time,
+                description: description || null,
+                user_id: userId || 'default',
+                created_at: new Date().toISOString()
+            };
+
+            const { data, error } = await this.client
+                .from('daily_schedule_memos')
+                .insert(scheduleData)
+                .select();
+
+            if (error) {
+                console.error('[ERROR] 일정 등록 오류:', error);
+                return null;
+            }
+
+            console.log(`[SUCCESS] 일정 등록 완료: "${title}"`);
+            return data[0];
+
+        } catch (error) {
+            console.error('[ERROR] 일정 등록 중 오류:', error);
+            return null;
+        }
+    }
+
+    // 특정 날짜의 일정 조회
+    async getSchedulesByDate(date, userId) {
+        try {
+            if (!this.client) {
+                console.log('[ERROR] Supabase 클라이언트가 초기화되지 않았습니다.');
+                return [];
+            }
+
+            console.log(`[SCHEDULE] ${date} 일정 조회`);
+
+            const { data, error } = await this.client
+                .from('daily_schedule_memos')
+                .select('*')
+                .eq('date', date)
+                .eq('user_id', userId || 'default')
+                .order('time', { ascending: true });
+
+            if (error) {
+                console.error('[ERROR] 일정 조회 오류:', error);
+                return [];
+            }
+
+            console.log(`[SUCCESS] ${date} 일정 조회 완료: ${data.length}개`);
+            return data || [];
+
+        } catch (error) {
+            console.error('[ERROR] 일정 조회 중 오류:', error);
+            return [];
+        }
+    }
+
+    // 오늘 일정 조회
+    async getTodaySchedules(userId) {
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            return await this.getSchedulesByDate(today, userId);
+        } catch (error) {
+            console.error('[ERROR] 오늘 일정 조회 중 오류:', error);
+            return [];
+        }
+    }
+
+    // 내일 일정 조회
+    async getTomorrowSchedules(userId) {
+        try {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+            return await this.getSchedulesByDate(tomorrowStr, userId);
+        } catch (error) {
+            console.error('[ERROR] 내일 일정 조회 중 오류:', error);
+            return [];
+        }
+    }
+
     // 연결 테스트
     async testConnection() {
         try {

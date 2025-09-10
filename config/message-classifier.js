@@ -128,6 +128,24 @@ class MessageClassifier {
                 }
             },
 
+            SCHEDULE: {
+                priority: 2, // 높은 우선순위 (일정 관련 중요)
+                patterns: {
+                    content: /일정|스케줄|약속|미팅|회의|일정표|계획/,
+                    action: /등록|추가|저장|입력|기록|해줘|넣어줘/,
+                    query: /알려줘|보여줘|확인|조회|뭐|무슨/,
+                    time: /오늘|내일|이번주|다음주|(\d{1,2})시|(\d{1,2}:\d{2})|오전|오후/,
+                    date: /(\d{4}-\d{2}-\d{2})|(\d{1,2})월\s*(\d{1,2})일|(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/,
+                    specific: /일정.*등록|일정.*추가|일정.*알려|스케줄.*등록|약속.*등록/
+                },
+                extractors: {
+                    scheduleType: this.extractScheduleType.bind(this),
+                    date: this.extractScheduleDate.bind(this),
+                    time: this.extractScheduleTime.bind(this),
+                    title: this.extractScheduleTitle.bind(this)
+                }
+            },
+
             GENERAL_QUESTION: {
                 priority: 9, // 우선순위 더 낮춤 (일상 대화 이후)
                 patterns: {
@@ -205,9 +223,11 @@ class MessageClassifier {
                     case 'emotion': score += 3; break; // 감정 표현 키워드
                     case 'simple': score += 3; break; // 간단한 응답 키워드
                     case 'chat': score += 3; break; // 대화 요청 키워드
+                    case 'specific': score += 5; break; // 일정 특정 키워드 최고 가중치
                     case 'context': score += 1; break;
                     case 'location': score += 1; break;
                     case 'time': score += 1; break;
+                    case 'date': score += 2; break; // 날짜 패턴 가중치
                     default: score += 1; break;
                 }
             }
@@ -461,6 +481,91 @@ class MessageClassifier {
     extractCasualTopic(message) {
         // 일상 대화 주제 추출
         return message.replace(/뭐해|뭐하고|어떻게|어때|오늘|내일/g, '').trim() || message;
+    }
+
+    // === 일정 관리 추출 함수들 ===
+
+    extractScheduleType(message) {
+        if (/등록|추가|저장|입력|기록|해줘|넣어줘/.test(message)) return 'register';
+        if (/알려줘|보여줘|확인|조회|뭐|무슨/.test(message)) return 'query';
+        if (/수정|변경|업데이트/.test(message)) return 'update';
+        if (/삭제|지워|취소/.test(message)) return 'delete';
+        return 'query'; // 기본값
+    }
+
+    extractScheduleDate(message) {
+        // YYYY-MM-DD 형식
+        const isoMatch = message.match(/(\d{4}-\d{2}-\d{2})/);
+        if (isoMatch) return isoMatch[1];
+
+        // MM월 DD일 형식 (현재 연도)
+        const koreanMatch = message.match(/(\d{1,2})월\s*(\d{1,2})일/);
+        if (koreanMatch) {
+            const year = new Date().getFullYear();
+            const month = koreanMatch[1].padStart(2, '0');
+            const day = koreanMatch[2].padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // 오늘/내일
+        if (/오늘/.test(message)) return 'today';
+        if (/내일/.test(message)) return 'tomorrow';
+
+        return null; // 날짜 정보 없음
+    }
+
+    extractScheduleTime(message) {
+        // HH:MM 형식
+        const timeMatch = message.match(/(\d{1,2}):(\d{2})/);
+        if (timeMatch) {
+            return `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+        }
+
+        // 오전/오후 N시 N분
+        const ampmMatch = message.match(/(오전|오후)\s*(\d{1,2})시\s*(\d{1,2})?분?/);
+        if (ampmMatch) {
+            let hour = parseInt(ampmMatch[2]);
+            const minute = ampmMatch[3] ? ampmMatch[3].padStart(2, '0') : '00';
+            
+            if (ampmMatch[1] === '오후' && hour !== 12) {
+                hour += 12;
+            } else if (ampmMatch[1] === '오전' && hour === 12) {
+                hour = 0;
+            }
+            
+            return `${hour.toString().padStart(2, '0')}:${minute}`;
+        }
+
+        // 단순 N시
+        const hourMatch = message.match(/(\d{1,2})시/);
+        if (hourMatch) {
+            return `${hourMatch[1].padStart(2, '0')}:00`;
+        }
+
+        return null; // 시간 정보 없음
+    }
+
+    extractScheduleTitle(message) {
+        // 일정 제목 추출 - 키워드들을 제거하고 남은 부분
+        let title = message
+            .replace(/일정|스케줄|약속|미팅|회의/g, '')
+            .replace(/등록|추가|저장|입력|기록|해줘|넣어줘/g, '')
+            .replace(/알려줘|보여줘|확인|조회/g, '')
+            .replace(/오늘|내일|이번주|다음주/g, '')
+            .replace(/오전|오후/g, '')
+            .replace(/(\d{1,2}):(\d{2})/g, '') // 시간 제거
+            .replace(/(\d{1,2})시(\d{1,2})?분?/g, '') // N시N분 제거
+            .replace(/(\d{4}-\d{2}-\d{2})/g, '') // 날짜 제거
+            .replace(/(\d{1,2})월\s*(\d{1,2})일/g, '') // MM월 DD일 제거
+            .replace(/\s+/g, ' ') // 여러 공백을 하나로
+            .trim();
+
+        // 빈 제목이면 기본값
+        if (!title || title.length < 1) {
+            return '새 일정';
+        }
+
+        return title;
     }
 }
 

@@ -24,6 +24,7 @@ const config = require('./config/keywords');
 const MessageClassifier = require('./config/message-classifier');
 const DataExtractor = require('./config/data-extractor');
 const SubAgentManager = require('./agents/sub-agent-manager'); // 서브에이전트 시스템 활성화
+const ScheduleAgent = require('./agents/schedule-agent'); // 일정 관리 시스템
 
 // [ENHANCED] 향상된 자연어 처리 및 세션 관리 시스템 (안전한 로딩)
 let enhancedNLP, sessionManager, contextAwareGenerator, movieScheduler, naverWeatherCrawler;
@@ -1320,6 +1321,9 @@ const dataExtractor = new DataExtractor({
 
 // 🤖 서브에이전트 관리 시스템 초기화
 const subAgentManager = new SubAgentManager();
+
+// 📅 일정 관리 시스템 초기화
+const scheduleAgent = new ScheduleAgent();
 
 // [ENHANCED] 향상된 시스템 초기화 (이미 선언된 변수들 사용)
 // 인스턴스 생성은 필요시에만 하므로 여기서는 로딩 확인만
@@ -3038,6 +3042,21 @@ app.post('/kakao-skill-webhook', async (req, res) => {
             } catch (weatherError) {
                 console.error('❌ 네이버 날씨 API 오류:', weatherError);
                 responseText = '🌤️ 날씨 정보를 확인하는 중 오류가 발생했습니다.\n\n잠시 후 다시 시도해주세요.';
+            }
+        }
+        // 📅 일정 관리 처리
+        else if (scheduleAgent.isScheduleMessage(userMessage)) {
+            console.log('📅 일정 관련 메시지 감지');
+            try {
+                const scheduleResult = await scheduleAgent.processScheduleRequest(userMessage, userId);
+                if (scheduleResult) {
+                    responseText = scheduleResult.message;
+                } else {
+                    responseText = '일정 처리 중 문제가 발생했습니다. 다시 시도해주세요.';
+                }
+            } catch (error) {
+                console.error('❌ 일정 처리 중 오류:', error);
+                responseText = '일정 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
             }
         } else {
             // 🤖 모든 일반 대화는 Claude AI로 직접 처리 (자연스러운 대화를 위해)
