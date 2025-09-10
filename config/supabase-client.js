@@ -292,12 +292,11 @@ class SupabaseClient {
             console.log(`[SCHEDULE] 일정 등록: ${date} ${time} - ${title}`);
 
             const scheduleData = {
-                date: date,
+                schedule_date: date,
                 title: title,
-                time: time,
+                start_time: time,
                 description: description || null,
-                user_id: userId || 'default',
-                created_at: new Date().toISOString()
+                user_id: userId || 'default'
             };
 
             const { data, error } = await this.client
@@ -332,9 +331,9 @@ class SupabaseClient {
             const { data, error } = await this.client
                 .from('daily_schedule_memos')
                 .select('*')
-                .eq('date', date)
+                .eq('schedule_date', date)
                 .eq('user_id', userId || 'default')
-                .order('time', { ascending: true });
+                .order('start_time', { ascending: true });
 
             if (error) {
                 console.error('[ERROR] 일정 조회 오류:', error);

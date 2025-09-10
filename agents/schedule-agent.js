@@ -132,7 +132,8 @@ class ScheduleAgent {
 
                 let message = `📅 ${dateStr} 일정 (${schedules.length}개)\n\n`;
                 schedules.forEach((schedule, index) => {
-                    message += `${index + 1}. ⏰ ${schedule.time} - ${schedule.title}\n`;
+                    const timeStr = schedule.start_time ? schedule.start_time : '시간미정';
+                    message += `${index + 1}. ⏰ ${timeStr} - ${schedule.title}\n`;
                 });
 
                 return {
@@ -161,7 +162,8 @@ class ScheduleAgent {
 
             let message = `🌅 오늘의 일정 (${schedules.length}개)\n\n`;
             schedules.forEach((schedule, index) => {
-                message += `${index + 1}. ⏰ ${schedule.time} - ${schedule.title}\n`;
+                const timeStr = schedule.start_time ? schedule.start_time : '시간미정';
+                message += `${index + 1}. ⏰ ${timeStr} - ${schedule.title}\n`;
             });
             message += '\n좋은 하루 되세요! ✨';
 
