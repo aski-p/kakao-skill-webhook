@@ -24,14 +24,10 @@ const config = require('./config/keywords');
 const MessageClassifier = require('./config/message-classifier');
 const DataExtractor = require('./config/data-extractor');
 const SubAgentManager = require('./agents/sub-agent-manager'); // 서브에이전트 시스템 활성화
-<<<<<<< HEAD
-const ScheduleAgent = require('./agents/schedule-agent'); // 일정 관리 시스템
-=======
 const ScheduleManager = require('./schedule-manager'); // 일정 관리 시스템
 
 // 일정 관리자 인스턴스 생성
 const scheduleManager = new ScheduleManager();
->>>>>>> 9b42872 (feat: 일정 관리 기능 추가)
 
 // [ENHANCED] 향상된 자연어 처리 및 세션 관리 시스템 (안전한 로딩)
 let enhancedNLP, sessionManager, contextAwareGenerator, movieScheduler, naverWeatherCrawler;
