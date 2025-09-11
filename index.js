@@ -1325,8 +1325,7 @@ const dataExtractor = new DataExtractor({
 // 🤖 서브에이전트 관리 시스템 초기화
 const subAgentManager = new SubAgentManager();
 
-// 📅 일정 관리 시스템 초기화
-const scheduleAgent = new ScheduleAgent();
+// 📅 일정 관리 시스템 초기화 완료 (이미 상단에서 초기화됨)
 
 // [ENHANCED] 향상된 시스템 초기화 (이미 선언된 변수들 사용)
 // 인스턴스 생성은 필요시에만 하므로 여기서는 로딩 확인만
