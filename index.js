@@ -24,7 +24,14 @@ const config = require('./config/keywords');
 const MessageClassifier = require('./config/message-classifier');
 const DataExtractor = require('./config/data-extractor');
 const SubAgentManager = require('./agents/sub-agent-manager'); // 서브에이전트 시스템 활성화
+<<<<<<< HEAD
 const ScheduleAgent = require('./agents/schedule-agent'); // 일정 관리 시스템
+=======
+const ScheduleManager = require('./schedule-manager'); // 일정 관리 시스템
+
+// 일정 관리자 인스턴스 생성
+const scheduleManager = new ScheduleManager();
+>>>>>>> 9b42872 (feat: 일정 관리 기능 추가)
 
 // [ENHANCED] 향상된 자연어 처리 및 세션 관리 시스템 (안전한 로딩)
 let enhancedNLP, sessionManager, contextAwareGenerator, movieScheduler, naverWeatherCrawler;
@@ -1578,6 +1585,79 @@ function isGameInfoRequest(message) {
     return gameKeywords.some(keyword => message.includes(keyword));
 }
 
+// 일정 관련 요청 감지 함수
+function isScheduleRequest(message) {
+    const scheduleKeywords = ['일정', '스케줄', '스케쥴', '약속', '계획'];
+    const actionKeywords = ['등록', '추가', '저장', '기록', '알려', '보여', '확인', '조회', '뭐있', '뭐야'];
+    
+    const hasScheduleKeyword = scheduleKeywords.some(keyword => message.includes(keyword));
+    const hasActionKeyword = actionKeywords.some(keyword => message.includes(keyword));
+    
+    return hasScheduleKeyword || (message.includes('일정') && hasActionKeyword);
+}
+
+// 일정 처리 함수
+async function handleScheduleQuery(userMessage, userId) {
+    try {
+        const lowerMessage = userMessage.toLowerCase();
+        
+        // 일정 등록 요청
+        if (lowerMessage.includes('등록') || lowerMessage.includes('추가') || lowerMessage.includes('저장')) {
+            const scheduleInfo = scheduleManager.parseScheduleFromMessage(userMessage);
+            const schedule = scheduleManager.addSchedule(
+                userId,
+                scheduleInfo.date,
+                scheduleInfo.time,
+                scheduleInfo.event
+            );
+            
+            // 등록한 날짜의 일정 조회
+            const daySchedules = scheduleManager.getSchedulesByDate(userId, schedule.date);
+            let response = `✅ 일정이 등록되었습니다!\n\n`;
+            response += scheduleManager.formatScheduleResponse(daySchedules, schedule.date);
+            
+            return response;
+        }
+        
+        // 일정 조회 요청
+        if (lowerMessage.includes('알려') || lowerMessage.includes('보여') || lowerMessage.includes('확인') || lowerMessage.includes('조회') || lowerMessage.includes('뭐있') || lowerMessage.includes('뭐야')) {
+            // 특정 날짜 추출
+            let targetDate = null;
+            
+            if (lowerMessage.includes('오늘')) {
+                targetDate = '오늘';
+            } else if (lowerMessage.includes('내일')) {
+                targetDate = '내일';
+            } else if (lowerMessage.includes('모레')) {
+                targetDate = '모레';
+            } else {
+                // MM월 DD일 형식 검색
+                const dateMatch = userMessage.match(/(\d{1,2})월\s*(\d{1,2})일/);
+                if (dateMatch) {
+                    targetDate = `${dateMatch[1]}월 ${dateMatch[2]}일`;
+                }
+            }
+            
+            if (targetDate) {
+                // 특정 날짜 일정 조회
+                const schedules = scheduleManager.getSchedulesByDate(userId, targetDate);
+                return scheduleManager.formatScheduleResponse(schedules, targetDate);
+            } else {
+                // 전체 일정 조회
+                const schedules = scheduleManager.getAllSchedules(userId);
+                return scheduleManager.formatScheduleResponse(schedules);
+            }
+        }
+        
+        // 기본 응답
+        return `📅 일정 관리 도움말\n\n• 일정 등록: "내일 3시 회의 일정 등록"\n• 오늘 일정: "오늘 일정 알려줘"\n• 특정 날짜: "12월 25일 일정 보여줘"\n• 전체 일정: "일정 확인"`;
+        
+    } catch (error) {
+        console.error('❌ 일정 처리 오류:', error);
+        return `죄송합니다. 일정 처리 중 오류가 발생했습니다.`;
+    }
+}
+
 // 자연스러운 대화 감지 함수
 function isNaturalConversation(message) {
     // 🍽️ 음식 관련 질문 처리 로직 단순화 - Claude AI가 직접 처리하도록 변경
@@ -3009,8 +3089,23 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         let isWeatherResponse = false;
         let weatherLocation = null;
 
+        // 📅 일정 관리 우선 처리
+        if (isScheduleRequest(userMessage)) {
+            console.log('📅 일정 관련 요청 감지');
+            try {
+                const scheduleResult = await handleScheduleQuery(userMessage, userId);
+                if (scheduleResult) {
+                    responseText = scheduleResult;
+                } else {
+                    responseText = await callClaudeAPI(userMessage, userId);
+                }
+            } catch (error) {
+                console.error('일정 처리 오류:', error);
+                responseText = await callClaudeAPI(userMessage, userId);
+            }
+        }
         // 🌤️ 날씨 질문 우선 처리 (Claude AI 우회)
-        if (isWeatherQuery(userMessage)) {
+        else if (isWeatherQuery(userMessage)) {
             console.log('🌤️ 날씨 질문 감지 - 네이버 API 직접 호출');
             try {
                 const weatherResult = await handleWeatherQuery(userMessage);
