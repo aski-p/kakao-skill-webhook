@@ -58,8 +58,36 @@ class ScheduleManager {
             return this.formatDate(targetDate);
         }
         
+        // 요일 처리 (가장 가까운 해당 요일 찾기)
+        const dayNames = {
+            '일요일': 0, '월요일': 1, '화요일': 2, '수요일': 3, 
+            '목요일': 4, '금요일': 5, '토요일': 6,
+            '일': 0, '월': 1, '화': 2, '수': 3, 
+            '목': 4, '금': 5, '토': 6
+        };
+        
+        const targetDay = dayNames[dateStr];
+        if (targetDay !== undefined) {
+            return this.formatDate(this.getNextWeekday(today, targetDay));
+        }
+        
         // 기본값: 오늘
         return this.formatDate(today);
+    }
+
+    // 가장 가까운 해당 요일 찾기
+    getNextWeekday(fromDate, targetDay) {
+        const currentDay = fromDate.getDay();
+        let daysToAdd = targetDay - currentDay;
+        
+        // 오늘이 목표 요일이면 다음 주 같은 요일로
+        if (daysToAdd <= 0) {
+            daysToAdd += 7;
+        }
+        
+        const targetDate = new Date(fromDate);
+        targetDate.setDate(fromDate.getDate() + daysToAdd);
+        return targetDate;
     }
 
     // 날짜 포맷팅 (YYYY-MM-DD)
@@ -191,10 +219,11 @@ class ScheduleManager {
             event: null
         };
 
-        // 날짜 추출
+        // 날짜 추출 (요일 지원 추가)
         const datePatterns = [
             /내일/,
             /모레/,
+            /(일요일|월요일|화요일|수요일|목요일|금요일|토요일|일|월|화|수|목|금|토)(?:요일)?/,
             /(\d{1,2})월\s*(\d{1,2})일/,
             /다음주/,
             /이번주/
@@ -205,6 +234,10 @@ class ScheduleManager {
             if (match) {
                 if (match[0] === '내일') result.date = '내일';
                 else if (match[0] === '모레') result.date = '모레';
+                else if (match[1] && (match[1].includes('요일') || ['일', '월', '화', '수', '목', '금', '토'].includes(match[1]))) {
+                    // 요일 처리
+                    result.date = match[1].replace('요일', '');
+                }
                 else if (match[1] && match[2]) result.date = `${match[1]}월 ${match[2]}일`;
                 else result.date = match[0];
                 break;

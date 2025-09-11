@@ -1626,10 +1626,17 @@ async function handleScheduleQuery(userMessage, userId) {
             } else if (lowerMessage.includes('모레')) {
                 targetDate = '모레';
             } else {
-                // MM월 DD일 형식 검색
-                const dateMatch = userMessage.match(/(\d{1,2})월\s*(\d{1,2})일/);
-                if (dateMatch) {
-                    targetDate = `${dateMatch[1]}월 ${dateMatch[2]}일`;
+                // 요일 검색 (토요일, 일요일, 월요일 등)
+                const dayMatch = userMessage.match(/(일요일|월요일|화요일|수요일|목요일|금요일|토요일|일|월|화|수|목|금|토)(?:요일)?/);
+                if (dayMatch) {
+                    // "요일" 제거하고 요일명만 추출
+                    targetDate = dayMatch[1].replace('요일', '');
+                } else {
+                    // MM월 DD일 형식 검색
+                    const dateMatch = userMessage.match(/(\d{1,2})월\s*(\d{1,2})일/);
+                    if (dateMatch) {
+                        targetDate = `${dateMatch[1]}월 ${dateMatch[2]}일`;
+                    }
                 }
             }
             
