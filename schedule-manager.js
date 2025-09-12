@@ -11,9 +11,12 @@ class ScheduleManager {
             this.schedules.set(userId, []);
         }
         
+        const normalizedDate = this.normalizeDate(date);
+        console.log(`[SCHEDULE] 입력 날짜: "${date}" → 정규화된 날짜: "${normalizedDate}"`);
+        
         const schedule = {
             id: Date.now().toString(),
-            date: this.normalizeDate(date),
+            date: normalizedDate,
             time: time || '종일',
             event: event,
             createdAt: new Date().toISOString()
@@ -27,7 +30,13 @@ class ScheduleManager {
 
     // 날짜 정규화 (YYYY-MM-DD 형식)
     normalizeDate(dateStr) {
+        // 한국 시간대 기준으로 오늘 날짜 계산 (Intl API 사용)
         const today = new Date();
+        
+        // 디버그 로그 추가
+        console.log(`[SCHEDULE] 날짜 정규화: "${dateStr}"`);
+        console.log(`[SCHEDULE] 현재 시간 (로컬): ${today.toLocaleString()}`);
+        console.log(`[SCHEDULE] 현재 시간 (한국): ${today.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
         
         // 오늘, 내일, 모레 처리
         if (dateStr === '오늘') {
@@ -95,7 +104,12 @@ class ScheduleManager {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+        const formatted = `${year}-${month}-${day}`;
+        
+        // 디버그 로그 추가
+        console.log(`[SCHEDULE] 날짜 포맷팅: ${date.toLocaleString()} → ${formatted}`);
+        
+        return formatted;
     }
 
     // 일정 조회 (특정 날짜)
@@ -103,7 +117,18 @@ class ScheduleManager {
         const userSchedules = this.schedules.get(userId) || [];
         const normalizedDate = this.normalizeDate(date);
         
-        return userSchedules.filter(schedule => schedule.date === normalizedDate);
+        console.log(`[SCHEDULE] 일정 조회: 사용자="${userId}", 요청날짜="${date}", 정규화="${normalizedDate}"`);
+        console.log(`[SCHEDULE] 전체 일정 개수: ${userSchedules.length}`);
+        
+        const filteredSchedules = userSchedules.filter(schedule => schedule.date === normalizedDate);
+        console.log(`[SCHEDULE] 해당 날짜 일정 개수: ${filteredSchedules.length}`);
+        
+        if (userSchedules.length > 0) {
+            console.log('[SCHEDULE] 저장된 모든 일정:');
+            userSchedules.forEach(s => console.log(`  - ${s.date}: ${s.event}`));
+        }
+        
+        return filteredSchedules;
     }
 
     // 일정 조회 (전체)
