@@ -136,14 +136,72 @@ async function callClaude(userMessage, userId) {
 
 app.get('/', (req, res) => {
   res.type('html').send(`
-    <h1>카카오 스킬 웹훅 서버</h1>
-    <p>상태: 정상 실행 중</p>
-    <p>현재 한국 시간: ${getKoreanDateTime()}</p>
-    <ul>
-      <li>POST /kakao-skill-webhook</li>
-      <li>GET /health</li>
-      <li>GET /test</li>
-    </ul>
+    <!doctype html>
+    <html lang="ko">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>카카오 스킬 웹훅 서버</title>
+        <style>
+          :root { color-scheme: light dark; }
+          body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #f6f7fb;
+            color: #1f2937;
+          }
+          main {
+            box-sizing: border-box;
+            width: min(100%, 560px);
+            margin: 0 auto;
+            padding: 24px;
+          }
+          .card {
+            border-radius: 20px;
+            padding: 24px;
+            background: #ffffff;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+          }
+          h1 { margin: 0 0 16px; font-size: clamp(1.6rem, 7vw, 2.2rem); }
+          p { line-height: 1.6; }
+          .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #dcfce7;
+            color: #166534;
+            font-weight: 700;
+          }
+          ul { padding-left: 20px; line-height: 1.8; }
+          code { word-break: break-all; }
+          @media (prefers-color-scheme: dark) {
+            body { background: #111827; color: #f9fafb; }
+            .card { background: #1f2937; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35); }
+            .status { background: #064e3b; color: #bbf7d0; }
+          }
+        </style>
+      </head>
+      <body>
+        <main>
+          <section class="card" aria-label="서버 상태">
+            <h1>카카오 스킬 웹훅 서버</h1>
+            <p class="status">✅ 정상 실행 중</p>
+            <p>현재 한국 시간: ${getKoreanDateTime()}</p>
+            <p>모바일 브라우저에서도 상태 페이지가 화면 폭에 맞게 표시됩니다.</p>
+            <ul>
+              <li><code>POST /kakao-skill-webhook</code></li>
+              <li><code>GET /health</code></li>
+              <li><code>GET /test</code></li>
+            </ul>
+          </section>
+        </main>
+      </body>
+    </html>
   `);
 });
 
