@@ -1,13 +1,13 @@
 {
   "name": "kakao-chatbot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "카카오 챗봇 Claude AI 스킬 서버",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node index.js",
-    "test": "echo \"No tests specified\" && exit 0",
-    "build": "echo 'Build complete'"
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --check server.js",
+    "build": "node --check server.js"
   },
   "dependencies": {
     "@playwright/mcp": "^0.0.32",
@@ -20,7 +20,7 @@
     "playwright": "^1.54.1"
   },
   "engines": {
-    "node": ">=16",
+    "node": ">=18",
     "npm": ">=8"
   },
   "repository": {
