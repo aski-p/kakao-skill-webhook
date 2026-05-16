@@ -29,6 +29,7 @@ const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 
 const conversations = new Map();
 const continuations = new Map();
+const dialogueState = new Map();
 
 const KOREA_CITY_COORDS = {
   서울: { name: '서울', latitude: 37.5665, longitude: 126.9780 },
@@ -68,55 +69,14 @@ const KOREA_CITY_COORDS = {
 };
 
 const ROUTE_DEFINITIONS = Object.freeze([
-  {
-    intent: 'continuation',
-    handler: 'state',
-    priority: 100,
-    examples: ['이어보기', '더 보여줘', '계속', '다음 내용'],
-    description: '잘린 카카오 답변을 이어서 보낼 때 쓰는 상태 라우트',
-  },
-  {
-    intent: 'weather',
-    handler: 'weather_api',
-    priority: 90,
-    examples: ['오늘 날씨 알려줘', '노원 날씨', '비 와?', '지금 기온 어때'],
-    description: '날씨와 기온은 검색 결과가 아니라 날씨 API로 확인',
-  },
-  {
-    intent: 'price',
-    handler: 'shopping_price',
-    priority: 85,
-    examples: ['rtx5090 평균 가격 얼마야', '현재 5090 시세', '맥북 최저가', '요즘 그래픽카드 가격'],
-    description: '가격/시세 질문은 쇼핑 검색 후 필터링과 계산을 수행',
-  },
-  {
-    intent: 'smalltalk',
-    handler: 'llm_chat',
-    priority: 80,
-    examples: ['뭐해', '심심해', '그냥 얘기하자', '고마워', '안녕'],
-    description: '일상 대화는 검색 없이 자연스럽게 대화',
-  },
-  {
-    intent: 'news_search',
-    handler: 'news_search_then_llm',
-    priority: 70,
-    examples: ['최신 뉴스 알려줘', '오늘 발표된 내용 찾아줘', '지금 주가 어때', '최근 논란 정리해줘'],
-    description: '최신성 강한 질문은 뉴스 검색 후 요약',
-  },
-  {
-    intent: 'web_lookup',
-    handler: 'web_search_then_llm',
-    priority: 60,
-    examples: ['PPP2R5D에 대해서 알려줘', '인터넷에서 찾아봐', '이 제품 정보 확인해줘', '모르는 용어 검색해줘'],
-    description: '검색이 필요한 지식/고유명사/모델명 질문은 웹 검색 후 요약',
-  },
-  {
-    intent: 'knowledge',
-    handler: 'llm_chat',
-    priority: 10,
-    examples: ['상대성이론 쉽게 설명해줘', '자바스크립트 배열 알려줘', '이 문장 다듬어줘'],
-    description: '최신 확인이 덜 필요한 일반 지식과 대화',
-  },
+  { intent: 'continuation', handler: 'state', priority: 100, examples: ['이어보기', '더 보여줘', '계속', '다음 내용'], description: '잘린 카카오 답변 이어보기' },
+  { intent: 'weather', handler: 'weather_api', priority: 90, examples: ['오늘 날씨 알려줘', '노원 날씨', '비 와?', '지금 기온 어때'], description: '명시적인 날씨 요청만 날씨 API로 처리' },
+  { intent: 'price', handler: 'shopping_price', priority: 85, examples: ['rtx5090 평균 가격 얼마야', '현재 5090 시세', '맥북 최저가'], description: '가격/시세 질문은 쇼핑 검색 후 계산' },
+  { intent: 'relational_chat', handler: 'llm_chat', priority: 83, examples: ['잠이 안 와', '오늘 너무 힘들다', '그냥 술 한잔 중이야', '외롭네'], description: '감정/일상 공유는 도구보다 공감과 대화 흐름 우선' },
+  { intent: 'smalltalk', handler: 'llm_chat', priority: 80, examples: ['뭐해', '심심해', '그냥 얘기하자', '고마워', '안녕'], description: '가벼운 일상 대화' },
+  { intent: 'news_search', handler: 'news_search_then_llm', priority: 70, examples: ['최신 뉴스 알려줘', '오늘 발표된 내용 찾아줘', '최근 논란 정리해줘'], description: '최신성 강한 질문은 뉴스 검색 후 요약' },
+  { intent: 'web_lookup', handler: 'web_search_then_llm', priority: 60, examples: ['PPP2R5D에 대해서 알려줘', '인터넷에서 찾아봐', '이 제품 정보 확인해줘'], description: '검색이 필요한 정보 질문은 웹 검색 후 요약' },
+  { intent: 'knowledge', handler: 'llm_chat', priority: 10, examples: ['상대성이론 쉽게 설명해줘', '이 문장 다듬어줘'], description: '일반 지식과 대화' },
 ]);
 
 app.disable('x-powered-by');
@@ -187,6 +147,14 @@ function getCallbackUrl(body) {
   return body?.userRequest?.callbackUrl || body?.callbackUrl || '';
 }
 
+function getConversation(userId) {
+  return conversations.get(userId) || [];
+}
+
+function getState(userId) {
+  return dialogueState.get(userId) || { lastIntent: 'new', mood: 'neutral', turns: 0, updatedAt: 0 };
+}
+
 function isContinuationRequest(message) {
   return /^(이어보기|더 보기|더보기|계속|다음)$/i.test(message);
 }
@@ -198,16 +166,26 @@ function getContinuationResponse(userId) {
   return kakaoTextResponse(chunks.join('\n\n'), undefined, userId);
 }
 
-function isWeatherQuery(message) {
-  return /날씨|기온|비\s*와|눈\s*와|미세먼지|습도|더워|추워/.test(message);
+function isSmallTalk(message) {
+  return /^(안녕|안녕하세요|하이|ㅎㅇ|고마워|감사|ㅋㅋ+|ㅎㅎ+|응|네|아니|좋아|그래|뭐해|뭐함|심심해|심심하다|졸려|피곤해|배고파|그냥|잡담|수다)$/i.test(message);
+}
+
+function hasRelationalCue(message) {
+  return /잠이?\s*안\s*와|잠\s*안\s*와|못\s*자|불면|심심|외롭|우울|힘들|피곤|짜증|답답|기분|맥주|소주|술|한잔|혼술|그냥|수다|얘기|대화|보고싶|춥네|덥네|더웠|추웠|좋았|별로/.test(message);
+}
+
+function isExplicitWeatherRequest(message) {
+  const compact = message.replace(/\s+/g, '');
+  const hasWeatherWord = /날씨|기온|비\s*와|눈\s*와|미세먼지|습도|강수|온도|더워|추워/.test(message);
+  if (!hasWeatherWord) return false;
+  if (/^(오늘|내일|지금|현재)?[가-힣]{0,8}(날씨|기온|습도|미세먼지)$/.test(compact)) return true;
+  if (/(날씨|기온|습도|미세먼지).*(알려|검색|찾아|확인|조회|어때|어떰|몇|얼마|봐줘|볼래)|(?:알려|검색|찾아|확인|조회).*(날씨|기온|습도|미세먼지)/.test(message)) return true;
+  if (/비\s*와\??$|눈\s*와\??$|더워\??$|추워\??$/.test(message) && message.length <= 16) return true;
+  return false;
 }
 
 function isPriceQuery(message) {
   return /가격|얼마|시세|최저가|평균가|평균 가격|평균가격|구매가|판매가|중고가|견적/.test(message);
-}
-
-function isSmallTalk(message) {
-  return /^(안녕|안녕하세요|하이|ㅎㅇ|고마워|감사|ㅋㅋ+|ㅎㅎ+|응|네|아니|좋아|그래|뭐해|뭐함|심심해|심심하다|졸려|피곤해|배고파|그냥|잡담|수다)$/i.test(message);
 }
 
 function isNewsOrLiveQuery(message) {
@@ -226,7 +204,8 @@ function hasLookupEntity(message) {
   return alphaNumericCode || (productModel && asksAbout);
 }
 
-function routeMessage(message) {
+function routeMessage(message, userId) {
+  const state = getState(userId);
   const candidates = [];
   const add = (intent, confidence, reason) => {
     const definition = ROUTE_DEFINITIONS.find((route) => route.intent === intent);
@@ -234,9 +213,10 @@ function routeMessage(message) {
   };
 
   if (isContinuationRequest(message)) add('continuation', 1, 'continuation keyword');
-  if (isWeatherQuery(message)) add('weather', 0.98, 'weather keyword');
-  if (isPriceQuery(message)) add('price', 0.96, 'price keyword');
-  if (isSmallTalk(message)) add('smalltalk', 0.95, 'smalltalk exact match');
+  if (hasRelationalCue(message)) add('relational_chat', state.lastIntent === 'smalltalk' || state.lastIntent === 'relational_chat' ? 0.97 : 0.9, 'relational cue or emotional disclosure');
+  if (isExplicitWeatherRequest(message) && !(hasRelationalCue(message) && !/(알려|검색|찾아|확인|조회|어때|몇|얼마)/.test(message))) add('weather', 0.96, 'explicit weather request');
+  if (isPriceQuery(message)) add('price', 0.95, 'price keyword');
+  if (isSmallTalk(message)) add('smalltalk', 0.94, 'smalltalk exact match');
   if (isNewsOrLiveQuery(message)) add('news_search', 0.82, 'fresh/live information');
   if (isExplicitSearchQuery(message) || hasLookupEntity(message)) add('web_lookup', 0.74, 'lookup/search intent');
   add('knowledge', 0.45, 'default llm conversation');
@@ -248,12 +228,27 @@ function routeNeedsSearch(route) {
   return ['news_search', 'web_lookup'].includes(route?.intent);
 }
 
+function rememberMessage(userId, role, content, route) {
+  const history = getConversation(userId);
+  history.push({ role, content: trimForKakao(content) });
+  conversations.set(userId, history.slice(-MAX_HISTORY_MESSAGES));
+  if (role === 'assistant' && route) {
+    const previous = getState(userId);
+    dialogueState.set(userId, {
+      lastIntent: route.intent,
+      mood: route.intent === 'relational_chat' ? 'personal' : previous.mood,
+      turns: (previous.turns || 0) + 1,
+      updatedAt: Date.now(),
+    });
+  }
+}
+
 function getWeatherLocation(message) {
   const patterns = [/([가-힣]+(?:시|군|구|동|읍|면|도))\s*날씨/, /날씨\s*([가-힣]+(?:시|군|구|동|읍|면|도))/, /([가-힣]+)\s*날씨/, /날씨\s*([가-힣]+)/];
   for (const pattern of patterns) {
     const match = message.match(pattern);
     if (match?.[1]) {
-      const location = match[1].replace(/날씨|오늘|지금|현재|알려줘|검색|찾아줘/g, '').trim();
+      const location = match[1].replace(/날씨|오늘|내일|지금|현재|알려줘|검색|찾아줘/g, '').trim();
       if (location) return location;
     }
   }
@@ -261,7 +256,7 @@ function getWeatherLocation(message) {
 }
 
 function getSearchQuery(userMessage) {
-  if (isWeatherQuery(userMessage)) return `${getWeatherLocation(userMessage)} 날씨`;
+  if (isExplicitWeatherRequest(userMessage)) return `${getWeatherLocation(userMessage)} 날씨`;
   return normalizeText(userMessage)
     .replace(/검색해서|검색해|검색|찾아서|찾아줘|찾아봐|알아봐|알려줘|대해서|관련해서|정보|최신으로|최신|오늘|지금|현재/g, ' ')
     .replace(/\s+/g, ' ')
@@ -281,29 +276,15 @@ function getShoppingQuery(userMessage) {
   return cleaned || userMessage;
 }
 
-function getConversation(userId) {
-  return conversations.get(userId) || [];
-}
-
-function rememberMessage(userId, role, content) {
-  const history = getConversation(userId);
-  history.push({ role, content: trimForKakao(content) });
-  conversations.set(userId, history.slice(-MAX_HISTORY_MESSAGES));
-}
-
 function getNaverSearchUrl(query) {
   return `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`;
 }
 
 function getQuickReplies(userMessage, searchResults, route) {
   const replies = [];
-  if (route?.intent === 'weather') {
-    replies.push({ label: '네이버 날씨 보기', action: 'webLink', webLinkUrl: getNaverSearchUrl(`${getWeatherLocation(userMessage)} 날씨`) });
-  }
+  if (route?.intent === 'weather') replies.push({ label: '네이버 날씨 보기', action: 'webLink', webLinkUrl: getNaverSearchUrl(`${getWeatherLocation(userMessage)} 날씨`) });
   const firstResult = Array.isArray(searchResults) ? searchResults.find((item) => item.link) : null;
-  if (firstResult) {
-    replies.push({ label: route?.intent === 'price' ? '쇼핑결과 보기' : '검색결과 보기', action: 'webLink', webLinkUrl: firstResult.link });
-  }
+  if (firstResult) replies.push({ label: route?.intent === 'price' ? '쇼핑결과 보기' : '검색결과 보기', action: 'webLink', webLinkUrl: firstResult.link });
   return replies.length > 0 ? replies : undefined;
 }
 
@@ -345,13 +326,10 @@ async function getWeatherAnswer(userMessage) {
   const current = response.data?.current || {};
   const daily = response.data?.daily || {};
   const weather = getWeatherDescription(current.weather_code);
-  const rainChance = daily.precipitation_probability_max?.[0];
-  const maxTemp = daily.temperature_2m_max?.[0];
-  const minTemp = daily.temperature_2m_min?.[0];
   return [
     `${location.name || requestedLocation} 기준 현재 날씨야.`,
     `지금 ${current.temperature_2m}°C, 체감 ${current.apparent_temperature}°C, ${weather}이야.`,
-    `오늘 최저/최고는 ${minTemp}°C / ${maxTemp}°C 정도고, 강수확률은 ${rainChance ?? '확인 필요'}%야.`,
+    `오늘 최저/최고는 ${daily.temperature_2m_min?.[0]}°C / ${daily.temperature_2m_max?.[0]}°C 정도고, 강수확률은 ${daily.precipitation_probability_max?.[0] ?? '확인 필요'}%야.`,
     `습도는 ${current.relative_humidity_2m}%, 바람은 ${current.wind_speed_10m}km/h 정도야.`,
     '위치가 다르면 “강남 날씨”, “부산 날씨”처럼 지역명 붙여서 물어봐.',
   ].join('\n');
@@ -405,22 +383,18 @@ async function searchNaverShopping(userMessage) {
 
 function buildShoppingPriceAnswer(userMessage, shoppingResults) {
   const query = getShoppingQuery(userMessage);
-  if (!Array.isArray(shoppingResults) || shoppingResults.length === 0) {
-    return `${query} 가격은 쇼핑 검색에서 본품으로 보이는 상품을 못 찾았어. 모형/케이블 같은 부속품은 제외하고 보려다 보니 결과가 너무 적네. 모델명을 더 정확히 적어서 다시 물어봐.`;
-  }
+  if (!Array.isArray(shoppingResults) || shoppingResults.length === 0) return `${query} 가격은 쇼핑 검색에서 본품으로 보이는 상품을 못 찾았어. 모델명을 더 정확히 적어서 다시 물어봐.`;
   const sortedItems = [...shoppingResults].sort((a, b) => a.lprice - b.lprice);
   const prices = sortedItems.map((item) => item.lprice);
   const trimmedPrices = getTrimmedPrices(prices);
   const average = trimmedPrices.reduce((sum, price) => sum + price, 0) / trimmedPrices.length;
   const median = getMedian(prices);
-  const min = prices[0];
-  const max = prices[prices.length - 1];
   const topItems = sortedItems.slice(0, 3).map((item, index) => `${index + 1}. ${formatWon(item.lprice)} - ${item.title}${item.mallName ? ` (${item.mallName})` : ''}`);
   const averageLabel = trimmedPrices.length === prices.length ? '평균' : '이상치 제외 평균';
   return [
     `${query} 현재 쇼핑 검색 기준으로 본품만 추려서 계산해봤어.`,
     `확인한 상품 ${prices.length}개 기준 ${averageLabel}은 약 ${formatWon(average)}야.`,
-    `중앙값은 약 ${formatWon(median)}, 가격 범위는 ${formatWon(min)}~${formatWon(max)} 정도로 보여.`,
+    `중앙값은 약 ${formatWon(median)}, 가격 범위는 ${formatWon(prices[0])}~${formatWon(prices[prices.length - 1])} 정도로 보여.`,
     '낮은 가격순으로 보면:',
     ...topItems,
     '재고/배송비/카드할인에 따라 실구매가는 달라질 수 있어.',
@@ -454,9 +428,9 @@ function buildSearchFallbackAnswer(userMessage, searchResults) {
   if (!Array.isArray(searchResults) || searchResults.length === 0) return '인터넷 검색 결과를 못 찾았어. 검색어를 조금 더 구체적으로 보내주면 다시 찾아볼게.';
   const query = getSearchQuery(userMessage);
   const first = searchResults[0];
-  const lines = [`${query}로 찾아본 결과를 보면, 제일 관련 있어 보이는 건 “${first.title}”야.`];
+  const lines = [`${query}로 찾아본 결과 중 제일 가까운 건 “${first.title}”야.`];
   if (first.description) lines.push(first.description);
-  lines.push('다만 지금은 AI 요약 응답이 늦어서 검색 결과 중심으로만 짧게 줄게.');
+  lines.push('AI 요약이 늦어서 일단 핵심 검색 결과만 짧게 줄게.');
   searchResults.slice(0, 3).forEach((item, index) => {
     lines.push(`${index + 1}. ${item.title}`);
     if (item.link) lines.push(item.link);
@@ -464,20 +438,20 @@ function buildSearchFallbackAnswer(userMessage, searchResults) {
   return lines.join('\n');
 }
 
-function buildSystemPrompt(searchResults, route) {
+function buildSystemPrompt(searchResults, route, state) {
   const routeText = route ? `${route.intent} / ${route.handler} / confidence ${route.confidence}` : 'unknown';
   const prompt = [
     '너는 카카오톡 챗봇에 연결된 친근한 한국어 AI 친구야.',
     '모든 대화는 반드시 자연스러운 반말로 해. 존댓말, ~요, ~습니다 말투는 쓰지 마.',
-    '사용자가 그냥 잡담하면 검색하지 말고 편하게 대화해.',
-    '이전 대화 맥락을 자연스럽게 이어서 답해.',
-    '카카오톡에서 바로 읽기 좋게 짧고 실용적으로 답해.',
-    '제목, 표, 긴 마크다운 구분선은 쓰지 마.',
-    '검색 결과가 제공되면 그대로 나열하지 말고, 먼저 한 번 해석해서 사용자가 실제로 물은 핵심에 맞게 답해.',
-    '검색 결과가 질문과 어긋나면 억지로 답하지 말고, 검색 결과가 빗나간 것 같다고 말해.',
-    '실시간 검색, 날씨, 주가처럼 외부 확인이 필요한 내용은 확정해서 꾸며내지 말고 확인 기준을 짧게 밝혀.',
+    '사람처럼 대화하되 과장된 연기, 장황한 조언, 상담사 말투는 피하고 짧게 받아쳐.',
+    '일상 공유나 감정 표현에는 먼저 한 문장으로 공감하고, 이어서 자연스러운 질문이나 가벼운 반응을 해.',
+    '사용자가 도구 실행을 명확히 요청하지 않으면 검색/날씨/가격 도구를 쓴 티를 내지 마.',
+    '사용자가 “날씨 더웠지”, “잠이 안 와”처럼 소재를 던진 거면 정보 조회가 아니라 대화로 받아.',
+    '검색 결과가 제공될 때만 출처 기반으로 답하고, 그대로 나열하지 말고 핵심에 맞게 해석해.',
+    '카카오톡에서 읽기 좋게 1~4문장 위주로 답해. 필요한 정보 질문일 때만 목록을 써.',
     `현재 한국 시간은 ${getKoreanDateTime()}야.`,
     `라우터 판단: ${routeText}`,
+    `최근 대화 상태: lastIntent=${state?.lastIntent || 'none'}, mood=${state?.mood || 'neutral'}, turns=${state?.turns || 0}`,
   ];
   const searchContext = formatSearchContext(searchResults);
   if (searchContext) prompt.push(`네이버 검색 결과:\n${searchContext}`);
@@ -491,7 +465,13 @@ function buildClaudeMessages(userMessage, userId) {
 
 async function callClaude(userMessage, userId, searchResults = [], route) {
   if (!CLAUDE_API_KEY) return 'Claude API 키가 아직 설정 안 됐어. Railway Variables에 CLAUDE_API_KEY를 넣으면 AI 대화가 켜져.';
-  const payload = { model: CLAUDE_MODEL, max_tokens: 900, temperature: 0.7, system: buildSystemPrompt(searchResults, route), messages: buildClaudeMessages(userMessage, userId) };
+  const payload = {
+    model: CLAUDE_MODEL,
+    max_tokens: route?.intent === 'relational_chat' || route?.intent === 'smalltalk' ? 260 : 900,
+    temperature: routeNeedsSearch(route) ? 0.35 : 0.85,
+    system: buildSystemPrompt(searchResults, route, getState(userId)),
+    messages: buildClaudeMessages(userMessage, userId),
+  };
   const response = await axios.post(CLAUDE_API_URL, payload, {
     headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_API_KEY, 'anthropic-version': '2023-06-01' },
     timeout: CLAUDE_TIMEOUT_MS,
@@ -500,7 +480,7 @@ async function callClaude(userMessage, userId, searchResults = [], route) {
 }
 
 async function buildAnswer(userMessage, userId) {
-  const route = routeMessage(userMessage);
+  const route = routeMessage(userMessage, userId);
 
   if (route.intent === 'price') {
     try {
@@ -542,7 +522,7 @@ async function sendCallback(callbackUrl, userMessage, userId) {
     const { answer, searchResults, route } = await buildAnswer(userMessage, userId);
     const quickReplies = getQuickReplies(userMessage, searchResults, route);
     rememberMessage(userId, 'user', userMessage);
-    rememberMessage(userId, 'assistant', answer);
+    rememberMessage(userId, 'assistant', answer, route);
     await axios.post(callbackUrl, kakaoTextResponse(answer, quickReplies, userId), { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
   } catch (error) {
     console.error('[kakao] callback failed:', { message: error.message, code: error.code, status: error.response?.status });
@@ -554,12 +534,7 @@ app.get('/', (req, res) => {
     <h1>카카오 스킬 웹훅 서버</h1>
     <p>상태: 정상 실행 중</p>
     <p>현재 한국 시간: ${getKoreanDateTime()}</p>
-    <ul>
-      <li>POST /kakao-skill-webhook</li>
-      <li>GET /health</li>
-      <li>GET /test</li>
-      <li>GET /routes</li>
-    </ul>
+    <ul><li>POST /kakao-skill-webhook</li><li>GET /health</li><li>GET /test</li><li>GET /routes</li></ul>
   `);
 });
 
@@ -580,6 +555,7 @@ app.get('/health', (req, res) => {
       shoppingSearch: Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET),
       weatherTimeoutMs: WEATHER_TIMEOUT_MS,
       routes: ROUTE_DEFINITIONS.length,
+      dialogueStates: dialogueState.size,
       port: PORT,
     },
   });
@@ -605,13 +581,13 @@ app.post('/kakao-skill-webhook', async (req, res) => {
   try {
     if (callbackUrl) {
       setImmediate(() => sendCallback(callbackUrl, userMessage, userId));
-      return res.json({ version: '2.0', useCallback: true, data: { text: '질문 종류부터 판단하고, 필요하면 검색까지 확인해서 답변 정리하고 있어. 잠깐만 기다려줘.' } });
+      return res.json({ version: '2.0', useCallback: true, data: { text: '맥락까지 보고 답 정리하고 있어. 잠깐만 기다려줘.' } });
     }
 
     const { answer, searchResults, route } = await buildAnswer(userMessage, userId);
     const quickReplies = getQuickReplies(userMessage, searchResults, route);
     rememberMessage(userId, 'user', userMessage);
-    rememberMessage(userId, 'assistant', answer);
+    rememberMessage(userId, 'assistant', answer, route);
     console.log(`[kakao] ${Date.now() - startedAt}ms route=${route.intent}/${route.handler} search=${searchResults.length} user=${userId} message="${userMessage.slice(0, 80)}"`);
     return res.json(kakaoTextResponse(answer, quickReplies, userId));
   } catch (error) {
