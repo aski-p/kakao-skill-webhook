@@ -81,10 +81,7 @@ function getKoreanDateTime() {
 }
 
 function normalizeText(text) {
-  return String(text || '')
-    .replace(/\r\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  return String(text || '').replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function stripHtml(text) {
@@ -123,10 +120,7 @@ function splitForKakao(text) {
 
 function kakaoTextResponse(text, quickReplies, userId) {
   const chunks = splitForKakao(text);
-  const template = {
-    outputs: chunks.slice(0, MAX_OUTPUTS).map((chunk) => ({ simpleText: { text: chunk } })),
-  };
-
+  const template = { outputs: chunks.slice(0, MAX_OUTPUTS).map((chunk) => ({ simpleText: { text: chunk } })) };
   const replies = Array.isArray(quickReplies) ? [...quickReplies] : [];
   if (chunks.length > MAX_OUTPUTS && userId) {
     continuations.set(userId, chunks.slice(MAX_OUTPUTS));
@@ -154,9 +148,7 @@ function isContinuationRequest(message) {
 
 function getContinuationResponse(userId) {
   const chunks = continuations.get(userId);
-  if (!Array.isArray(chunks) || chunks.length === 0) {
-    return kakaoTextResponse('이어볼 내용이 없어. 새 질문 보내줘.');
-  }
+  if (!Array.isArray(chunks) || chunks.length === 0) return kakaoTextResponse('이어볼 내용이 없어. 새 질문 보내줘.');
   continuations.delete(userId);
   return kakaoTextResponse(chunks.join('\n\n'), undefined, userId);
 }
@@ -174,9 +166,7 @@ function isSmallTalk(message) {
 }
 
 function shouldSearchWeb(message) {
-  if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET || isSmallTalk(message) || isWeatherQuery(message) || isPriceQuery(message)) {
-    return false;
-  }
+  if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET || isSmallTalk(message) || isWeatherQuery(message) || isPriceQuery(message)) return false;
   const explicitSearch = /검색|찾아|찾아봐|알아봐|확인해|최신|최근|실시간|뉴스|기사|속보/.test(message);
   const liveInfo = /주가|환율|일정|순위|발표|업데이트|논란|시장/.test(message);
   const knowledgeLookup = /누구|어디|언제|무엇|뭐야|뭐지|뜻|정보|알려줘|대해서|관련|모르는/.test(message);
@@ -189,12 +179,7 @@ function shouldSearchNews(message) {
 }
 
 function getWeatherLocation(message) {
-  const patterns = [
-    /([가-힣]+(?:시|군|구|동|읍|면|도))\s*날씨/,
-    /날씨\s*([가-힣]+(?:시|군|구|동|읍|면|도))/,
-    /([가-힣]+)\s*날씨/,
-    /날씨\s*([가-힣]+)/,
-  ];
+  const patterns = [/([가-힣]+(?:시|군|구|동|읍|면|도))\s*날씨/, /날씨\s*([가-힣]+(?:시|군|구|동|읍|면|도))/, /([가-힣]+)\s*날씨/, /날씨\s*([가-힣]+)/];
   for (const pattern of patterns) {
     const match = message.match(pattern);
     if (match?.[1]) {
@@ -216,7 +201,8 @@ function getSearchQuery(userMessage) {
 function getShoppingQuery(userMessage) {
   const cleaned = normalizeText(userMessage)
     .replace(/현재|지금|오늘|요즘|평균가|평균 가격|평균가격|가격|얼마야|얼마|시세|최저가|구매가|판매가|중고가|견적|검색|찾아줘|찾아봐|알아봐|알려줘|글카/g, ' ')
-    .replace(/에\s*대해서|대해서|관련해서|정보/g, ' ')
+    .replace(/은|는|이|가|의|에\s*대해서|대해서|관련해서|정보/g, ' ')
+    .replace(/[?？！!,.]/g, ' ')
     .replace(/([A-Za-z]+)(\d+)/g, '$1 $2')
     .replace(/\s+/g, ' ')
     .trim();
@@ -267,7 +253,6 @@ async function resolveWeatherLocation(location) {
   const compact = location.replace(/특별시|광역시|시|군|구|동|읍|면|도/g, '').trim();
   if (KOREA_CITY_COORDS[location]) return KOREA_CITY_COORDS[location];
   if (KOREA_CITY_COORDS[compact]) return KOREA_CITY_COORDS[compact];
-
   const response = await axios.get(OPEN_METEO_GEOCODING_URL, {
     params: { name: location, count: 1, language: 'ko', format: 'json', countryCode: 'KR' },
     timeout: WEATHER_TIMEOUT_MS,
@@ -291,14 +276,12 @@ async function getWeatherAnswer(userMessage) {
     },
     timeout: WEATHER_TIMEOUT_MS,
   });
-
   const current = response.data?.current || {};
   const daily = response.data?.daily || {};
   const weather = getWeatherDescription(current.weather_code);
   const rainChance = daily.precipitation_probability_max?.[0];
   const maxTemp = daily.temperature_2m_max?.[0];
   const minTemp = daily.temperature_2m_min?.[0];
-
   return [
     `${location.name || requestedLocation} 기준 현재 날씨야.`,
     `지금 ${current.temperature_2m}°C, 체감 ${current.apparent_temperature}°C, ${weather}이야.`,
@@ -318,12 +301,27 @@ function getMedian(values) {
   return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
+function getTrimmedPrices(prices) {
+  if (prices.length < 5) return prices;
+  const sorted = [...prices].sort((a, b) => a - b);
+  return sorted.slice(1, -1);
+}
+
 function isRelevantShoppingItem(query, item) {
   const q = query.toLowerCase().replace(/\s+/g, '');
   const title = item.title.toLowerCase().replace(/\s+/g, '');
+  const rawTitle = item.title.toLowerCase();
   const modelNumbers = q.match(/\d{3,5}/g) || [];
   if (!modelNumbers.every((number) => title.includes(number))) return false;
-  if (/5090/.test(q)) return /rtx|geforce|지포스|그래픽|vga|gpu/.test(title);
+
+  if (/5090/.test(q)) {
+    const accessoryWords = /케이블|cable|라이저|riser|브라켓|bracket|수냉|워터블럭|water\s*block|백플레이트|쿨러|fan|팬|방열판|히트싱크|거치대|스탠드|지지대|홀더|커버|필통|수납함|모형|피규어|스티커|패드|adapter|어댑터|변환|연장|익스텐션|호환|부품|부속|박스|중고박스|메인보드|파워|케이스/;
+    const gpuWords = /rtx|geforce|지포스|그래픽카드|그래픽 카드|vga|gpu/;
+    if (accessoryWords.test(rawTitle)) return false;
+    if (!gpuWords.test(rawTitle)) return false;
+    if (item.lprice < 2500000) return false;
+  }
+
   return true;
 }
 
@@ -331,11 +329,10 @@ async function searchNaverShopping(userMessage) {
   if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET || !isPriceQuery(userMessage)) return [];
   const query = getShoppingQuery(userMessage);
   const response = await axios.get(NAVER_SHOPPING_SEARCH_URL, {
-    params: { query, display: 10, sort: 'sim' },
+    params: { query, display: 20, sort: 'sim' },
     headers: { 'X-Naver-Client-Id': NAVER_CLIENT_ID, 'X-Naver-Client-Secret': NAVER_CLIENT_SECRET },
     timeout: NAVER_SEARCH_TIMEOUT_MS,
   });
-
   return (response.data?.items || [])
     .map((item) => ({
       title: stripHtml(item.title),
@@ -351,24 +348,26 @@ async function searchNaverShopping(userMessage) {
 function buildShoppingPriceAnswer(userMessage, shoppingResults) {
   const query = getShoppingQuery(userMessage);
   if (!Array.isArray(shoppingResults) || shoppingResults.length === 0) {
-    return `${query} 가격은 쇼핑 검색에서 딱 맞는 상품을 못 찾았어. 모델명을 조금 더 정확히 적어서 다시 물어봐.`;
+    return `${query} 가격은 쇼핑 검색에서 본품으로 보이는 상품을 못 찾았어. 모형/케이블 같은 부속품은 제외하고 보려다 보니 결과가 너무 적네. 모델명을 더 정확히 적어서 다시 물어봐.`;
   }
 
   const sortedItems = [...shoppingResults].sort((a, b) => a.lprice - b.lprice);
   const prices = sortedItems.map((item) => item.lprice);
-  const average = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+  const trimmedPrices = getTrimmedPrices(prices);
+  const average = trimmedPrices.reduce((sum, price) => sum + price, 0) / trimmedPrices.length;
   const median = getMedian(prices);
   const min = prices[0];
   const max = prices[prices.length - 1];
   const topItems = sortedItems.slice(0, 3).map((item, index) => `${index + 1}. ${formatWon(item.lprice)} - ${item.title}${item.mallName ? ` (${item.mallName})` : ''}`);
+  const averageLabel = trimmedPrices.length === prices.length ? '평균' : '이상치 제외 평균';
 
   return [
-    `${query} 현재 쇼핑 검색 기준으로 계산해봤어.`,
-    `확인한 상품 ${prices.length}개 기준 평균은 약 ${formatWon(average)}야.`,
+    `${query} 현재 쇼핑 검색 기준으로 본품만 추려서 계산해봤어.`,
+    `확인한 상품 ${prices.length}개 기준 ${averageLabel}은 약 ${formatWon(average)}야.`,
     `중앙값은 약 ${formatWon(median)}, 가격 범위는 ${formatWon(min)}~${formatWon(max)} 정도로 보여.`,
     '낮은 가격순으로 보면:',
     ...topItems,
-    '정확한 구매가는 재고/배송비/카드할인에 따라 달라질 수 있어.',
+    '재고/배송비/카드할인에 따라 실구매가는 달라질 수 있어.',
   ].join('\n');
 }
 
@@ -396,9 +395,7 @@ function formatSearchContext(searchResults) {
 }
 
 function buildSearchFallbackAnswer(userMessage, searchResults) {
-  if (!Array.isArray(searchResults) || searchResults.length === 0) {
-    return '인터넷 검색 결과를 못 찾았어. 검색어를 조금 더 구체적으로 보내주면 다시 찾아볼게.';
-  }
+  if (!Array.isArray(searchResults) || searchResults.length === 0) return '인터넷 검색 결과를 못 찾았어. 검색어를 조금 더 구체적으로 보내주면 다시 찾아볼게.';
   const query = getSearchQuery(userMessage);
   const lines = [`“${query}”로 인터넷에서 찾아본 결과야.`];
   searchResults.slice(0, 3).forEach((item, index) => {
@@ -419,7 +416,7 @@ function buildSystemPrompt(searchResults) {
     '카카오톡에서 바로 읽기 좋게 짧고 실용적으로 답해.',
     '제목, 표, 긴 마크다운 구분선은 쓰지 마.',
     '실시간 검색, 날씨, 주가처럼 외부 확인이 필요한 내용은 확정해서 꾸며내지 말고 확인이 필요하다고 말해.',
-    '검색 결과가 제공되면 그 내용을 우선해서 답하고, 핵심 출처명이나 링크 번호를 짧게 말해.',
+    '검색 결과가 제공되면 그대로 나열만 하지 말고, 먼저 한 번 해석해서 사용자가 물은 핵심에 맞게 답해.',
     `현재 한국 시간은 ${getKoreanDateTime()}야.`,
   ];
   const searchContext = formatSearchContext(searchResults);
@@ -429,10 +426,7 @@ function buildSystemPrompt(searchResults) {
 
 function buildClaudeMessages(userMessage, userId) {
   const history = getConversation(userId).slice(-MAX_HISTORY_MESSAGES);
-  return [
-    ...history.map((message) => ({ role: message.role, content: message.content })),
-    { role: 'user', content: userMessage },
-  ];
+  return [...history.map((message) => ({ role: message.role, content: message.content })), { role: 'user', content: userMessage }];
 }
 
 async function callClaude(userMessage, userId, searchResults = []) {
@@ -473,9 +467,7 @@ async function buildAnswer(userMessage, userId, options = {}) {
     console.error('[search] naver failed:', { message: error.message, code: error.code, status: error.response?.status });
   }
 
-  if (options.preferFastSearch && searchResults.length > 0) {
-    return { answer: buildSearchFallbackAnswer(userMessage, searchResults), searchResults };
-  }
+  if (options.preferFastSearch && searchResults.length > 0) return { answer: buildSearchFallbackAnswer(userMessage, searchResults), searchResults };
 
   try {
     return { answer: await callClaude(userMessage, userId, searchResults), searchResults };
@@ -532,7 +524,7 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/test', (req, res) => {
-  res.json(kakaoTextResponse('테스트 성공! 카카오 스킬 응답 형식 정상이어.'));
+  res.json(kakaoTextResponse('테스트 성공! 카카오 스킬 응답 형식 정상이야.'));
 });
 
 app.post('/kakao-skill-webhook', async (req, res) => {
@@ -554,7 +546,6 @@ app.post('/kakao-skill-webhook', async (req, res) => {
     const quickReplies = getQuickReplies(userMessage, searchResults);
     rememberMessage(userId, 'user', userMessage);
     rememberMessage(userId, 'assistant', answer);
-
     console.log(`[kakao] ${Date.now() - startedAt}ms user=${userId} search=${searchResults.length} message="${userMessage.slice(0, 80)}"`);
     return res.json(kakaoTextResponse(answer, quickReplies, userId));
   } catch (error) {
