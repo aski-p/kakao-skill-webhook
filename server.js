@@ -76,7 +76,7 @@ function stripHtml(text) {
 function trimForKakao(text) {
   const normalized = normalizeText(text);
   if (!normalized) {
-    return '안녕하세요! 무엇을 도와드릴까요?';
+    return '안녕! 뭐 도와줄까?';
   }
 
   if (normalized.length <= MAX_RESPONSE_LENGTH) {
@@ -89,7 +89,7 @@ function trimForKakao(text) {
 function splitForKakao(text) {
   const normalized = normalizeText(text);
   if (!normalized) {
-    return ['안녕하세요! 무엇을 도와드릴까요?'];
+    return ['안녕! 뭐 도와줄까?'];
   }
 
   const chunks = [];
@@ -165,7 +165,7 @@ function isContinuationRequest(message) {
 function getContinuationResponse(userId) {
   const chunks = continuations.get(userId);
   if (!Array.isArray(chunks) || chunks.length === 0) {
-    return kakaoTextResponse('이어볼 내용이 없어요. 새 질문을 보내주세요.');
+    return kakaoTextResponse('이어볼 내용이 없어. 새 질문 보내줘.');
   }
 
   const text = chunks.join('\n\n');
@@ -178,7 +178,7 @@ function isWeatherQuery(message) {
 }
 
 function isSmallTalk(message) {
-  return /^(안녕|안녕하세요|하이|고마워|감사|ㅋㅋ+|ㅎㅎ+|응|네|아니|좋아|그래)$/i.test(message);
+  return /^(안녕|안녕하세요|하이|ㅎㅇ|고마워|감사|ㅋㅋ+|ㅎㅎ+|응|네|아니|좋아|그래|뭐해|뭐함|심심해|심심하다|졸려|피곤해|배고파|그냥|잡담|수다)$/i.test(message);
 }
 
 function shouldSearchWeb(message) {
@@ -186,7 +186,11 @@ function shouldSearchWeb(message) {
     return false;
   }
 
-  return /검색|찾아|찾아봐|알아봐|최신|최근|오늘|지금|현재|실시간|뉴스|기사|가격|주가|환율|일정|순위|누구|어디|언제|무엇|뭐야|뭐지|뜻|정보|알려줘|대해서|관련|모르는|확인/.test(message);
+  const explicitSearch = /검색|찾아|찾아봐|알아봐|확인해|최신|최근|실시간|뉴스|기사|속보/.test(message);
+  const liveInfo = /가격|주가|환율|일정|순위|발표|업데이트|논란|시장/.test(message);
+  const knowledgeLookup = /누구|어디|언제|무엇|뭐야|뭐지|뜻|정보|알려줘|대해서|관련|모르는/.test(message);
+
+  return explicitSearch || liveInfo || knowledgeLookup;
 }
 
 function shouldSearchNews(message) {
@@ -333,11 +337,11 @@ async function getWeatherAnswer(userMessage) {
   const minTemp = daily.temperature_2m_min?.[0];
 
   return [
-    `${name} 기준 현재 날씨예요.`,
-    `현재 ${current.temperature_2m}°C, 체감 ${current.apparent_temperature}°C, ${weather}입니다.`,
-    `오늘 최저/최고는 ${minTemp}°C / ${maxTemp}°C 정도이고, 강수확률은 ${rainChance ?? '확인 필요'}%예요.`,
-    `습도는 ${current.relative_humidity_2m}%, 바람은 ${current.wind_speed_10m}km/h 정도입니다.`,
-    '위치가 다르면 “강남 날씨”, “부산 날씨”처럼 지역명을 붙여서 물어봐 주세요.',
+    `${name} 기준 현재 날씨야.`,
+    `지금 ${current.temperature_2m}°C, 체감 ${current.apparent_temperature}°C, ${weather}이야.`,
+    `오늘 최저/최고는 ${minTemp}°C / ${maxTemp}°C 정도고, 강수확률은 ${rainChance ?? '확인 필요'}%야.`,
+    `습도는 ${current.relative_humidity_2m}%, 바람은 ${current.wind_speed_10m}km/h 정도야.`,
+    '위치가 다르면 “강남 날씨”, “부산 날씨”처럼 지역명 붙여서 물어봐.',
   ].join('\n');
 }
 
@@ -388,11 +392,11 @@ function formatSearchContext(searchResults) {
 
 function buildSearchFallbackAnswer(userMessage, searchResults) {
   if (!Array.isArray(searchResults) || searchResults.length === 0) {
-    return '인터넷 검색 결과를 찾지 못했어요. 검색어를 조금 더 구체적으로 보내주시면 다시 찾아볼게요.';
+    return '인터넷 검색 결과를 못 찾았어. 검색어를 조금 더 구체적으로 보내주면 다시 찾아볼게.';
   }
 
   const query = getSearchQuery(userMessage);
-  const lines = [`“${query}”로 인터넷에서 찾아본 결과예요.`];
+  const lines = [`“${query}”로 인터넷에서 찾아본 결과야.`];
   searchResults.slice(0, 3).forEach((item, index) => {
     lines.push(`${index + 1}. ${item.title}`);
     if (item.description) {
@@ -402,22 +406,24 @@ function buildSearchFallbackAnswer(userMessage, searchResults) {
       lines.push(item.link);
     }
   });
-  lines.push('원하면 이 결과를 바탕으로 더 쉽게 요약해달라고 해주세요.');
+  lines.push('원하면 이 결과를 바탕으로 더 쉽게 요약해줄게.');
   return lines.join('\n');
 }
 
 function buildSystemPrompt(searchResults) {
   const prompt = [
-    '당신은 카카오톡 챗봇에 연결된 친근한 한국어 AI 친구입니다.',
-    '이전 대화 맥락을 자연스럽게 이어서 답변하세요.',
-    '답변은 카카오톡에서 바로 읽기 좋게 짧고 실용적으로 작성하세요.',
-    '제목, 표, 긴 마크다운 구분선은 쓰지 마세요.',
-    '사용자가 바로 실행할 수 있는 구체적인 조언을 우선하세요.',
-    '실시간 검색, 날씨, 주가처럼 외부 확인이 필요한 내용은 확정해서 꾸며내지 말고 확인이 필요하다고 말하세요.',
-    '검색 결과가 제공되면 그 내용을 우선해서 답하고, 핵심 출처명이나 링크 번호를 짧게 언급하세요.',
-    '검색 결과가 부족하면 부족하다고 솔직히 말하고 확인 방법을 안내하세요.',
-    '날씨 질문에는 현재 실시간 값을 직접 조회했다고 말하지 말고, 확인 방법이나 판단 기준을 짧게 안내하세요.',
-    `현재 한국 시간은 ${getKoreanDateTime()}입니다.`,
+    '너는 카카오톡 챗봇에 연결된 친근한 한국어 AI 친구야.',
+    '모든 대화는 반드시 자연스러운 반말로 해. 존댓말, ~요, ~습니다 말투는 쓰지 마.',
+    '사용자가 그냥 잡담하면 검색하지 말고 편하게 대화해.',
+    '이전 대화 맥락을 자연스럽게 이어서 답해.',
+    '카카오톡에서 바로 읽기 좋게 짧고 실용적으로 답해.',
+    '제목, 표, 긴 마크다운 구분선은 쓰지 마.',
+    '사용자가 바로 실행할 수 있는 구체적인 조언을 우선해.',
+    '실시간 검색, 날씨, 주가처럼 외부 확인이 필요한 내용은 확정해서 꾸며내지 말고 확인이 필요하다고 말해.',
+    '검색 결과가 제공되면 그 내용을 우선해서 답하고, 핵심 출처명이나 링크 번호를 짧게 말해.',
+    '검색 결과가 부족하면 부족하다고 솔직히 말하고 확인 방법을 알려줘.',
+    '날씨 질문에는 현재 실시간 값을 직접 조회했다고 말하지 말고, 확인 기준을 짧게 안내해.',
+    `현재 한국 시간은 ${getKoreanDateTime()}야.`,
   ];
 
   const searchContext = formatSearchContext(searchResults);
@@ -444,13 +450,13 @@ function buildClaudeMessages(userMessage, userId) {
 
 async function callClaude(userMessage, userId, searchResults = []) {
   if (!CLAUDE_API_KEY) {
-    return 'Claude API 키가 아직 설정되지 않았어요. Railway Variables에 CLAUDE_API_KEY를 추가하면 AI 대화가 활성화됩니다.';
+    return 'Claude API 키가 아직 설정 안 됐어. Railway Variables에 CLAUDE_API_KEY를 넣으면 AI 대화가 켜져.';
   }
 
   const payload = {
     model: CLAUDE_MODEL,
     max_tokens: 900,
-    temperature: 0.6,
+    temperature: 0.7,
     system: buildSystemPrompt(searchResults),
     messages: buildClaudeMessages(userMessage, userId),
   };
@@ -464,7 +470,7 @@ async function callClaude(userMessage, userId, searchResults = []) {
     timeout: CLAUDE_TIMEOUT_MS,
   });
 
-  return response.data?.content?.[0]?.text || '응답을 생성하지 못했습니다. 다시 시도해주세요.';
+  return response.data?.content?.[0]?.text || '응답을 못 만들었어. 다시 한 번만 보내줘.';
 }
 
 async function buildAnswer(userMessage, userId, options = {}) {
@@ -482,7 +488,7 @@ async function buildAnswer(userMessage, userId, options = {}) {
       });
       const query = getSearchQuery(userMessage);
       return {
-        answer: `${query}는 실시간 날씨 화면에서 확인하는 게 가장 정확해요. 아래 “네이버 날씨 보기”를 눌러 확인해 주세요.`,
+        answer: `${query}는 실시간 날씨 화면에서 확인하는 게 제일 정확해. 아래 “네이버 날씨 보기” 눌러서 확인해봐.`,
         searchResults: [],
       };
     }
@@ -579,7 +585,7 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/test', (req, res) => {
-  res.json(kakaoTextResponse('테스트 성공! 카카오 스킬 응답 형식이 정상입니다.'));
+  res.json(kakaoTextResponse('테스트 성공! 카카오 스킬 응답 형식 정상이어.'));
 });
 
 app.post('/kakao-skill-webhook', async (req, res) => {
@@ -589,7 +595,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
   const callbackUrl = getCallbackUrl(req.body);
 
   if (!userMessage) {
-    return res.json(kakaoTextResponse('메시지를 입력해주세요.'));
+    return res.json(kakaoTextResponse('메시지 입력해줘.'));
   }
 
   if (isContinuationRequest(userMessage)) {
@@ -603,7 +609,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
         version: '2.0',
         useCallback: true,
         data: {
-          text: '필요하면 인터넷 검색까지 확인해서 답변을 정리하고 있어요. 잠시만 기다려주세요.',
+          text: '필요하면 인터넷 검색까지 확인해서 답변 정리하고 있어. 잠깐만 기다려줘.',
         },
       });
     }
@@ -625,9 +631,9 @@ app.post('/kakao-skill-webhook', async (req, res) => {
     });
 
     const timeoutMessage =
-      '답변 생성이 평소보다 늦어지고 있어요. 같은 질문을 한 번만 더 보내주시면 이어서 답할게요.';
+      '답변 만드는 게 평소보다 늦어지고 있어. 같은 질문 한 번만 더 보내주면 이어서 답할게.';
     const errorMessage =
-      '지금 AI 응답을 받아오지 못했어요. 잠시 후 다시 보내주시면 바로 이어서 도와드릴게요.';
+      '지금 AI 응답을 못 받아왔어. 잠깐 뒤에 다시 보내주면 바로 이어서 도와줄게.';
 
     return res.json(kakaoTextResponse(error.code === 'ECONNABORTED' ? timeoutMessage : errorMessage));
   }
