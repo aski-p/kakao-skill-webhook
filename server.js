@@ -21,7 +21,7 @@ const MAX_OUTPUTS = Number(process.env.KAKAO_MAX_OUTPUTS || 3);
 const MAX_HISTORY_MESSAGES = Number(process.env.KAKAO_HISTORY_MESSAGES || 8);
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
-const NAVER_SEARCH_TIMEOUT_MS = Number(process.env.NAVER_SEARCH_TIMEOUT_MS || 1800);
+const NAVER_SEARCH_TIMEOUT_MS = Number(process.env.NAVER_SEARCH_TIMEOUT_MS || 1200);
 const NAVER_SEARCH_DISPLAY = Number(process.env.NAVER_SEARCH_DISPLAY || 5);
 const NAVER_WEB_SEARCH_URL = 'https://openapi.naver.com/v1/search/webkr.json';
 const NAVER_NEWS_SEARCH_URL = 'https://openapi.naver.com/v1/search/news.json';
@@ -277,6 +277,25 @@ function formatSearchContext(searchResults) {
     .join('\n\n');
 }
 
+function buildSearchFallbackAnswer(userMessage, searchResults) {
+  if (!Array.isArray(searchResults) || searchResults.length === 0) {
+    return '인터넷 검색 결과를 찾지 못했어요. 검색어를 조금 더 구체적으로 보내주시면 다시 찾아볼게요.';
+  }
+
+  const lines = ['인터넷에서 찾아본 결과예요.'];
+  searchResults.slice(0, 3).forEach((item, index) => {
+    lines.push(`${index + 1}. ${item.title}`);
+    if (item.description) {
+      lines.push(item.description);
+    }
+    if (item.link) {
+      lines.push(item.link);
+    }
+  });
+  lines.push('원하면 이 결과를 바탕으로 더 쉽게 요약해달라고 해주세요.');
+  return lines.join('\n');
+}
+
 function buildSystemPrompt(searchResults) {
   const prompt = [
     '당신은 카카오톡 챗봇에 연결된 친근한 한국어 AI 친구입니다.',
@@ -338,7 +357,7 @@ async function callClaude(userMessage, userId, searchResults = []) {
   return response.data?.content?.[0]?.text || '응답을 생성하지 못했습니다. 다시 시도해주세요.';
 }
 
-async function buildAnswer(userMessage, userId) {
+async function buildAnswer(userMessage, userId, options = {}) {
   let searchResults = [];
 
   try {
@@ -351,11 +370,28 @@ async function buildAnswer(userMessage, userId) {
     });
   }
 
-  const answer = await callClaude(userMessage, userId, searchResults);
-  return {
-    answer,
-    searchResults,
-  };
+  if (options.preferFastSearch && searchResults.length > 0) {
+    return {
+      answer: buildSearchFallbackAnswer(userMessage, searchResults),
+      searchResults,
+    };
+  }
+
+  try {
+    const answer = await callClaude(userMessage, userId, searchResults);
+    return {
+      answer,
+      searchResults,
+    };
+  } catch (error) {
+    if (searchResults.length > 0) {
+      return {
+        answer: buildSearchFallbackAnswer(userMessage, searchResults),
+        searchResults,
+      };
+    }
+    throw error;
+  }
 }
 
 async function sendCallback(callbackUrl, userMessage, userId) {
@@ -441,7 +477,7 @@ app.post('/kakao-skill-webhook', async (req, res) => {
       });
     }
 
-    const { answer, searchResults } = await buildAnswer(userMessage, userId);
+    const { answer, searchResults } = await buildAnswer(userMessage, userId, { preferFastSearch: true });
     const quickReplies = getQuickReplies(userMessage, searchResults);
 
     rememberMessage(userId, 'user', userMessage);
