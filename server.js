@@ -23,11 +23,26 @@ const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 const NAVER_SEARCH_TIMEOUT_MS = Number(process.env.NAVER_SEARCH_TIMEOUT_MS || 1200);
 const NAVER_SEARCH_DISPLAY = Number(process.env.NAVER_SEARCH_DISPLAY || 5);
+const WEATHER_TIMEOUT_MS = Number(process.env.WEATHER_TIMEOUT_MS || 1800);
 const NAVER_WEB_SEARCH_URL = 'https://openapi.naver.com/v1/search/webkr.json';
 const NAVER_NEWS_SEARCH_URL = 'https://openapi.naver.com/v1/search/news.json';
+const OPEN_METEO_GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search';
+const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 
 const conversations = new Map();
 const continuations = new Map();
+
+const KOREA_CITY_COORDS = {
+  서울: { name: '서울', latitude: 37.5665, longitude: 126.9780 },
+  부산: { name: '부산', latitude: 35.1796, longitude: 129.0756 },
+  대구: { name: '대구', latitude: 35.8714, longitude: 128.6014 },
+  인천: { name: '인천', latitude: 37.4563, longitude: 126.7052 },
+  광주: { name: '광주', latitude: 35.1595, longitude: 126.8526 },
+  대전: { name: '대전', latitude: 36.3504, longitude: 127.3845 },
+  울산: { name: '울산', latitude: 35.5384, longitude: 129.3114 },
+  세종: { name: '세종', latitude: 36.4800, longitude: 127.2890 },
+  제주: { name: '제주', latitude: 33.4996, longitude: 126.5312 },
+};
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
@@ -167,15 +182,19 @@ function isSmallTalk(message) {
 }
 
 function shouldSearchWeb(message) {
-  if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET || isSmallTalk(message)) {
+  if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET || isSmallTalk(message) || isWeatherQuery(message)) {
     return false;
   }
 
-  return /검색|찾아|찾아봐|알아봐|최신|최근|오늘|지금|현재|실시간|뉴스|기사|가격|주가|환율|날씨|일정|순위|누구|어디|언제|무엇|뭐야|뭐지|뜻|정보|알려줘|대해서|관련|모르는|확인/.test(message);
+  return /검색|찾아|찾아봐|알아봐|최신|최근|오늘|지금|현재|실시간|뉴스|기사|가격|주가|환율|일정|순위|누구|어디|언제|무엇|뭐야|뭐지|뜻|정보|알려줘|대해서|관련|모르는|확인/.test(message);
 }
 
 function shouldSearchNews(message) {
-  return /뉴스|기사|속보|최근|최신|오늘|현재|논란|발표|업데이트|주가|시장/.test(message);
+  if (isWeatherQuery(message)) {
+    return false;
+  }
+
+  return /뉴스|기사|속보|논란|발표|업데이트|주가|시장/.test(message);
 }
 
 function getWeatherLocation(message) {
@@ -189,11 +208,27 @@ function getWeatherLocation(message) {
   for (const pattern of patterns) {
     const match = message.match(pattern);
     if (match?.[1]) {
-      return match[1].replace(/날씨/g, '').trim();
+      const location = match[1].replace(/날씨|오늘|지금|현재|알려줘|검색|찾아줘/g, '').trim();
+      if (location) {
+        return location;
+      }
     }
   }
 
   return '서울';
+}
+
+function getSearchQuery(userMessage) {
+  if (isWeatherQuery(userMessage)) {
+    return `${getWeatherLocation(userMessage)} 날씨`;
+  }
+
+  const cleaned = normalizeText(userMessage)
+    .replace(/검색해서|검색해|검색|찾아서|찾아줘|찾아봐|알아봐|알려줘|대해서|관련해서|정보|최신으로|최신|오늘|지금|현재/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return cleaned || userMessage;
 }
 
 function getConversation(userId) {
@@ -208,16 +243,18 @@ function rememberMessage(userId, role, content) {
   conversations.set(userId, trimmed);
 }
 
+function getNaverSearchUrl(query) {
+  return `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`;
+}
+
 function getQuickReplies(userMessage, searchResults) {
   const replies = [];
 
   if (isWeatherQuery(userMessage)) {
-    const location = getWeatherLocation(userMessage);
-    const query = encodeURIComponent(`${location} 날씨`);
     replies.push({
       label: '네이버 날씨 보기',
       action: 'webLink',
-      webLinkUrl: `https://search.naver.com/search.naver?query=${query}`,
+      webLinkUrl: getNaverSearchUrl(`${getWeatherLocation(userMessage)} 날씨`),
     });
   }
 
@@ -233,15 +270,87 @@ function getQuickReplies(userMessage, searchResults) {
   return replies.length > 0 ? replies : undefined;
 }
 
+function getWeatherDescription(code) {
+  if ([0].includes(code)) return '맑음';
+  if ([1, 2, 3].includes(code)) return '구름 조금/흐림';
+  if ([45, 48].includes(code)) return '안개';
+  if ([51, 53, 55, 56, 57].includes(code)) return '이슬비';
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return '비';
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return '눈';
+  if ([95, 96, 99].includes(code)) return '뇌우';
+  return '확인 필요';
+}
+
+async function resolveWeatherLocation(location) {
+  const compact = location.replace(/특별시|광역시|시|군|구|동|읍|면|도/g, '').trim();
+  if (KOREA_CITY_COORDS[location]) return KOREA_CITY_COORDS[location];
+  if (KOREA_CITY_COORDS[compact]) return KOREA_CITY_COORDS[compact];
+
+  const response = await axios.get(OPEN_METEO_GEOCODING_URL, {
+    params: {
+      name: location,
+      count: 1,
+      language: 'ko',
+      format: 'json',
+      countryCode: 'KR',
+    },
+    timeout: WEATHER_TIMEOUT_MS,
+  });
+
+  const result = response.data?.results?.[0];
+  if (!result) {
+    return KOREA_CITY_COORDS.서울;
+  }
+
+  return {
+    name: result.name || location,
+    latitude: result.latitude,
+    longitude: result.longitude,
+  };
+}
+
+async function getWeatherAnswer(userMessage) {
+  const requestedLocation = getWeatherLocation(userMessage);
+  const location = await resolveWeatherLocation(requestedLocation);
+  const response = await axios.get(OPEN_METEO_FORECAST_URL, {
+    params: {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      timezone: 'Asia/Seoul',
+      forecast_days: 1,
+      current: 'temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m',
+      daily: 'temperature_2m_max,temperature_2m_min,precipitation_probability_max',
+    },
+    timeout: WEATHER_TIMEOUT_MS,
+  });
+
+  const current = response.data?.current || {};
+  const daily = response.data?.daily || {};
+  const name = location.name || requestedLocation;
+  const weather = getWeatherDescription(current.weather_code);
+  const rainChance = daily.precipitation_probability_max?.[0];
+  const maxTemp = daily.temperature_2m_max?.[0];
+  const minTemp = daily.temperature_2m_min?.[0];
+
+  return [
+    `${name} 기준 현재 날씨예요.`,
+    `현재 ${current.temperature_2m}°C, 체감 ${current.apparent_temperature}°C, ${weather}입니다.`,
+    `오늘 최저/최고는 ${minTemp}°C / ${maxTemp}°C 정도이고, 강수확률은 ${rainChance ?? '확인 필요'}%예요.`,
+    `습도는 ${current.relative_humidity_2m}%, 바람은 ${current.wind_speed_10m}km/h 정도입니다.`,
+    '위치가 다르면 “강남 날씨”, “부산 날씨”처럼 지역명을 붙여서 물어봐 주세요.',
+  ].join('\n');
+}
+
 async function searchNaver(userMessage) {
   if (!shouldSearchWeb(userMessage)) {
     return [];
   }
 
+  const query = getSearchQuery(userMessage);
   const url = shouldSearchNews(userMessage) ? NAVER_NEWS_SEARCH_URL : NAVER_WEB_SEARCH_URL;
   const response = await axios.get(url, {
     params: {
-      query: userMessage,
+      query,
       display: Math.min(Math.max(NAVER_SEARCH_DISPLAY, 1), 10),
       sort: shouldSearchNews(userMessage) ? 'date' : 'sim',
     },
@@ -282,7 +391,8 @@ function buildSearchFallbackAnswer(userMessage, searchResults) {
     return '인터넷 검색 결과를 찾지 못했어요. 검색어를 조금 더 구체적으로 보내주시면 다시 찾아볼게요.';
   }
 
-  const lines = ['인터넷에서 찾아본 결과예요.'];
+  const query = getSearchQuery(userMessage);
+  const lines = [`“${query}”로 인터넷에서 찾아본 결과예요.`];
   searchResults.slice(0, 3).forEach((item, index) => {
     lines.push(`${index + 1}. ${item.title}`);
     if (item.description) {
@@ -358,6 +468,26 @@ async function callClaude(userMessage, userId, searchResults = []) {
 }
 
 async function buildAnswer(userMessage, userId, options = {}) {
+  if (isWeatherQuery(userMessage)) {
+    try {
+      return {
+        answer: await getWeatherAnswer(userMessage),
+        searchResults: [],
+      };
+    } catch (error) {
+      console.error('[weather] lookup failed:', {
+        message: error.message,
+        code: error.code,
+        status: error.response?.status,
+      });
+      const query = getSearchQuery(userMessage);
+      return {
+        answer: `${query}는 실시간 날씨 화면에서 확인하는 게 가장 정확해요. 아래 “네이버 날씨 보기”를 눌러 확인해 주세요.`,
+        searchResults: [],
+      };
+    }
+  }
+
   let searchResults = [];
 
   try {
@@ -442,6 +572,7 @@ app.get('/health', (req, res) => {
       maxOutputs: MAX_OUTPUTS,
       naverApi: Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET),
       naverSearchDisplay: NAVER_SEARCH_DISPLAY,
+      weatherTimeoutMs: WEATHER_TIMEOUT_MS,
       port: PORT,
     },
   });
