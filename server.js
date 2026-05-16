@@ -11,9 +11,7 @@ const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const DEFAULT_CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 const RETIRED_CLAUDE_MODELS = new Set(['claude-3-5-sonnet-20240620', 'claude-3-5-haiku-20241022']);
 const configuredClaudeModel = process.env.CLAUDE_MODEL;
-const CLAUDE_MODEL = configuredClaudeModel && !RETIRED_CLAUDE_MODELS.has(configuredClaudeModel)
-  ? configuredClaudeModel
-  : DEFAULT_CLAUDE_MODEL;
+const CLAUDE_MODEL = configuredClaudeModel && !RETIRED_CLAUDE_MODELS.has(configuredClaudeModel) ? configuredClaudeModel : DEFAULT_CLAUDE_MODEL;
 const CLAUDE_TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS || 3800);
 const MAX_RESPONSE_LENGTH = Number(process.env.KAKAO_MAX_RESPONSE_LENGTH || 1000);
 const MAX_OUTPUTS = Number(process.env.KAKAO_MAX_OUTPUTS || 3);
@@ -69,15 +67,63 @@ const KOREA_CITY_COORDS = {
   중랑: { name: '서울 중랑구', latitude: 37.6063, longitude: 127.0925 },
 };
 
+const ROUTE_DEFINITIONS = Object.freeze([
+  {
+    intent: 'continuation',
+    handler: 'state',
+    priority: 100,
+    examples: ['이어보기', '더 보여줘', '계속', '다음 내용'],
+    description: '잘린 카카오 답변을 이어서 보낼 때 쓰는 상태 라우트',
+  },
+  {
+    intent: 'weather',
+    handler: 'weather_api',
+    priority: 90,
+    examples: ['오늘 날씨 알려줘', '노원 날씨', '비 와?', '지금 기온 어때'],
+    description: '날씨와 기온은 검색 결과가 아니라 날씨 API로 확인',
+  },
+  {
+    intent: 'price',
+    handler: 'shopping_price',
+    priority: 85,
+    examples: ['rtx5090 평균 가격 얼마야', '현재 5090 시세', '맥북 최저가', '요즘 그래픽카드 가격'],
+    description: '가격/시세 질문은 쇼핑 검색 후 필터링과 계산을 수행',
+  },
+  {
+    intent: 'smalltalk',
+    handler: 'llm_chat',
+    priority: 80,
+    examples: ['뭐해', '심심해', '그냥 얘기하자', '고마워', '안녕'],
+    description: '일상 대화는 검색 없이 자연스럽게 대화',
+  },
+  {
+    intent: 'news_search',
+    handler: 'news_search_then_llm',
+    priority: 70,
+    examples: ['최신 뉴스 알려줘', '오늘 발표된 내용 찾아줘', '지금 주가 어때', '최근 논란 정리해줘'],
+    description: '최신성 강한 질문은 뉴스 검색 후 요약',
+  },
+  {
+    intent: 'web_lookup',
+    handler: 'web_search_then_llm',
+    priority: 60,
+    examples: ['PPP2R5D에 대해서 알려줘', '인터넷에서 찾아봐', '이 제품 정보 확인해줘', '모르는 용어 검색해줘'],
+    description: '검색이 필요한 지식/고유명사/모델명 질문은 웹 검색 후 요약',
+  },
+  {
+    intent: 'knowledge',
+    handler: 'llm_chat',
+    priority: 10,
+    examples: ['상대성이론 쉽게 설명해줘', '자바스크립트 배열 알려줘', '이 문장 다듬어줘'],
+    description: '최신 확인이 덜 필요한 일반 지식과 대화',
+  },
+]);
+
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 
 function getKoreanDateTime() {
-  return new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    dateStyle: 'full',
-    timeStyle: 'medium',
-  }).format(new Date());
+  return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'full', timeStyle: 'medium' }).format(new Date());
 }
 
 function normalizeText(text) {
@@ -104,7 +150,6 @@ function trimForKakao(text) {
 function splitForKakao(text) {
   const normalized = normalizeText(text);
   if (!normalized) return ['안녕! 뭐 도와줄까?'];
-
   const chunks = [];
   let remaining = normalized;
   while (remaining.length > MAX_RESPONSE_LENGTH) {
@@ -165,17 +210,42 @@ function isSmallTalk(message) {
   return /^(안녕|안녕하세요|하이|ㅎㅇ|고마워|감사|ㅋㅋ+|ㅎㅎ+|응|네|아니|좋아|그래|뭐해|뭐함|심심해|심심하다|졸려|피곤해|배고파|그냥|잡담|수다)$/i.test(message);
 }
 
-function shouldSearchWeb(message) {
-  if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET || isSmallTalk(message) || isWeatherQuery(message) || isPriceQuery(message)) return false;
-  const explicitSearch = /검색|찾아|찾아봐|알아봐|확인해|최신|최근|실시간|뉴스|기사|속보/.test(message);
-  const liveInfo = /주가|환율|일정|순위|발표|업데이트|논란|시장/.test(message);
-  const knowledgeLookup = /누구|어디|언제|무엇|뭐야|뭐지|뜻|정보|알려줘|대해서|관련|모르는/.test(message);
-  return explicitSearch || liveInfo || knowledgeLookup;
+function isNewsOrLiveQuery(message) {
+  return /뉴스|기사|속보|논란|발표|업데이트|주가|시장|환율|코인|증시|최신|최근|오늘 나온|방금|실시간/.test(message);
 }
 
-function shouldSearchNews(message) {
-  if (isWeatherQuery(message) || isPriceQuery(message)) return false;
-  return /뉴스|기사|속보|논란|발표|업데이트|주가|시장/.test(message);
+function isExplicitSearchQuery(message) {
+  return /검색|찾아|찾아봐|알아봐|확인해|인터넷|웹에서|네이버|구글|출처|자료/.test(message);
+}
+
+function hasLookupEntity(message) {
+  const compact = message.replace(/\s+/g, '');
+  const alphaNumericCode = /[a-zA-Z]{2,}\d|\d[a-zA-Z]{2,}/.test(compact);
+  const productModel = /(rtx|gtx|rx|iphone|ipad|galaxy|맥북|노트북|그래픽카드|cpu|gpu|ssd)/i.test(message);
+  const asksAbout = /대해서|뭐야|뭐지|뜻|정보|알려줘|설명해줘|누구|어디|언제|무엇/.test(message);
+  return alphaNumericCode || (productModel && asksAbout);
+}
+
+function routeMessage(message) {
+  const candidates = [];
+  const add = (intent, confidence, reason) => {
+    const definition = ROUTE_DEFINITIONS.find((route) => route.intent === intent);
+    candidates.push({ intent, handler: definition?.handler || 'llm_chat', confidence, reason, priority: definition?.priority || 0 });
+  };
+
+  if (isContinuationRequest(message)) add('continuation', 1, 'continuation keyword');
+  if (isWeatherQuery(message)) add('weather', 0.98, 'weather keyword');
+  if (isPriceQuery(message)) add('price', 0.96, 'price keyword');
+  if (isSmallTalk(message)) add('smalltalk', 0.95, 'smalltalk exact match');
+  if (isNewsOrLiveQuery(message)) add('news_search', 0.82, 'fresh/live information');
+  if (isExplicitSearchQuery(message) || hasLookupEntity(message)) add('web_lookup', 0.74, 'lookup/search intent');
+  add('knowledge', 0.45, 'default llm conversation');
+
+  return candidates.sort((a, b) => b.confidence - a.confidence || b.priority - a.priority)[0];
+}
+
+function routeNeedsSearch(route) {
+  return ['news_search', 'web_lookup'].includes(route?.intent);
 }
 
 function getWeatherLocation(message) {
@@ -206,7 +276,6 @@ function getShoppingQuery(userMessage) {
     .replace(/([A-Za-z]+)(\d+)/g, '$1 $2')
     .replace(/\s+/g, ' ')
     .trim();
-
   if (/^\d{4}$/.test(cleaned)) return `RTX ${cleaned} 그래픽카드`;
   if (/5090/.test(cleaned) && !/rtx/i.test(cleaned)) return `RTX ${cleaned} 그래픽카드`;
   return cleaned || userMessage;
@@ -226,14 +295,14 @@ function getNaverSearchUrl(query) {
   return `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`;
 }
 
-function getQuickReplies(userMessage, searchResults) {
+function getQuickReplies(userMessage, searchResults, route) {
   const replies = [];
-  if (isWeatherQuery(userMessage)) {
+  if (route?.intent === 'weather') {
     replies.push({ label: '네이버 날씨 보기', action: 'webLink', webLinkUrl: getNaverSearchUrl(`${getWeatherLocation(userMessage)} 날씨`) });
   }
   const firstResult = Array.isArray(searchResults) ? searchResults.find((item) => item.link) : null;
   if (firstResult) {
-    replies.push({ label: isPriceQuery(userMessage) ? '쇼핑결과 보기' : '검색결과 보기', action: 'webLink', webLinkUrl: firstResult.link });
+    replies.push({ label: route?.intent === 'price' ? '쇼핑결과 보기' : '검색결과 보기', action: 'webLink', webLinkUrl: firstResult.link });
   }
   return replies.length > 0 ? replies : undefined;
 }
@@ -253,10 +322,7 @@ async function resolveWeatherLocation(location) {
   const compact = location.replace(/특별시|광역시|시|군|구|동|읍|면|도/g, '').trim();
   if (KOREA_CITY_COORDS[location]) return KOREA_CITY_COORDS[location];
   if (KOREA_CITY_COORDS[compact]) return KOREA_CITY_COORDS[compact];
-  const response = await axios.get(OPEN_METEO_GEOCODING_URL, {
-    params: { name: location, count: 1, language: 'ko', format: 'json', countryCode: 'KR' },
-    timeout: WEATHER_TIMEOUT_MS,
-  });
+  const response = await axios.get(OPEN_METEO_GEOCODING_URL, { params: { name: location, count: 1, language: 'ko', format: 'json', countryCode: 'KR' }, timeout: WEATHER_TIMEOUT_MS });
   const result = response.data?.results?.[0];
   if (!result) return KOREA_CITY_COORDS.서울;
   return { name: result.name || location, latitude: result.latitude, longitude: result.longitude };
@@ -313,7 +379,6 @@ function isRelevantShoppingItem(query, item) {
   const rawTitle = item.title.toLowerCase();
   const modelNumbers = q.match(/\d{3,5}/g) || [];
   if (!modelNumbers.every((number) => title.includes(number))) return false;
-
   if (/5090/.test(q)) {
     const accessoryWords = /케이블|cable|라이저|riser|브라켓|bracket|수냉|워터블럭|water\s*block|백플레이트|쿨러|fan|팬|방열판|히트싱크|거치대|스탠드|지지대|홀더|커버|필통|수납함|모형|피규어|스티커|패드|adapter|어댑터|변환|연장|익스텐션|호환|부품|부속|박스|중고박스|메인보드|파워|케이스/;
     const gpuWords = /rtx|geforce|지포스|그래픽카드|그래픽 카드|vga|gpu/;
@@ -321,12 +386,11 @@ function isRelevantShoppingItem(query, item) {
     if (!gpuWords.test(rawTitle)) return false;
     if (item.lprice < 2500000) return false;
   }
-
   return true;
 }
 
 async function searchNaverShopping(userMessage) {
-  if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET || !isPriceQuery(userMessage)) return [];
+  if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) return [];
   const query = getShoppingQuery(userMessage);
   const response = await axios.get(NAVER_SHOPPING_SEARCH_URL, {
     params: { query, display: 20, sort: 'sim' },
@@ -334,13 +398,7 @@ async function searchNaverShopping(userMessage) {
     timeout: NAVER_SEARCH_TIMEOUT_MS,
   });
   return (response.data?.items || [])
-    .map((item) => ({
-      title: stripHtml(item.title),
-      link: item.link,
-      mallName: stripHtml(item.mallName),
-      lprice: Number(item.lprice || 0),
-      hprice: Number(item.hprice || 0),
-    }))
+    .map((item) => ({ title: stripHtml(item.title), link: item.link, mallName: stripHtml(item.mallName), lprice: Number(item.lprice || 0), hprice: Number(item.hprice || 0) }))
     .filter((item) => item.lprice > 0)
     .filter((item) => isRelevantShoppingItem(query, item));
 }
@@ -350,7 +408,6 @@ function buildShoppingPriceAnswer(userMessage, shoppingResults) {
   if (!Array.isArray(shoppingResults) || shoppingResults.length === 0) {
     return `${query} 가격은 쇼핑 검색에서 본품으로 보이는 상품을 못 찾았어. 모형/케이블 같은 부속품은 제외하고 보려다 보니 결과가 너무 적네. 모델명을 더 정확히 적어서 다시 물어봐.`;
   }
-
   const sortedItems = [...shoppingResults].sort((a, b) => a.lprice - b.lprice);
   const prices = sortedItems.map((item) => item.lprice);
   const trimmedPrices = getTrimmedPrices(prices);
@@ -360,7 +417,6 @@ function buildShoppingPriceAnswer(userMessage, shoppingResults) {
   const max = prices[prices.length - 1];
   const topItems = sortedItems.slice(0, 3).map((item, index) => `${index + 1}. ${formatWon(item.lprice)} - ${item.title}${item.mallName ? ` (${item.mallName})` : ''}`);
   const averageLabel = trimmedPrices.length === prices.length ? '평균' : '이상치 제외 평균';
-
   return [
     `${query} 현재 쇼핑 검색 기준으로 본품만 추려서 계산해봤어.`,
     `확인한 상품 ${prices.length}개 기준 ${averageLabel}은 약 ${formatWon(average)}야.`,
@@ -371,12 +427,12 @@ function buildShoppingPriceAnswer(userMessage, shoppingResults) {
   ].join('\n');
 }
 
-async function searchNaver(userMessage) {
-  if (!shouldSearchWeb(userMessage)) return [];
+async function searchNaver(userMessage, route) {
+  if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET || !routeNeedsSearch(route)) return [];
   const query = getSearchQuery(userMessage);
-  const url = shouldSearchNews(userMessage) ? NAVER_NEWS_SEARCH_URL : NAVER_WEB_SEARCH_URL;
+  const url = route?.intent === 'news_search' ? NAVER_NEWS_SEARCH_URL : NAVER_WEB_SEARCH_URL;
   const response = await axios.get(url, {
-    params: { query, display: Math.min(Math.max(NAVER_SEARCH_DISPLAY, 1), 10), sort: shouldSearchNews(userMessage) ? 'date' : 'sim' },
+    params: { query, display: Math.min(Math.max(NAVER_SEARCH_DISPLAY, 1), 10), sort: route?.intent === 'news_search' ? 'date' : 'sim' },
     headers: { 'X-Naver-Client-Id': NAVER_CLIENT_ID, 'X-Naver-Client-Secret': NAVER_CLIENT_SECRET },
     timeout: NAVER_SEARCH_TIMEOUT_MS,
   });
@@ -397,17 +453,19 @@ function formatSearchContext(searchResults) {
 function buildSearchFallbackAnswer(userMessage, searchResults) {
   if (!Array.isArray(searchResults) || searchResults.length === 0) return '인터넷 검색 결과를 못 찾았어. 검색어를 조금 더 구체적으로 보내주면 다시 찾아볼게.';
   const query = getSearchQuery(userMessage);
-  const lines = [`“${query}”로 인터넷에서 찾아본 결과야.`];
+  const first = searchResults[0];
+  const lines = [`${query}로 찾아본 결과를 보면, 제일 관련 있어 보이는 건 “${first.title}”야.`];
+  if (first.description) lines.push(first.description);
+  lines.push('다만 지금은 AI 요약 응답이 늦어서 검색 결과 중심으로만 짧게 줄게.');
   searchResults.slice(0, 3).forEach((item, index) => {
     lines.push(`${index + 1}. ${item.title}`);
-    if (item.description) lines.push(item.description);
     if (item.link) lines.push(item.link);
   });
-  lines.push('원하면 이 결과를 바탕으로 더 쉽게 요약해줄게.');
   return lines.join('\n');
 }
 
-function buildSystemPrompt(searchResults) {
+function buildSystemPrompt(searchResults, route) {
+  const routeText = route ? `${route.intent} / ${route.handler} / confidence ${route.confidence}` : 'unknown';
   const prompt = [
     '너는 카카오톡 챗봇에 연결된 친근한 한국어 AI 친구야.',
     '모든 대화는 반드시 자연스러운 반말로 해. 존댓말, ~요, ~습니다 말투는 쓰지 마.',
@@ -415,9 +473,11 @@ function buildSystemPrompt(searchResults) {
     '이전 대화 맥락을 자연스럽게 이어서 답해.',
     '카카오톡에서 바로 읽기 좋게 짧고 실용적으로 답해.',
     '제목, 표, 긴 마크다운 구분선은 쓰지 마.',
-    '실시간 검색, 날씨, 주가처럼 외부 확인이 필요한 내용은 확정해서 꾸며내지 말고 확인이 필요하다고 말해.',
-    '검색 결과가 제공되면 그대로 나열만 하지 말고, 먼저 한 번 해석해서 사용자가 물은 핵심에 맞게 답해.',
+    '검색 결과가 제공되면 그대로 나열하지 말고, 먼저 한 번 해석해서 사용자가 실제로 물은 핵심에 맞게 답해.',
+    '검색 결과가 질문과 어긋나면 억지로 답하지 말고, 검색 결과가 빗나간 것 같다고 말해.',
+    '실시간 검색, 날씨, 주가처럼 외부 확인이 필요한 내용은 확정해서 꾸며내지 말고 확인 기준을 짧게 밝혀.',
     `현재 한국 시간은 ${getKoreanDateTime()}야.`,
+    `라우터 판단: ${routeText}`,
   ];
   const searchContext = formatSearchContext(searchResults);
   if (searchContext) prompt.push(`네이버 검색 결과:\n${searchContext}`);
@@ -429,9 +489,9 @@ function buildClaudeMessages(userMessage, userId) {
   return [...history.map((message) => ({ role: message.role, content: message.content })), { role: 'user', content: userMessage }];
 }
 
-async function callClaude(userMessage, userId, searchResults = []) {
+async function callClaude(userMessage, userId, searchResults = [], route) {
   if (!CLAUDE_API_KEY) return 'Claude API 키가 아직 설정 안 됐어. Railway Variables에 CLAUDE_API_KEY를 넣으면 AI 대화가 켜져.';
-  const payload = { model: CLAUDE_MODEL, max_tokens: 900, temperature: 0.7, system: buildSystemPrompt(searchResults), messages: buildClaudeMessages(userMessage, userId) };
+  const payload = { model: CLAUDE_MODEL, max_tokens: 900, temperature: 0.7, system: buildSystemPrompt(searchResults, route), messages: buildClaudeMessages(userMessage, userId) };
   const response = await axios.post(CLAUDE_API_URL, payload, {
     headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_API_KEY, 'anthropic-version': '2023-06-01' },
     timeout: CLAUDE_TIMEOUT_MS,
@@ -439,48 +499,48 @@ async function callClaude(userMessage, userId, searchResults = []) {
   return response.data?.content?.[0]?.text || '응답을 못 만들었어. 다시 한 번만 보내줘.';
 }
 
-async function buildAnswer(userMessage, userId, options = {}) {
-  if (isPriceQuery(userMessage)) {
+async function buildAnswer(userMessage, userId) {
+  const route = routeMessage(userMessage);
+
+  if (route.intent === 'price') {
     try {
       const shoppingResults = await searchNaverShopping(userMessage);
-      return { answer: buildShoppingPriceAnswer(userMessage, shoppingResults), searchResults: shoppingResults };
+      return { answer: buildShoppingPriceAnswer(userMessage, shoppingResults), searchResults: shoppingResults, route };
     } catch (error) {
       console.error('[shopping] naver failed:', { message: error.message, code: error.code, status: error.response?.status });
-      return { answer: '가격 검색을 하려 했는데 지금 쇼핑 검색이 잘 안 됐어. 잠깐 뒤에 다시 물어봐.', searchResults: [] };
+      return { answer: '가격 검색을 하려 했는데 지금 쇼핑 검색이 잘 안 됐어. 잠깐 뒤에 다시 물어봐.', searchResults: [], route };
     }
   }
 
-  if (isWeatherQuery(userMessage)) {
+  if (route.intent === 'weather') {
     try {
-      return { answer: await getWeatherAnswer(userMessage), searchResults: [] };
+      return { answer: await getWeatherAnswer(userMessage), searchResults: [], route };
     } catch (error) {
       console.error('[weather] lookup failed:', { message: error.message, code: error.code, status: error.response?.status });
       const query = getSearchQuery(userMessage);
-      return { answer: `${query}는 실시간 날씨 화면에서 확인하는 게 제일 정확해. 아래 “네이버 날씨 보기” 눌러서 확인해봐.`, searchResults: [] };
+      return { answer: `${query}는 실시간 날씨 화면에서 확인하는 게 제일 정확해. 아래 “네이버 날씨 보기” 눌러서 확인해봐.`, searchResults: [], route };
     }
   }
 
   let searchResults = [];
   try {
-    searchResults = await searchNaver(userMessage);
+    searchResults = await searchNaver(userMessage, route);
   } catch (error) {
     console.error('[search] naver failed:', { message: error.message, code: error.code, status: error.response?.status });
   }
 
-  if (options.preferFastSearch && searchResults.length > 0) return { answer: buildSearchFallbackAnswer(userMessage, searchResults), searchResults };
-
   try {
-    return { answer: await callClaude(userMessage, userId, searchResults), searchResults };
+    return { answer: await callClaude(userMessage, userId, searchResults, route), searchResults, route };
   } catch (error) {
-    if (searchResults.length > 0) return { answer: buildSearchFallbackAnswer(userMessage, searchResults), searchResults };
+    if (searchResults.length > 0) return { answer: buildSearchFallbackAnswer(userMessage, searchResults), searchResults, route };
     throw error;
   }
 }
 
 async function sendCallback(callbackUrl, userMessage, userId) {
   try {
-    const { answer, searchResults } = await buildAnswer(userMessage, userId);
-    const quickReplies = getQuickReplies(userMessage, searchResults);
+    const { answer, searchResults, route } = await buildAnswer(userMessage, userId);
+    const quickReplies = getQuickReplies(userMessage, searchResults, route);
     rememberMessage(userId, 'user', userMessage);
     rememberMessage(userId, 'assistant', answer);
     await axios.post(callbackUrl, kakaoTextResponse(answer, quickReplies, userId), { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
@@ -498,6 +558,7 @@ app.get('/', (req, res) => {
       <li>POST /kakao-skill-webhook</li>
       <li>GET /health</li>
       <li>GET /test</li>
+      <li>GET /routes</li>
     </ul>
   `);
 });
@@ -518,9 +579,14 @@ app.get('/health', (req, res) => {
       naverSearchDisplay: NAVER_SEARCH_DISPLAY,
       shoppingSearch: Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET),
       weatherTimeoutMs: WEATHER_TIMEOUT_MS,
+      routes: ROUTE_DEFINITIONS.length,
       port: PORT,
     },
   });
+});
+
+app.get('/routes', (req, res) => {
+  res.json({ ok: true, routes: ROUTE_DEFINITIONS });
 });
 
 app.get('/test', (req, res) => {
@@ -539,14 +605,14 @@ app.post('/kakao-skill-webhook', async (req, res) => {
   try {
     if (callbackUrl) {
       setImmediate(() => sendCallback(callbackUrl, userMessage, userId));
-      return res.json({ version: '2.0', useCallback: true, data: { text: '필요하면 인터넷 검색까지 확인해서 답변 정리하고 있어. 잠깐만 기다려줘.' } });
+      return res.json({ version: '2.0', useCallback: true, data: { text: '질문 종류부터 판단하고, 필요하면 검색까지 확인해서 답변 정리하고 있어. 잠깐만 기다려줘.' } });
     }
 
-    const { answer, searchResults } = await buildAnswer(userMessage, userId, { preferFastSearch: true });
-    const quickReplies = getQuickReplies(userMessage, searchResults);
+    const { answer, searchResults, route } = await buildAnswer(userMessage, userId);
+    const quickReplies = getQuickReplies(userMessage, searchResults, route);
     rememberMessage(userId, 'user', userMessage);
     rememberMessage(userId, 'assistant', answer);
-    console.log(`[kakao] ${Date.now() - startedAt}ms user=${userId} search=${searchResults.length} message="${userMessage.slice(0, 80)}"`);
+    console.log(`[kakao] ${Date.now() - startedAt}ms route=${route.intent}/${route.handler} search=${searchResults.length} user=${userId} message="${userMessage.slice(0, 80)}"`);
     return res.json(kakaoTextResponse(answer, quickReplies, userId));
   } catch (error) {
     console.error('[kakao] request failed:', { message: error.message, code: error.code, status: error.response?.status, elapsedMs: Date.now() - startedAt });
@@ -565,5 +631,6 @@ app.listen(PORT, () => {
   console.log(`Claude model: ${CLAUDE_MODEL}`);
   console.log(`Claude timeout: ${CLAUDE_TIMEOUT_MS}ms`);
   console.log(`Naver search: ${NAVER_CLIENT_ID && NAVER_CLIENT_SECRET ? 'configured' : 'missing'}`);
+  console.log(`Routes: ${ROUTE_DEFINITIONS.map((route) => route.intent).join(', ')}`);
   console.log(`Claude API key: ${CLAUDE_API_KEY ? 'configured' : 'missing'}`);
 });
