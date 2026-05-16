@@ -8,8 +8,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const DEFAULT_CLAUDE_MODEL = 'claude-3-5-haiku-20241022';
-const RETIRED_CLAUDE_MODELS = new Set(['claude-3-5-sonnet-20240620']);
+const DEFAULT_CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
+const RETIRED_CLAUDE_MODELS = new Set(['claude-3-5-sonnet-20240620', 'claude-3-5-haiku-20241022']);
 const configuredClaudeModel = process.env.CLAUDE_MODEL;
 const CLAUDE_MODEL =
   configuredClaudeModel && !RETIRED_CLAUDE_MODELS.has(configuredClaudeModel)
