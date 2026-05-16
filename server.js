@@ -5,13 +5,14 @@ const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'fast-chat-router-2026-05-17';
+const ROUTER_VERSION = 'resilient-dialogue-router-2026-05-17';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-haiku-4-5-20251001';
-const CLAUDE_TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS || 3600);
-const ANALYZER_TIMEOUT_MS = Number(process.env.CLAUDE_ANALYZER_TIMEOUT_MS || 1300);
+const CLAUDE_TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS || 3200);
+const ANALYZER_TIMEOUT_MS = Number(process.env.CLAUDE_ANALYZER_TIMEOUT_MS || 900);
+const CHAT_BUDGET_MS = Number(process.env.CHAT_BUDGET_MS || 2600);
 const MAX_RESPONSE_LENGTH = Number(process.env.KAKAO_MAX_RESPONSE_LENGTH || 1000);
 const MAX_OUTPUTS = Number(process.env.KAKAO_MAX_OUTPUTS || 3);
 const MAX_HISTORY_MESSAGES = Number(process.env.KAKAO_HISTORY_MESSAGES || 10);
@@ -162,21 +163,30 @@ function getState(userId) {
   return dialogueState.get(userId) || { lastIntent: 'new', topic: '', mood: 'neutral', slots: {}, turns: 0, updatedAt: 0 };
 }
 
+function inferTopic(message, previousTopic = '') {
+  if (/위스키|whisky|whiskey|글렌알라키|cs10|cs 10|스모키|피트|셰리|버번|싱글몰트|하이볼|글렌드로낙|아란|스프링뱅크|레드브레스트|라프로익|탈리스커/i.test(message)) return '위스키';
+  if (/전자레인지|전자렌지|rtx|5090|그래픽카드|노트북|모니터|냉장고|세탁기/.test(message)) return getShoppingQuery(message);
+  if (/휴일|공휴일|달력|연휴/.test(message)) return '휴일';
+  if (/날씨|기온|습도|미세먼지/.test(message)) return '날씨';
+  return previousTopic || '';
+}
+
 function rememberMessage(userId, role, content, route, topic, analysis) {
   const history = getConversation(userId);
   history.push({ role, content: normalizeText(content).slice(0, 1600) });
   conversations.set(userId, history.slice(-MAX_HISTORY_MESSAGES));
-  if (role === 'assistant') {
-    const previous = getState(userId);
-    dialogueState.set(userId, {
-      ...previous,
-      lastIntent: route?.intent || previous.lastIntent,
-      topic: topic || previous.topic || '',
-      slots: { ...previous.slots, lastAnalysis: analysis || previous.slots?.lastAnalysis },
-      turns: (previous.turns || 0) + 1,
-      updatedAt: Date.now(),
-    });
-  }
+
+  const previous = getState(userId);
+  const sourceText = role === 'user' ? content : `${topic || ''} ${analysis?.topic || ''} ${analysis?.productQuery || ''}`;
+  const nextTopic = inferTopic(sourceText, topic || previous.topic || '');
+  dialogueState.set(userId, {
+    ...previous,
+    lastIntent: route?.intent || previous.lastIntent,
+    topic: nextTopic,
+    slots: { ...previous.slots, lastAnalysis: analysis || previous.slots?.lastAnalysis },
+    turns: (previous.turns || 0) + (role === 'assistant' ? 1 : 0),
+    updatedAt: Date.now(),
+  });
 }
 
 function isContinuationRequest(message) {
@@ -231,6 +241,12 @@ function isExplicitPurchaseRecommendation(message) {
   return hasBuyCue(message) && /(추천|골라|알려|찾아|비교|좋은|괜찮은)/.test(message) && hasProductSignal(message);
 }
 
+function isPreferenceRecommendation(message, state = {}) {
+  if (hasBuyCue(message) || hasPriceCue(message) || isExplicitSearchQuery(message) || isWeatherQuery(message) || isCalendarHolidayQuery(message)) return false;
+  if (/(추천|비슷한|맛난|맛있는|스타일|끌리|안끌리|다른\s*것|좋아해|취향|골라|어울려|뭐가\s*좋)/.test(message)) return true;
+  return state.topic === '위스키' && /(더|다른|비싼|강한|부드러운|달달한|스모키|피트|셰리|버번|마실)/.test(message);
+}
+
 function isNewsQuery(message) {
   return /(뉴스|기사|속보|논란|발표|업데이트|최신\s*뉴스|최근\s*뉴스)/.test(message);
 }
@@ -278,14 +294,15 @@ function fallbackAnalysis(userMessage, userId) {
   if (isExplicitPurchaseRecommendation(userMessage)) return { intent: 'shopping_recommendation', tool: 'shopping', confidence: 0.9, topic: '', productQuery: getProductQueryFromPurchase(userMessage), searchQuery: '', replyMode: 'tool', source: 'heuristic_purchase' };
   if (isNewsQuery(userMessage)) return { intent: 'news_search', tool: 'news', confidence: 0.82, topic: '', productQuery: '', searchQuery: getSearchQuery(userMessage), replyMode: 'tool_then_answer', source: 'heuristic' };
   if (isExplicitSearchQuery(userMessage)) return { intent: 'web_lookup', tool: 'web', confidence: 0.78, topic: '', productQuery: '', searchQuery: getSearchQuery(userMessage), replyMode: 'tool_then_answer', source: 'heuristic' };
-  return { intent: 'chat', tool: 'none', confidence: 0.7, topic: state.topic || '', productQuery: '', searchQuery: '', replyMode: 'direct', source: 'heuristic' };
+  return { intent: 'chat', tool: 'none', confidence: 0.72, topic: inferTopic(userMessage, state.topic), productQuery: '', searchQuery: '', replyMode: 'direct', source: 'heuristic' };
 }
 
-function shouldUseAnalyzer(userMessage) {
+function shouldUseAnalyzer(userMessage, userId) {
+  const state = getState(userId);
   if (!CLAUDE_API_KEY || isContinuationRequest(userMessage)) return false;
-  if (isCapabilityQuestion(userMessage) || isSmallTalk(userMessage)) return false;
+  if (isCapabilityQuestion(userMessage) || isSmallTalk(userMessage) || isPreferenceRecommendation(userMessage, state)) return false;
   if (isCalendarHolidayQuery(userMessage) || isWeatherQuery(userMessage) || isPriceQuery(userMessage) || isExplicitPurchaseRecommendation(userMessage)) return false;
-  return isExplicitSearchQuery(userMessage) || /이거|그거|저거|아까|방금|그럼|추천|알려/.test(userMessage);
+  return isExplicitSearchQuery(userMessage) && /이거|그거|저거|아까|방금|그럼/.test(userMessage);
 }
 
 function extractJsonObject(text) {
@@ -301,26 +318,26 @@ function normalizeAnalysis(analysis, userMessage, userId) {
   const cleaned = { ...fallback, ...analysis };
   cleaned.intent = normalizeText(cleaned.intent || fallback.intent);
   cleaned.tool = normalizeText(cleaned.tool || fallback.tool || 'none');
-  cleaned.topic = normalizeText(cleaned.topic || '');
+  cleaned.topic = normalizeText(cleaned.topic || fallback.topic || '');
   cleaned.productQuery = normalizeText(cleaned.productQuery || '');
   cleaned.searchQuery = normalizeText(cleaned.searchQuery || '');
   cleaned.replyMode = normalizeText(cleaned.replyMode || fallback.replyMode || 'direct');
   cleaned.confidence = Math.max(0, Math.min(1, Number(cleaned.confidence || fallback.confidence || 0.5)));
   if (isCalendarHolidayQuery(userMessage) || isWeatherQuery(userMessage) || isPriceQuery(userMessage) || isExplicitPurchaseRecommendation(userMessage)) return fallback;
-  if (isCapabilityQuestion(userMessage) && !hasBuyCue(userMessage) && !hasPriceCue(userMessage)) return { ...cleaned, intent: 'chat', tool: 'none', productQuery: '', searchQuery: '', replyMode: 'direct', confidence: 0.98 };
+  if ((isCapabilityQuestion(userMessage) || isPreferenceRecommendation(userMessage, getState(userId))) && !hasBuyCue(userMessage) && !hasPriceCue(userMessage)) return { ...cleaned, intent: 'chat', tool: 'none', productQuery: '', searchQuery: '', replyMode: 'direct', confidence: 0.98 };
   if (cleaned.tool === 'shopping' && !hasBuyCue(userMessage) && !hasPriceCue(userMessage)) return { ...cleaned, intent: 'chat', tool: 'none', productQuery: '', searchQuery: '', replyMode: 'direct' };
   return cleaned;
 }
 
 async function analyzeTurn(userMessage, userId) {
   const fallback = fallbackAnalysis(userMessage, userId);
-  if (!shouldUseAnalyzer(userMessage)) return fallback;
+  if (!shouldUseAnalyzer(userMessage, userId)) return fallback;
   const state = getState(userId);
   const history = getConversation(userId).slice(-6).map((m) => `${m.role}: ${m.content}`).join('\n');
   const system = [
     '너는 카카오톡 챗봇 앞단의 semantic router야. 답변하지 말고 JSON만 반환해.',
     '도구는 weather, calendar, shopping, web, news, none 중 하나만 선택해.',
-    '능력 질문/메타 질문/잡담/취향 추천은 chat + none이야. 예: "너 위스키 잘 알아?", "추천 가능해?", "뭐해?"',
+    '능력 질문/메타 질문/잡담/취향 추천은 chat + none이야.',
     '구매처, 가격, 최저가, 판매 모델, 실구매 목적이 분명할 때만 shopping을 선택해.',
     '휴일/공휴일/달력 질문은 calendar야. 날씨는 weather야.',
     'JSON: {"intent":"chat","tool":"none","replyMode":"direct","topic":"","productQuery":"","searchQuery":"","confidence":0.0,"reason":""}',
@@ -328,7 +345,7 @@ async function analyzeTurn(userMessage, userId) {
   try {
     const response = await axios.post(CLAUDE_API_URL, {
       model: CLAUDE_MODEL,
-      max_tokens: 220,
+      max_tokens: 180,
       temperature: 0,
       system,
       messages: [{ role: 'user', content: `현재 한국 시간: ${getKoreanDateTime()}\n상태: ${JSON.stringify(state)}\n최근 대화:\n${history}\n사용자 말: ${userMessage}` }],
@@ -347,17 +364,50 @@ function buildCapabilityAnswer(userMessage) {
   if (/위스키|whisky|whiskey/i.test(userMessage)) {
     return '응, 위스키 추천 가능해. 바로 쇼핑 검색부터 하는 게 아니라 먼저 취향을 잡는 게 맞아.\n\n입문이면 부드럽고 달달한 쪽, 스모키한 향 좋아하면 피트 쪽, 하이볼용이면 가성비 좋은 블렌디드 쪽으로 나눠서 추천해줄 수 있어.\n\n예산이랑 “하이볼용/그냥 마실용/선물용” 중에 뭐인지 말해주면 거기에 맞춰 골라줄게.';
   }
-  if (/추천/.test(userMessage)) {
-    return '응, 추천 가능해. 다만 바로 검색부터 하지 말고 먼저 용도랑 취향을 잡아야 제대로 골라줄 수 있어. 예산, 원하는 느낌, 피하고 싶은 조건을 말해주면 거기에 맞춰서 좁혀줄게.';
-  }
+  if (/추천/.test(userMessage)) return '응, 추천 가능해. 바로 검색부터 하지 말고 먼저 용도랑 취향을 잡아야 제대로 골라줄 수 있어. 예산, 원하는 느낌, 피하고 싶은 조건을 말해주면 거기에 맞춰서 좁혀줄게.';
   return '응, 그건 도와줄 수 있어. 바로 검색이 필요한 건 검색해서 알려주고, 그냥 취향이나 생각 정리가 필요한 건 대화하면서 맞춰줄게.';
 }
 
 function buildSmallTalkAnswer(userMessage) {
-  if (/뭐해|뭐\s*하고/.test(userMessage)) return '나 지금 여기서 네 말 보고 있었지. 잠깐 삐끗했는데 이제 대화랑 검색을 구분해서 훨씬 자연스럽게 받게 고쳤어.';
+  if (/뭐해|뭐\s*하고/.test(userMessage)) return '나 지금 여기서 네 말 보고 있었지. 이제 잡담이랑 검색을 더 확실히 나눠서 받게 고쳤어.';
   if (/쉬고\s*싶|피곤|졸려/.test(userMessage)) return '그럴 땐 진짜 잠깐 쉬는 게 맞아. 머리 계속 굴리면 더 꼬이더라. 오늘은 무리하지 말고 숨 좀 돌리자.';
   if (/너는\s*내일|뭐\s*할\s*예정/.test(userMessage)) return '나는 내일도 여기서 네 질문 받으면서 도와주고 있을 것 같아. 너는 내일 뭐 하면서 쉬려고?';
   return null;
+}
+
+function buildWhiskyAnswer(userMessage, state) {
+  const lower = userMessage.toLowerCase();
+  const topicIsWhisky = state.topic === '위스키' || /위스키|whisky|whiskey|글렌알라키|cs10|cs 10|스모키|피트|셰리|버번|싱글몰트/i.test(userMessage);
+  if (!topicIsWhisky) return null;
+
+  if (/글렌알라키|cs10|cs 10/i.test(lower) && /비슷|있어|추천/.test(userMessage)) {
+    return '글렌알라키 CS10 좋아하면 진한 셰리감이랑 높은 도수에서 오는 농도가 취향인 쪽이네.\n\n비슷한 결로는 글렌드로낙 15 리바이벌, 아란 셰리 캐스크, 탐두 배치 스트렝스가 먼저 떠올라. CS10보다 더 묵직하고 달달한 쪽이면 글렌드로낙 18도 괜찮고, 조금 더 깔끔하게 가면 아벨라워 아부나흐도 잘 맞을 가능성 있어.\n\n다만 라프로익/탈리스커 같은 피트 강한 쪽은 방향이 꽤 달라서 “비슷한 맛”이라기보단 다른 장르 체험에 가까워.';
+  }
+
+  if (/안\s*끌리|별로|아쉬/.test(userMessage)) {
+    return '오케이, 그럼 CS10 비슷한 안전빵 말고 아예 방향을 틀어보자.\n\n더 진하고 비싼 쪽이면 글렌드로낙 18, 아란 18, 글렌알라키 15가 좋고, 완전히 다른 매력으로 가면 스프링뱅크 15, 레드브레스트 21, 라가불린 16 쪽이 더 재밌어.\n\n너는 “셰리 폭탄을 더 고급스럽게”가 좋아, 아니면 “아예 다른 스타일인데 맛있는 거”가 좋아?';
+  }
+
+  if (/비싸|맛난|맛있는|스타일|다른|프리미엄|고급/.test(userMessage)) {
+    return '그럼 CS10 기준에서 더 비싸고 맛도 확실한 쪽으로 이렇게 볼게.\n\n1. 글렌드로낙 18 - 진한 셰리, 묵직함, CS10 좋아하면 가장 안전하게 업그레이드 느낌\n2. 아란 18 또는 21 - 과일, 몰트, 셰리 밸런스가 좋고 질감이 깔끔해\n3. 스프링뱅크 15 - 짭짤함, 펑키함, 복합미가 있어서 완전 다른 재미가 있어\n4. 레드브레스트 21 - 아이리시인데 고급스럽고 부드럽고 과일감이 좋아\n5. 라가불린 16 또는 라프로익 Lore - 피트/스모키 쪽으로 확 틀고 싶을 때\n\n내가 하나만 고르면 글렌드로낙 18, “다른 스타일도 맛난 거”면 스프링뱅크 15부터 볼 것 같아.';
+  }
+
+  if (/하이볼/.test(userMessage)) return '하이볼용이면 너무 비싼 싱글몰트보다 조니워커 블랙, 몽키숄더, 듀어스 12, 와일드터키 101 쪽이 좋아. CS10 같은 진한 셰리 캐스크는 그냥 마시는 쪽이 더 아깝지 않아.';
+  return null;
+}
+
+function buildFastPreferenceAnswer(userMessage, userId) {
+  const state = getState(userId);
+  const whisky = buildWhiskyAnswer(userMessage, state);
+  if (whisky) return whisky;
+  if (/추천|골라|비슷|취향|스타일/.test(userMessage)) return '좋아, 그럼 검색부터 하지 말고 취향 기준으로 좁혀볼게. 네가 좋아했던 것, 싫었던 것, 예산이나 원하는 분위기를 한두 개만 말해주면 거기에 맞춰서 더 정확히 추천해줄게.';
+  return null;
+}
+
+function buildTimeoutFallback(userMessage, userId) {
+  const preference = buildFastPreferenceAnswer(userMessage, userId);
+  if (preference) return preference;
+  return '답을 길게 만들다가 늦어질 것 같아서 짧게 먼저 말할게. 이건 검색보다 대화 맥락으로 보는 게 맞고, 네가 방금 말한 조건 기준으로 더 좁혀서 추천해줄 수 있어.';
 }
 
 function routeNeedsSearch(route) {
@@ -419,9 +469,7 @@ async function getWeatherAnswer(userMessage) {
   });
   const current = response.data?.current || {};
   const daily = response.data?.daily || {};
-  if (dayOffset > 0) {
-    return `${location.name || requestedLocation} 기준 ${dayOffset === 1 ? '내일' : '모레'} 날씨야.\n예보는 ${getWeatherDescription(daily.weather_code?.[dayOffset])} 쪽이고, 최저/최고는 ${daily.temperature_2m_min?.[dayOffset]}°C / ${daily.temperature_2m_max?.[dayOffset]}°C 정도야.\n강수확률은 ${daily.precipitation_probability_max?.[dayOffset] ?? '확인 필요'}%로 보여.`;
-  }
+  if (dayOffset > 0) return `${location.name || requestedLocation} 기준 ${dayOffset === 1 ? '내일' : '모레'} 날씨야.\n예보는 ${getWeatherDescription(daily.weather_code?.[dayOffset])} 쪽이고, 최저/최고는 ${daily.temperature_2m_min?.[dayOffset]}°C / ${daily.temperature_2m_max?.[dayOffset]}°C 정도야.\n강수확률은 ${daily.precipitation_probability_max?.[dayOffset] ?? '확인 필요'}%로 보여.`;
   return `${location.name || requestedLocation} 기준 현재 날씨야.\n지금 ${current.temperature_2m}°C, 체감 ${current.apparent_temperature}°C, ${getWeatherDescription(current.weather_code)}이야.\n오늘 최저/최고는 ${daily.temperature_2m_min?.[0]}°C / ${daily.temperature_2m_max?.[0]}°C 정도고, 강수확률은 ${daily.precipitation_probability_max?.[0] ?? '확인 필요'}%야.\n습도는 ${current.relative_humidity_2m}%, 바람은 ${current.wind_speed_10m}km/h 정도야.`;
 }
 
@@ -617,9 +665,9 @@ function buildSystemPrompt(searchResults, route, state, analysis) {
     '모든 답변은 자연스러운 반말로 해. 존댓말, ~요, ~습니다 말투는 쓰지 마.',
     '사용자 말을 먼저 이해하고, 카톡 대화처럼 짧고 자연스럽게 받아쳐.',
     '능력 질문에는 가능 여부와 어떻게 도와줄 수 있는지 답해. 바로 쇼핑 검색 결과처럼 말하지 마.',
-    '구매처/가격/최저가/판매 모델을 묻는 경우에만 쇼핑 맥락으로 말해.',
+    '취향 추천은 쇼핑 검색이 아니라 대화 맥락과 취향을 기준으로 해. 구매처/가격/최저가/판매 모델을 묻는 경우에만 쇼핑 맥락으로 말해.',
     '찾아볼게/기다려줘처럼 미래에 도구를 실행할 척하지 마. 도구 결과가 있으면 이미 아래에 제공돼.',
-    '카카오톡에서 읽기 좋게 보통 1~5문장으로 답해.',
+    '카카오톡 제한시간이 짧으니까 보통 1~5문장으로 답해.',
     `현재 한국 시간: ${getKoreanDateTime()}`,
     `라우터: ${route.intent}/${route.handler}, confidence=${route.confidence}, source=${route.source || 'unknown'}`,
     `분석: ${JSON.stringify(analysis || {})}`,
@@ -637,8 +685,8 @@ async function callClaude(userMessage, userId, searchResults, route, analysis) {
   if (!CLAUDE_API_KEY) return '지금 Claude API 키가 설정 안 돼 있어서 일반 대화를 못 이어가. Railway 변수에 CLAUDE_API_KEY가 필요해.';
   const response = await axios.post(CLAUDE_API_URL, {
     model: CLAUDE_MODEL,
-    max_tokens: routeNeedsSearch(route) ? 900 : 420,
-    temperature: routeNeedsSearch(route) ? 0.35 : 0.82,
+    max_tokens: routeNeedsSearch(route) ? 850 : 300,
+    temperature: routeNeedsSearch(route) ? 0.35 : 0.72,
     system: buildSystemPrompt(searchResults, route, getState(userId), analysis),
     messages: buildClaudeMessages(userMessage, userId),
   }, {
@@ -648,23 +696,40 @@ async function callClaude(userMessage, userId, searchResults, route, analysis) {
   return response.data?.content?.[0]?.text || '응답을 못 만들었어. 다시 한 번만 보내줘.';
 }
 
+function withTimeout(promise, ms, fallback) {
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(typeof fallback === 'function' ? fallback() : fallback), ms);
+  });
+  return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
+}
+
 async function buildAnswer(userMessage, userId) {
+  const state = getState(userId);
+
   if (isCapabilityQuestion(userMessage) && !hasBuyCue(userMessage) && !hasPriceCue(userMessage)) {
     const route = routeFromIntent('chat', 0.99, 'fast_capability');
-    const analysis = { intent: 'chat', tool: 'none', replyMode: 'direct', topic: '', productQuery: '', searchQuery: '', confidence: 0.99, source: 'fast_capability' };
-    return { answer: buildCapabilityAnswer(userMessage), searchResults: [], route, topic: '', analysis };
+    const analysis = { intent: 'chat', tool: 'none', replyMode: 'direct', topic: inferTopic(userMessage, state.topic), productQuery: '', searchQuery: '', confidence: 0.99, source: 'fast_capability' };
+    return { answer: buildCapabilityAnswer(userMessage), searchResults: [], route, topic: analysis.topic, analysis };
   }
 
   const smallTalk = buildSmallTalkAnswer(userMessage);
   if (smallTalk) {
     const route = routeFromIntent('chat', 0.96, 'fast_smalltalk');
-    const analysis = { intent: 'chat', tool: 'none', replyMode: 'direct', topic: '', productQuery: '', searchQuery: '', confidence: 0.96, source: 'fast_smalltalk' };
-    return { answer: smallTalk, searchResults: [], route, topic: '', analysis };
+    const analysis = { intent: 'chat', tool: 'none', replyMode: 'direct', topic: inferTopic(userMessage, state.topic), productQuery: '', searchQuery: '', confidence: 0.96, source: 'fast_smalltalk' };
+    return { answer: smallTalk, searchResults: [], route, topic: analysis.topic, analysis };
+  }
+
+  const fastPreference = buildFastPreferenceAnswer(userMessage, userId);
+  if (fastPreference) {
+    const route = routeFromIntent('chat', 0.97, 'fast_preference');
+    const analysis = { intent: 'chat', tool: 'none', replyMode: 'direct', topic: inferTopic(userMessage, state.topic), productQuery: '', searchQuery: '', confidence: 0.97, source: 'fast_preference' };
+    return { answer: fastPreference, searchResults: [], route, topic: analysis.topic, analysis };
   }
 
   const analysis = await analyzeTurn(userMessage, userId);
   const route = routeFromIntent(analysis.intent, analysis.confidence, analysis.source);
-  let topic = normalizeText(analysis.topic || analysis.productQuery || '');
+  let topic = normalizeText(analysis.topic || analysis.productQuery || inferTopic(userMessage, state.topic));
 
   if (route.intent === 'calendar_holiday') return { answer: buildHolidayAnswer(userMessage), searchResults: [], route, topic: '', analysis };
   if (route.intent === 'weather') return { answer: await getWeatherAnswer(userMessage), searchResults: [], route, topic: '', analysis };
@@ -687,17 +752,22 @@ async function buildAnswer(userMessage, userId) {
   }
 
   try {
-    return { answer: await callClaude(userMessage, userId, searchResults, route, analysis), searchResults, route, topic, analysis };
+    const answer = await withTimeout(
+      callClaude(userMessage, userId, searchResults, route, analysis),
+      routeNeedsSearch(route) ? CHAT_BUDGET_MS + 700 : CHAT_BUDGET_MS,
+      () => buildTimeoutFallback(userMessage, userId),
+    );
+    return { answer, searchResults, route, topic, analysis };
   } catch (error) {
     if (searchResults.length) return { answer: buildSearchFallbackAnswer(userMessage, searchResults, analysis), searchResults, route, topic, analysis };
-    throw error;
+    return { answer: buildTimeoutFallback(userMessage, userId), searchResults, route, topic, analysis };
   }
 }
 
 async function sendCallback(callbackUrl, userMessage, userId) {
   try {
-    const { answer, searchResults, route, topic, analysis } = await buildAnswer(userMessage, userId);
     rememberMessage(userId, 'user', userMessage);
+    const { answer, searchResults, route, topic, analysis } = await buildAnswer(userMessage, userId);
     rememberMessage(userId, 'assistant', answer, route, topic, analysis);
     await axios.post(callbackUrl, kakaoTextResponse(answer, getQuickReplies(userMessage, searchResults, route), userId), {
       headers: { 'Content-Type': 'application/json' },
@@ -724,6 +794,7 @@ app.get('/health', (req, res) => {
       claudeModel: CLAUDE_MODEL,
       claudeTimeoutMs: CLAUDE_TIMEOUT_MS,
       analyzerTimeoutMs: ANALYZER_TIMEOUT_MS,
+      chatBudgetMs: CHAT_BUDGET_MS,
       maxResponseLength: MAX_RESPONSE_LENGTH,
       maxOutputs: MAX_OUTPUTS,
       naverApi: Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET),
@@ -757,16 +828,14 @@ app.post('/kakao-skill-webhook', async (req, res) => {
       return res.json({ version: '2.0', useCallback: true, data: { text: '맥락 보고 바로 답하고 있어. 잠깐만 기다려줘.' } });
     }
 
-    const { answer, searchResults, route, topic, analysis } = await buildAnswer(userMessage, userId);
     rememberMessage(userId, 'user', userMessage);
+    const { answer, searchResults, route, topic, analysis } = await buildAnswer(userMessage, userId);
     rememberMessage(userId, 'assistant', answer, route, topic, analysis);
     console.log(`[kakao] ${Date.now() - startedAt}ms route=${route.intent}/${route.handler} source=${route.source || ''} search=${searchResults.length} topic=${topic || ''} user=${userId} message="${userMessage.slice(0, 80)}"`);
     return res.json(kakaoTextResponse(answer, getQuickReplies(userMessage, searchResults, route), userId));
   } catch (error) {
     console.error('[kakao] failed:', { message: error.message, code: error.code, status: error.response?.status, elapsedMs: Date.now() - startedAt });
-    return res.json(kakaoTextResponse(error.code === 'ECONNABORTED'
-      ? '답변 만드는 게 평소보다 늦어지고 있어. 같은 질문 한 번만 더 보내주면 이어서 답할게.'
-      : '지금 응답을 못 받아왔어. 잠깐 뒤에 다시 보내줘.'));
+    return res.json(kakaoTextResponse(buildTimeoutFallback(userMessage, userId)));
   }
 });
 
