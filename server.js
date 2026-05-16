@@ -8,7 +8,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-3-5-sonnet-20240620';
+const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-6';
+const RETIRED_CLAUDE_MODELS = new Set(['claude-3-5-sonnet-20240620']);
+const configuredClaudeModel = process.env.CLAUDE_MODEL;
+const CLAUDE_MODEL =
+  configuredClaudeModel && !RETIRED_CLAUDE_MODELS.has(configuredClaudeModel)
+    ? configuredClaudeModel
+    : DEFAULT_CLAUDE_MODEL;
 const CLAUDE_TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS || 12000);
 const MAX_RESPONSE_LENGTH = Number(process.env.KAKAO_MAX_RESPONSE_LENGTH || 600);
 const MAX_HISTORY_MESSAGES = Number(process.env.KAKAO_HISTORY_MESSAGES || 8);
