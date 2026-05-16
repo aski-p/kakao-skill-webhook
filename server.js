@@ -2,7 +2,6 @@ require('dotenv').config();
 
 const express = require('express');
 const axios = require('axios');
-
 const app = express();
 
 const PORT = process.env.PORT || 3000;
@@ -47,26 +46,8 @@ const KOREA_CITY_COORDS = {
 };
 
 const KOREAN_PUBLIC_HOLIDAYS = {
-  2026: {
-    '2026-01-01': '신정',
-    '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴',
-    '2026-03-01': '삼일절', '2026-03-02': '삼일절 대체공휴일',
-    '2026-05-05': '어린이날', '2026-05-24': '부처님오신날', '2026-05-25': '부처님오신날 대체공휴일',
-    '2026-06-03': '제9회 전국동시지방선거일', '2026-06-06': '현충일',
-    '2026-08-15': '광복절', '2026-08-17': '광복절 대체공휴일',
-    '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴', '2026-09-28': '추석 대체공휴일',
-    '2026-10-03': '개천절', '2026-10-05': '개천절 대체공휴일', '2026-10-09': '한글날',
-    '2026-12-25': '성탄절',
-  },
-  2027: {
-    '2027-01-01': '신정',
-    '2027-02-06': '설날 연휴', '2027-02-07': '설날', '2027-02-08': '설날 연휴', '2027-02-09': '설날 대체공휴일',
-    '2027-03-01': '삼일절', '2027-05-05': '어린이날', '2027-05-13': '부처님오신날',
-    '2027-06-06': '현충일', '2027-08-15': '광복절', '2027-08-16': '광복절 대체공휴일',
-    '2027-09-14': '추석 연휴', '2027-09-15': '추석', '2027-09-16': '추석 연휴',
-    '2027-10-03': '개천절', '2027-10-04': '개천절 대체공휴일', '2027-10-09': '한글날', '2027-10-11': '한글날 대체공휴일',
-    '2027-12-25': '성탄절', '2027-12-27': '성탄절 대체공휴일',
-  },
+  2026: { '2026-01-01': '신정', '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴', '2026-03-01': '삼일절', '2026-03-02': '삼일절 대체공휴일', '2026-05-05': '어린이날', '2026-05-24': '부처님오신날', '2026-05-25': '부처님오신날 대체공휴일', '2026-06-03': '제9회 전국동시지방선거일', '2026-06-06': '현충일', '2026-08-15': '광복절', '2026-08-17': '광복절 대체공휴일', '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴', '2026-09-28': '추석 대체공휴일', '2026-10-03': '개천절', '2026-10-05': '개천절 대체공휴일', '2026-10-09': '한글날', '2026-12-25': '성탄절' },
+  2027: { '2027-01-01': '신정', '2027-02-06': '설날 연휴', '2027-02-07': '설날', '2027-02-08': '설날 연휴', '2027-02-09': '설날 대체공휴일', '2027-03-01': '삼일절', '2027-05-05': '어린이날', '2027-05-13': '부처님오신날', '2027-06-06': '현충일', '2027-08-15': '광복절', '2027-08-16': '광복절 대체공휴일', '2027-09-14': '추석 연휴', '2027-09-15': '추석', '2027-09-16': '추석 연휴', '2027-10-03': '개천절', '2027-10-04': '개천절 대체공휴일', '2027-10-09': '한글날', '2027-10-11': '한글날 대체공휴일', '2027-12-25': '성탄절', '2027-12-27': '성탄절 대체공휴일' },
 };
 
 app.disable('x-powered-by');
@@ -85,410 +66,65 @@ function getUserId(body) { return body?.userRequest?.user?.id || body?.userReque
 function getCallbackUrl(body) { return body?.userRequest?.callbackUrl || body?.callbackUrl || ''; }
 function getConversation(userId) { return conversations.get(userId) || []; }
 function getState(userId) { return dialogueState.get(userId) || { lastIntent: 'new', topic: '', mood: 'neutral', slots: {}, turns: 0, updatedAt: 0 }; }
-
-function splitForKakao(text) {
-  const normalized = normalizeText(text) || '응, 뭐 도와줄까?';
-  const chunks = [];
-  let rest = normalized;
-  while (rest.length > MAX_RESPONSE_LENGTH) {
-    const slice = rest.slice(0, MAX_RESPONSE_LENGTH);
-    const breakAt = Math.max(slice.lastIndexOf('\n'), slice.lastIndexOf('. '), slice.lastIndexOf(' '));
-    const end = breakAt > MAX_RESPONSE_LENGTH * 0.55 ? breakAt + 1 : MAX_RESPONSE_LENGTH;
-    chunks.push(rest.slice(0, end).trim());
-    rest = rest.slice(end).trim();
-  }
-  if (rest) chunks.push(rest);
-  return chunks;
-}
-
-function kakaoTextResponse(text, quickReplies, userId) {
-  const chunks = splitForKakao(text);
-  const template = { outputs: chunks.slice(0, MAX_OUTPUTS).map((chunk) => ({ simpleText: { text: chunk } })) };
-  const replies = Array.isArray(quickReplies) ? [...quickReplies] : [];
-  if (chunks.length > MAX_OUTPUTS && userId) {
-    continuations.set(userId, chunks.slice(MAX_OUTPUTS));
-    replies.push({ label: '이어보기', action: 'message', messageText: '이어보기' });
-  }
-  if (replies.length > 0) template.quickReplies = replies;
-  return { version: '2.0', template };
-}
+function splitForKakao(text) { const normalized = normalizeText(text) || '응, 뭐 도와줄까?'; const chunks = []; let rest = normalized; while (rest.length > MAX_RESPONSE_LENGTH) { const slice = rest.slice(0, MAX_RESPONSE_LENGTH); const breakAt = Math.max(slice.lastIndexOf('\n'), slice.lastIndexOf('. '), slice.lastIndexOf(' ')); const end = breakAt > MAX_RESPONSE_LENGTH * 0.55 ? breakAt + 1 : MAX_RESPONSE_LENGTH; chunks.push(rest.slice(0, end).trim()); rest = rest.slice(end).trim(); } if (rest) chunks.push(rest); return chunks; }
+function kakaoTextResponse(text, quickReplies, userId) { const chunks = splitForKakao(text); const template = { outputs: chunks.slice(0, MAX_OUTPUTS).map((chunk) => ({ simpleText: { text: chunk } })) }; const replies = Array.isArray(quickReplies) ? [...quickReplies] : []; if (chunks.length > MAX_OUTPUTS && userId) { continuations.set(userId, chunks.slice(MAX_OUTPUTS)); replies.push({ label: '이어보기', action: 'message', messageText: '이어보기' }); } if (replies.length > 0) template.quickReplies = replies; return { version: '2.0', template }; }
 
 function isContinuationRequest(message) { return /^(이어보기|더 보기|더보기|계속|다음)$/i.test(message); }
 function getContinuationResponse(userId) { const chunks = continuations.get(userId); if (!chunks?.length) return kakaoTextResponse('이어볼 내용은 없어. 새로 물어봐줘.'); continuations.delete(userId); return kakaoTextResponse(chunks.join('\n\n'), undefined, userId); }
-
 function isCalendarHolidayQuery(message) { return /(달력|휴일|공휴일|쉬는\s*날|빨간\s*날|연휴|대체공휴일|명절|선거일).*(얼마나|몇\s*개|몇\s*일|며칠|언제|알려|있어|많아|계산|확인|다음달|이번달|내년|올해|\d{1,2}월)|(?:다음달|이번달|내년|올해|\d{1,2}월).*(달력|휴일|공휴일|쉬는\s*날|빨간\s*날|연휴|대체공휴일|명절|선거일)/.test(message); }
 function isExplicitWeatherRequest(message) { const compact = message.replace(/\s+/g, ''); if (!/날씨|기온|비\s*와|눈\s*와|미세먼지|습도|강수|온도/.test(message)) return false; if (/^(오늘|내일|모레|지금|현재)?[가-힣]{0,8}(날씨|기온|습도|미세먼지)$/.test(compact)) return true; return /(날씨|기온|습도|미세먼지).*(알려|검색|찾아|확인|조회|어때|몇|얼마|봐줘)|(?:알려|검색|찾아|확인|조회).*(날씨|기온|습도|미세먼지)/.test(message); }
-function hasProductSignal(message) { return /(제품|상품|모델|구매|판매|쇼핑|본품|중고|신품|가격|시세|최저가|견적|전자레인지|오븐|에어프라이어|노트북|모니터|청소기|그래픽카드|냉장고|세탁기|건조기|rtx|gtx|iphone|ipad|galaxy|맥북|ssd|cpu|gpu)/i.test(message); }
+function hasProductSignal(message) { return /(제품|상품|모델|구매|판매|쇼핑|본품|중고|신품|가격|시세|최저가|견적|전자레인지|전자렌지|오븐|에어프라이어|노트북|모니터|청소기|그래픽카드|냉장고|세탁기|건조기|rtx|gtx|iphone|ipad|galaxy|맥북|ssd|cpu|gpu|위스키|whisky|whiskey)/i.test(message); }
 function isPriceQuery(message) { return !isCalendarHolidayQuery(message) && !isExplicitWeatherRequest(message) && /(가격|시세|최저가|평균가|평균\s*가격|구매가|판매가|중고가|견적|얼마야|얼마임|얼마쯤|얼마\s*정도|얼마인지)/.test(message) && hasProductSignal(message); }
 function isExplicitSearchQuery(message) { return !isCalendarHolidayQuery(message) && /(인터넷|웹에서|네이버|구글|검색|찾아봐|알아봐|확인해|출처|자료|최신|최근|실시간)/.test(message); }
 function isNewsQuery(message) { return /(뉴스|기사|속보|논란|발표|업데이트|최신\s*뉴스|최근\s*뉴스)/.test(message); }
 function isCapabilityQuestion(message) { return /(너|너는|니가|네가).*(잘\s*알아|알아\?|가능|할\s*수|추천\s*가능|뭐해|뭐\s*할)|추천\s*가능\??$|잘\s*알아\??$/.test(message); }
-function isProductTopic(topic) { return hasProductSignal(topic || '') && !/(휴일|공휴일|달력|날씨|안주|메뉴|기분|얘기|대화)/.test(topic || ''); }
+function isExplicitPurchaseRecommendation(message) { return !isCapabilityQuestion(message) && !isCalendarHolidayQuery(message) && !isExplicitWeatherRequest(message) && /(구매|사려|살까|사면|쇼핑|판매|제품|상품|모델|최저가|가격대|예산|입문용|가성비).*(추천|골라|알려|찾아)|(?:추천|골라).*(구매|제품|상품|모델|가격대|예산|입문용|가성비)/.test(message); }
+function isProductTopic(topic) { return hasProductSignal(topic || '') && !/(휴일|공휴일|달력|날씨|안주|메뉴|기분|얘기|대화|장난감 가지고 놀기)/.test(topic || ''); }
+function getProductQueryFromPurchase(message) { return getShoppingQuery(message).replace(/구매하려고|구매|사려|살까|사면|제품|상품|추천|골라|알려|찾아|하는데|해줘|좀/g, ' ').replace(/\s+/g, ' ').trim() || getShoppingQuery(message); }
+function extractJsonObject(text) { const raw = normalizeText(text).replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim(); const start = raw.indexOf('{'); const end = raw.lastIndexOf('}'); if (start < 0 || end < start) return null; try { return JSON.parse(raw.slice(start, end + 1)); } catch (_) { return null; } }
 
-function extractJsonObject(text) {
-  const raw = normalizeText(text).replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-  const start = raw.indexOf('{');
-  const end = raw.lastIndexOf('}');
-  if (start < 0 || end < start) return null;
-  try { return JSON.parse(raw.slice(start, end + 1)); } catch (_) { return null; }
-}
-
-function fallbackAnalysis(userMessage, userId) {
-  const state = getState(userId);
-  if (isContinuationRequest(userMessage)) return { intent: 'continuation', tool: 'none', confidence: 1, topic: state.topic || '', productQuery: '', searchQuery: '', replyMode: 'tool', source: 'heuristic' };
-  if (isCalendarHolidayQuery(userMessage)) return { intent: 'calendar_holiday', tool: 'calendar', confidence: 0.98, topic: '', productQuery: '', searchQuery: '', replyMode: 'tool', source: 'heuristic' };
-  if (isExplicitWeatherRequest(userMessage)) return { intent: 'weather', tool: 'weather', confidence: 0.95, topic: '', productQuery: '', searchQuery: '', replyMode: 'tool', source: 'heuristic' };
-  if (isPriceQuery(userMessage)) return { intent: 'price', tool: 'shopping', confidence: 0.92, topic: '', productQuery: getShoppingQuery(userMessage), searchQuery: '', replyMode: 'tool', source: 'heuristic' };
-  if (isNewsQuery(userMessage)) return { intent: 'news_search', tool: 'news', confidence: 0.82, topic: '', productQuery: '', searchQuery: getSearchQuery(userMessage), replyMode: 'tool_then_answer', source: 'heuristic' };
-  if (isExplicitSearchQuery(userMessage)) return { intent: 'web_lookup', tool: 'web', confidence: 0.78, topic: '', productQuery: '', searchQuery: getSearchQuery(userMessage), replyMode: 'tool_then_answer', source: 'heuristic' };
-  return { intent: 'chat', tool: 'none', confidence: 0.65, topic: state.topic || '', productQuery: '', searchQuery: '', replyMode: 'direct', source: 'heuristic' };
-}
-
-function shouldUseAnalyzer(userMessage) {
-  if (!CLAUDE_API_KEY || isContinuationRequest(userMessage)) return false;
-  if (isCalendarHolidayQuery(userMessage) || isExplicitWeatherRequest(userMessage) || isPriceQuery(userMessage)) return false;
-  return true;
-}
-
-function normalizeAnalysis(analysis, userMessage, userId) {
-  const fallback = fallbackAnalysis(userMessage, userId);
-  const cleaned = { ...fallback, ...analysis };
-  cleaned.intent = normalizeText(cleaned.intent || fallback.intent);
-  cleaned.tool = normalizeText(cleaned.tool || fallback.tool || 'none');
-  cleaned.topic = normalizeText(cleaned.topic || '');
-  cleaned.productQuery = normalizeText(cleaned.productQuery || '');
-  cleaned.searchQuery = normalizeText(cleaned.searchQuery || '');
-  cleaned.replyMode = normalizeText(cleaned.replyMode || fallback.replyMode || 'direct');
-  cleaned.confidence = Math.max(0, Math.min(1, Number(cleaned.confidence || fallback.confidence || 0.5)));
-
-  if (isCalendarHolidayQuery(userMessage)) return { ...cleaned, intent: 'calendar_holiday', tool: 'calendar', topic: '', productQuery: '', searchQuery: '', replyMode: 'tool', confidence: 0.99 };
-  if (isExplicitWeatherRequest(userMessage)) return { ...cleaned, intent: 'weather', tool: 'weather', topic: '', productQuery: '', searchQuery: '', replyMode: 'tool', confidence: 0.97 };
-  if (isPriceQuery(userMessage)) return { ...cleaned, intent: 'price', tool: 'shopping', productQuery: cleaned.productQuery || getShoppingQuery(userMessage), replyMode: 'tool', confidence: 0.95 };
-
-  if (isCapabilityQuestion(userMessage) && !/(가격|시세|최저가|구매|판매|쇼핑)/.test(userMessage)) {
-    return { ...cleaned, intent: 'chat', tool: 'none', productQuery: '', searchQuery: '', replyMode: 'direct', confidence: Math.max(cleaned.confidence, 0.9) };
-  }
-
-  if (cleaned.tool === 'shopping' || cleaned.intent === 'shopping_recommendation') {
-    const productQuery = cleaned.productQuery || cleaned.topic || getShoppingQuery(userMessage);
-    const buyingCue = /(사려|살까|사면|구매|판매|쇼핑|최저가|가격대|예산|모델|제품|상품|본품|중고|신품)/.test(userMessage);
-    if (!isProductTopic(productQuery) && !buyingCue) return { ...cleaned, intent: 'chat', tool: 'none', productQuery: '', searchQuery: '', replyMode: 'direct' };
-    return { ...cleaned, intent: cleaned.intent === 'price' ? 'price' : 'shopping_recommendation', tool: 'shopping', productQuery, replyMode: 'tool' };
-  }
-
-  return cleaned;
-}
-
-async function analyzeTurn(userMessage, userId) {
-  const fallback = fallbackAnalysis(userMessage, userId);
-  if (!shouldUseAnalyzer(userMessage)) return fallback;
-
-  const state = getState(userId);
-  const history = getConversation(userId).slice(-8).map((m) => `${m.role}: ${m.content}`).join('\n');
-  const system = [
-    '너는 카카오톡 챗봇 앞단의 semantic router야. 답변하지 말고 JSON만 반환해.',
-    '목표는 키워드가 아니라 사용자 의도를 이해해서 도구가 필요한지 판단하는 거야.',
-    '도구는 weather, calendar, shopping, web, news, none 중 하나만 선택해.',
-    'intent는 weather, calendar_holiday, price, shopping_recommendation, news_search, web_lookup, chat 중 하나야.',
-    'replyMode는 direct, tool, tool_then_answer, ask_clarifying 중 하나야.',
-    '능력 질문이나 메타 질문은 chat + none이야. 예: "너 위스키 잘 알아?", "추천 가능해?", "너 뭐해?"',
-    '취향 추천/일상 추천은 보통 chat + none이야. 예: 위스키 입문 추천, 안주 추천, 애랑 놀 거리 추천. 사용자가 가격 비교나 구매처를 요구할 때만 shopping이야.',
-    'shopping은 제품 구매 의도가 분명할 때만 써. 단순히 "추천 가능해?"는 shopping이 아니야.',
-    '휴일/달력/공휴일은 calendar야. 날씨는 weather야. 가격/시세/최저가는 상품 대상이 있을 때 shopping price야.',
-    '이전 topic은 대명사 후속 질문일 때만 가져와. 새 주제면 버려.',
-    'JSON: {"intent":"chat","tool":"none","replyMode":"direct","topic":"","productQuery":"","searchQuery":"","followUp":false,"confidence":0.0,"reason":""}',
-  ].join('\n');
-  const content = [`현재 한국 시간: ${getKoreanDateTime()}`, `상태: ${JSON.stringify(state)}`, `최근 대화:\n${history || '(없음)'}`, `사용자 발화: ${userMessage}`].join('\n\n');
-
-  try {
-    const response = await axios.post(CLAUDE_API_URL, { model: CLAUDE_MODEL, max_tokens: 320, temperature: 0, system, messages: [{ role: 'user', content }] }, { headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_API_KEY, 'anthropic-version': '2023-06-01' }, timeout: ANALYZER_TIMEOUT_MS });
-    const parsed = extractJsonObject(response.data?.content?.[0]?.text || '');
-    if (!parsed) return fallback;
-    return normalizeAnalysis({ ...parsed, source: 'semantic_router' }, userMessage, userId);
-  } catch (error) {
-    console.error('[router] analyzer failed:', { message: error.message, code: error.code, status: error.response?.status });
-    return fallback;
-  }
-}
-
-function routeFromAnalysis(analysis) {
-  const intent = ROUTES.some((route) => route.intent === analysis.intent) ? analysis.intent : 'chat';
-  const route = ROUTES.find((item) => item.intent === intent) || ROUTES.find((item) => item.intent === 'chat');
-  return { ...route, confidence: analysis.confidence || 0.5, source: analysis.source || 'unknown', reason: analysis.reason || '' };
-}
-
+function fallbackAnalysis(userMessage, userId) { const state = getState(userId); if (isContinuationRequest(userMessage)) return { intent: 'continuation', tool: 'none', confidence: 1, topic: state.topic || '', productQuery: '', searchQuery: '', replyMode: 'tool', source: 'heuristic' }; if (isCalendarHolidayQuery(userMessage)) return { intent: 'calendar_holiday', tool: 'calendar', confidence: 0.98, topic: '', productQuery: '', searchQuery: '', replyMode: 'tool', source: 'heuristic' }; if (isExplicitWeatherRequest(userMessage)) return { intent: 'weather', tool: 'weather', confidence: 0.95, topic: '', productQuery: '', searchQuery: '', replyMode: 'tool', source: 'heuristic' }; if (isPriceQuery(userMessage)) return { intent: 'price', tool: 'shopping', confidence: 0.92, topic: '', productQuery: getShoppingQuery(userMessage), searchQuery: '', replyMode: 'tool', source: 'heuristic' }; if (isExplicitPurchaseRecommendation(userMessage)) return { intent: 'shopping_recommendation', tool: 'shopping', confidence: 0.9, topic: '', productQuery: getProductQueryFromPurchase(userMessage), searchQuery: '', replyMode: 'tool', source: 'heuristic_purchase' }; if (isNewsQuery(userMessage)) return { intent: 'news_search', tool: 'news', confidence: 0.82, topic: '', productQuery: '', searchQuery: getSearchQuery(userMessage), replyMode: 'tool_then_answer', source: 'heuristic' }; if (isExplicitSearchQuery(userMessage)) return { intent: 'web_lookup', tool: 'web', confidence: 0.78, topic: '', productQuery: '', searchQuery: getSearchQuery(userMessage), replyMode: 'tool_then_answer', source: 'heuristic' }; return { intent: 'chat', tool: 'none', confidence: 0.65, topic: state.topic || '', productQuery: '', searchQuery: '', replyMode: 'direct', source: 'heuristic' }; }
+function shouldUseAnalyzer(userMessage) { if (!CLAUDE_API_KEY || isContinuationRequest(userMessage)) return false; if (isCalendarHolidayQuery(userMessage) || isExplicitWeatherRequest(userMessage) || isPriceQuery(userMessage) || isExplicitPurchaseRecommendation(userMessage)) return false; return true; }
+function normalizeAnalysis(analysis, userMessage, userId) { const fallback = fallbackAnalysis(userMessage, userId); const cleaned = { ...fallback, ...analysis }; cleaned.intent = normalizeText(cleaned.intent || fallback.intent); cleaned.tool = normalizeText(cleaned.tool || fallback.tool || 'none'); cleaned.topic = normalizeText(cleaned.topic || ''); cleaned.productQuery = normalizeText(cleaned.productQuery || ''); cleaned.searchQuery = normalizeText(cleaned.searchQuery || ''); cleaned.replyMode = normalizeText(cleaned.replyMode || fallback.replyMode || 'direct'); cleaned.confidence = Math.max(0, Math.min(1, Number(cleaned.confidence || fallback.confidence || 0.5))); if (isCalendarHolidayQuery(userMessage) || isExplicitWeatherRequest(userMessage) || isPriceQuery(userMessage) || isExplicitPurchaseRecommendation(userMessage)) return fallback; if (isCapabilityQuestion(userMessage) && !/(가격|시세|최저가|구매|판매|쇼핑)/.test(userMessage)) return { ...cleaned, intent: 'chat', tool: 'none', productQuery: '', searchQuery: '', replyMode: 'direct', confidence: Math.max(cleaned.confidence, 0.9) }; if (cleaned.tool === 'shopping' || cleaned.intent === 'shopping_recommendation') { const productQuery = cleaned.productQuery || cleaned.topic || getShoppingQuery(userMessage); const buyingCue = /(사려|살까|사면|구매|판매|쇼핑|최저가|가격대|예산|모델|제품|상품|본품|중고|신품)/.test(userMessage); if (!isProductTopic(productQuery) && !buyingCue) return { ...cleaned, intent: 'chat', tool: 'none', productQuery: '', searchQuery: '', replyMode: 'direct' }; return { ...cleaned, intent: cleaned.intent === 'price' ? 'price' : 'shopping_recommendation', tool: 'shopping', productQuery, replyMode: 'tool' }; } return cleaned; }
+async function analyzeTurn(userMessage, userId) { const fallback = fallbackAnalysis(userMessage, userId); if (!shouldUseAnalyzer(userMessage)) return fallback; const state = getState(userId); const history = getConversation(userId).slice(-8).map((m) => `${m.role}: ${m.content}`).join('\n'); const system = ['너는 카카오톡 챗봇 앞단의 semantic router야. 답변하지 말고 JSON만 반환해.', '목표는 키워드가 아니라 사용자 의도를 이해해서 도구가 필요한지 판단하는 거야.', '도구는 weather, calendar, shopping, web, news, none 중 하나만 선택해.', 'intent는 weather, calendar_holiday, price, shopping_recommendation, news_search, web_lookup, chat 중 하나야.', '능력 질문이나 메타 질문은 chat + none이야. 예: "너 위스키 잘 알아?", "추천 가능해?", "너 뭐해?"', '취향 추천/일상 추천은 보통 chat + none이야. 사용자가 가격 비교나 구매처를 요구할 때만 shopping이야.', 'shopping은 제품 구매 의도가 분명할 때만 써. 단순히 "추천 가능해?"는 shopping이 아니야.', '이전 topic은 대명사 후속 질문일 때만 가져와. 새 주제면 버려.', 'JSON: {"intent":"chat","tool":"none","replyMode":"direct","topic":"","productQuery":"","searchQuery":"","followUp":false,"confidence":0.0,"reason":""}'].join('\n'); const content = [`현재 한국 시간: ${getKoreanDateTime()}`, `상태: ${JSON.stringify(state)}`, `최근 대화:\n${history || '(없음)'}`, `사용자 발화: ${userMessage}`].join('\n\n'); try { const response = await axios.post(CLAUDE_API_URL, { model: CLAUDE_MODEL, max_tokens: 320, temperature: 0, system, messages: [{ role: 'user', content }] }, { headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_API_KEY, 'anthropic-version': '2023-06-01' }, timeout: ANALYZER_TIMEOUT_MS }); const parsed = extractJsonObject(response.data?.content?.[0]?.text || ''); return parsed ? normalizeAnalysis({ ...parsed, source: 'semantic_router' }, userMessage, userId) : fallback; } catch (error) { console.error('[router] analyzer failed:', { message: error.message, code: error.code, status: error.response?.status }); return fallback; } }
+function routeFromAnalysis(analysis) { const route = ROUTES.find((item) => item.intent === analysis.intent) || ROUTES.find((item) => item.intent === 'chat'); return { ...route, confidence: analysis.confidence || 0.5, source: analysis.source || 'unknown', reason: analysis.reason || '' }; }
 function routeNeedsSearch(route) { return ['web_lookup', 'news_search'].includes(route?.intent); }
 function routeStoresTopic(route) { return ['price', 'shopping_recommendation', 'web_lookup'].includes(route?.intent); }
-function rememberMessage(userId, role, content, route, topic, analysis) {
-  const history = getConversation(userId);
-  history.push({ role, content: trimForKakao(content) });
-  conversations.set(userId, history.slice(-MAX_HISTORY_MESSAGES));
-  if (role !== 'assistant' || !route) return;
-
-  const prev = getState(userId);
-  const nextTopic = routeStoresTopic(route) && isProductTopic(topic || analysis?.topic || analysis?.productQuery || '') ? normalizeText(topic || analysis?.topic || analysis?.productQuery) : prev.topic;
-  dialogueState.set(userId, {
-    lastIntent: route.intent,
-    topic: nextTopic,
-    mood: route.intent === 'chat' ? 'conversational' : prev.mood,
-    slots: { ...(prev.slots || {}) },
-    turns: (prev.turns || 0) + 1,
-    updatedAt: Date.now(),
-  });
-}
+function rememberMessage(userId, role, content, route, topic, analysis) { const history = getConversation(userId); history.push({ role, content: trimForKakao(content) }); conversations.set(userId, history.slice(-MAX_HISTORY_MESSAGES)); if (role !== 'assistant' || !route) return; const prev = getState(userId); const nextTopic = routeStoresTopic(route) && isProductTopic(topic || analysis?.topic || analysis?.productQuery || '') ? normalizeText(topic || analysis?.topic || analysis?.productQuery) : prev.topic; dialogueState.set(userId, { lastIntent: route.intent, topic: nextTopic, mood: route.intent === 'chat' ? 'conversational' : prev.mood, slots: { ...(prev.slots || {}) }, turns: (prev.turns || 0) + 1, updatedAt: Date.now() }); }
 
 function getSearchQuery(userMessage) { return normalizeText(userMessage).replace(/검색해서|검색해|검색|찾아서|찾아줘|찾아봐|알아봐|알려줘|대해서|관련해서|정보|최신으로|최신|오늘|지금|현재/g, ' ').replace(/\s+/g, ' ').trim() || userMessage; }
-function getShoppingQuery(userMessage) {
-  const cleaned = normalizeText(userMessage).replace(/현재|지금|오늘|요즘|평균가|평균\s*가격|가격|얼마야|얼마|시세|최저가|구매가|판매가|중고가|견적|검색|찾아줘|찾아봐|알아봐|알려줘|추천|골라줘|골라|글카/g, ' ').replace(/은|는|이|가|의|에\s*대해서|대해서|관련해서|정보/g, ' ').replace(/[?？！!,.]/g, ' ').replace(/([A-Za-z]+)(\d+)/g, '$1 $2').replace(/\s+/g, ' ').trim();
-  if (/^\d{4}$/.test(cleaned)) return `RTX ${cleaned} 그래픽카드`;
-  if (/5090/.test(cleaned) && !/rtx/i.test(cleaned)) return `RTX ${cleaned} 그래픽카드`;
-  return cleaned || userMessage;
-}
+function getShoppingQuery(userMessage) { const cleaned = normalizeText(userMessage).replace(/현재|지금|오늘|요즘|평균가|평균\s*가격|가격|얼마야|얼마|시세|최저가|구매가|판매가|중고가|견적|검색|찾아줘|찾아봐|알아봐|알려줘|추천|골라줘|골라|글카/g, ' ').replace(/은|는|이|가|의|에\s*대해서|대해서|관련해서|정보/g, ' ').replace(/[?？！!,.]/g, ' ').replace(/([A-Za-z]+)(\d+)/g, '$1 $2').replace(/\s+/g, ' ').trim(); if (/^\d{4}$/.test(cleaned)) return `RTX ${cleaned} 그래픽카드`; if (/5090/.test(cleaned) && !/rtx/i.test(cleaned)) return `RTX ${cleaned} 그래픽카드`; return cleaned || userMessage; }
 function getNaverSearchUrl(query) { return `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`; }
-function getQuickReplies(userMessage, searchResults, route) {
-  const replies = [];
-  if (route?.intent === 'weather') replies.push({ label: '네이버 날씨 보기', action: 'webLink', webLinkUrl: getNaverSearchUrl(`${getWeatherLocation(userMessage)} 날씨`) });
-  const first = Array.isArray(searchResults) ? searchResults.find((item) => item.link) : null;
-  if (first) replies.push({ label: ['price', 'shopping_recommendation'].includes(route?.intent) ? '쇼핑결과 보기' : '검색결과 보기', action: 'webLink', webLinkUrl: first.link });
-  return replies.length ? replies : undefined;
-}
-
-function getWeatherLocation(message) {
-  const patterns = [/([가-힣]+(?:시|군|구|동|읍|면|도))\s*날씨/, /날씨\s*([가-힣]+(?:시|군|구|동|읍|면|도))/, /([가-힣]+)\s*날씨/, /날씨\s*([가-힣]+)/];
-  for (const pattern of patterns) {
-    const match = message.match(pattern);
-    if (match?.[1]) {
-      const location = match[1].replace(/날씨|오늘|내일|모레|지금|현재|알려줘|검색|찾아줘/g, '').trim();
-      if (location) return location;
-    }
-  }
-  return '서울';
-}
+function getQuickReplies(userMessage, searchResults, route) { const replies = []; if (route?.intent === 'weather') replies.push({ label: '네이버 날씨 보기', action: 'webLink', webLinkUrl: getNaverSearchUrl(`${getWeatherLocation(userMessage)} 날씨`) }); const first = Array.isArray(searchResults) ? searchResults.find((item) => item.link) : null; if (first) replies.push({ label: ['price', 'shopping_recommendation'].includes(route?.intent) ? '쇼핑결과 보기' : '검색결과 보기', action: 'webLink', webLinkUrl: first.link }); return replies.length ? replies : undefined; }
+function getWeatherLocation(message) { const patterns = [/([가-힣]+(?:시|군|구|동|읍|면|도))\s*날씨/, /날씨\s*([가-힣]+(?:시|군|구|동|읍|면|도))/, /([가-힣]+)\s*날씨/, /날씨\s*([가-힣]+)/]; for (const pattern of patterns) { const match = message.match(pattern); if (match?.[1]) { const location = match[1].replace(/날씨|오늘|내일|모레|지금|현재|알려줘|검색|찾아줘/g, '').trim(); if (location) return location; } } return '서울'; }
 function getWeatherDescription(code) { if ([0].includes(code)) return '맑음'; if ([1, 2, 3].includes(code)) return '구름 조금/흐림'; if ([45, 48].includes(code)) return '안개'; if ([51, 53, 55, 56, 57].includes(code)) return '이슬비'; if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return '비'; if ([71, 73, 75, 77, 85, 86].includes(code)) return '눈'; if ([95, 96, 99].includes(code)) return '뇌우'; return '확인 필요'; }
-async function resolveWeatherLocation(location) {
-  const compact = location.replace(/특별시|광역시|시|군|구|동|읍|면|도/g, '').trim();
-  if (KOREA_CITY_COORDS[location]) return KOREA_CITY_COORDS[location];
-  if (KOREA_CITY_COORDS[compact]) return KOREA_CITY_COORDS[compact];
-  const response = await axios.get(OPEN_METEO_GEOCODING_URL, { params: { name: location, count: 1, language: 'ko', format: 'json', countryCode: 'KR' }, timeout: WEATHER_TIMEOUT_MS });
-  const result = response.data?.results?.[0];
-  return result ? { name: result.name || location, latitude: result.latitude, longitude: result.longitude } : KOREA_CITY_COORDS.서울;
-}
-async function getWeatherAnswer(userMessage) {
-  const requestedLocation = getWeatherLocation(userMessage);
-  const location = await resolveWeatherLocation(requestedLocation);
-  const dayOffset = /모레/.test(userMessage) ? 2 : /내일/.test(userMessage) ? 1 : 0;
-  const response = await axios.get(OPEN_METEO_FORECAST_URL, { params: { latitude: location.latitude, longitude: location.longitude, timezone: 'Asia/Seoul', forecast_days: Math.max(1, dayOffset + 1), current: 'temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m', daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max' }, timeout: WEATHER_TIMEOUT_MS });
-  const current = response.data?.current || {};
-  const daily = response.data?.daily || {};
-  if (dayOffset > 0) return [`${location.name || requestedLocation} 기준 ${dayOffset === 1 ? '내일' : '모레'} 날씨야.`, `예보는 ${getWeatherDescription(daily.weather_code?.[dayOffset])} 쪽이고, 최저/최고는 ${daily.temperature_2m_min?.[dayOffset]}°C / ${daily.temperature_2m_max?.[dayOffset]}°C 정도야.`, `강수확률은 ${daily.precipitation_probability_max?.[dayOffset] ?? '확인 필요'}%로 보여.`].join('\n');
-  return [`${location.name || requestedLocation} 기준 현재 날씨야.`, `지금 ${current.temperature_2m}°C, 체감 ${current.apparent_temperature}°C, ${getWeatherDescription(current.weather_code)}이야.`, `오늘 최저/최고는 ${daily.temperature_2m_min?.[0]}°C / ${daily.temperature_2m_max?.[0]}°C 정도고, 강수확률은 ${daily.precipitation_probability_max?.[0] ?? '확인 필요'}%야.`, `습도는 ${current.relative_humidity_2m}%, 바람은 ${current.wind_speed_10m}km/h 정도야.`].join('\n');
-}
-
-function getTargetMonth(userMessage) {
-  const now = getKoreaNow();
-  let year = now.getFullYear();
-  let month = now.getMonth() + 1;
-  const explicitMonth = userMessage.match(/(\d{1,2})\s*월/);
-  if (/내년/.test(userMessage)) year += 1;
-  if (explicitMonth) month = Number(explicitMonth[1]);
-  else if (/다음\s*달|다음달|내달/.test(userMessage)) { month += 1; if (month > 12) { month = 1; year += 1; } }
-  else if (/이번\s*달|이번달|이달/.test(userMessage)) month = now.getMonth() + 1;
-  return { year, month };
-}
-function getHolidaySummary(year, month) {
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const holidays = KOREAN_PUBLIC_HOLIDAYS[year] || {};
-  const restDays = new Set();
-  const items = [];
-  for (let day = 1; day <= lastDay; day += 1) {
-    const key = toDateKey(year, month, day);
-    const dow = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-    if (dow === 0 || dow === 6) restDays.add(key);
-    if (holidays[key]) { restDays.add(key); items.push({ key, day, dow, name: holidays[key] }); }
-  }
-  return { year, month, totalRestDays: restDays.size, publicHolidayCount: items.length, weekdayPublicHolidayCount: items.filter((item) => item.dow !== 0 && item.dow !== 6).length, items, known: Boolean(KOREAN_PUBLIC_HOLIDAYS[year]) };
-}
-function buildHolidayAnswer(userMessage) {
-  const { year, month } = getTargetMonth(userMessage);
-  const summary = getHolidaySummary(year, month);
-  const lines = [`${year}년 ${month}월 기준으로 계산해봤어.`, `주말까지 포함해서 쉬는 날은 총 ${summary.totalRestDays}일이야.`, `공휴일만 따로 보면 ${summary.publicHolidayCount}개고, 그중 평일 공휴일은 ${summary.weekdayPublicHolidayCount}개야.`];
-  if (summary.items.length) {
-    lines.push('공휴일은 이렇게 있어:');
-    summary.items.forEach((item) => lines.push(`- ${item.day}일(${weekdayKo(year, month, item.day)}): ${item.name}`));
-  } else lines.push('등록된 공휴일은 따로 안 보여. 주말만 계산하면 돼.');
-  if (year === 2026 && month === 6) lines.push('6월 6일 현충일은 토요일이라 주말이랑 겹쳐. 평일에 추가로 쉬는 건 6월 3일 지방선거일 하루로 보면 돼.');
-  if (!summary.known) lines.push('다만 이 연도는 서버에 공휴일표가 없어서 주말 중심으로 계산했어.');
-  return lines.join('\n');
-}
-
+async function resolveWeatherLocation(location) { const compact = location.replace(/특별시|광역시|시|군|구|동|읍|면|도/g, '').trim(); if (KOREA_CITY_COORDS[location]) return KOREA_CITY_COORDS[location]; if (KOREA_CITY_COORDS[compact]) return KOREA_CITY_COORDS[compact]; const response = await axios.get(OPEN_METEO_GEOCODING_URL, { params: { name: location, count: 1, language: 'ko', format: 'json', countryCode: 'KR' }, timeout: WEATHER_TIMEOUT_MS }); const result = response.data?.results?.[0]; return result ? { name: result.name || location, latitude: result.latitude, longitude: result.longitude } : KOREA_CITY_COORDS.서울; }
+async function getWeatherAnswer(userMessage) { const requestedLocation = getWeatherLocation(userMessage); const location = await resolveWeatherLocation(requestedLocation); const dayOffset = /모레/.test(userMessage) ? 2 : /내일/.test(userMessage) ? 1 : 0; const response = await axios.get(OPEN_METEO_FORECAST_URL, { params: { latitude: location.latitude, longitude: location.longitude, timezone: 'Asia/Seoul', forecast_days: Math.max(1, dayOffset + 1), current: 'temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m', daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max' }, timeout: WEATHER_TIMEOUT_MS }); const current = response.data?.current || {}; const daily = response.data?.daily || {}; if (dayOffset > 0) return [`${location.name || requestedLocation} 기준 ${dayOffset === 1 ? '내일' : '모레'} 날씨야.`, `예보는 ${getWeatherDescription(daily.weather_code?.[dayOffset])} 쪽이고, 최저/최고는 ${daily.temperature_2m_min?.[dayOffset]}°C / ${daily.temperature_2m_max?.[dayOffset]}°C 정도야.`, `강수확률은 ${daily.precipitation_probability_max?.[dayOffset] ?? '확인 필요'}%로 보여.`].join('\n'); return [`${location.name || requestedLocation} 기준 현재 날씨야.`, `지금 ${current.temperature_2m}°C, 체감 ${current.apparent_temperature}°C, ${getWeatherDescription(current.weather_code)}이야.`, `오늘 최저/최고는 ${daily.temperature_2m_min?.[0]}°C / ${daily.temperature_2m_max?.[0]}°C 정도고, 강수확률은 ${daily.precipitation_probability_max?.[0] ?? '확인 필요'}%야.`, `습도는 ${current.relative_humidity_2m}%, 바람은 ${current.wind_speed_10m}km/h 정도야.`].join('\n'); }
+function getTargetMonth(userMessage) { const now = getKoreaNow(); let year = now.getFullYear(); let month = now.getMonth() + 1; const explicitMonth = userMessage.match(/(\d{1,2})\s*월/); if (/내년/.test(userMessage)) year += 1; if (explicitMonth) month = Number(explicitMonth[1]); else if (/다음\s*달|다음달|내달/.test(userMessage)) { month += 1; if (month > 12) { month = 1; year += 1; } } else if (/이번\s*달|이번달|이달/.test(userMessage)) month = now.getMonth() + 1; return { year, month }; }
+function getHolidaySummary(year, month) { const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate(); const holidays = KOREAN_PUBLIC_HOLIDAYS[year] || {}; const restDays = new Set(); const items = []; for (let day = 1; day <= lastDay; day += 1) { const key = toDateKey(year, month, day); const dow = new Date(Date.UTC(year, month - 1, day)).getUTCDay(); if (dow === 0 || dow === 6) restDays.add(key); if (holidays[key]) { restDays.add(key); items.push({ key, day, dow, name: holidays[key] }); } } return { year, month, totalRestDays: restDays.size, publicHolidayCount: items.length, weekdayPublicHolidayCount: items.filter((item) => item.dow !== 0 && item.dow !== 6).length, items, known: Boolean(KOREAN_PUBLIC_HOLIDAYS[year]) }; }
+function buildHolidayAnswer(userMessage) { const { year, month } = getTargetMonth(userMessage); const summary = getHolidaySummary(year, month); const lines = [`${year}년 ${month}월 기준으로 계산해봤어.`, `주말까지 포함해서 쉬는 날은 총 ${summary.totalRestDays}일이야.`, `공휴일만 따로 보면 ${summary.publicHolidayCount}개고, 그중 평일 공휴일은 ${summary.weekdayPublicHolidayCount}개야.`]; if (summary.items.length) { lines.push('공휴일은 이렇게 있어:'); summary.items.forEach((item) => lines.push(`- ${item.day}일(${weekdayKo(year, month, item.day)}): ${item.name}`)); } else lines.push('등록된 공휴일은 따로 안 보여. 주말만 계산하면 돼.'); if (year === 2026 && month === 6) lines.push('6월 6일 현충일은 토요일이라 주말이랑 겹쳐. 평일에 추가로 쉬는 건 6월 3일 지방선거일 하루로 보면 돼.'); if (!summary.known) lines.push('다만 이 연도는 서버에 공휴일표가 없어서 주말 중심으로 계산했어.'); return lines.join('\n'); }
 function formatWon(value) { return `${Math.round(value).toLocaleString('ko-KR')}원`; }
 function getMedian(values) { const sorted = [...values].sort((a, b) => a - b); const mid = Math.floor(sorted.length / 2); return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]; }
 function getTrimmedPrices(values) { if (values.length < 5) return values; const sorted = [...values].sort((a, b) => a - b); return sorted.slice(1, -1); }
 function queryTokens(query) { return normalizeText(query).toLowerCase().split(/\s+/).filter((token) => token.length >= 2 && !/인기|모델|추천|현재|판매|중인|정확|알려|찾아/.test(token)); }
-function itemMatchesQuery(query, item) {
-  const title = item.title.toLowerCase().replace(/\s+/g, '');
-  const tokens = queryTokens(query).map((token) => token.toLowerCase().replace(/\s+/g, ''));
-  const categoryTokens = tokens.filter((token) => /전자레인지|전자렌지|오븐|에어프라이어|노트북|모니터|청소기|그래픽카드|냉장고|세탁기|건조기|rtx|gtx|iphone|ipad|galaxy|맥북|ssd|cpu|gpu/i.test(token));
-  const important = categoryTokens.length ? categoryTokens : tokens.slice(0, 3);
-  return important.every((token) => title.includes(token));
-}
-function isRelevantShoppingItem(query, item) {
-  const q = query.toLowerCase().replace(/\s+/g, '');
-  const title = item.title.toLowerCase().replace(/\s+/g, '');
-  const rawTitle = item.title.toLowerCase();
-  const modelNumbers = q.match(/\d{3,5}/g) || [];
-  if (!modelNumbers.every((number) => title.includes(number))) return false;
-  if (/전자레인지|전자렌지/.test(query) && /전기레인지|인덕션|하이라이트|식기세척|마그네트론|부품|교체|수리|렌탈/.test(rawTitle)) return false;
-  if (/5090/.test(q)) {
-    const accessoryWords = /케이블|cable|라이저|riser|브라켓|bracket|수냉|워터블럭|water\s*block|백플레이트|쿨러|fan|팬|방열판|거치대|스탠드|지지대|홀더|커버|부품|부속|박스|메인보드|파워|케이스/;
-    const gpuWords = /rtx|geforce|지포스|그래픽카드|그래픽 카드|vga|gpu/;
-    if (accessoryWords.test(rawTitle) || !gpuWords.test(rawTitle) || item.lprice < 2500000) return false;
-  }
-  return itemMatchesQuery(query, item);
-}
-async function searchNaverShoppingByQuery(query, display = 20) {
-  if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) return [];
-  const response = await axios.get(NAVER_SHOPPING_SEARCH_URL, { params: { query, display, sort: 'sim' }, headers: { 'X-Naver-Client-Id': NAVER_CLIENT_ID, 'X-Naver-Client-Secret': NAVER_CLIENT_SECRET }, timeout: NAVER_SEARCH_TIMEOUT_MS });
-  return (response.data?.items || []).map((item) => ({ title: stripHtml(item.title), link: item.link, mallName: stripHtml(item.mallName), lprice: Number(item.lprice || 0) })).filter((item) => item.lprice > 0);
-}
-async function searchNaverShopping(userMessage, analysis) {
-  const query = normalizeText(analysis?.productQuery || analysis?.topic || getShoppingQuery(userMessage));
-  return (await searchNaverShoppingByQuery(query, 20)).filter((item) => isRelevantShoppingItem(query, item));
-}
-function buildShoppingPriceAnswer(userMessage, items, analysis) {
-  const query = normalizeText(analysis?.productQuery || analysis?.topic || getShoppingQuery(userMessage));
-  if (!items.length) return `${query} 가격은 쇼핑 검색에서 본품으로 보이는 상품을 못 찾았어. 모델명을 조금 더 정확히 적어줘.`;
-  const sorted = [...items].sort((a, b) => a.lprice - b.lprice);
-  const prices = sorted.map((item) => item.lprice);
-  const trimmed = getTrimmedPrices(prices);
-  const average = trimmed.reduce((sum, price) => sum + price, 0) / trimmed.length;
-  const median = getMedian(prices);
-  return [`${query} 현재 쇼핑 검색 기준으로 본품만 추려서 계산해봤어.`, `확인한 상품 ${prices.length}개 기준 ${trimmed.length === prices.length ? '평균' : '이상치 제외 평균'}은 약 ${formatWon(average)}야.`, `중앙값은 약 ${formatWon(median)}, 가격 범위는 ${formatWon(prices[0])}~${formatWon(prices[prices.length - 1])} 정도로 보여.`, '낮은 가격순으로 보면:', ...sorted.slice(0, 3).map((item, index) => `${index + 1}. ${formatWon(item.lprice)} - ${item.title}${item.mallName ? ` (${item.mallName})` : ''}`), '재고/배송비/카드할인에 따라 실구매가는 달라질 수 있어.'].join('\n');
-}
-function buildShoppingRecommendationAnswer(query, items) {
-  const filtered = items.filter((item) => isRelevantShoppingItem(query, item) && !/중고|리퍼|부품|필터|접시|선반|커버|용기|도어|핸들|수리|렌탈/i.test(item.title)).sort((a, b) => a.lprice - b.lprice);
-  if (!filtered.length) return `${query}로 쇼핑 검색을 했는데 추천할 만한 본품을 못 찾았어. 원하는 가격대나 용도를 조금 더 말해줘.`;
-  const pick = filtered[Math.min(1, filtered.length - 1)];
-  return [`${query}는 지금 검색 기준으로 이쪽이 무난해 보여.`, `내 추천은 ${pick.title} (${pick.mallName || '판매처 확인 필요'}) - ${formatWon(pick.lprice)} 정도야.`, '부속품이나 다른 카테고리 섞인 건 빼고, 가격이랑 판매처가 비교적 정상적인 쪽을 골랐어.', '비교 후보는:', ...filtered.slice(0, 3).map((item, index) => `${index + 1}. ${formatWon(item.lprice)} - ${item.title}${item.mallName ? ` (${item.mallName})` : ''}`)].join('\n');
-}
-
-async function searchNaver(userMessage, route, analysis) {
-  if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET || !routeNeedsSearch(route)) return [];
-  const query = normalizeText(analysis?.searchQuery || analysis?.topic || getSearchQuery(userMessage));
-  const url = route.intent === 'news_search' ? NAVER_NEWS_SEARCH_URL : NAVER_WEB_SEARCH_URL;
-  const response = await axios.get(url, { params: { query, display: Math.min(Math.max(NAVER_SEARCH_DISPLAY, 1), 10), sort: route.intent === 'news_search' ? 'date' : 'sim' }, headers: { 'X-Naver-Client-Id': NAVER_CLIENT_ID, 'X-Naver-Client-Secret': NAVER_CLIENT_SECRET }, timeout: NAVER_SEARCH_TIMEOUT_MS });
-  return (response.data?.items || []).map((item) => ({ title: stripHtml(item.title), link: item.link || item.originallink, description: stripHtml(item.description), date: item.pubDate || '' }));
-}
-function formatSearchContext(searchResults) {
-  if (!searchResults?.length) return '';
-  return searchResults.slice(0, NAVER_SEARCH_DISPLAY).map((item, index) => [`[${index + 1}] ${item.title}`, item.description ? `요약: ${item.description}` : '', item.date ? `날짜: ${item.date}` : '', item.link ? `링크: ${item.link}` : ''].filter(Boolean).join('\n')).join('\n\n');
-}
-function buildSearchFallbackAnswer(userMessage, searchResults, analysis) {
-  if (!searchResults.length) return '인터넷 검색 결과를 못 찾았어. 검색어를 조금 더 구체적으로 보내주면 다시 찾아볼게.';
-  const query = normalizeText(analysis?.searchQuery || analysis?.topic || getSearchQuery(userMessage));
-  return [`${query}로 찾아본 결과 중 제일 가까운 건 “${searchResults[0].title}”야.`, searchResults[0].description || '', ...searchResults.slice(0, 3).map((item, index) => `${index + 1}. ${item.title}\n${item.link || ''}`)].filter(Boolean).join('\n');
-}
-
-function buildSystemPrompt(searchResults, route, state, analysis) {
-  const searchContext = formatSearchContext(searchResults);
-  return [
-    '너는 카카오톡에서 대화하는 친근한 한국어 AI 친구야.',
-    '모든 답변은 자연스러운 반말로 해. 존댓말, ~요, ~습니다 말투는 쓰지 마.',
-    '사용자 말을 먼저 이해하고, 카톡 대화처럼 짧고 자연스럽게 받아쳐.',
-    '능력 질문에는 가능 여부와 어떻게 도와줄 수 있는지 답해. 바로 쇼핑 검색 결과처럼 말하지 마.',
-    '구매처/가격/최저가/판매 모델을 묻는 경우에만 쇼핑 맥락으로 말해.',
-    '취향 추천은 먼저 예산, 취향, 용도 같은 필요한 조건을 자연스럽게 물어봐도 돼.',
-    '찾아볼게/기다려줘처럼 미래에 도구를 실행할 척하지 마. 도구 결과가 있으면 이미 아래에 제공돼.',
-    '카카오톡에서 읽기 좋게 보통 1~5문장으로 답해.',
-    `현재 한국 시간: ${getKoreanDateTime()}`,
-    `라우터: ${route.intent}/${route.handler}, confidence=${route.confidence}, source=${route.source || 'unknown'}`,
-    `분석: ${JSON.stringify(analysis || {})}`,
-    `대화 상태: ${JSON.stringify(state || {})}`,
-    searchContext ? `검색 결과:\n${searchContext}` : '',
-  ].filter(Boolean).join('\n');
-}
-function buildClaudeMessages(userMessage, userId) {
-  const history = getConversation(userId).slice(-MAX_HISTORY_MESSAGES);
-  return [...history.map((message) => ({ role: message.role, content: message.content })), { role: 'user', content: userMessage }];
-}
-async function callClaude(userMessage, userId, searchResults, route, analysis) {
-  if (!CLAUDE_API_KEY) return '지금 Claude API 키가 설정 안 돼 있어서 일반 대화를 못 이어가. Railway 변수에 CLAUDE_API_KEY가 필요해.';
-  const maxTokens = routeNeedsSearch(route) ? 900 : 420;
-  const response = await axios.post(CLAUDE_API_URL, { model: CLAUDE_MODEL, max_tokens: maxTokens, temperature: routeNeedsSearch(route) ? 0.35 : 0.82, system: buildSystemPrompt(searchResults, route, getState(userId), analysis), messages: buildClaudeMessages(userMessage, userId) }, { headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_API_KEY, 'anthropic-version': '2023-06-01' }, timeout: CLAUDE_TIMEOUT_MS });
-  return response.data?.content?.[0]?.text || '응답을 못 만들었어. 다시 한 번만 보내줘.';
-}
-
-async function buildAnswer(userMessage, userId) {
-  const analysis = await analyzeTurn(userMessage, userId);
-  const route = routeFromAnalysis(analysis);
-  let topic = normalizeText(analysis.topic || analysis.productQuery || '');
-
-  if (route.intent === 'calendar_holiday') return { answer: buildHolidayAnswer(userMessage), searchResults: [], route, topic: '', analysis };
-  if (route.intent === 'weather') return { answer: await getWeatherAnswer(userMessage), searchResults: [], route, topic: '', analysis };
-  if (route.intent === 'price') {
-    const items = await searchNaverShopping(userMessage, analysis);
-    topic = analysis.productQuery || getShoppingQuery(userMessage);
-    return { answer: buildShoppingPriceAnswer(userMessage, items, analysis), searchResults: items, route, topic, analysis };
-  }
-  if (route.intent === 'shopping_recommendation') {
-    const query = normalizeText(analysis.productQuery || analysis.topic || getShoppingQuery(userMessage));
-    if (!isProductTopic(query)) {
-      const chatRoute = { ...ROUTES.find((item) => item.intent === 'chat'), confidence: route.confidence, source: 'shopping_guard', reason: 'no product topic' };
-      const answer = await callClaude(userMessage, userId, [], chatRoute, { ...analysis, intent: 'chat', tool: 'none' });
-      return { answer, searchResults: [], route: chatRoute, topic: '', analysis };
-    }
-    const items = await searchNaverShoppingByQuery(`${query} 인기 모델`, 20);
-    return { answer: buildShoppingRecommendationAnswer(query, items), searchResults: items.filter((item) => isRelevantShoppingItem(query, item)), route, topic: query, analysis };
-  }
-
-  let searchResults = [];
-  try { searchResults = await searchNaver(userMessage, route, analysis); } catch (error) { console.error('[search] failed:', { message: error.message, code: error.code, status: error.response?.status }); }
-  try { return { answer: await callClaude(userMessage, userId, searchResults, route, analysis), searchResults, route, topic, analysis }; }
-  catch (error) { if (searchResults.length) return { answer: buildSearchFallbackAnswer(userMessage, searchResults, analysis), searchResults, route, topic, analysis }; throw error; }
-}
-
-async function sendCallback(callbackUrl, userMessage, userId) {
-  try {
-    const { answer, searchResults, route, topic, analysis } = await buildAnswer(userMessage, userId);
-    rememberMessage(userId, 'user', userMessage);
-    rememberMessage(userId, 'assistant', answer, route, topic, analysis);
-    await axios.post(callbackUrl, kakaoTextResponse(answer, getQuickReplies(userMessage, searchResults, route), userId), { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
-  } catch (error) {
-    console.error('[callback] failed:', { message: error.message, code: error.code, status: error.response?.status });
-  }
-}
-
+function itemMatchesQuery(query, item) { const title = item.title.toLowerCase().replace(/\s+/g, ''); const tokens = queryTokens(query).map((token) => token.toLowerCase().replace(/\s+/g, '')); const categoryTokens = tokens.filter((token) => /전자레인지|전자렌지|오븐|에어프라이어|노트북|모니터|청소기|그래픽카드|냉장고|세탁기|건조기|rtx|gtx|iphone|ipad|galaxy|맥북|ssd|cpu|gpu|위스키|whisky|whiskey/i.test(token)); const important = categoryTokens.length ? categoryTokens : tokens.slice(0, 3); return important.every((token) => title.includes(token)); }
+function isRelevantShoppingItem(query, item) { const q = query.toLowerCase().replace(/\s+/g, ''); const title = item.title.toLowerCase().replace(/\s+/g, ''); const rawTitle = item.title.toLowerCase(); const modelNumbers = q.match(/\d{3,5}/g) || []; if (/5090|rtx|gtx/i.test(query) && !modelNumbers.every((number) => title.includes(number))) return false; if (/전자레인지|전자렌지/.test(query) && /전기레인지|인덕션|하이라이트|식기세척|마그네트론|부품|교체|수리|렌탈/.test(rawTitle)) return false; if (/5090/.test(q)) { const accessoryWords = /케이블|cable|라이저|riser|브라켓|bracket|수냉|워터블럭|water\s*block|백플레이트|쿨러|fan|팬|방열판|거치대|스탠드|지지대|홀더|커버|부품|부속|박스|메인보드|파워|케이스/; const gpuWords = /rtx|geforce|지포스|그래픽카드|그래픽 카드|vga|gpu/; if (accessoryWords.test(rawTitle) || !gpuWords.test(rawTitle) || item.lprice < 2500000) return false; } return itemMatchesQuery(query, item); }
+async function searchNaverShoppingByQuery(query, display = 20) { if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) return []; const response = await axios.get(NAVER_SHOPPING_SEARCH_URL, { params: { query, display, sort: 'sim' }, headers: { 'X-Naver-Client-Id': NAVER_CLIENT_ID, 'X-Naver-Client-Secret': NAVER_CLIENT_SECRET }, timeout: NAVER_SEARCH_TIMEOUT_MS }); return (response.data?.items || []).map((item) => ({ title: stripHtml(item.title), link: item.link, mallName: stripHtml(item.mallName), lprice: Number(item.lprice || 0) })).filter((item) => item.lprice > 0); }
+async function searchNaverShopping(userMessage, analysis) { const query = normalizeText(analysis?.productQuery || analysis?.topic || getShoppingQuery(userMessage)); return (await searchNaverShoppingByQuery(query, 20)).filter((item) => isRelevantShoppingItem(query, item)); }
+function buildShoppingPriceAnswer(userMessage, items, analysis) { const query = normalizeText(analysis?.productQuery || analysis?.topic || getShoppingQuery(userMessage)); if (!items.length) return `${query} 가격은 쇼핑 검색에서 본품으로 보이는 상품을 못 찾았어. 모델명을 조금 더 정확히 적어줘.`; const sorted = [...items].sort((a, b) => a.lprice - b.lprice); const prices = sorted.map((item) => item.lprice); const trimmed = getTrimmedPrices(prices); const average = trimmed.reduce((sum, price) => sum + price, 0) / trimmed.length; const median = getMedian(prices); return [`${query} 현재 쇼핑 검색 기준으로 본품만 추려서 계산해봤어.`, `확인한 상품 ${prices.length}개 기준 ${trimmed.length === prices.length ? '평균' : '이상치 제외 평균'}은 약 ${formatWon(average)}야.`, `중앙값은 약 ${formatWon(median)}, 가격 범위는 ${formatWon(prices[0])}~${formatWon(prices[prices.length - 1])} 정도로 보여.`, '낮은 가격순으로 보면:', ...sorted.slice(0, 3).map((item, index) => `${index + 1}. ${formatWon(item.lprice)} - ${item.title}${item.mallName ? ` (${item.mallName})` : ''}`), '재고/배송비/카드할인에 따라 실구매가는 달라질 수 있어.'].join('\n'); }
+function buildShoppingRecommendationAnswer(query, items) { const filtered = items.filter((item) => isRelevantShoppingItem(query, item) && !/중고|리퍼|부품|필터|접시|선반|커버|용기|도어|핸들|수리|렌탈/i.test(item.title)).sort((a, b) => a.lprice - b.lprice); if (!filtered.length) return `${query}로 쇼핑 검색을 했는데 추천할 만한 본품을 못 찾았어. 원하는 가격대나 용도를 조금 더 말해줘.`; const pick = filtered[Math.min(1, filtered.length - 1)]; return [`${query}는 지금 검색 기준으로 이쪽이 무난해 보여.`, `내 추천은 ${pick.title} (${pick.mallName || '판매처 확인 필요'}) - ${formatWon(pick.lprice)} 정도야.`, '부속품이나 다른 카테고리 섞인 건 빼고, 가격이랑 판매처가 비교적 정상적인 쪽을 골랐어.', '비교 후보는:', ...filtered.slice(0, 3).map((item, index) => `${index + 1}. ${formatWon(item.lprice)} - ${item.title}${item.mallName ? ` (${item.mallName})` : ''}`)].join('\n'); }
+async function searchNaver(userMessage, route, analysis) { if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET || !routeNeedsSearch(route)) return []; const query = normalizeText(analysis?.searchQuery || analysis?.topic || getSearchQuery(userMessage)); const url = route.intent === 'news_search' ? NAVER_NEWS_SEARCH_URL : NAVER_WEB_SEARCH_URL; const response = await axios.get(url, { params: { query, display: Math.min(Math.max(NAVER_SEARCH_DISPLAY, 1), 10), sort: route.intent === 'news_search' ? 'date' : 'sim' }, headers: { 'X-Naver-Client-Id': NAVER_CLIENT_ID, 'X-Naver-Client-Secret': NAVER_CLIENT_SECRET }, timeout: NAVER_SEARCH_TIMEOUT_MS }); return (response.data?.items || []).map((item) => ({ title: stripHtml(item.title), link: item.link || item.originallink, description: stripHtml(item.description), date: item.pubDate || '' })); }
+function formatSearchContext(searchResults) { if (!searchResults?.length) return ''; return searchResults.slice(0, NAVER_SEARCH_DISPLAY).map((item, index) => [`[${index + 1}] ${item.title}`, item.description ? `요약: ${item.description}` : '', item.date ? `날짜: ${item.date}` : '', item.link ? `링크: ${item.link}` : ''].filter(Boolean).join('\n')).join('\n\n'); }
+function buildSearchFallbackAnswer(userMessage, searchResults, analysis) { if (!searchResults.length) return '인터넷 검색 결과를 못 찾았어. 검색어를 조금 더 구체적으로 보내주면 다시 찾아볼게.'; const query = normalizeText(analysis?.searchQuery || analysis?.topic || getSearchQuery(userMessage)); return [`${query}로 찾아본 결과 중 제일 가까운 건 “${searchResults[0].title}”야.`, searchResults[0].description || '', ...searchResults.slice(0, 3).map((item, index) => `${index + 1}. ${item.title}\n${item.link || ''}`)].filter(Boolean).join('\n'); }
+function buildSystemPrompt(searchResults, route, state, analysis) { const searchContext = formatSearchContext(searchResults); return ['너는 카카오톡에서 대화하는 친근한 한국어 AI 친구야.', '모든 답변은 자연스러운 반말로 해. 존댓말, ~요, ~습니다 말투는 쓰지 마.', '사용자 말을 먼저 이해하고, 카톡 대화처럼 짧고 자연스럽게 받아쳐.', '능력 질문에는 가능 여부와 어떻게 도와줄 수 있는지 답해. 바로 쇼핑 검색 결과처럼 말하지 마.', '구매처/가격/최저가/판매 모델을 묻는 경우에만 쇼핑 맥락으로 말해.', '취향 추천은 먼저 예산, 취향, 용도 같은 필요한 조건을 자연스럽게 물어봐도 돼.', '찾아볼게/기다려줘처럼 미래에 도구를 실행할 척하지 마. 도구 결과가 있으면 이미 아래에 제공돼.', '카카오톡에서 읽기 좋게 보통 1~5문장으로 답해.', `현재 한국 시간: ${getKoreanDateTime()}`, `라우터: ${route.intent}/${route.handler}, confidence=${route.confidence}, source=${route.source || 'unknown'}`, `분석: ${JSON.stringify(analysis || {})}`, `대화 상태: ${JSON.stringify(state || {})}`, searchContext ? `검색 결과:\n${searchContext}` : ''].filter(Boolean).join('\n'); }
+function buildClaudeMessages(userMessage, userId) { const history = getConversation(userId).slice(-MAX_HISTORY_MESSAGES); return [...history.map((message) => ({ role: message.role, content: message.content })), { role: 'user', content: userMessage }]; }
+async function callClaude(userMessage, userId, searchResults, route, analysis) { if (!CLAUDE_API_KEY) return '지금 Claude API 키가 설정 안 돼 있어서 일반 대화를 못 이어가. Railway 변수에 CLAUDE_API_KEY가 필요해.'; const response = await axios.post(CLAUDE_API_URL, { model: CLAUDE_MODEL, max_tokens: routeNeedsSearch(route) ? 900 : 420, temperature: routeNeedsSearch(route) ? 0.35 : 0.82, system: buildSystemPrompt(searchResults, route, getState(userId), analysis), messages: buildClaudeMessages(userMessage, userId) }, { headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_API_KEY, 'anthropic-version': '2023-06-01' }, timeout: CLAUDE_TIMEOUT_MS }); return response.data?.content?.[0]?.text || '응답을 못 만들었어. 다시 한 번만 보내줘.'; }
+async function buildAnswer(userMessage, userId) { const analysis = await analyzeTurn(userMessage, userId); const route = routeFromAnalysis(analysis); let topic = normalizeText(analysis.topic || analysis.productQuery || ''); if (route.intent === 'calendar_holiday') return { answer: buildHolidayAnswer(userMessage), searchResults: [], route, topic: '', analysis }; if (route.intent === 'weather') return { answer: await getWeatherAnswer(userMessage), searchResults: [], route, topic: '', analysis }; if (route.intent === 'price') { const items = await searchNaverShopping(userMessage, analysis); topic = analysis.productQuery || getShoppingQuery(userMessage); return { answer: buildShoppingPriceAnswer(userMessage, items, analysis), searchResults: items, route, topic, analysis }; } if (route.intent === 'shopping_recommendation') { const query = normalizeText(analysis.productQuery || analysis.topic || getShoppingQuery(userMessage)); const items = await searchNaverShoppingByQuery(`${query} 인기 모델`, 20); return { answer: buildShoppingRecommendationAnswer(query, items), searchResults: items.filter((item) => isRelevantShoppingItem(query, item)), route, topic: query, analysis }; } let searchResults = []; try { searchResults = await searchNaver(userMessage, route, analysis); } catch (error) { console.error('[search] failed:', { message: error.message, code: error.code, status: error.response?.status }); } try { return { answer: await callClaude(userMessage, userId, searchResults, route, analysis), searchResults, route, topic, analysis }; } catch (error) { if (searchResults.length) return { answer: buildSearchFallbackAnswer(userMessage, searchResults, analysis), searchResults, route, topic, analysis }; throw error; } }
+async function sendCallback(callbackUrl, userMessage, userId) { try { const { answer, searchResults, route, topic, analysis } = await buildAnswer(userMessage, userId); rememberMessage(userId, 'user', userMessage); rememberMessage(userId, 'assistant', answer, route, topic, analysis); await axios.post(callbackUrl, kakaoTextResponse(answer, getQuickReplies(userMessage, searchResults, route), userId), { headers: { 'Content-Type': 'application/json' }, timeout: 5000 }); } catch (error) { console.error('[callback] failed:', { message: error.message, code: error.code, status: error.response?.status }); } }
 app.get('/', (req, res) => { res.type('html').send(`<h1>카카오 스킬 웹훅 서버</h1><p>상태: 정상 실행 중</p><p>현재 한국 시간: ${getKoreanDateTime()}</p><ul><li>POST /kakao-skill-webhook</li><li>GET /health</li><li>GET /routes</li></ul>`); });
 app.get('/health', (req, res) => { res.json({ ok: true, service: 'kakao-skill-webhook', timestamp: new Date().toISOString(), koreaTime: getKoreanDateTime(), env: { claudeApiKey: Boolean(CLAUDE_API_KEY), claudeModel: CLAUDE_MODEL, claudeTimeoutMs: CLAUDE_TIMEOUT_MS, analyzerTimeoutMs: ANALYZER_TIMEOUT_MS, maxResponseLength: MAX_RESPONSE_LENGTH, maxOutputs: MAX_OUTPUTS, naverApi: Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET), routes: ROUTES.length, dialogueStates: dialogueState.size, port: PORT } }); });
 app.get('/routes', (req, res) => { res.json({ ok: true, routes: ROUTES }); });
 app.get('/test', (req, res) => { res.json(kakaoTextResponse('테스트 성공! 카카오 스킬 응답 형식 정상이야.')); });
-
-app.post('/kakao-skill-webhook', async (req, res) => {
-  const startedAt = Date.now();
-  const userMessage = getUserMessage(req.body);
-  const userId = getUserId(req.body);
-  const callbackUrl = getCallbackUrl(req.body);
-  if (!userMessage) return res.json(kakaoTextResponse('메시지 입력해줘.'));
-  if (isContinuationRequest(userMessage)) return res.json(getContinuationResponse(userId));
-  try {
-    if (callbackUrl) {
-      setImmediate(() => sendCallback(callbackUrl, userMessage, userId));
-      return res.json({ version: '2.0', useCallback: true, data: { text: '맥락 보고 바로 답하고 있어. 잠깐만 기다려줘.' } });
-    }
-    const { answer, searchResults, route, topic, analysis } = await buildAnswer(userMessage, userId);
-    rememberMessage(userId, 'user', userMessage);
-    rememberMessage(userId, 'assistant', answer, route, topic, analysis);
-    console.log(`[kakao] ${Date.now() - startedAt}ms route=${route.intent}/${route.handler} source=${route.source || ''} search=${searchResults.length} topic=${topic || ''} user=${userId} message="${userMessage.slice(0, 80)}"`);
-    return res.json(kakaoTextResponse(answer, getQuickReplies(userMessage, searchResults, route), userId));
-  } catch (error) {
-    console.error('[kakao] failed:', { message: error.message, code: error.code, status: error.response?.status, elapsedMs: Date.now() - startedAt });
-    return res.json(kakaoTextResponse(error.code === 'ECONNABORTED' ? '답변 만드는 게 평소보다 늦어지고 있어. 같은 질문 한 번만 더 보내주면 이어서 답할게.' : '지금 응답을 못 받아왔어. 잠깐 뒤에 다시 보내줘.'));
-  }
-});
-
+app.post('/kakao-skill-webhook', async (req, res) => { const startedAt = Date.now(); const userMessage = getUserMessage(req.body); const userId = getUserId(req.body); const callbackUrl = getCallbackUrl(req.body); if (!userMessage) return res.json(kakaoTextResponse('메시지 입력해줘.')); if (isContinuationRequest(userMessage)) return res.json(getContinuationResponse(userId)); try { if (callbackUrl) { setImmediate(() => sendCallback(callbackUrl, userMessage, userId)); return res.json({ version: '2.0', useCallback: true, data: { text: '맥락 보고 바로 답하고 있어. 잠깐만 기다려줘.' } }); } const { answer, searchResults, route, topic, analysis } = await buildAnswer(userMessage, userId); rememberMessage(userId, 'user', userMessage); rememberMessage(userId, 'assistant', answer, route, topic, analysis); console.log(`[kakao] ${Date.now() - startedAt}ms route=${route.intent}/${route.handler} source=${route.source || ''} search=${searchResults.length} topic=${topic || ''} user=${userId} message="${userMessage.slice(0, 80)}"`); return res.json(kakaoTextResponse(answer, getQuickReplies(userMessage, searchResults, route), userId)); } catch (error) { console.error('[kakao] failed:', { message: error.message, code: error.code, status: error.response?.status, elapsedMs: Date.now() - startedAt }); return res.json(kakaoTextResponse(error.code === 'ECONNABORTED' ? '답변 만드는 게 평소보다 늦어지고 있어. 같은 질문 한 번만 더 보내주면 이어서 답할게.' : '지금 응답을 못 받아왔어. 잠깐 뒤에 다시 보내줘.')); } });
 app.use((req, res) => { res.status(404).json({ ok: false, error: 'Not Found' }); });
-app.listen(PORT, () => {
-  console.log(`Kakao skill webhook server listening on port ${PORT}`);
-  console.log(`Claude model: ${CLAUDE_MODEL}`);
-  console.log(`Routes: ${ROUTES.map((route) => route.intent).join(', ')}`);
-});
+app.listen(PORT, () => { console.log(`Kakao skill webhook server listening on port ${PORT}`); console.log(`Claude model: ${CLAUDE_MODEL}`); console.log(`Routes: ${ROUTES.map((route) => route.intent).join(', ')}`); });
