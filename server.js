@@ -5,7 +5,7 @@ const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-planned-naver-search-2026-05-19f';
+const ROUTER_VERSION = 'claude-planned-naver-search-2026-05-19g';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -36,9 +36,11 @@ const getKoreanDateTime = () => new Intl.DateTimeFormat('ko-KR', { timeZone: 'As
 const getUserMessage = (body) => normalizeText(body?.userRequest?.utterance || body?.utterance || body?.message || '');
 const getUserId = (body) => body?.userRequest?.user?.id || body?.userRequest?.user?.properties?.botUserKey || 'anonymous';
 
-function kakaoTextResponse(text) {
+function kakaoTextResponse(text, quickReplies = []) {
   const safeText = normalizeText(text).slice(0, KAKAO_MAX_RESPONSE_LENGTH) || '응, 다시 한 번만 보내줘.';
-  return { version: '2.0', template: { outputs: [{ simpleText: { text: safeText } }] } };
+  const template = { outputs: [{ simpleText: { text: safeText } }] };
+  if (quickReplies.length) template.quickReplies = quickReplies.slice(0, 5);
+  return { version: '2.0', template };
 }
 
 function remember(userId, role, content) {
@@ -164,7 +166,6 @@ async function searchNaver(plan) {
     title: stripHtml(item.title),
     link: item.link || item.originallink || '',
     description: stripHtml(item.description),
-    telephone: stripHtml(item.telephone),
     category: stripHtml(item.category),
     roadAddress: stripHtml(item.roadAddress),
     address: stripHtml(item.address),
@@ -186,11 +187,29 @@ function formatSearchAnswer(plan, results) {
       return `${index + 1}. ${item.title}${item.lprice ? ` - ${formatWon(item.lprice)}` : ''}${item.mallName ? ` (${item.mallName})` : ''}`;
     }
     if (plan.intent === 'local_search') {
-      return `${index + 1}. ${item.title}${item.category ? ` (${item.category})` : ''}${item.telephone ? ` / ${item.telephone}` : ' / 전화번호 확인 필요'}${item.roadAddress || item.address ? ` - ${item.roadAddress || item.address}` : ''}`;
+      return `${index + 1}. ${item.title}${item.category ? ` (${item.category})` : ''}${item.roadAddress || item.address ? ` - ${item.roadAddress || item.address}` : ''}`;
     }
     return `${index + 1}. ${item.title}${item.description ? ` - ${item.description.slice(0, 70)}` : ''}`;
   });
   return [head, ...lines].join('\n');
+}
+
+function buildNaverSearchUrl(item, plan) {
+  const query = [
+    item.title,
+    item.category,
+    item.roadAddress || item.address,
+  ].filter(Boolean).join(' ') || plan.searchQuery;
+  return `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`;
+}
+
+function buildQuickReplies(plan, results) {
+  if (plan.intent !== 'local_search') return [];
+  return results.slice(0, 5).map((item, index) => ({
+    label: `${index + 1}번 보기`,
+    action: 'webLink',
+    webLinkUrl: item.link || buildNaverSearchUrl(item, plan),
+  }));
 }
 
 async function answerChat(message, userId) {
@@ -214,19 +233,19 @@ async function buildAnswer(message, userId) {
   if (plan.intent !== 'chat') {
     try {
       const results = await searchNaver(plan);
-      return { answer: formatSearchAnswer(plan, results), plan, results };
+      return { answer: formatSearchAnswer(plan, results), quickReplies: buildQuickReplies(plan, results), plan, results };
     } catch (error) {
       console.error('[naver] failed:', { message: error.message, code: error.code, status: error.response?.status });
-      return { answer: '검색이 잠깐 막혔어. 같은 질문 한 번만 다시 보내줘.', plan, results: [] };
+      return { answer: '검색이 잠깐 막혔어. 같은 질문 한 번만 다시 보내줘.', quickReplies: [], plan, results: [] };
     }
   }
 
   try {
     const answer = await answerChat(message, userId);
-    return { answer, plan, results: [] };
+    return { answer, quickReplies: [], plan, results: [] };
   } catch (error) {
     console.error('[claude-chat] failed:', { message: error.message, code: error.code, status: error.response?.status });
-    return { answer: '답변이 잠깐 늦어졌어. 같은 질문 한 번만 다시 보내줘.', plan, results: [] };
+    return { answer: '답변이 잠깐 늦어졌어. 같은 질문 한 번만 다시 보내줘.', quickReplies: [], plan, results: [] };
   }
 }
 
@@ -243,10 +262,10 @@ app.post('/kakao-skill-webhook', async (req, res) => {
 
   try {
     remember(userId, 'user', message);
-    const { answer, plan, results } = await buildAnswer(message, userId);
+    const { answer, quickReplies, plan, results } = await buildAnswer(message, userId);
     remember(userId, 'assistant', answer);
     console.log(`[kakao] ${Date.now() - startedAt}ms intent=${plan.intent} source=${plan.source} results=${results.length} query=${plan.searchQuery || ''}`);
-    return res.json(kakaoTextResponse(answer));
+    return res.json(kakaoTextResponse(answer, quickReplies));
   } catch (error) {
     console.error('[kakao] failed:', { message: error.message, code: error.code, status: error.response?.status, elapsedMs: Date.now() - startedAt });
     return res.json(kakaoTextResponse('서버가 잠깐 꼬였어. 방금 질문 그대로 한 번만 다시 보내줘.'));
