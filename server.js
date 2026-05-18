@@ -5,7 +5,7 @@ const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-planned-naver-search-2026-05-19c-hotfix';
+const ROUTER_VERSION = 'claude-planned-naver-search-2026-05-19d';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -47,12 +47,45 @@ function remember(userId, role, content) {
   conversations.set(userId, history.slice(-8));
 }
 
+function compactGeneralQuery(message) {
+  return normalizeText(message)
+    .replace(/(인터넷|웹|네이버|구글)?에서/g, ' ')
+    .replace(/검색해서|검색해|검색|찾아봐|찾아줘|찾아줄\s*수\s*있어|찾아줄래|알아봐|알려줘|추천해줘|추천|확인해줘|확인/g, ' ')
+    .replace(/최신|최근|실시간|출처|자료|좀|제발/g, ' ')
+    .replace(/[?？！!,.]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function compactLocalQuery(message) {
+  const text = normalizeText(message).replace(/[?？！!,.]/g, ' ');
+  const location = text.match(/[가-힣A-Za-z0-9]+(?:구|동|역|로|길|시|군|읍|면|리)/)?.[0] || '';
+  if (!location) return compactGeneralQuery(text);
+
+  let target = text
+    .replace(location, ' ')
+    .replace(/(근처|주변|가까운|동네|인근|에서|으로|로|중에|쪽|근방)/g, ' ')
+    .replace(/(유명한|인기\s*있는|많이\s*찾는|괜찮은|좋은|맛있는|평점\s*좋은|가성비\s*좋은)/g, ' ')
+    .replace(/(맛집|식당|매장|가게|업체|장소|곳|집|브랜드)/g, ' ')
+    .replace(/(찾아줄\s*수\s*있어|찾아줘|찾아봐|알려줘|추천해줘|추천|검색해줘|검색|어디|뭐|좀|해줘|있어|있나|있니|가능)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!target) target = compactGeneralQuery(text.replace(location, ' '));
+  return normalizeText(`${location} ${target}`).replace(/\s+/g, ' ').trim();
+}
+
+function compactSearchQuery(message, intent) {
+  const compacted = intent === 'local_search' ? compactLocalQuery(message) : compactGeneralQuery(message);
+  return compacted || normalizeText(message);
+}
+
 function fallbackPlan(message) {
   const text = normalizeText(message);
-  if (/뉴스|기사|속보|최신\s*뉴스|최근\s*뉴스/.test(text)) return { intent: 'news_search', searchQuery: text, sort: 'date', confidence: 0.75, source: 'fallback' };
-  if (/가격|최저가|시세|얼마|구매|상품|제품|쇼핑/.test(text)) return { intent: 'shopping_search', searchQuery: text, sort: 'sim', confidence: 0.72, source: 'fallback' };
-  if (/(근처|주변|가까운|동네|맛집|식당|매장|가게|어디|찾아|검색|추천)/.test(text) && /[가-힣]{2,}(구|동|역|로|길|시|군)/.test(text)) return { intent: 'local_search', searchQuery: text, sort: 'comment', confidence: 0.72, source: 'fallback' };
-  if (/검색|찾아봐|알아봐|확인|최신|최근|실시간|웹|인터넷|네이버|구글|출처/.test(text)) return { intent: 'web_lookup', searchQuery: text, sort: 'sim', confidence: 0.7, source: 'fallback' };
+  if (/뉴스|기사|속보|최신\s*뉴스|최근\s*뉴스/.test(text)) return { intent: 'news_search', searchQuery: compactSearchQuery(text, 'news_search'), sort: 'date', confidence: 0.75, source: 'fallback' };
+  if (/가격|최저가|시세|얼마|구매|상품|제품|쇼핑/.test(text)) return { intent: 'shopping_search', searchQuery: compactSearchQuery(text, 'shopping_search'), sort: 'sim', confidence: 0.72, source: 'fallback' };
+  if (/(근처|주변|가까운|동네|맛집|식당|매장|가게|어디|찾아|검색|추천|유명한)/.test(text) && /[가-힣A-Za-z0-9]+(?:구|동|역|로|길|시|군|읍|면|리)/.test(text)) return { intent: 'local_search', searchQuery: compactSearchQuery(text, 'local_search'), sort: 'comment', confidence: 0.72, source: 'fallback' };
+  if (/검색|찾아봐|알아봐|확인|최신|최근|실시간|웹|인터넷|네이버|구글|출처/.test(text)) return { intent: 'web_lookup', searchQuery: compactSearchQuery(text, 'web_lookup'), sort: 'sim', confidence: 0.7, source: 'fallback' };
   return { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.65, source: 'fallback' };
 }
 
@@ -65,9 +98,10 @@ function extractJsonObject(text) {
 function normalizePlan(plan, fallback) {
   const intents = new Set(['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search']);
   const intent = intents.has(plan?.intent) ? plan.intent : fallback.intent;
+  const plannedQuery = normalizeText(plan?.searchQuery || fallback.searchQuery || '');
   return {
     intent,
-    searchQuery: normalizeText(plan?.searchQuery || fallback.searchQuery || ''),
+    searchQuery: compactSearchQuery(plannedQuery || fallback.searchQuery, intent),
     sort: ['comment', 'sim', 'date'].includes(plan?.sort) ? plan.sort : (intent === 'local_search' ? 'comment' : fallback.sort || 'sim'),
     confidence: Number(plan?.confidence || fallback.confidence || 0.75),
     source: plan ? 'claude_planner' : fallback.source,
