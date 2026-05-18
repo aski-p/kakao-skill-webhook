@@ -5,7 +5,7 @@ const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-planned-naver-search-2026-05-19a';
+const ROUTER_VERSION = 'claude-planned-naver-search-2026-05-19b';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -139,7 +139,7 @@ async function planTurnWithClaude(message, userId) {
     '최신 정보, 사실 확인, 모르는 정보는 web_lookup이나 news_search를 골라.',
     '가격, 상품, 구매, 시세는 shopping_search를 골라.',
     '검색이 필요 없는 상담, 잡담, 의견 질문은 chat을 골라.',
-    '예: 월계동에서 유명한 곳 찾아줘 치킨으로 -> {"intent":"local_search","tool":"local","searchQuery":"월계동 치킨","sort":"comment","confidence":0.9}',
+    '출력 형식 예: {"intent":"local_search","tool":"local","searchQuery":"지역명 업종","sort":"comment","confidence":0.9}',
   ].join('\n');
   const response = await axios.post(CLAUDE_API_URL, {
     model: CLAUDE_MODEL,
@@ -210,11 +210,12 @@ function buildSystemPrompt(results, plan) {
     '모든 답변은 자연스러운 반말로 해. 존댓말, ~요, ~습니다 말투는 쓰지 마.',
     '사용자 질문에 바로 답해. 내부 라우팅, 분석, 검색 여부를 설명하지 마.',
     '검색 결과가 있으면 그 내용을 바탕으로 답하고, 결과가 부족하면 부족하다고 짧게 말한 뒤 그래도 도움이 되는 판단을 해줘.',
-    '지역 업체 검색 결과는 제공된 순서가 많이 찾는 순서에 가깝다고 보고, 상위 결과부터 간단히 추천해.',
-    '가격/상품 검색 결과는 가격과 판매처를 함께 요약해.',
+    '지역 업체 검색 결과는 제공된 순서가 많이 찾는 순서에 가깝다고 보고, 가능하면 상위 5개를 번호 목록으로 짧게 추천해.',
+    '가격/상품 검색 결과도 가능하면 상위 5개를 가격과 판매처 중심으로 번호 목록으로 요약해.',
     '지역 업체나 최신 정보는 검색 결과 기준이라고 자연스럽게 밝혀.',
     '찾아볼게/기다려줘처럼 미래에 도구를 실행할 척하지 마.',
-    '카카오톡 제한시간이 짧으니까 보통 1~5문장으로 답해.',
+    '검색 결과가 여러 개 있으면 하나만 고르지 말고 5개 정도 보여줘. 각 항목은 이름과 핵심 이유나 주소만 짧게 적어.',
+    '검색 결과가 없는 일반 대화는 보통 1~5문장으로 답해.',
     `현재 한국 시간: ${getKoreanDateTime()}`,
     plan?.searchQuery ? `검색어: ${plan.searchQuery}` : '',
     searchContext ? `검색 결과:\n${searchContext}` : '',
@@ -244,11 +245,11 @@ async function callClaude(message, userId, results, plan) {
 function buildSearchFallbackAnswer(results, plan) {
   if (!results.length) return '검색 결과를 못 찾았어. 검색어를 조금 더 구체적으로 보내주면 다시 찾아볼게.';
   if (plan.intent === 'local_search') {
-    return [`${plan.searchQuery} 기준으로 많이 찾는 순서에 가깝게 보면:`, ...results.slice(0, 3).map((item, index) => `${index + 1}. ${item.title}${item.category ? ` (${item.category})` : ''}${item.roadAddress ? ` - ${item.roadAddress}` : ''}`)].join('\n');
+    return [`${plan.searchQuery} 기준으로 많이 찾는 순서에 가깝게 보면:`, ...results.slice(0, 5).map((item, index) => `${index + 1}. ${item.title}${item.category ? ` (${item.category})` : ''}${item.roadAddress ? ` - ${item.roadAddress}` : ''}`)].join('\n');
   }
   return [
     `${plan.searchQuery || '검색'} 결과 중 가까운 것들이야:`,
-    ...results.slice(0, 3).map((item, index) => `${index + 1}. ${item.title}${item.link ? `\n${item.link}` : ''}`),
+    ...results.slice(0, 5).map((item, index) => `${index + 1}. ${item.title}${item.link ? `\n${item.link}` : ''}`),
   ].join('\n');
 }
 
