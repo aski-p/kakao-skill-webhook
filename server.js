@@ -5,7 +5,7 @@ const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-planned-naver-search-2026-05-19e';
+const ROUTER_VERSION = 'claude-planned-naver-search-2026-05-19f';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -164,6 +164,7 @@ async function searchNaver(plan) {
     title: stripHtml(item.title),
     link: item.link || item.originallink || '',
     description: stripHtml(item.description),
+    telephone: stripHtml(item.telephone),
     category: stripHtml(item.category),
     roadAddress: stripHtml(item.roadAddress),
     address: stripHtml(item.address),
@@ -185,7 +186,7 @@ function formatSearchAnswer(plan, results) {
       return `${index + 1}. ${item.title}${item.lprice ? ` - ${formatWon(item.lprice)}` : ''}${item.mallName ? ` (${item.mallName})` : ''}`;
     }
     if (plan.intent === 'local_search') {
-      return `${index + 1}. ${item.title}${item.category ? ` (${item.category})` : ''}${item.roadAddress || item.address ? ` - ${item.roadAddress || item.address}` : ''}`;
+      return `${index + 1}. ${item.title}${item.category ? ` (${item.category})` : ''}${item.telephone ? ` / ${item.telephone}` : ' / 전화번호 확인 필요'}${item.roadAddress || item.address ? ` - ${item.roadAddress || item.address}` : ''}`;
     }
     return `${index + 1}. ${item.title}${item.description ? ` - ${item.description.slice(0, 70)}` : ''}`;
   });
