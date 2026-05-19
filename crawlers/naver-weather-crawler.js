@@ -93,7 +93,7 @@ class NaverWeatherCrawler {
             // 날씨 상태
             const conditionElement = $('.weather_main');
             if (conditionElement.length > 0) {
-                weatherData.condition = conditionElement.text().trim();
+                weatherData.condition = conditionElement.first().text().trim();
             }
 
             // 체감온도

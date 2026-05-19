@@ -2,10 +2,11 @@ require('dotenv').config();
 
 const express = require('express');
 const axios = require('axios');
+const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'resilient-local-search-2026-05-19a';
+const ROUTER_VERSION = 'resilient-local-search-2026-05-19b';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -19,6 +20,7 @@ const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 const NAVER_SEARCH_TIMEOUT_MS = Number(process.env.NAVER_SEARCH_TIMEOUT_MS || 1800);
 const NAVER_SEARCH_DISPLAY = Math.min(Math.max(Number(process.env.NAVER_SEARCH_DISPLAY || 5), 1), 10);
 const MEAL_WORD_PATTERN = /점심|저녁|아침|브런치|런치|디너|야식/;
+const naverWeatherCrawler = new NaverWeatherCrawler();
 
 const NAVER_URLS = {
   web_lookup: 'https://openapi.naver.com/v1/search/webkr.json',
@@ -37,6 +39,7 @@ const getKoreanDateTime = () => new Intl.DateTimeFormat('ko-KR', { timeZone: 'As
 const getUserMessage = (body) => normalizeText(body?.userRequest?.utterance || body?.utterance || body?.message || '');
 const getUserId = (body) => body?.userRequest?.user?.id || body?.userRequest?.user?.properties?.botUserKey || 'anonymous';
 const LOCAL_LOCATION_PATTERN = /[가-힣A-Za-z0-9]+(?:구|동|역|로|길|시|군|읍|면|리|가)/;
+const WEATHER_WORD_PATTERN = /날씨|기온|온도|비\s*와|비와|비\s*올|비올|우산|미세먼지|초미세먼지|습도|바람/;
 
 function normalizeKoreanSearchText(text) {
   return normalizeText(text)
@@ -92,6 +95,7 @@ function compactLocalQuery(message) {
 }
 
 function compactSearchQuery(message, intent) {
+  if (intent === 'weather_lookup') return extractWeatherLocation(message);
   const compacted = intent === 'local_search' ? compactLocalQuery(message) : compactGeneralQuery(message);
   return compacted || normalizeText(message);
 }
@@ -129,6 +133,7 @@ function fallbackPlan(message) {
   const text = normalizeKoreanSearchText(message);
   const hasLocation = LOCAL_LOCATION_PATTERN.test(text);
   const hasLocalSearchCue = /(근처|주변|가까운|동네|맛집|식당|매장|가게|업체|장소|시설|센터|코트|구장|체육관|운동장|연습장|클럽|예약|잡을\s*수|이용할\s*수|어디|찾아|검색|추천|유명한)/.test(text);
+  if (WEATHER_WORD_PATTERN.test(text)) return { intent: 'weather_lookup', searchQuery: extractWeatherLocation(text), sort: 'sim', confidence: 0.85, source: 'fallback' };
   if (/뉴스|기사|속보|최신\s*뉴스|최근\s*뉴스/.test(text)) return { intent: 'news_search', searchQuery: compactSearchQuery(text, 'news_search'), sort: 'date', confidence: 0.75, source: 'fallback' };
   if (/가격|최저가|시세|얼마|구매|상품|제품|쇼핑/.test(text)) return { intent: 'shopping_search', searchQuery: compactSearchQuery(text, 'shopping_search'), sort: 'sim', confidence: 0.72, source: 'fallback' };
   if (hasLocation && hasLocalSearchCue) return { intent: 'local_search', searchQuery: compactSearchQuery(text, 'local_search'), sort: 'comment', confidence: 0.72, source: 'fallback' };
@@ -143,7 +148,7 @@ function extractJsonObject(text) {
 }
 
 function normalizePlan(plan, fallback) {
-  const intents = new Set(['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search']);
+  const intents = new Set(['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search', 'weather_lookup']);
   const intent = intents.has(plan?.intent) ? plan.intent : fallback.intent;
   const plannedQuery = normalizeText(plan?.searchQuery || fallback.searchQuery || '');
   return {
@@ -164,7 +169,9 @@ async function planTurn(message, userId) {
     '너는 카카오톡 챗봇의 검색 라우터야.',
     '사용자 질문을 보고 답변 방식과 필요한 검색어를 정해.',
     '반드시 JSON 객체 하나만 출력해. 설명, 마크다운, 코드블록 금지.',
-    'intent는 chat, web_lookup, news_search, local_search, shopping_search 중 하나야.',
+    'intent는 chat, web_lookup, news_search, local_search, shopping_search, weather_lookup 중 하나야.',
+    '날씨, 기온, 비, 우산, 미세먼지 같은 실시간 날씨 질문은 weather_lookup을 골라.',
+    'weather_lookup의 searchQuery는 지역명만 짧게 넣어. 지역이 없으면 서울로 둬.',
     '지역 맛집, 주변 가게, 업종 추천, 장소 검색이면 local_search를 골라.',
     'local_search의 searchQuery는 네이버 지역검색에 바로 넣을 짧은 한국어 검색어로 만들어. 지역명과 조건을 포함해.',
     'local_search는 많이 찾는 순서가 필요하므로 sort는 comment로 둬.',
@@ -189,6 +196,88 @@ async function planTurn(message, userId) {
     console.error('[planner] fallback:', { message: error.message, code: error.code, status: error.response?.status });
     return fallback;
   }
+}
+
+function isNaverConfigQuestion(message) {
+  const text = normalizeKoreanSearchText(message);
+  return /(네이버|naver).*(api|API|키|key|검색\s*에이피아이|검색\s*api|설정|넣|등록|확인)|((api|API|키|key).*(네이버|naver))/.test(text);
+}
+
+function isWeatherQuestion(message) {
+  return WEATHER_WORD_PATTERN.test(normalizeKoreanSearchText(message));
+}
+
+function extractWeatherLocation(message) {
+  const text = normalizeKoreanSearchText(message)
+    .replace(/오늘|내일|지금|현재|실시간|요즘|이번\s*주|날씨|기온|온도|비\s*와|비와|비\s*올|비올|우산|미세먼지|초미세먼지|습도|바람/g, ' ')
+    .replace(/알려줘|말해줘|확인해줘|확인|어때|어떻게|좀|검색해줘|검색|해줘|봐줘|봐|[?？！!,.]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const candidates = [
+    '서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종', '수원', '용인', '고양', '창원', '성남', '청주', '안산', '전주', '천안', '안양', '인덕원',
+    '제주도', '제주시', '제주', '서귀포시', '서귀포',
+    '경기도', '경기', '강원도', '강원', '충청북도', '충북', '충청남도', '충남', '전라북도', '전북', '전라남도', '전남', '경상북도', '경북', '경상남도', '경남',
+  ];
+  const found = candidates.find((candidate) => text.includes(candidate));
+  if (found) return found;
+
+  const location = text.match(/[가-힣]{2,}(?:시|군|구|읍|면|동|도)/)?.[0] || text.match(/[가-힣]{2,}/)?.[0];
+  return location || '서울';
+}
+
+function formatWeatherAnswer(city, weather) {
+  const details = [];
+  const condition = normalizeText(weather.condition || '').match(/맑음|구름많음|흐림|비|눈|소나기|안개|황사/)?.[0] || normalizeText(weather.condition || '');
+  if (weather.temperature && weather.temperature !== '정보 없음') details.push(`기온은 ${weather.temperature.replace(/^현재 온도\s*/, '')}`);
+  if (condition && !/정보 없음|가져올 수 없습니다/.test(condition)) details.push(`상태는 ${condition}`);
+  if (weather.feels_like) details.push(`체감 ${weather.feels_like}`);
+  if (weather.humidity) details.push(`습도 ${weather.humidity}`);
+  if (weather.rainfall) details.push(`강수 ${weather.rainfall}`);
+  if (weather.wind) details.push(`바람 ${weather.wind}`);
+  if (weather.fineDust) details.push(`미세먼지 ${weather.fineDust}`);
+  if (weather.ultraFineDust) details.push(`초미세먼지 ${weather.ultraFineDust}`);
+
+  if (!details.length) {
+    return `${city} 날씨를 바로 확인하려고 했는데 지금은 정보를 못 가져왔어. 네이버 검색 API 키는 설정돼 있어도 날씨는 검색 API가 아니라 네이버 날씨 페이지를 읽어서 확인하는 방식이라, 네이버 쪽 응답이 잠깐 막히면 실패할 수 있어.`;
+  }
+
+  return [
+    `${city} 현재 날씨는 ${details.join(', ')} 정도야.`,
+    /비|소나기/.test(condition) ? '비가 잡혀 있으니 우산 챙기는 게 좋아.' : weather.recommendation || '',
+  ].filter(Boolean).join('\n');
+}
+
+async function answerWeather(message) {
+  const city = extractWeatherLocation(message);
+  const weather = await naverWeatherCrawler.getWeatherInfo(city);
+  return {
+    answer: formatWeatherAnswer(city, weather),
+    quickReplies: [{
+      label: '네이버 날씨',
+      action: 'webLink',
+      webLinkUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(`${city} 날씨`)}`,
+    }],
+    plan: { intent: 'weather_lookup', searchQuery: city, sort: 'sim', confidence: 0.9, source: 'deterministic' },
+    results: weather.temperature && weather.temperature !== '정보 없음' ? [weather] : [],
+  };
+}
+
+function answerNaverConfigQuestion(message) {
+  const naverReady = Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET);
+  const weatherMentioned = isWeatherQuestion(message);
+  const weatherLine = weatherMentioned
+    ? '날씨 질문은 이제 네이버 검색 API 결과로 뭉개지지 않고, 네이버 날씨 확인 로직으로 따로 처리하게 연결돼 있어.'
+    : '네이버 검색 API는 지역/뉴스/웹/쇼핑 검색에 쓰고 있어.';
+  const statusLine = naverReady
+    ? '네이버 API 키는 현재 서버 환경변수에 설정돼 있어.'
+    : '네이버 API 키는 현재 서버 환경변수에서 확인되지 않아.';
+  return {
+    answer: `${statusLine}\n${weatherLine}\n키 값 자체는 보안상 답변에 노출하지 않을게.`,
+    quickReplies: [],
+    plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'deterministic_config' },
+    results: [],
+  };
 }
 
 async function searchNaver(plan) {
@@ -310,7 +399,24 @@ async function answerChat(message, userId) {
 }
 
 async function buildAnswer(message, userId) {
+  if (isNaverConfigQuestion(message)) return answerNaverConfigQuestion(message);
+  if (isWeatherQuestion(message)) {
+    try {
+      return await answerWeather(message);
+    } catch (error) {
+      console.error('[weather] failed:', { message: error.message, code: error.code, status: error.response?.status });
+      const city = extractWeatherLocation(message);
+      return {
+        answer: `${city} 날씨를 확인하려고 했는데 지금은 정보를 못 가져왔어. 잠시 후 다시 물어봐줘.`,
+        quickReplies: [],
+        plan: { intent: 'weather_lookup', searchQuery: city, sort: 'sim', confidence: 0.8, source: 'deterministic_error' },
+        results: [],
+      };
+    }
+  }
+
   const plan = await planTurn(message, userId);
+  if (plan.intent === 'weather_lookup') return answerWeather(plan.searchQuery || message);
   if (plan.intent !== 'chat') {
     try {
       const search = await searchNaverWithRetries(plan);
@@ -333,7 +439,7 @@ async function buildAnswer(message, userId) {
 app.get('/', (req, res) => res.type('html').send(`<h1>카카오 스킬 웹훅 서버</h1><p>상태: 정상 실행 중</p><p>라우터: ${ROUTER_VERSION}</p><p>현재 한국 시간: ${getKoreanDateTime()}</p>`));
 app.get('/health', (req, res) => res.json({ ok: true, service: 'kakao-skill-webhook', routerVersion: ROUTER_VERSION, koreaTime: getKoreanDateTime(), env: { claudeApiKey: Boolean(CLAUDE_API_KEY), naverApi: Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET), plannerTimeoutMs: CLAUDE_PLANNER_TIMEOUT_MS, naverTimeoutMs: NAVER_SEARCH_TIMEOUT_MS, port: PORT } }));
 app.get('/test', (req, res) => res.json(kakaoTextResponse('테스트 성공! 카카오 스킬 응답 형식 정상이야.')));
-app.get('/routes', (req, res) => res.json({ ok: true, routerVersion: ROUTER_VERSION, routes: ['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search'] }));
+app.get('/routes', (req, res) => res.json({ ok: true, routerVersion: ROUTER_VERSION, routes: ['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search', 'weather_lookup'] }));
 
 async function handleKakaoSkill(req, res) {
   const startedAt = Date.now();
