@@ -5,19 +5,20 @@ const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-planned-naver-search-2026-05-19g';
+const ROUTER_VERSION = 'resilient-local-search-2026-05-19a';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-haiku-4-5-20251001';
-const CLAUDE_PLANNER_TIMEOUT_MS = Number(process.env.CLAUDE_PLANNER_TIMEOUT_MS || 700);
-const CLAUDE_TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS || 1200);
+const CLAUDE_PLANNER_TIMEOUT_MS = Number(process.env.CLAUDE_PLANNER_TIMEOUT_MS || 1200);
+const CLAUDE_TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS || 3200);
 const KAKAO_MAX_RESPONSE_LENGTH = Number(process.env.KAKAO_MAX_RESPONSE_LENGTH || 1000);
 
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
-const NAVER_SEARCH_TIMEOUT_MS = Number(process.env.NAVER_SEARCH_TIMEOUT_MS || 900);
+const NAVER_SEARCH_TIMEOUT_MS = Number(process.env.NAVER_SEARCH_TIMEOUT_MS || 1800);
 const NAVER_SEARCH_DISPLAY = Math.min(Math.max(Number(process.env.NAVER_SEARCH_DISPLAY || 5), 1), 10);
+const MEAL_WORD_PATTERN = /점심|저녁|아침|브런치|런치|디너|야식/;
 
 const NAVER_URLS = {
   web_lookup: 'https://openapi.naver.com/v1/search/webkr.json',
@@ -98,16 +99,30 @@ function compactSearchQuery(message, intent) {
 function buildLocalRetryQueries(query) {
   const normalized = normalizeKoreanSearchText(query);
   const location = normalized.match(LOCAL_LOCATION_PATTERN)?.[0] || '';
-  const meal = normalized.match(/점심|저녁|아침|브런치|런치|디너/)?.[0] || '';
+  const meal = normalized.match(MEAL_WORD_PATTERN)?.[0] || '';
   const relaxedLocation = location.replace(/\d+\s*가$/, '');
+  const stationLocation = location ? (/(?:역|터미널)$/.test(location) ? location : `${location}역`) : '';
   const candidates = [
     normalized,
     location && meal ? `${location} ${meal} 맛집` : '',
     location ? `${location} 맛집` : '',
+    stationLocation && meal ? `${stationLocation} ${meal} 맛집` : '',
+    stationLocation ? `${stationLocation} 맛집` : '',
+    location && meal ? `${location} 식당` : '',
+    location ? `${location} 밥집` : '',
     relaxedLocation && relaxedLocation !== location && meal ? `${relaxedLocation} ${meal} 맛집` : '',
     relaxedLocation && relaxedLocation !== location ? `${relaxedLocation} 맛집` : '',
   ];
   return [...new Set(candidates.map((item) => normalizeText(item)).filter(Boolean))];
+}
+
+function buildLocalFallbackQueries(plan) {
+  const query = normalizeKoreanSearchText(plan.searchQuery);
+  const location = query.match(LOCAL_LOCATION_PATTERN)?.[0] || query.split(/\s+/)[0] || '';
+  const meal = query.match(MEAL_WORD_PATTERN)?.[0] || '';
+  return buildLocalRetryQueries(`${location} ${meal || '맛집'}`)
+    .filter((item) => /맛집|식당|밥집/.test(item))
+    .slice(0, 4);
 }
 
 function fallbackPlan(message) {
@@ -214,9 +229,18 @@ function formatWon(value) { return `${Math.round(value).toLocaleString('ko-KR')}
 
 function formatSearchAnswer(plan, results) {
   if (!results.length) {
-    return plan.intent === 'local_search'
-      ? `${plan.searchQuery}로 네이버 지역검색을 해봤는데 바로 보여줄 만한 결과가 안 잡혔어.`
-      : '검색 결과를 못 찾았어.';
+    if (plan.intent === 'local_search') {
+      const alternatives = buildLocalFallbackQueries(plan);
+      const meal = normalizeKoreanSearchText(plan.searchQuery).match(MEAL_WORD_PATTERN)?.[0] || '식사';
+      return [
+        `${plan.searchQuery} 기준이면 ${meal}은 이렇게 고르면 좋아.`,
+        `1. 빠르게 먹기: 국밥, 칼국수, 덮밥`,
+        `2. 무난한 선택: 돈까스, 제육, 백반`,
+        `3. 가볍게 먹기: 쌀국수, 샐러드볼, 김밥`,
+        alternatives.length ? `바로 열어볼 검색어: ${alternatives.join(', ')}` : '',
+      ].filter(Boolean).join('\n');
+    }
+    return '바로 확인된 항목은 없어서 핵심 키워드를 한두 개로 줄여서 다시 보는 게 좋아.';
   }
   const head = plan.intent === 'local_search'
     ? `${plan.searchQuery} 기준으로 많이 찾는 순서에 가깝게 보면:`
@@ -244,6 +268,13 @@ function buildNaverSearchUrl(item, plan) {
 
 function buildQuickReplies(plan, results) {
   if (plan.intent !== 'local_search') return [];
+  if (!results.length) {
+    return buildLocalFallbackQueries(plan).slice(0, 3).map((query) => ({
+      label: query.length > 14 ? `${query.slice(0, 13)}…` : query,
+      action: 'webLink',
+      webLinkUrl: `https://map.naver.com/p/search/${encodeURIComponent(query)}`,
+    }));
+  }
   return results.slice(0, 5).map((item, index) => ({
     label: `${index + 1}번 보기`,
     action: 'webLink',
@@ -251,8 +282,19 @@ function buildQuickReplies(plan, results) {
   }));
 }
 
+function fallbackChatAnswer(message) {
+  const text = normalizeKoreanSearchText(message);
+  if (/^(안녕|안녕하세요|하이|ㅎㅇ)/.test(text)) return '안녕. 뭐 도와줄까?';
+  if (/(배고파|뭐\s*먹|먹을\s*거|먹을거|점심|저녁|야식)/.test(text)) {
+    if (/점심/.test(text)) return '점심이면 너무 무겁지 않게 국밥, 돈까스, 제육, 쌀국수, 샐러드볼 중에서 고르면 좋아.';
+    if (/저녁|야식/.test(text)) return '지금 먹기엔 치킨, 분식, 국밥, 마라탕, 덮밥 쪽이 무난해. 위치를 같이 보내주면 근처 기준으로 찾아볼게.';
+    return '먹을 거면 한식, 면, 덮밥, 분식 중에 지금 당기는 쪽으로 가는 게 좋아. 위치까지 주면 주변 맛집으로 바로 좁혀볼게.';
+  }
+  return '응, 바로 답해줄게. 검색이 필요한 내용이면 지역명이나 핵심 키워드를 같이 보내줘.';
+}
+
 async function answerChat(message, userId) {
-  if (!CLAUDE_API_KEY) return '응, 바로 답해줄게. 지금은 검색 필요한 질문이면 네이버 검색 결과 기준으로 알려줄 수 있어.';
+  if (!CLAUDE_API_KEY) return fallbackChatAnswer(message);
   const history = (conversations.get(userId) || []).slice(-6).map((item) => ({ role: item.role, content: item.content }));
   const response = await axios.post(CLAUDE_API_URL, {
     model: CLAUDE_MODEL,
@@ -275,7 +317,7 @@ async function buildAnswer(message, userId) {
       return { answer: formatSearchAnswer(search.plan, search.results), quickReplies: buildQuickReplies(search.plan, search.results), plan: search.plan, results: search.results };
     } catch (error) {
       console.error('[naver] failed:', { message: error.message, code: error.code, status: error.response?.status });
-      return { answer: '검색이 잠깐 막혔어. 같은 질문 한 번만 다시 보내줘.', quickReplies: [], plan, results: [] };
+      return { answer: formatSearchAnswer(plan, []), quickReplies: buildQuickReplies(plan, []), plan, results: [] };
     }
   }
 
@@ -284,7 +326,7 @@ async function buildAnswer(message, userId) {
     return { answer, quickReplies: [], plan, results: [] };
   } catch (error) {
     console.error('[claude-chat] failed:', { message: error.message, code: error.code, status: error.response?.status });
-    return { answer: '답변이 잠깐 늦어졌어. 같은 질문 한 번만 다시 보내줘.', quickReplies: [], plan, results: [] };
+    return { answer: fallbackChatAnswer(message), quickReplies: [], plan, results: [] };
   }
 }
 
@@ -293,7 +335,7 @@ app.get('/health', (req, res) => res.json({ ok: true, service: 'kakao-skill-webh
 app.get('/test', (req, res) => res.json(kakaoTextResponse('테스트 성공! 카카오 스킬 응답 형식 정상이야.')));
 app.get('/routes', (req, res) => res.json({ ok: true, routerVersion: ROUTER_VERSION, routes: ['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search'] }));
 
-app.post('/kakao-skill-webhook', async (req, res) => {
+async function handleKakaoSkill(req, res) {
   const startedAt = Date.now();
   const message = getUserMessage(req.body);
   const userId = getUserId(req.body);
@@ -309,7 +351,11 @@ app.post('/kakao-skill-webhook', async (req, res) => {
     console.error('[kakao] failed:', { message: error.message, code: error.code, status: error.response?.status, elapsedMs: Date.now() - startedAt });
     return res.json(kakaoTextResponse('서버가 잠깐 꼬였어. 방금 질문 그대로 한 번만 다시 보내줘.'));
   }
-});
+}
+
+app.post('/', handleKakaoSkill);
+app.post('/webhook', handleKakaoSkill);
+app.post('/kakao-skill-webhook', handleKakaoSkill);
 
 app.use((req, res) => res.status(404).json({ ok: false, error: 'Not Found' }));
 app.listen(PORT, () => {
