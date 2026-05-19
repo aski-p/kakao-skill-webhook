@@ -19,6 +19,9 @@ const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 const NAVER_SEARCH_TIMEOUT_MS = Number(process.env.NAVER_SEARCH_TIMEOUT_MS || 1800);
 const NAVER_SEARCH_DISPLAY = Math.min(Math.max(Number(process.env.NAVER_SEARCH_DISPLAY || 5), 1), 10);
+const GOOGLE_CLOUD_API_KEY = process.env.GOOGLE_CLOUD_API_KEY || process.env.GOOGLE_API_KEY;
+const GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON;
+const GOOGLE_CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID;
 const MEAL_WORD_PATTERN = /점심|저녁|아침|브런치|런치|디너|야식/;
 const naverWeatherCrawler = new NaverWeatherCrawler();
 
@@ -201,6 +204,28 @@ async function planTurn(message, userId) {
 function isNaverConfigQuestion(message) {
   const text = normalizeKoreanSearchText(message);
   return /(네이버|naver).*(api|API|키|key|검색\s*에이피아이|검색\s*api|설정|넣|등록|확인)|((api|API|키|key).*(네이버|naver))/.test(text);
+}
+
+function isGoogleCalendarConfigQuestion(message) {
+  const text = normalizeKoreanSearchText(message);
+  return /(구글|google).*(캘린더|calendar|일정|예약|api|API|키|key|cloud|클라우드|연동|설정|넣|등록|확인)|((캘린더|calendar).*(구글|google|api|API|키|key|연동))/.test(text);
+}
+
+function answerGoogleCalendarConfigQuestion() {
+  const keyReady = Boolean(GOOGLE_CLOUD_API_KEY);
+  const serviceAccountReady = Boolean(GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON && GOOGLE_CALENDAR_ID);
+  const status = keyReady
+    ? '구글 Cloud API 키는 서버 환경변수에서 확인돼.'
+    : '구글 Cloud API 키는 아직 서버 환경변수에서 확인되지 않아.';
+  const calendarStatus = serviceAccountReady
+    ? '그리고 캘린더 쓰기용 서비스 계정 설정도 준비돼 있어.'
+    : '다만 캘린더에 일정을 실제로 등록하려면 API 키만으로는 부족하고, 서비스 계정 JSON과 캘린더 ID가 추가로 필요해.';
+  return {
+    answer: `${status}\n${calendarStatus}\n키 값 자체는 보안상 답변에 노출하지 않을게.`,
+    quickReplies: [],
+    plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'deterministic_google_config' },
+    results: [],
+  };
 }
 
 function isWeatherQuestion(message) {
@@ -413,6 +438,7 @@ async function answerChat(message, userId) {
 
 async function buildAnswer(message, userId) {
   if (isNaverConfigQuestion(message)) return answerNaverConfigQuestion(message);
+  if (isGoogleCalendarConfigQuestion(message)) return answerGoogleCalendarConfigQuestion();
   if (isWeatherQuestion(message)) {
     try {
       return await answerWeather(message);
@@ -450,7 +476,7 @@ async function buildAnswer(message, userId) {
 }
 
 app.get('/', (req, res) => res.type('html').send(`<h1>카카오 스킬 웹훅 서버</h1><p>상태: 정상 실행 중</p><p>라우터: ${ROUTER_VERSION}</p><p>현재 한국 시간: ${getKoreanDateTime()}</p>`));
-app.get('/health', (req, res) => res.json({ ok: true, service: 'kakao-skill-webhook', routerVersion: ROUTER_VERSION, koreaTime: getKoreanDateTime(), env: { claudeApiKey: Boolean(CLAUDE_API_KEY), naverApi: Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET), plannerTimeoutMs: CLAUDE_PLANNER_TIMEOUT_MS, naverTimeoutMs: NAVER_SEARCH_TIMEOUT_MS, port: PORT } }));
+app.get('/health', (req, res) => res.json({ ok: true, service: 'kakao-skill-webhook', routerVersion: ROUTER_VERSION, koreaTime: getKoreanDateTime(), env: { claudeApiKey: Boolean(CLAUDE_API_KEY), naverApi: Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET), googleCloudApiKey: Boolean(GOOGLE_CLOUD_API_KEY), googleCalendarWritable: Boolean(GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON && GOOGLE_CALENDAR_ID), plannerTimeoutMs: CLAUDE_PLANNER_TIMEOUT_MS, naverTimeoutMs: NAVER_SEARCH_TIMEOUT_MS, port: PORT } }));
 app.get('/test', (req, res) => res.json(kakaoTextResponse('테스트 성공! 카카오 스킬 응답 형식 정상이야.')));
 app.get('/routes', (req, res) => res.json({ ok: true, routerVersion: ROUTER_VERSION, routes: ['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search', 'weather_lookup'] }));
 
