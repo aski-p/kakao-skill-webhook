@@ -35,6 +35,13 @@ const stripHtml = (text) => normalizeText(text).replace(/<[^>]*>/g, '').replace(
 const getKoreanDateTime = () => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'full', timeStyle: 'medium' }).format(new Date());
 const getUserMessage = (body) => normalizeText(body?.userRequest?.utterance || body?.utterance || body?.message || '');
 const getUserId = (body) => body?.userRequest?.user?.id || body?.userRequest?.user?.properties?.botUserKey || 'anonymous';
+const LOCAL_LOCATION_PATTERN = /[가-힣A-Za-z0-9]+(?:구|동|역|로|길|시|군|읍|면|리|가)/;
+
+function normalizeKoreanSearchText(text) {
+  return normalizeText(text)
+    .replace(/울지로(?=\d*\s*가|\s|$)/g, '을지로')
+    .replace(/울지로/g, '을지로');
+}
 
 function kakaoTextResponse(text, quickReplies = []) {
   const safeText = normalizeText(text).slice(0, KAKAO_MAX_RESPONSE_LENGTH) || '응, 다시 한 번만 보내줘.';
@@ -50,7 +57,7 @@ function remember(userId, role, content) {
 }
 
 function compactGeneralQuery(message) {
-  return normalizeText(message)
+  return normalizeKoreanSearchText(message)
     .replace(/(인터넷|웹|네이버|구글)?에서/g, ' ')
     .replace(/검색해서|검색해|검색|찾아봐|찾아줘|찾아줄\s*수\s*있어|찾아줄래|알아봐|알려줘|추천해줘|추천|확인해줘|확인/g, ' ')
     .replace(/최신|최근|실시간|출처|자료|좀|제발/g, ' ')
@@ -60,16 +67,16 @@ function compactGeneralQuery(message) {
 }
 
 function compactLocalQuery(message) {
-  const text = normalizeText(message).replace(/[?？！!,.]/g, ' ');
-  const location = text.match(/[가-힣A-Za-z0-9]+(?:구|동|역|로|길|시|군|읍|면|리)/)?.[0] || '';
+  const text = normalizeKoreanSearchText(message).replace(/[?？！!,.]/g, ' ');
+  const location = text.match(LOCAL_LOCATION_PATTERN)?.[0] || '';
   if (!location) return compactGeneralQuery(text);
 
   let target = text
     .replace(location, ' ')
-    .replace(/(근처|주변|가까운|동네|인근|에서|으로|로|중에|쪽|근방)/g, ' ')
+    .replace(/(근처|주변|가까운|동네|인근|에서|으로|로|중에|쪽|근방|인데|인대|인데요|이에요|예요|지금|오늘)/g, ' ')
     .replace(/(\d+\s*)?(곳|개)\s*만/g, ' ')
     .replace(/(유명한|인기\s*있는|많이\s*찾는|괜찮은|좋은|맛있는|평점\s*좋은|가성비\s*좋은)/g, ' ')
-    .replace(/(칠려고|치려고|하려고|하고\s*싶은데|하려\s*하는데|하는데|이용하려고|예약하려고|잡으려고)/g, ' ')
+    .replace(/(칠려고|치려고|하려고|하고\s*싶은데|하려\s*하는데|하는데|이용하려고|예약하려고|잡으려고|먹으려고|먹지|먹을\s*만한|먹을\s*거|먹을\s*것|먹거리|먹거)/g, ' ')
     .replace(/(잡을\s*수\s*있는\s*곳|잡을\s*수\s*있는|예약\s*가능한\s*곳|예약\s*가능한|예약할\s*수\s*있는\s*곳|예약할\s*수\s*있는)/g, ' ')
     .replace(/(맛집|식당|매장|가게|업체|장소|곳|집|브랜드|시설|센터)/g, ' ')
     .replace(/(찾아줄\s*수\s*있어|찾아줘|찾아봐|알려줘|추천해줘|추천|검색해줘|검색|어디|뭐|좀|해줘|있어|있나|있니|가능|가능한)/g, ' ')
@@ -77,7 +84,10 @@ function compactLocalQuery(message) {
     .trim();
 
   if (!target) target = compactGeneralQuery(text.replace(location, ' '));
-  return normalizeText(`${location} ${target}`).replace(/\s+/g, ' ').trim();
+  if (!target && /(점심|점심밥|런치)/.test(text)) target = '점심';
+  if (!target && /(저녁|저녁밥|디너)/.test(text)) target = '저녁';
+  if (!target && /(아침|아침밥|브런치)/.test(text)) target = '아침';
+  return normalizeText(`${location} ${target || '맛집'}`).replace(/\s+/g, ' ').trim();
 }
 
 function compactSearchQuery(message, intent) {
@@ -85,9 +95,24 @@ function compactSearchQuery(message, intent) {
   return compacted || normalizeText(message);
 }
 
+function buildLocalRetryQueries(query) {
+  const normalized = normalizeKoreanSearchText(query);
+  const location = normalized.match(LOCAL_LOCATION_PATTERN)?.[0] || '';
+  const meal = normalized.match(/점심|저녁|아침|브런치|런치|디너/)?.[0] || '';
+  const relaxedLocation = location.replace(/\d+\s*가$/, '');
+  const candidates = [
+    normalized,
+    location && meal ? `${location} ${meal} 맛집` : '',
+    location ? `${location} 맛집` : '',
+    relaxedLocation && relaxedLocation !== location && meal ? `${relaxedLocation} ${meal} 맛집` : '',
+    relaxedLocation && relaxedLocation !== location ? `${relaxedLocation} 맛집` : '',
+  ];
+  return [...new Set(candidates.map((item) => normalizeText(item)).filter(Boolean))];
+}
+
 function fallbackPlan(message) {
-  const text = normalizeText(message);
-  const hasLocation = /[가-힣A-Za-z0-9]+(?:구|동|역|로|길|시|군|읍|면|리)/.test(text);
+  const text = normalizeKoreanSearchText(message);
+  const hasLocation = LOCAL_LOCATION_PATTERN.test(text);
   const hasLocalSearchCue = /(근처|주변|가까운|동네|맛집|식당|매장|가게|업체|장소|시설|센터|코트|구장|체육관|운동장|연습장|클럽|예약|잡을\s*수|이용할\s*수|어디|찾아|검색|추천|유명한)/.test(text);
   if (/뉴스|기사|속보|최신\s*뉴스|최근\s*뉴스/.test(text)) return { intent: 'news_search', searchQuery: compactSearchQuery(text, 'news_search'), sort: 'date', confidence: 0.75, source: 'fallback' };
   if (/가격|최저가|시세|얼마|구매|상품|제품|쇼핑/.test(text)) return { intent: 'shopping_search', searchQuery: compactSearchQuery(text, 'shopping_search'), sort: 'sim', confidence: 0.72, source: 'fallback' };
@@ -175,10 +200,24 @@ async function searchNaver(plan) {
   }));
 }
 
+async function searchNaverWithRetries(plan) {
+  const queries = plan.intent === 'local_search' ? buildLocalRetryQueries(plan.searchQuery) : [plan.searchQuery];
+  for (const query of queries) {
+    const nextPlan = { ...plan, searchQuery: query };
+    const results = await searchNaver(nextPlan);
+    if (results.length) return { plan: nextPlan, results };
+  }
+  return { plan, results: [] };
+}
+
 function formatWon(value) { return `${Math.round(value).toLocaleString('ko-KR')}원`; }
 
 function formatSearchAnswer(plan, results) {
-  if (!results.length) return '검색 결과를 못 찾았어. 검색어를 조금 더 구체적으로 보내주면 다시 찾아볼게.';
+  if (!results.length) {
+    return plan.intent === 'local_search'
+      ? `${plan.searchQuery}로 네이버 지역검색을 해봤는데 바로 보여줄 만한 결과가 안 잡혔어.`
+      : '검색 결과를 못 찾았어.';
+  }
   const head = plan.intent === 'local_search'
     ? `${plan.searchQuery} 기준으로 많이 찾는 순서에 가깝게 보면:`
     : `${plan.searchQuery || '검색'} 결과 중 가까운 것들이야:`;
@@ -232,8 +271,8 @@ async function buildAnswer(message, userId) {
   const plan = await planTurn(message, userId);
   if (plan.intent !== 'chat') {
     try {
-      const results = await searchNaver(plan);
-      return { answer: formatSearchAnswer(plan, results), quickReplies: buildQuickReplies(plan, results), plan, results };
+      const search = await searchNaverWithRetries(plan);
+      return { answer: formatSearchAnswer(search.plan, search.results), quickReplies: buildQuickReplies(search.plan, search.results), plan: search.plan, results: search.results };
     } catch (error) {
       console.error('[naver] failed:', { message: error.message, code: error.code, status: error.response?.status });
       return { answer: '검색이 잠깐 막혔어. 같은 질문 한 번만 다시 보내줘.', quickReplies: [], plan, results: [] };
