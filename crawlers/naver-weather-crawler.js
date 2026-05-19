@@ -79,7 +79,10 @@ class NaverWeatherCrawler {
                 humidity: '',
                 wind: '',
                 rainfall: '',
+                precipitationProbability: '',
                 feels_like: '',
+                lowest: '',
+                highest: '',
                 tomorrow: {},
                 weekly: []
             };
@@ -96,12 +99,22 @@ class NaverWeatherCrawler {
                 weatherData.condition = conditionElement.first().text().trim();
             }
 
-            // 체감온도
-            const feelsLikeElement = $('.summary_list .sort:contains("체감")');
-            if (feelsLikeElement.length > 0) {
-                const feelsLikeText = feelsLikeElement.next('.desc').text().trim();
-                weatherData.feels_like = feelsLikeText;
-            }
+            // 현재 상세 정보: 체감, 강수, 습도, 바람
+            $('.summary_list').first().find('.sort').each((index, element) => {
+                const text = $(element).text().replace(/\s+/g, ' ').trim();
+                const desc = $(element).find('.desc').text().trim();
+                if (text.includes('체감')) {
+                    weatherData.feels_like = desc || text.replace('체감', '').trim();
+                } else if (text.includes('강수확률')) {
+                    weatherData.precipitationProbability = desc || text.replace('강수확률', '').trim();
+                } else if (text.includes('강수')) {
+                    weatherData.rainfall = desc || text.replace('강수', '').trim();
+                } else if (text.includes('습도')) {
+                    weatherData.humidity = desc || text.replace('습도', '').trim();
+                } else if (/풍|바람|m\/s/.test(text)) {
+                    weatherData.wind = desc || text;
+                }
+            });
 
             // 미세먼지
             const dustElements = $('.today_chart_list .item_today');
@@ -116,19 +129,16 @@ class NaverWeatherCrawler {
                 }
             });
 
-            // 상세 정보 (습도, 바람 등)
-            $('.report_card_list .report_card').each((index, element) => {
-                const title = $(element).find('.title').text().trim();
-                const value = $(element).find('.txt').text().trim();
-                
-                if (title.includes('습도')) {
-                    weatherData.humidity = value;
-                } else if (title.includes('바람')) {
-                    weatherData.wind = value;
-                } else if (title.includes('강수')) {
-                    weatherData.rainfall = value;
+            // 오늘 최저/최고 및 강수확률
+            const todayElement = $('.week_list .week_item').first();
+            if (todayElement.length > 0) {
+                const todayText = todayElement.text().replace(/\s+/g, ' ').trim();
+                weatherData.lowest = todayText.match(/최저기온\s*([0-9.-]+°?)/)?.[1] || '';
+                weatherData.highest = todayText.match(/최고기온\s*([0-9.-]+°?)/)?.[1] || '';
+                if (!weatherData.precipitationProbability) {
+                    weatherData.precipitationProbability = todayText.match(/(\d+%)/)?.[1] || '';
                 }
-            });
+            }
 
             // 내일 날씨
             const tomorrowElement = $('.week_list .week_item').eq(1);
@@ -169,6 +179,9 @@ class NaverWeatherCrawler {
             feels_like: data.feels_like || '',
             wind: data.wind || '',
             rainfall: data.rainfall || '',
+            precipitationProbability: data.precipitationProbability || '',
+            lowest: data.lowest || '',
+            highest: data.highest || '',
             recommendation: ''
         };
         
@@ -180,6 +193,10 @@ class NaverWeatherCrawler {
                     weatherInfo.recommendation = '매우 추워요. 따뜻하게 입으세요!';
                 } else if (temp < 15) {
                     weatherInfo.recommendation = '쌀쌀해요. 겉옷을 챙기세요!';
+                } else if (/비|소나기/.test(data.condition || '')) {
+                    weatherInfo.recommendation = '비가 잡혀 있으니 우산 챙기는 게 좋아요!';
+                } else if (/흐림|흐린|구름|안개|황사/.test(data.condition || '')) {
+                    weatherInfo.recommendation = '하늘이 흐린 편이라 외출 전 최신 예보 한 번 더 보면 좋아요.';
                 } else if (temp < 25) {
                     weatherInfo.recommendation = '날씨가 좋네요. 야외활동하기 좋아요!';
                 } else {

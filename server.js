@@ -6,7 +6,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'resilient-local-search-2026-05-19b';
+const ROUTER_VERSION = 'resilient-local-search-2026-05-19c';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -208,9 +208,19 @@ function isWeatherQuestion(message) {
 }
 
 function extractWeatherLocation(message) {
-  const text = normalizeKoreanSearchText(message)
+  const original = normalizeKoreanSearchText(message);
+  const directPatterns = [
+    /([가-힣A-Za-z0-9]+(?:시|군|구|읍|면|동|도|역))\s*(?:날씨|기온|온도|비|미세먼지|초미세먼지)/,
+    /(?:날씨|기온|온도|비|미세먼지|초미세먼지)\s*(?:는|은|이|가|좀|어때|알려줘|확인해줘|검색해줘|봐줘|봐)?\s*([가-힣A-Za-z0-9]+(?:시|군|구|읍|면|동|도|역))/,
+  ];
+  for (const pattern of directPatterns) {
+    const match = original.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+
+  const text = original
     .replace(/오늘|내일|지금|현재|실시간|요즘|이번\s*주|날씨|기온|온도|비\s*와|비와|비\s*올|비올|우산|미세먼지|초미세먼지|습도|바람/g, ' ')
-    .replace(/알려줘|말해줘|확인해줘|확인|어때|어떻게|좀|검색해줘|검색|해줘|봐줘|봐|[?？！!,.]/g, ' ')
+    .replace(/잘\s*잤어|잘잤어|굿모닝|안녕|하이|반가워|고마워|감사|알려줘|말해줘|확인해줘|확인|어때|어떻게|좀|검색해줘|검색|해줘|봐줘|봐|[?？！!,.]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -222,7 +232,7 @@ function extractWeatherLocation(message) {
   const found = candidates.find((candidate) => text.includes(candidate));
   if (found) return found;
 
-  const location = text.match(/[가-힣]{2,}(?:시|군|구|읍|면|동|도)/)?.[0] || text.match(/[가-힣]{2,}/)?.[0];
+  const location = text.match(/[가-힣A-Za-z0-9]+(?:시|군|구|읍|면|동|도|역)/)?.[0];
   return location || '서울';
 }
 
@@ -234,16 +244,19 @@ function formatWeatherAnswer(city, weather) {
   if (weather.feels_like) details.push(`체감 ${weather.feels_like}`);
   if (weather.humidity) details.push(`습도 ${weather.humidity}`);
   if (weather.rainfall) details.push(`강수 ${weather.rainfall}`);
+  if (weather.precipitationProbability) details.push(`강수확률 ${weather.precipitationProbability}`);
   if (weather.wind) details.push(`바람 ${weather.wind}`);
   if (weather.fineDust) details.push(`미세먼지 ${weather.fineDust}`);
   if (weather.ultraFineDust) details.push(`초미세먼지 ${weather.ultraFineDust}`);
+  if (weather.lowest || weather.highest) details.push(`오늘 최저/최고는 ${weather.lowest || '?'} / ${weather.highest || '?'} 정도`);
 
   if (!details.length) {
     return `${city} 날씨를 바로 확인하려고 했는데 지금은 정보를 못 가져왔어. 네이버 검색 API 키는 설정돼 있어도 날씨는 검색 API가 아니라 네이버 날씨 페이지를 읽어서 확인하는 방식이라, 네이버 쪽 응답이 잠깐 막히면 실패할 수 있어.`;
   }
 
   return [
-    `${city} 현재 날씨는 ${details.join(', ')} 정도야.`,
+    `${city} 기준 현재 날씨야.`,
+    details.join(', '),
     /비|소나기/.test(condition) ? '비가 잡혀 있으니 우산 챙기는 게 좋아.' : weather.recommendation || '',
   ].filter(Boolean).join('\n');
 }
