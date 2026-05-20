@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-20g-calendar-zhuang-fangyi-card';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-20h-calendar-korean-font-card';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -63,6 +63,7 @@ const LOCAL_LOCATION_PATTERN = /[가-힣A-Za-z0-9]+(?:구|동|역|로|길|시|�
 const WEATHER_WORD_PATTERN = /날씨|기온|온도|비\s*와|비와|비\s*올|비올|우산|미세먼지|초미세먼지|습도|바람/;
 const CALENDAR_ASSET_DIR = path.join(__dirname, 'assets', 'calendar');
 const CALENDAR_FONT_DATA_URI = loadAssetDataUri(path.join(CALENDAR_ASSET_DIR, 'NotoSansKR-Bold.ttf'), 'font/truetype');
+const CALENDAR_FONT_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'NotoSansKR-Bold.ttf'));
 const ZHUANG_FANGYI_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi.png'));
 
 function loadAssetDataUri(filePath, mimeType) {
@@ -259,6 +260,72 @@ function renderCalendarCardSvg(card) {
 </svg>`;
 }
 
+function h(type, props, ...children) {
+  const nextProps = { ...(props || {}) };
+  if (type === 'div') nextProps.style = { display: 'flex', ...(nextProps.style || {}) };
+  return { type, props: { ...nextProps, children: children.flat().filter((child) => child !== null && child !== undefined && child !== false) } };
+}
+
+async function renderCalendarCardVectorSvg(card) {
+  const { default: satori } = await import('satori');
+  const events = (card.events || []).slice(0, 7);
+  const rowHeight = 82;
+  const baseHeight = 500;
+  const height = Math.max(760, baseHeight + Math.max(events.length, 1) * rowHeight);
+  const rows = events.length
+    ? events.map((event, index) => {
+      const y = 470 + index * rowHeight;
+      const accent = ['#2ee6a6', '#66d9ff', '#ffd166', '#ff7aa2'][index % 4];
+      return h('div', { style: { position: 'absolute', left: 70, top: y, width: 660, height: 62, borderRadius: 14, backgroundColor: '#172033', border: '1px solid #2b3856', display: 'flex', alignItems: 'center' } },
+        h('div', { style: { width: 8, height: 62, borderRadius: 4, backgroundColor: accent, marginRight: 22 } }),
+        h('div', { style: { width: 196, color: '#9fb2d9', fontSize: 22, fontWeight: 700 } }, event.time),
+        h('div', { style: { color: '#f7fbff', fontSize: 27, fontWeight: 800 } }, truncateForCard(event.title, 20)),
+      );
+    })
+    : [
+      h('div', { style: { position: 'absolute', left: 70, top: 470, width: 660, height: 92, borderRadius: 18, backgroundColor: '#172033', border: '1px solid #2b3856', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' } },
+        h('div', { style: { color: '#f7fbff', fontSize: 30, fontWeight: 800 } }, '오늘은 비어 있어요'),
+        h('div', { style: { color: '#9fb2d9', fontSize: 20, marginTop: 8 } }, '작전 대기, 휴식 허가.'),
+      ),
+    ];
+
+  return satori(
+    h('div', {
+      style: {
+        width: 800,
+        height,
+        position: 'relative',
+        backgroundColor: '#0b101c',
+        color: '#f7fbff',
+        fontFamily: 'Noto Sans KR',
+        display: 'flex',
+      },
+    },
+      h('div', { style: { position: 'absolute', inset: 0, backgroundColor: '#111a2b' } }),
+      h('div', { style: { position: 'absolute', left: 0, top: 155, width: 800, height: 2, backgroundColor: '#26344f' } }),
+      h('div', { style: { position: 'absolute', left: 0, top: height - 90, width: 800, height: 2, backgroundColor: '#26344f' } }),
+      h('div', { style: { position: 'absolute', left: 46, top: 46, width: 708, height: height - 92, borderRadius: 28, backgroundColor: '#182238', border: '1px solid #344667', display: 'flex' } }),
+      h('div', { style: { position: 'absolute', left: 76, top: 79, color: '#2ee6a6', fontSize: 24, fontWeight: 900 } }, 'RHODES ISLAND'),
+      h('div', { style: { position: 'absolute', left: 76, top: 122, color: '#f7fbff', fontSize: 48, fontWeight: 900 } }, card.label || '일정'),
+      h('div', { style: { position: 'absolute', left: 78, top: 181, width: 420, color: '#9fb2d9', fontSize: 21, fontWeight: 700 } }, '오늘 작전 일정을 정리했어요'),
+      h('div', { style: { position: 'absolute', left: 528, top: 280, width: 174, height: 46, borderRadius: 14, backgroundColor: '#111827', border: '1px solid #2b3856', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f7fbff', fontSize: 22, fontWeight: 900 } }, 'Zhuang Fangyi'),
+      h('div', { style: { position: 'absolute', left: 70, top: 260, width: 410, height: 124, borderRadius: 20, backgroundColor: '#111827', border: '1px solid #2b3856', display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingLeft: 32 } },
+        h('div', { style: { color: '#f7fbff', fontSize: 34, fontWeight: 900 } }, events.length ? `${events.length}개 일정` : '일정 없음'),
+        h('div', { style: { color: '#9fb2d9', fontSize: 21, marginTop: 8 } }, getKoreanDateTime()),
+      ),
+      rows,
+    ),
+    {
+      width: 800,
+      height,
+      fonts: [
+        { name: 'Noto Sans KR', data: CALENDAR_FONT_BUFFER, weight: 700, style: 'normal' },
+        { name: 'Noto Sans KR', data: CALENDAR_FONT_BUFFER, weight: 900, style: 'normal' },
+      ],
+    },
+  );
+}
+
 async function renderCalendarCardPng(card) {
   const composites = [];
   if (ZHUANG_FANGYI_IMAGE_BUFFER) {
@@ -278,7 +345,10 @@ async function renderCalendarCardPng(card) {
     </svg>
   `);
   composites.push({ input: overlay, left: 0, top: 0 });
-  return sharp(Buffer.from(renderCalendarCardSvg(card))).composite(composites).png().toBuffer();
+  const baseSvg = CALENDAR_FONT_BUFFER
+    ? await renderCalendarCardVectorSvg(card)
+    : renderCalendarCardSvg(card);
+  return sharp(Buffer.from(baseSvg)).composite(composites).png().toBuffer();
 }
 
 function getGoogleRedirectUri(req) {
