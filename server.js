@@ -8,7 +8,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'resilient-local-search-2026-05-19c';
+const ROUTER_VERSION = 'resilient-local-search-2026-05-20a';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -297,7 +297,7 @@ function isGoogleCalendarConfigQuestion(message) {
 function isCalendarWriteRequest(message) {
   const text = normalizeKoreanSearchText(message);
   const hasCalendarCue = /(캘린더|calendar|일정|예약|스케줄)/.test(text);
-  const hasWriteCue = /(등록|추가|생성|만들|잡아|예약해|넣어|수정|변경|삭제|지워)/.test(text);
+  const hasWriteCue = /(등록|추가|생성|만들|잡아|예약해|넣어|수정|변경|삭제|지워|알림|해줘)/.test(text);
   return hasCalendarCue && hasWriteCue;
 }
 
