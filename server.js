@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-20i-calendar-assistant-name-card';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21a-calendar-figma-style-card';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -65,6 +65,7 @@ const CALENDAR_ASSET_DIR = path.join(__dirname, 'assets', 'calendar');
 const CALENDAR_FONT_DATA_URI = loadAssetDataUri(path.join(CALENDAR_ASSET_DIR, 'NotoSansKR-Bold.ttf'), 'font/truetype');
 const CALENDAR_FONT_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'NotoSansKR-Bold.ttf'));
 const ZHUANG_FANGYI_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi.png'));
+const ZHUANG_FANGYI_FULL_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi-full.png'));
 
 function loadAssetDataUri(filePath, mimeType) {
   try {
@@ -180,11 +181,20 @@ function formatGoogleCalendarCardEvent(event) {
   return { time: timeText, title: normalizeText(event.summary || '제목 없음') };
 }
 
+function formatCalendarCardTitle(rangeLabel) {
+  const label = normalizeText(rangeLabel || '오늘');
+  if (label === '오늘') return '오늘의 일정';
+  if (label === '내일') return '내일의 일정';
+  if (label === '모레') return '모레의 일정';
+  if (label === '이번 주') return '이번 주 일정';
+  return `${label} 일정`;
+}
+
 function renderCalendarCardSvg(card) {
   const events = (card.events || []).slice(0, 7);
   const rowHeight = 82;
   const baseHeight = 500;
-  const height = Math.max(760, baseHeight + Math.max(events.length, 1) * rowHeight);
+  const height = Math.max(820, baseHeight + Math.max(events.length, 1) * rowHeight);
   const characterArt = `<rect x="0" y="0" width="190" height="190" rx="28" fill="#1f2a40"/>
        <text x="95" y="104" text-anchor="middle" fill="#f7fbff" font-size="26" font-weight="900">비서님</text>`;
   const rows = events.length
@@ -239,9 +249,9 @@ function renderCalendarCardSvg(card) {
     <rect x="46" y="46" width="708" height="${height - 92}" rx="28" fill="url(#panel)" stroke="#344667"/>
   </g>
 
-  <text x="76" y="104" fill="#2ee6a6" font-size="24" font-weight="900" letter-spacing="3">RHODES ISLAND</text>
+  <text x="76" y="104" fill="#2ee6a6" font-size="24" font-weight="900" letter-spacing="3">일정관리</text>
   <text x="76" y="158" fill="#f7fbff" font-size="48" font-weight="900">${escapeXml(card.label || '일정')}</text>
-  <text x="78" y="198" fill="#9fb2d9" font-size="22" font-weight="700">비서님이 오늘 작전 일정을 정리했어요</text>
+  <text x="78" y="198" fill="#9fb2d9" font-size="22" font-weight="700">비서님이 캘린더를 정리했어요</text>
 
   <g transform="translate(520 78)">
     ${characterArt}
@@ -269,23 +279,23 @@ function h(type, props, ...children) {
 async function renderCalendarCardVectorSvg(card) {
   const { default: satori } = await import('satori');
   const events = (card.events || []).slice(0, 7);
-  const rowHeight = 82;
+  const rowHeight = 84;
   const baseHeight = 500;
-  const height = Math.max(760, baseHeight + Math.max(events.length, 1) * rowHeight);
+  const height = Math.max(820, baseHeight + Math.max(events.length, 1) * rowHeight);
   const rows = events.length
     ? events.map((event, index) => {
-      const y = 470 + index * rowHeight;
-      const accent = ['#2ee6a6', '#66d9ff', '#ffd166', '#ff7aa2'][index % 4];
-      return h('div', { style: { position: 'absolute', left: 70, top: y, width: 660, height: 62, borderRadius: 14, backgroundColor: '#172033', border: '1px solid #2b3856', display: 'flex', alignItems: 'center' } },
-        h('div', { style: { width: 8, height: 62, borderRadius: 4, backgroundColor: accent, marginRight: 22 } }),
-        h('div', { style: { width: 196, color: '#9fb2d9', fontSize: 22, fontWeight: 700 } }, event.time),
-        h('div', { style: { color: '#f7fbff', fontSize: 27, fontWeight: 800 } }, truncateForCard(event.title, 20)),
+      const y = 472 + index * rowHeight;
+      const accent = ['#11c5b4', '#4f8df7', '#f2b84b', '#e85f83'][index % 4];
+      return h('div', { style: { position: 'absolute', left: 58, top: y, width: 684, height: 68, borderRadius: 18, backgroundColor: '#ffffff', border: '1px solid #e5ebf2', display: 'flex', alignItems: 'center', boxShadow: '0 12px 30px rgba(16, 37, 55, 0.10)' } },
+        h('div', { style: { width: 9, height: 68, borderTopLeftRadius: 18, borderBottomLeftRadius: 18, backgroundColor: accent, marginRight: 22 } }),
+        h('div', { style: { width: 178, color: '#556276', fontSize: 22, fontWeight: 900 } }, event.time),
+        h('div', { style: { width: 438, color: '#172033', fontSize: 27, fontWeight: 900, lineHeight: 1.15 } }, truncateForCard(event.title, 20)),
       );
     })
     : [
-      h('div', { style: { position: 'absolute', left: 70, top: 470, width: 660, height: 92, borderRadius: 18, backgroundColor: '#172033', border: '1px solid #2b3856', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' } },
-        h('div', { style: { color: '#f7fbff', fontSize: 30, fontWeight: 800 } }, '오늘은 비어 있어요'),
-        h('div', { style: { color: '#9fb2d9', fontSize: 20, marginTop: 8 } }, '작전 대기, 휴식 허가.'),
+      h('div', { style: { position: 'absolute', left: 58, top: 472, width: 684, height: 110, borderRadius: 22, backgroundColor: '#ffffff', border: '1px solid #e5ebf2', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: '0 12px 30px rgba(16, 37, 55, 0.10)' } },
+        h('div', { style: { color: '#172033', fontSize: 31, fontWeight: 900 } }, '비어 있는 날이에요'),
+        h('div', { style: { color: '#69778c', fontSize: 20, marginTop: 8 } }, '비서님이 대기 중입니다.'),
       ),
     ];
 
@@ -295,24 +305,27 @@ async function renderCalendarCardVectorSvg(card) {
         width: 800,
         height,
         position: 'relative',
-        backgroundColor: '#0b101c',
-        color: '#f7fbff',
+        backgroundColor: '#edf4f3',
+        color: '#172033',
         fontFamily: 'Noto Sans KR',
         display: 'flex',
       },
     },
-      h('div', { style: { position: 'absolute', inset: 0, backgroundColor: '#111a2b' } }),
-      h('div', { style: { position: 'absolute', left: 0, top: 155, width: 800, height: 2, backgroundColor: '#26344f' } }),
-      h('div', { style: { position: 'absolute', left: 0, top: height - 90, width: 800, height: 2, backgroundColor: '#26344f' } }),
-      h('div', { style: { position: 'absolute', left: 46, top: 46, width: 708, height: height - 92, borderRadius: 28, backgroundColor: '#182238', border: '1px solid #344667', display: 'flex' } }),
-      h('div', { style: { position: 'absolute', left: 76, top: 79, color: '#2ee6a6', fontSize: 24, fontWeight: 900 } }, 'RHODES ISLAND'),
-      h('div', { style: { position: 'absolute', left: 76, top: 122, color: '#f7fbff', fontSize: 48, fontWeight: 900 } }, card.label || '일정'),
-      h('div', { style: { position: 'absolute', left: 78, top: 181, width: 420, color: '#9fb2d9', fontSize: 21, fontWeight: 700 } }, '오늘 작전 일정을 정리했어요'),
-      h('div', { style: { position: 'absolute', left: 528, top: 280, width: 174, height: 46, borderRadius: 14, backgroundColor: '#111827', border: '1px solid #2b3856', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f7fbff', fontSize: 22, fontWeight: 900 } }, '비서님'),
-      h('div', { style: { position: 'absolute', left: 70, top: 260, width: 410, height: 124, borderRadius: 20, backgroundColor: '#111827', border: '1px solid #2b3856', display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingLeft: 32 } },
-        h('div', { style: { color: '#f7fbff', fontSize: 34, fontWeight: 900 } }, events.length ? `${events.length}개 일정` : '일정 없음'),
-        h('div', { style: { color: '#9fb2d9', fontSize: 21, marginTop: 8 } }, getKoreanDateTime()),
+      h('div', { style: { position: 'absolute', inset: 0, backgroundColor: '#edf4f3' } }),
+      h('div', { style: { position: 'absolute', left: 0, top: 0, width: 800, height: 420, backgroundColor: '#dff5f0' } }),
+      h('div', { style: { position: 'absolute', left: 44, top: 44, width: 712, height: height - 88, borderRadius: 34, backgroundColor: '#f9fbfb', border: '1px solid #d8e5e4', display: 'flex', boxShadow: '0 24px 70px rgba(20, 54, 61, 0.16)' } }),
+      h('div', { style: { position: 'absolute', left: 70, top: 78, width: 132, height: 38, borderRadius: 19, backgroundColor: '#123236', color: '#e8fffa', fontSize: 20, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, '일정관리'),
+      h('div', { style: { position: 'absolute', left: 70, top: 138, width: 330, color: '#102431', fontSize: 50, fontWeight: 900, lineHeight: 1.02 } }, card.label || '오늘의 일정'),
+      h('div', { style: { position: 'absolute', left: 72, top: 252, width: 292, color: '#5f6f7a', fontSize: 21, fontWeight: 700, lineHeight: 1.35 } }, '비서님이 구글 캘린더를 보기 좋게 정리했어요.'),
+      h('div', { style: { position: 'absolute', left: 70, top: 342, width: 216, height: 66, borderRadius: 22, backgroundColor: '#102431', color: '#ffffff', display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingLeft: 24 } },
+        h('div', { style: { fontSize: 29, fontWeight: 900 } }, events.length ? `${events.length}개 일정` : '일정 없음'),
+        h('div', { style: { color: '#95fff2', fontSize: 15, marginTop: 3, fontWeight: 700 } }, 'Google Calendar'),
       ),
+      h('div', { style: { position: 'absolute', left: 304, top: 351, width: 116, height: 42, borderRadius: 18, backgroundColor: '#ffffff', border: '1px solid #d8e5e4', color: '#233641', fontSize: 20, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, '비서님'),
+      h('div', { style: { position: 'absolute', left: 58, top: 438, color: '#69778c', fontSize: 19, fontWeight: 900 } }, getKoreanDateTime()),
+      h('div', { style: { position: 'absolute', right: 58, top: 438, color: '#11a99b', fontSize: 18, fontWeight: 900 } }, 'CALENDAR BRIEF'),
+      h('div', { style: { position: 'absolute', left: 58, top: 458, width: 684, height: 1, backgroundColor: '#dbe7e6' } }),
+      h('div', { style: { position: 'absolute', left: 646, top: 76, width: 62, height: 62, borderRadius: 22, backgroundColor: '#f5c400', alignItems: 'center', justifyContent: 'center', color: '#102431', fontSize: 30, fontWeight: 900 } }, '!'),
       rows,
     ),
     {
@@ -328,23 +341,13 @@ async function renderCalendarCardVectorSvg(card) {
 
 async function renderCalendarCardPng(card) {
   const composites = [];
-  if (ZHUANG_FANGYI_IMAGE_BUFFER) {
-    const character = await sharp(ZHUANG_FANGYI_IMAGE_BUFFER)
-      .resize(190, 190, { fit: 'cover', position: 'center' })
+  if (ZHUANG_FANGYI_FULL_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER) {
+    const character = await sharp(ZHUANG_FANGYI_FULL_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER)
+      .resize(360, 330, { fit: 'contain', position: 'center', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
-    composites.push({ input: character, left: 520, top: 78 });
+    composites.push({ input: character, left: 380, top: 88 });
   }
-  const overlay = Buffer.from(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="800" height="760">
-      <g transform="translate(520 78)">
-        <rect x="0" y="0" width="190" height="190" rx="28" fill="none" stroke="#5b6d91" stroke-width="4"/>
-        <rect x="132" y="12" width="44" height="44" rx="12" fill="#f5c400"/>
-        <path d="M154 20 L140 38 H153 L147 51 L168 30 H155 Z" fill="#111827"/>
-      </g>
-    </svg>
-  `);
-  composites.push({ input: overlay, left: 0, top: 0 });
   const baseSvg = CALENDAR_FONT_BUFFER
     ? await renderCalendarCardVectorSvg(card)
     : renderCalendarCardSvg(card);
@@ -868,22 +871,24 @@ async function answerCalendarReadRequest(message, userId, req) {
   }
 
   if (!result.events.length) {
+    const cardTitle = formatCalendarCardTitle(range.label);
     return {
-      answer: `비서님이 확인했는데 ${range.label} 구글 캘린더 일정은 없어.`,
+      answer: `비서님이 확인했는데 ${cardTitle}은 비어 있어.`,
       quickReplies: [],
       plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_empty' },
       results: [],
-      calendarCard: { label: `구글 캘린더 ${range.label}`, events: [] },
+      calendarCard: { label: cardTitle, events: [] },
     };
   }
 
+  const cardTitle = formatCalendarCardTitle(range.label);
   return {
-    answer: `비서님이 구글 캘린더 ${range.label} 일정을 이미지로 정리했어.`,
+    answer: `비서님이 ${cardTitle}을 이미지로 정리했어.`,
     quickReplies: [],
     plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_listed' },
     results: result.events,
     calendarCard: {
-      label: `구글 캘린더 ${range.label}`,
+      label: cardTitle,
       events: result.events.map(formatGoogleCalendarCardEvent),
     },
   };
