@@ -8,7 +8,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-20a';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-20b';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -673,6 +673,8 @@ function buildQuickReplies(plan, results) {
 
 function fallbackChatAnswer(message) {
   const text = normalizeKoreanSearchText(message);
+  const modelAnswer = answerClaudeModelQuestion(text);
+  if (modelAnswer) return modelAnswer;
   if (/^(안녕|안녕하세요|하이|ㅎㅇ)/.test(text)) return '안녕. 뭐 도와줄까?';
   if (/(cmd|명령어|바로가기|아이콘|윈도|윈도우|windows)/i.test(text)) {
     return '응, 가능해. Windows 바로가기의 대상에 `cmd /k "명령어"`를 넣으면 실행 후 명령 결과가 남고, `cmd /c "명령어"`는 실행 후 창이 닫혀. 예: `cmd /k "cd /d C:\\work && npm start"`처럼 쓰면 바로가기 실행 시 자동으로 입력/실행돼.';
@@ -685,7 +687,18 @@ function fallbackChatAnswer(message) {
   return '응, 바로 답해줄게. 검색이 필요한 내용이면 지역명이나 핵심 키워드를 같이 보내줘.';
 }
 
+function answerClaudeModelQuestion(message) {
+  const text = normalizeKoreanSearchText(message);
+  const asksModel = /(클로드|claude|ai|인공지능|챗봇|너|당신|모델|model).*(버전|version|소넷|sonnet|하이쿠|haiku|모델|model|뭐야|뭔지|어떤거|무슨)|((버전|version|소넷|sonnet|하이쿠|haiku|모델|model).*(클로드|claude|ai|인공지능|챗봇|너|당신))/.test(text);
+  if (!asksModel) return null;
+
+  const fallbackText = CLAUDE_FALLBACK_MODELS.length ? ` 안 되면 ${CLAUDE_FALLBACK_MODELS.join(', ')} 순서로 자동 대체해.` : '';
+  return `지금은 Haiku 계열인 ${CLAUDE_MODEL}로 설정돼 있어.${fallbackText}`;
+}
+
 async function answerChat(message, userId) {
+  const modelAnswer = answerClaudeModelQuestion(message);
+  if (modelAnswer) return modelAnswer;
   if (!CLAUDE_API_KEY) return fallbackChatAnswer(message);
   const history = (conversations.get(userId) || []).slice(-6).map((item) => ({ role: item.role, content: item.content }));
   const models = [...new Set([CLAUDE_MODEL, ...CLAUDE_FALLBACK_MODELS].filter(Boolean))];
@@ -697,7 +710,7 @@ async function answerChat(message, userId) {
         model,
         max_tokens: 420,
         temperature: 0.7,
-        system: ['너는 카카오톡에서 대화하는 친근한 한국어 AI 친구야.', '자연스러운 반말로 바로 답해.', '찾아볼게처럼 미래에 도구를 실행할 척하지 마.'].join('\n'),
+        system: ['너는 카카오톡에서 대화하는 친근한 한국어 AI 친구야.', '자연스러운 반말로 바로 답해.', '찾아볼게처럼 미래에 도구를 실행할 척하지 마.', `네 모델명은 추측하지 마. 모델을 묻는 질문에는 ${model}이라고 답해.`].join('\n'),
         messages: [...history, { role: 'user', content: message }],
       }, {
         headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_API_KEY, 'anthropic-version': '2023-06-01' },
