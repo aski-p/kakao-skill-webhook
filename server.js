@@ -2,13 +2,15 @@ require('dotenv').config();
 
 const express = require('express');
 const axios = require('axios');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-20d-calendar-read';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-20f-calendar-image-card';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -50,6 +52,7 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 
 const conversations = new Map();
+const calendarCardCache = new Map();
 let lastClaudeStatus = { ok: null, status: null, code: null, message: null, at: null };
 const normalizeText = (text) => String(text || '').replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 const stripHtml = (text) => normalizeText(text).replace(/<[^>]*>/g, '').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'");
@@ -68,6 +71,15 @@ function normalizeKoreanSearchText(text) {
 function kakaoTextResponse(text, quickReplies = []) {
   const safeText = normalizeText(text).slice(0, KAKAO_MAX_RESPONSE_LENGTH) || '응, 다시 한 번만 보내줘.';
   const template = { outputs: [{ simpleText: { text: safeText } }] };
+  if (quickReplies.length) template.quickReplies = quickReplies.slice(0, 5);
+  return { version: '2.0', template };
+}
+
+function kakaoImageResponse({ imageUrl, altText, text, quickReplies = [] }) {
+  const safeText = normalizeText(text).slice(0, KAKAO_MAX_RESPONSE_LENGTH);
+  const outputs = [{ simpleImage: { imageUrl, altText: normalizeText(altText || '일정 카드') } }];
+  if (safeText) outputs.push({ simpleText: { text: safeText } });
+  const template = { outputs };
   if (quickReplies.length) template.quickReplies = quickReplies.slice(0, 5);
   return { version: '2.0', template };
 }
@@ -98,6 +110,125 @@ function getPublicBaseUrl(req) {
   return `${protocol}://${host}`;
 }
 
+function escapeXml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function truncateForCard(value, max = 34) {
+  const text = normalizeText(value);
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function cleanupCalendarCardCache() {
+  const cutoff = Date.now() - 10 * 60 * 1000;
+  for (const [id, card] of calendarCardCache.entries()) {
+    if (!card?.createdAt || card.createdAt < cutoff) calendarCardCache.delete(id);
+  }
+}
+
+function createCalendarCard(card) {
+  cleanupCalendarCardCache();
+  const id = crypto.randomUUID();
+  calendarCardCache.set(id, { ...card, createdAt: Date.now() });
+  return id;
+}
+
+function formatGoogleCalendarCardEvent(event) {
+  const startValue = event.start?.dateTime || event.start?.date;
+  const endValue = event.end?.dateTime || event.end?.date;
+  const isAllDay = Boolean(event.start?.date);
+  let timeText = '시간미정';
+  if (isAllDay) {
+    timeText = '종일';
+  } else if (startValue) {
+    const timeFormatter = new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    timeText = timeFormatter.format(new Date(startValue));
+    if (endValue) timeText += `-${timeFormatter.format(new Date(endValue))}`;
+  }
+  return { time: timeText, title: normalizeText(event.summary || '제목 없음') };
+}
+
+function renderCalendarCardSvg(card) {
+  const events = (card.events || []).slice(0, 7);
+  const rowHeight = 82;
+  const baseHeight = 500;
+  const height = Math.max(760, baseHeight + Math.max(events.length, 1) * rowHeight);
+  const rows = events.length
+    ? events.map((event, index) => {
+      const y = 470 + index * rowHeight;
+      const accent = ['#2ee6a6', '#66d9ff', '#ffd166', '#ff7aa2'][index % 4];
+      return `
+        <g>
+          <rect x="70" y="${y}" width="660" height="62" rx="14" fill="#172033" stroke="#2b3856"/>
+          <rect x="70" y="${y}" width="8" height="62" rx="4" fill="${accent}"/>
+          <text x="100" y="${y + 39}" fill="#9fb2d9" font-size="24" font-weight="700">${escapeXml(event.time)}</text>
+          <text x="255" y="${y + 39}" fill="#f7fbff" font-size="27" font-weight="800">${escapeXml(truncateForCard(event.title, 24))}</text>
+        </g>`;
+    }).join('')
+    : `
+        <rect x="70" y="470" width="660" height="92" rx="18" fill="#172033" stroke="#2b3856"/>
+        <text x="400" y="526" text-anchor="middle" fill="#f7fbff" font-size="30" font-weight="800">오늘은 비어 있어요</text>
+        <text x="400" y="562" text-anchor="middle" fill="#9fb2d9" font-size="20">작전 대기, 휴식 허가.</text>`;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="${height}" viewBox="0 0 800 ${height}">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#0b101c"/>
+      <stop offset="0.58" stop-color="#111a2b"/>
+      <stop offset="1" stop-color="#18263a"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" x2="1">
+      <stop offset="0" stop-color="#202a40"/>
+      <stop offset="1" stop-color="#121a2a"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect width="800" height="${height}" fill="url(#bg)"/>
+  <path d="M0 155 H800" stroke="#26344f" stroke-width="2"/>
+  <path d="M0 ${height - 90} H800" stroke="#26344f" stroke-width="2"/>
+
+  <g filter="url(#shadow)">
+    <rect x="46" y="46" width="708" height="${height - 92}" rx="28" fill="url(#panel)" stroke="#344667"/>
+  </g>
+
+  <text x="76" y="104" fill="#2ee6a6" font-size="24" font-weight="900" letter-spacing="3">RHODES ISLAND</text>
+  <text x="76" y="158" fill="#f7fbff" font-size="48" font-weight="900">${escapeXml(card.label || '일정')}</text>
+  <text x="78" y="198" fill="#9fb2d9" font-size="22" font-weight="600">장방이가 오늘 작전 일정을 정리했어요</text>
+
+  <g transform="translate(525 82)">
+    <circle cx="83" cy="70" r="56" fill="#f4f7ff"/>
+    <path d="M43 27 L27 5 L61 18 Z" fill="#dfe8ff"/>
+    <path d="M123 27 L139 5 L105 18 Z" fill="#dfe8ff"/>
+    <circle cx="63" cy="64" r="7" fill="#172033"/>
+    <circle cx="104" cy="64" r="7" fill="#172033"/>
+    <path d="M72 89 Q84 102 99 89" fill="none" stroke="#172033" stroke-width="5" stroke-linecap="round"/>
+    <rect x="20" y="130" width="128" height="150" rx="28" fill="#1f2a40" stroke="#5b6d91" stroke-width="4"/>
+    <path d="M47 150 H120 L132 235 H35 Z" fill="#263653"/>
+    <rect x="70" y="162" width="28" height="92" rx="8" fill="#2ee6a6"/>
+    <text x="84" y="306" text-anchor="middle" fill="#f7fbff" font-size="24" font-weight="900">장방이</text>
+  </g>
+
+  <rect x="70" y="260" width="410" height="124" rx="20" fill="#111827" stroke="#2b3856"/>
+  <text x="102" y="313" fill="#f7fbff" font-size="34" font-weight="900">${events.length ? `${events.length}개 일정` : '일정 없음'}</text>
+  <text x="104" y="350" fill="#9fb2d9" font-size="21">${escapeXml(getKoreanDateTime())}</text>
+
+  ${rows}
+</svg>`;
+}
+
 function getGoogleRedirectUri(req) {
   return GOOGLE_OAUTH_REDIRECT_URI || `${getPublicBaseUrl(req)}/auth/google/callback`;
 }
@@ -125,6 +256,42 @@ function buildGoogleAuthUrl(userId, req) {
     state: encodeOAuthState(userId),
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
+
+function buildGoogleConnectUrl(userId, req) {
+  return `${getPublicBaseUrl(req)}/auth/google?userId=${encodeURIComponent(userId)}`;
+}
+
+function isBlockedOAuthUserAgent(req) {
+  return /KAKAOTALK|KAKAOSTORY|FBAN|FBAV|Instagram|Line\//i.test(req.get('user-agent') || '');
+}
+
+function renderExternalBrowserInstructions(connectUrl) {
+  return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Google Calendar 연결</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 28px; line-height: 1.55; color: #111; background: #fff; }
+    main { max-width: 560px; margin: 0 auto; }
+    h1 { font-size: 24px; margin: 0 0 16px; }
+    p { margin: 12px 0; }
+    .url { word-break: break-all; padding: 12px; border: 1px solid #ddd; border-radius: 8px; background: #f7f7f7; }
+    .hint { color: #555; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>외부 브라우저에서 열어 주세요</h1>
+    <p>Google 로그인을 카카오톡 인앱 브라우저에서 열면 Google 정책 때문에 <strong>403 disallowed_useragent</strong>가 발생합니다.</p>
+    <p>이 페이지 주소를 복사해서 Safari 또는 Chrome 주소창에 붙여넣으면 캘린더 연결을 계속할 수 있습니다.</p>
+    <p class="url">${connectUrl.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>
+    <p class="hint">iPhone: 공유 버튼 또는 더보기 메뉴에서 Safari로 열기<br>Android: 더보기 메뉴에서 Chrome으로 열기</p>
+  </main>
+</body>
+</html>`;
 }
 
 function isCalendarUserAllowed(userId) {
@@ -557,9 +724,9 @@ async function answerCalendarReadRequest(message, userId, req) {
   }
 
   if (!getStoredGoogleToken(userId)) {
-    const authUrl = buildGoogleAuthUrl(userId, req);
+    const authUrl = buildGoogleConnectUrl(userId, req);
     return {
-      answer: `본인 구글 캘린더 일정을 읽으려면 먼저 구글 동의가 필요해.\n아래 링크로 한 번 연결한 뒤 다시 “내일 일정 알려줘”처럼 물어봐줘.\n${authUrl}`,
+      answer: `본인 구글 캘린더 일정을 읽으려면 먼저 구글 동의가 필요해.\n카카오톡 안에서 열면 Google이 막을 수 있으니, 아래 링크를 Safari/Chrome 같은 외부 브라우저에서 열어줘.\n연결 후 다시 “내일 일정 알려줘”처럼 물어봐줘.\n${authUrl}`,
       quickReplies: [{ label: '구글 연결', action: 'webLink', webLinkUrl: authUrl }],
       plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_auth_required' },
       results: [],
@@ -569,9 +736,9 @@ async function answerCalendarReadRequest(message, userId, req) {
   const range = parseCalendarQueryRange(message);
   const result = await listGoogleCalendarEvents(userId, range);
   if (result.needsAuth) {
-    const authUrl = buildGoogleAuthUrl(userId, req);
+    const authUrl = buildGoogleConnectUrl(userId, req);
     return {
-      answer: `구글 캘린더 연결이 필요해.\n${authUrl}`,
+      answer: `구글 캘린더 연결이 필요해. 카카오톡 안에서 열면 Google이 막을 수 있으니 Safari/Chrome에서 열어줘.\n${authUrl}`,
       quickReplies: [{ label: '구글 연결', action: 'webLink', webLinkUrl: authUrl }],
       plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.9, source: 'calendar_auth_required' },
       results: [],
@@ -580,18 +747,23 @@ async function answerCalendarReadRequest(message, userId, req) {
 
   if (!result.events.length) {
     return {
-      answer: `${range.label} 구글 캘린더 일정은 없어.`,
+      answer: `장방이가 확인했는데 ${range.label} 구글 캘린더 일정은 없어.`,
       quickReplies: [],
       plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_empty' },
       results: [],
+      calendarCard: { label: `구글 캘린더 ${range.label}`, events: [] },
     };
   }
 
   return {
-    answer: `구글 캘린더 ${range.label} 일정이야.\n${result.events.map(formatGoogleCalendarEvent).join('\n')}`,
+    answer: `장방이가 구글 캘린더 ${range.label} 일정을 이미지로 정리했어.`,
     quickReplies: [],
     plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_listed' },
     results: result.events,
+    calendarCard: {
+      label: `구글 캘린더 ${range.label}`,
+      events: result.events.map(formatGoogleCalendarCardEvent),
+    },
   };
 }
 
@@ -630,9 +802,9 @@ async function answerCalendarWriteRequest(message, userId, req) {
   }
 
   if (!getStoredGoogleToken(userId)) {
-    const authUrl = buildGoogleAuthUrl(userId, req);
+    const authUrl = buildGoogleConnectUrl(userId, req);
     return {
-      answer: `본인 구글 캘린더에 일정을 넣으려면 먼저 구글 동의가 필요해.\n아래 링크로 한 번 연결한 뒤 다시 일정 추가를 말해줘.\n${authUrl}`,
+      answer: `본인 구글 캘린더에 일정을 넣으려면 먼저 구글 동의가 필요해.\n카카오톡 안에서 열면 Google이 막을 수 있으니, 아래 링크를 Safari/Chrome 같은 외부 브라우저에서 열어줘.\n연결 후 다시 일정 추가를 말해줘.\n${authUrl}`,
       quickReplies: [{ label: '구글 연결', action: 'webLink', webLinkUrl: authUrl }],
       plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_auth_required' },
       results: [],
@@ -651,9 +823,9 @@ async function answerCalendarWriteRequest(message, userId, req) {
 
   const result = await createGoogleCalendarEvent(userId, event);
   if (result.needsAuth) {
-    const authUrl = buildGoogleAuthUrl(userId, req);
+    const authUrl = buildGoogleConnectUrl(userId, req);
     return {
-      answer: `구글 캘린더 연결이 필요해.\n${authUrl}`,
+      answer: `구글 캘린더 연결이 필요해. 카카오톡 안에서 열면 Google이 막을 수 있으니 Safari/Chrome에서 열어줘.\n${authUrl}`,
       quickReplies: [{ label: '구글 연결', action: 'webLink', webLinkUrl: authUrl }],
       plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.9, source: 'calendar_auth_required' },
       results: [],
@@ -1013,13 +1185,30 @@ async function buildAnswer(message, userId, req) {
 app.get('/', (req, res) => res.type('html').send(`<h1>카카오 스킬 웹훅 서버</h1><p>상태: 정상 실행 중</p><p>라우터: ${ROUTER_VERSION}</p><p>현재 한국 시간: ${getKoreanDateTime()}</p>`));
 app.get('/health', (req, res) => res.json({ ok: true, service: 'kakao-skill-webhook', routerVersion: ROUTER_VERSION, koreaTime: getKoreanDateTime(), env: { claudeApiKey: Boolean(CLAUDE_API_KEY), claudeModel: CLAUDE_MODEL, claudeFallbackModels: CLAUDE_FALLBACK_MODELS, claudeTimeoutMs: CLAUDE_TIMEOUT_MS, naverApi: Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET), googleCloudApiKey: Boolean(GOOGLE_CLOUD_API_KEY), googleCalendarWritable: Boolean(GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON && GOOGLE_CALENDAR_ID), googleCalendarOAuth: hasGoogleOAuthConfig(), googleCalendarReadable: hasGoogleOAuthConfig(), googleCalendarAllowedUsers: KAKAO_CALENDAR_ALLOWED_USER_IDS.length, plannerTimeoutMs: CLAUDE_PLANNER_TIMEOUT_MS, naverTimeoutMs: NAVER_SEARCH_TIMEOUT_MS, port: PORT }, claude: lastClaudeStatus }));
 app.get('/test', (req, res) => res.json(kakaoTextResponse('테스트 성공! 카카오 스킬 응답 형식 정상이야.')));
-app.get('/routes', (req, res) => res.json({ ok: true, routerVersion: ROUTER_VERSION, routes: ['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search', 'weather_lookup', 'google_calendar_oauth', 'google_calendar_create_event', 'google_calendar_list_events'] }));
+app.get('/routes', (req, res) => res.json({ ok: true, routerVersion: ROUTER_VERSION, routes: ['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search', 'weather_lookup', 'google_calendar_oauth', 'google_calendar_create_event', 'google_calendar_list_events', 'calendar_card_image'] }));
+
+app.get('/calendar-card.png', async (req, res) => {
+  cleanupCalendarCardCache();
+  const card = calendarCardCache.get(normalizeText(req.query.id));
+  if (!card) return res.status(404).type('text/plain').send('Calendar card not found or expired.');
+  try {
+    const png = await sharp(Buffer.from(renderCalendarCardSvg(card))).png().toBuffer();
+    res.set('Cache-Control', 'public, max-age=600');
+    return res.type('image/png').send(png);
+  } catch (error) {
+    console.error('[calendar-card] render failed:', error.message);
+    return res.status(500).type('text/plain').send('Calendar card render failed.');
+  }
+});
 
 app.get('/auth/google', (req, res) => {
   const userId = normalizeText(req.query.userId || '');
   if (!hasGoogleOAuthConfig()) return res.status(503).type('text/plain').send('Google OAuth 설정이 아직 없습니다.');
   if (!userId) return res.status(400).type('text/plain').send('userId가 필요합니다.');
   if (!isCalendarUserAllowed(userId)) return res.status(403).type('text/plain').send('이 카카오 사용자는 Google Calendar 연결이 허용되지 않았습니다.');
+  if (isBlockedOAuthUserAgent(req)) {
+    return res.type('html').send(renderExternalBrowserInstructions(buildGoogleConnectUrl(userId, req)));
+  }
   return res.redirect(buildGoogleAuthUrl(userId, req));
 });
 
@@ -1053,9 +1242,18 @@ async function handleKakaoSkill(req, res) {
 
   try {
     remember(userId, 'user', message);
-    const { answer, quickReplies, plan, results } = await buildAnswer(message, userId, req);
+    const { answer, quickReplies, plan, results, calendarCard } = await buildAnswer(message, userId, req);
     remember(userId, 'assistant', answer);
     console.log(`[kakao] ${Date.now() - startedAt}ms intent=${plan.intent} source=${plan.source} results=${results.length} query=${plan.searchQuery || ''}`);
+    if (calendarCard) {
+      const cardId = createCalendarCard(calendarCard);
+      return res.json(kakaoImageResponse({
+        imageUrl: `${getPublicBaseUrl(req)}/calendar-card.png?id=${encodeURIComponent(cardId)}`,
+        altText: `${calendarCard.label || '구글 캘린더'} 일정 카드`,
+        text: answer,
+        quickReplies,
+      }));
+    }
     return res.json(kakaoTextResponse(answer, quickReplies));
   } catch (error) {
     console.error('[kakao] failed:', { message: error.message, code: error.code, status: error.response?.status, elapsedMs: Date.now() - startedAt });
