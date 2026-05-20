@@ -57,6 +57,7 @@ mcp-firebase-config.json
 app.py
 .claude.json
 .railway-token
+data/google-calendar-tokens.json
 
 # Embedded git repositories
 .claude-squad/worktrees/
