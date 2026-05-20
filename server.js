@@ -8,13 +8,13 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'resilient-local-search-2026-05-20a';
+const ROUTER_VERSION = 'claude-first-chat-2026-05-20b';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-haiku-4-5-20251001';
-const CLAUDE_PLANNER_TIMEOUT_MS = Number(process.env.CLAUDE_PLANNER_TIMEOUT_MS || 1200);
-const CLAUDE_TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS || 3200);
+const CLAUDE_PLANNER_TIMEOUT_MS = Number(process.env.CLAUDE_PLANNER_TIMEOUT_MS || 900);
+const CLAUDE_TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS || 4400);
 const KAKAO_MAX_RESPONSE_LENGTH = Number(process.env.KAKAO_MAX_RESPONSE_LENGTH || 1000);
 
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
@@ -225,6 +225,15 @@ function fallbackPlan(message) {
   if (hasLocation && hasLocalSearchCue) return { intent: 'local_search', searchQuery: compactSearchQuery(text, 'local_search'), sort: 'comment', confidence: 0.72, source: 'fallback' };
   if (/검색|찾아봐|알아봐|확인|최신|최근|실시간|웹|인터넷|네이버|구글|출처/.test(text)) return { intent: 'web_lookup', searchQuery: compactSearchQuery(text, 'web_lookup'), sort: 'sim', confidence: 0.7, source: 'fallback' };
   return { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.65, source: 'fallback' };
+}
+
+function shouldAnswerWithClaudeFirst(message) {
+  const text = normalizeKoreanSearchText(message);
+  const explicitLookupCue = /(검색|찾아봐|찾아줘|알아봐|최신|최근|실시간|뉴스|기사|속보|출처|네이버|구글|웹에서|인터넷에서)/.test(text);
+  const commerceCue = /(가격|최저가|시세|얼마|구매|상품|제품|쇼핑)/.test(text);
+  const localCue = LOCAL_LOCATION_PATTERN.test(text) && /(근처|주변|가까운|맛집|식당|매장|가게|업체|장소|시설|센터|예약|어디|추천)/.test(text);
+  const howToCue = /(어떻게|어케|방법|가능|할\s*수\s*있|되나|되냐|만들|설정|실행|명령어|cmd|윈도|윈도우|windows|바로가기|아이콘)/i.test(text);
+  return howToCue && !explicitLookupCue && !commerceCue && !localCue && !WEATHER_WORD_PATTERN.test(text);
 }
 
 function extractJsonObject(text) {
@@ -662,6 +671,9 @@ function buildQuickReplies(plan, results) {
 function fallbackChatAnswer(message) {
   const text = normalizeKoreanSearchText(message);
   if (/^(안녕|안녕하세요|하이|ㅎㅇ)/.test(text)) return '안녕. 뭐 도와줄까?';
+  if (/(cmd|명령어|바로가기|아이콘|윈도|윈도우|windows)/i.test(text)) {
+    return '응, 가능해. Windows 바로가기의 대상에 `cmd /k "명령어"`를 넣으면 실행 후 명령 결과가 남고, `cmd /c "명령어"`는 실행 후 창이 닫혀. 예: `cmd /k "cd /d C:\\work && npm start"`처럼 쓰면 바로가기 실행 시 자동으로 입력/실행돼.';
+  }
   if (/(배고파|뭐\s*먹|먹을\s*거|먹을거|점심|저녁|야식)/.test(text)) {
     if (/점심/.test(text)) return '점심이면 너무 무겁지 않게 국밥, 돈까스, 제육, 쌀국수, 샐러드볼 중에서 고르면 좋아.';
     if (/저녁|야식/.test(text)) return '지금 먹기엔 치킨, 분식, 국밥, 마라탕, 덮밥 쪽이 무난해. 위치를 같이 보내주면 근처 기준으로 찾아볼게.';
@@ -702,6 +714,17 @@ async function buildAnswer(message, userId, req) {
         plan: { intent: 'weather_lookup', searchQuery: city, sort: 'sim', confidence: 0.8, source: 'deterministic_error' },
         results: [],
       };
+    }
+  }
+
+  if (shouldAnswerWithClaudeFirst(message)) {
+    const plan = { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.9, source: 'claude_first_chat' };
+    try {
+      const answer = await answerChat(message, userId);
+      return { answer, quickReplies: [], plan, results: [] };
+    } catch (error) {
+      console.error('[claude-first-chat] failed:', { message: error.message, code: error.code, status: error.response?.status });
+      return { answer: fallbackChatAnswer(message), quickReplies: [], plan, results: [] };
     }
   }
 
