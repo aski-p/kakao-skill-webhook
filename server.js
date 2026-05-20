@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-20f-calendar-image-card';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-20g-calendar-zhuang-fangyi-card';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -61,6 +61,27 @@ const getUserMessage = (body) => normalizeText(body?.userRequest?.utterance || b
 const getUserId = (body) => body?.userRequest?.user?.id || body?.userRequest?.user?.properties?.botUserKey || 'anonymous';
 const LOCAL_LOCATION_PATTERN = /[가-힣A-Za-z0-9]+(?:구|동|역|로|길|시|군|읍|면|리|가)/;
 const WEATHER_WORD_PATTERN = /날씨|기온|온도|비\s*와|비와|비\s*올|비올|우산|미세먼지|초미세먼지|습도|바람/;
+const CALENDAR_ASSET_DIR = path.join(__dirname, 'assets', 'calendar');
+const CALENDAR_FONT_DATA_URI = loadAssetDataUri(path.join(CALENDAR_ASSET_DIR, 'NotoSansKR-Bold.ttf'), 'font/truetype');
+const ZHUANG_FANGYI_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi.png'));
+
+function loadAssetDataUri(filePath, mimeType) {
+  try {
+    return `data:${mimeType};base64,${fs.readFileSync(filePath).toString('base64')}`;
+  } catch (error) {
+    console.error('[assets] failed to load:', filePath, error.message);
+    return '';
+  }
+}
+
+function loadAssetBuffer(filePath) {
+  try {
+    return fs.readFileSync(filePath);
+  } catch (error) {
+    console.error('[assets] failed to load:', filePath, error.message);
+    return null;
+  }
+}
 
 function normalizeKoreanSearchText(text) {
   return normalizeText(text)
@@ -163,6 +184,8 @@ function renderCalendarCardSvg(card) {
   const rowHeight = 82;
   const baseHeight = 500;
   const height = Math.max(760, baseHeight + Math.max(events.length, 1) * rowHeight);
+  const characterArt = `<rect x="0" y="0" width="190" height="190" rx="28" fill="#1f2a40"/>
+       <text x="95" y="104" text-anchor="middle" fill="#f7fbff" font-size="26" font-weight="900">Zhuang</text>`;
   const rows = events.length
     ? events.map((event, index) => {
       const y = 470 + index * rowHeight;
@@ -171,8 +194,8 @@ function renderCalendarCardSvg(card) {
         <g>
           <rect x="70" y="${y}" width="660" height="62" rx="14" fill="#172033" stroke="#2b3856"/>
           <rect x="70" y="${y}" width="8" height="62" rx="4" fill="${accent}"/>
-          <text x="100" y="${y + 39}" fill="#9fb2d9" font-size="24" font-weight="700">${escapeXml(event.time)}</text>
-          <text x="255" y="${y + 39}" fill="#f7fbff" font-size="27" font-weight="800">${escapeXml(truncateForCard(event.title, 24))}</text>
+          <text x="100" y="${y + 39}" fill="#9fb2d9" font-size="22" font-weight="700">${escapeXml(event.time)}</text>
+          <text x="318" y="${y + 39}" fill="#f7fbff" font-size="27" font-weight="800">${escapeXml(truncateForCard(event.title, 20))}</text>
         </g>`;
     }).join('')
     : `
@@ -183,6 +206,14 @@ function renderCalendarCardSvg(card) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="${height}" viewBox="0 0 800 ${height}">
   <defs>
+    <style>
+      @font-face {
+        font-family: 'CalendarNotoKR';
+        src: url('${CALENDAR_FONT_DATA_URI}') format('truetype');
+        font-weight: 400 900;
+      }
+      text { font-family: 'CalendarNotoKR', 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; }
+    </style>
     <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0" stop-color="#0b101c"/>
       <stop offset="0.58" stop-color="#111a2b"/>
@@ -195,6 +226,9 @@ function renderCalendarCardSvg(card) {
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000" flood-opacity="0.35"/>
     </filter>
+    <clipPath id="operatorClip">
+      <rect x="0" y="0" width="190" height="190" rx="28"/>
+    </clipPath>
   </defs>
   <rect width="800" height="${height}" fill="url(#bg)"/>
   <path d="M0 155 H800" stroke="#26344f" stroke-width="2"/>
@@ -206,19 +240,15 @@ function renderCalendarCardSvg(card) {
 
   <text x="76" y="104" fill="#2ee6a6" font-size="24" font-weight="900" letter-spacing="3">RHODES ISLAND</text>
   <text x="76" y="158" fill="#f7fbff" font-size="48" font-weight="900">${escapeXml(card.label || '일정')}</text>
-  <text x="78" y="198" fill="#9fb2d9" font-size="22" font-weight="600">장방이가 오늘 작전 일정을 정리했어요</text>
+  <text x="78" y="198" fill="#9fb2d9" font-size="22" font-weight="700">Zhuang Fangyi가 오늘 작전 일정을 정리했어요</text>
 
-  <g transform="translate(525 82)">
-    <circle cx="83" cy="70" r="56" fill="#f4f7ff"/>
-    <path d="M43 27 L27 5 L61 18 Z" fill="#dfe8ff"/>
-    <path d="M123 27 L139 5 L105 18 Z" fill="#dfe8ff"/>
-    <circle cx="63" cy="64" r="7" fill="#172033"/>
-    <circle cx="104" cy="64" r="7" fill="#172033"/>
-    <path d="M72 89 Q84 102 99 89" fill="none" stroke="#172033" stroke-width="5" stroke-linecap="round"/>
-    <rect x="20" y="130" width="128" height="150" rx="28" fill="#1f2a40" stroke="#5b6d91" stroke-width="4"/>
-    <path d="M47 150 H120 L132 235 H35 Z" fill="#263653"/>
-    <rect x="70" y="162" width="28" height="92" rx="8" fill="#2ee6a6"/>
-    <text x="84" y="306" text-anchor="middle" fill="#f7fbff" font-size="24" font-weight="900">장방이</text>
+  <g transform="translate(520 78)">
+    ${characterArt}
+    <rect x="0" y="0" width="190" height="190" rx="28" fill="none" stroke="#5b6d91" stroke-width="4"/>
+    <rect x="132" y="12" width="44" height="44" rx="12" fill="#f5c400"/>
+    <path d="M154 20 L140 38 H153 L147 51 L168 30 H155 Z" fill="#111827"/>
+    <rect x="8" y="202" width="174" height="46" rx="14" fill="#111827" stroke="#2b3856"/>
+    <text x="95" y="233" text-anchor="middle" fill="#f7fbff" font-size="22" font-weight="900">Zhuang Fangyi</text>
   </g>
 
   <rect x="70" y="260" width="410" height="124" rx="20" fill="#111827" stroke="#2b3856"/>
@@ -227,6 +257,28 @@ function renderCalendarCardSvg(card) {
 
   ${rows}
 </svg>`;
+}
+
+async function renderCalendarCardPng(card) {
+  const composites = [];
+  if (ZHUANG_FANGYI_IMAGE_BUFFER) {
+    const character = await sharp(ZHUANG_FANGYI_IMAGE_BUFFER)
+      .resize(190, 190, { fit: 'cover', position: 'center' })
+      .png()
+      .toBuffer();
+    composites.push({ input: character, left: 520, top: 78 });
+  }
+  const overlay = Buffer.from(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="800" height="760">
+      <g transform="translate(520 78)">
+        <rect x="0" y="0" width="190" height="190" rx="28" fill="none" stroke="#5b6d91" stroke-width="4"/>
+        <rect x="132" y="12" width="44" height="44" rx="12" fill="#f5c400"/>
+        <path d="M154 20 L140 38 H153 L147 51 L168 30 H155 Z" fill="#111827"/>
+      </g>
+    </svg>
+  `);
+  composites.push({ input: overlay, left: 0, top: 0 });
+  return sharp(Buffer.from(renderCalendarCardSvg(card))).composite(composites).png().toBuffer();
 }
 
 function getGoogleRedirectUri(req) {
@@ -747,7 +799,7 @@ async function answerCalendarReadRequest(message, userId, req) {
 
   if (!result.events.length) {
     return {
-      answer: `장방이가 확인했는데 ${range.label} 구글 캘린더 일정은 없어.`,
+      answer: `Zhuang Fangyi가 확인했는데 ${range.label} 구글 캘린더 일정은 없어.`,
       quickReplies: [],
       plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_empty' },
       results: [],
@@ -756,7 +808,7 @@ async function answerCalendarReadRequest(message, userId, req) {
   }
 
   return {
-    answer: `장방이가 구글 캘린더 ${range.label} 일정을 이미지로 정리했어.`,
+    answer: `Zhuang Fangyi가 구글 캘린더 ${range.label} 일정을 이미지로 정리했어.`,
     quickReplies: [],
     plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_listed' },
     results: result.events,
@@ -1192,7 +1244,7 @@ app.get('/calendar-card.png', async (req, res) => {
   const card = calendarCardCache.get(normalizeText(req.query.id));
   if (!card) return res.status(404).type('text/plain').send('Calendar card not found or expired.');
   try {
-    const png = await sharp(Buffer.from(renderCalendarCardSvg(card))).png().toBuffer();
+    const png = await renderCalendarCardPng(card);
     res.set('Cache-Control', 'public, max-age=600');
     return res.type('image/png').send(png);
   } catch (error) {
@@ -1266,7 +1318,11 @@ app.post('/webhook', handleKakaoSkill);
 app.post('/kakao-skill-webhook', handleKakaoSkill);
 
 app.use((req, res) => res.status(404).json({ ok: false, error: 'Not Found' }));
-app.listen(PORT, () => {
-  console.log(`Kakao skill webhook server listening on port ${PORT}`);
-  console.log(`Router version: ${ROUTER_VERSION}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Kakao skill webhook server listening on port ${PORT}`);
+    console.log(`Router version: ${ROUTER_VERSION}`);
+  });
+}
+
+module.exports = { app, renderCalendarCardPng, renderCalendarCardSvg };
