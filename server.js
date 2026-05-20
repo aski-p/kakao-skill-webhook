@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-20h-calendar-korean-font-card';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-20i-calendar-assistant-name-card';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -186,7 +186,7 @@ function renderCalendarCardSvg(card) {
   const baseHeight = 500;
   const height = Math.max(760, baseHeight + Math.max(events.length, 1) * rowHeight);
   const characterArt = `<rect x="0" y="0" width="190" height="190" rx="28" fill="#1f2a40"/>
-       <text x="95" y="104" text-anchor="middle" fill="#f7fbff" font-size="26" font-weight="900">Zhuang</text>`;
+       <text x="95" y="104" text-anchor="middle" fill="#f7fbff" font-size="26" font-weight="900">비서님</text>`;
   const rows = events.length
     ? events.map((event, index) => {
       const y = 470 + index * rowHeight;
@@ -241,7 +241,7 @@ function renderCalendarCardSvg(card) {
 
   <text x="76" y="104" fill="#2ee6a6" font-size="24" font-weight="900" letter-spacing="3">RHODES ISLAND</text>
   <text x="76" y="158" fill="#f7fbff" font-size="48" font-weight="900">${escapeXml(card.label || '일정')}</text>
-  <text x="78" y="198" fill="#9fb2d9" font-size="22" font-weight="700">Zhuang Fangyi가 오늘 작전 일정을 정리했어요</text>
+  <text x="78" y="198" fill="#9fb2d9" font-size="22" font-weight="700">비서님이 오늘 작전 일정을 정리했어요</text>
 
   <g transform="translate(520 78)">
     ${characterArt}
@@ -249,7 +249,7 @@ function renderCalendarCardSvg(card) {
     <rect x="132" y="12" width="44" height="44" rx="12" fill="#f5c400"/>
     <path d="M154 20 L140 38 H153 L147 51 L168 30 H155 Z" fill="#111827"/>
     <rect x="8" y="202" width="174" height="46" rx="14" fill="#111827" stroke="#2b3856"/>
-    <text x="95" y="233" text-anchor="middle" fill="#f7fbff" font-size="22" font-weight="900">Zhuang Fangyi</text>
+    <text x="95" y="233" text-anchor="middle" fill="#f7fbff" font-size="22" font-weight="900">비서님</text>
   </g>
 
   <rect x="70" y="260" width="410" height="124" rx="20" fill="#111827" stroke="#2b3856"/>
@@ -308,7 +308,7 @@ async function renderCalendarCardVectorSvg(card) {
       h('div', { style: { position: 'absolute', left: 76, top: 79, color: '#2ee6a6', fontSize: 24, fontWeight: 900 } }, 'RHODES ISLAND'),
       h('div', { style: { position: 'absolute', left: 76, top: 122, color: '#f7fbff', fontSize: 48, fontWeight: 900 } }, card.label || '일정'),
       h('div', { style: { position: 'absolute', left: 78, top: 181, width: 420, color: '#9fb2d9', fontSize: 21, fontWeight: 700 } }, '오늘 작전 일정을 정리했어요'),
-      h('div', { style: { position: 'absolute', left: 528, top: 280, width: 174, height: 46, borderRadius: 14, backgroundColor: '#111827', border: '1px solid #2b3856', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f7fbff', fontSize: 22, fontWeight: 900 } }, 'Zhuang Fangyi'),
+      h('div', { style: { position: 'absolute', left: 528, top: 280, width: 174, height: 46, borderRadius: 14, backgroundColor: '#111827', border: '1px solid #2b3856', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f7fbff', fontSize: 22, fontWeight: 900 } }, '비서님'),
       h('div', { style: { position: 'absolute', left: 70, top: 260, width: 410, height: 124, borderRadius: 20, backgroundColor: '#111827', border: '1px solid #2b3856', display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingLeft: 32 } },
         h('div', { style: { color: '#f7fbff', fontSize: 34, fontWeight: 900 } }, events.length ? `${events.length}개 일정` : '일정 없음'),
         h('div', { style: { color: '#9fb2d9', fontSize: 21, marginTop: 8 } }, getKoreanDateTime()),
@@ -869,7 +869,7 @@ async function answerCalendarReadRequest(message, userId, req) {
 
   if (!result.events.length) {
     return {
-      answer: `Zhuang Fangyi가 확인했는데 ${range.label} 구글 캘린더 일정은 없어.`,
+      answer: `비서님이 확인했는데 ${range.label} 구글 캘린더 일정은 없어.`,
       quickReplies: [],
       plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_empty' },
       results: [],
@@ -878,7 +878,7 @@ async function answerCalendarReadRequest(message, userId, req) {
   }
 
   return {
-    answer: `Zhuang Fangyi가 구글 캘린더 ${range.label} 일정을 이미지로 정리했어.`,
+    answer: `비서님이 구글 캘린더 ${range.label} 일정을 이미지로 정리했어.`,
     quickReplies: [],
     plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_listed' },
     results: result.events,
