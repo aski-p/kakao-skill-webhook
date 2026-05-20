@@ -182,6 +182,7 @@ class NaverWeatherCrawler {
             precipitationProbability: data.precipitationProbability || '',
             lowest: data.lowest || '',
             highest: data.highest || '',
+            tomorrow: data.tomorrow || {},
             recommendation: ''
         };
         

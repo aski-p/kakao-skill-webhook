@@ -8,7 +8,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-20b';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-20c-weather-forecast';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -494,6 +494,27 @@ function isWeatherQuestion(message) {
   return WEATHER_WORD_PATTERN.test(normalizeKoreanSearchText(message));
 }
 
+function detectWeatherTimeframe(message) {
+  const text = normalizeKoreanSearchText(message);
+  if (/모레|내일\s*모레/.test(text)) return 'day_after_tomorrow';
+  if (/내일|낼|다음\s*날/.test(text)) return 'tomorrow';
+  if (/지금|현재|실시간/.test(text)) return 'current';
+  return 'today';
+}
+
+function getWeatherTimeLabel(timeframe) {
+  switch (timeframe) {
+    case 'tomorrow':
+      return '내일';
+    case 'day_after_tomorrow':
+      return '모레';
+    case 'current':
+      return '현재';
+    default:
+      return '오늘';
+  }
+}
+
 function extractWeatherLocation(message) {
   const original = normalizeKoreanSearchText(message);
   const directPatterns = [
@@ -523,7 +544,33 @@ function extractWeatherLocation(message) {
   return location || '서울';
 }
 
-function formatWeatherAnswer(city, weather) {
+function formatTomorrowWeatherAnswer(city, weather) {
+  const tomorrow = weather.tomorrow || {};
+  const details = [];
+  const condition = normalizeText(tomorrow.condition || '').match(/맑음|구름많음|흐림|비|눈|소나기|안개|황사/)?.[0] || normalizeText(tomorrow.condition || '');
+  const low = normalizeText(tomorrow.tempLow || '').replace(/^최저기온\s*/, '');
+  const high = normalizeText(tomorrow.tempHigh || '').replace(/^최고기온\s*/, '');
+
+  if (condition) details.push(`상태는 ${condition}`);
+  if (low || high) details.push(`최저/최고는 ${low || '?'} / ${high || '?'} 정도`);
+
+  if (!details.length) {
+    return `${city} 내일 날씨를 확인하려고 했는데 지금은 내일 예보를 못 가져왔어. 네이버 날씨에서 최신 예보를 한 번 확인해줘.`;
+  }
+
+  return [
+    `${city} 기준 내일 날씨야.`,
+    details.join(', '),
+    /비|소나기/.test(condition) ? '비 예보가 있으면 우산 챙기는 게 좋아.' : '',
+  ].filter(Boolean).join('\n');
+}
+
+function formatWeatherAnswer(city, weather, timeframe = 'today') {
+  if (timeframe === 'tomorrow') return formatTomorrowWeatherAnswer(city, weather);
+  if (timeframe === 'day_after_tomorrow') {
+    return `${city} 모레 날씨는 현재 응답에서 직접 확인할 수 있는 예보 범위를 벗어나 있어. 네이버 날씨 버튼에서 모레 예보를 확인해줘.`;
+  }
+
   const details = [];
   const condition = normalizeText(weather.condition || '').match(/맑음|구름많음|흐림|비|눈|소나기|안개|황사/)?.[0] || normalizeText(weather.condition || '');
   if (weather.temperature && weather.temperature !== '정보 없음') details.push(`기온은 ${weather.temperature.replace(/^현재 온도\s*/, '')}`);
@@ -542,7 +589,7 @@ function formatWeatherAnswer(city, weather) {
   }
 
   return [
-    `${city} 기준 현재 날씨야.`,
+    `${city} 기준 ${getWeatherTimeLabel(timeframe)} 날씨야.`,
     details.join(', '),
     /비|소나기/.test(condition) ? '비가 잡혀 있으니 우산 챙기는 게 좋아.' : weather.recommendation || '',
   ].filter(Boolean).join('\n');
@@ -550,15 +597,17 @@ function formatWeatherAnswer(city, weather) {
 
 async function answerWeather(message) {
   const city = extractWeatherLocation(message);
+  const timeframe = detectWeatherTimeframe(message);
   const weather = await naverWeatherCrawler.getWeatherInfo(city);
+  const linkQueryTime = timeframe === 'tomorrow' ? '내일 ' : timeframe === 'day_after_tomorrow' ? '모레 ' : '';
   return {
-    answer: formatWeatherAnswer(city, weather),
+    answer: formatWeatherAnswer(city, weather, timeframe),
     quickReplies: [{
       label: '네이버 날씨',
       action: 'webLink',
-      webLinkUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(`${city} 날씨`)}`,
+      webLinkUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(`${city} ${linkQueryTime}날씨`)}`,
     }],
-    plan: { intent: 'weather_lookup', searchQuery: city, sort: 'sim', confidence: 0.9, source: 'deterministic' },
+    plan: { intent: 'weather_lookup', searchQuery: city, sort: 'sim', confidence: 0.9, source: 'deterministic', timeframe },
     results: weather.temperature && weather.temperature !== '정보 없음' ? [weather] : [],
   };
 }
