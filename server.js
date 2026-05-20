@@ -313,6 +313,13 @@ function isCalendarWriteRequest(message) {
   return hasCalendarCue && hasWriteCue;
 }
 
+function isReminderWriteRequest(message) {
+  const text = normalizeKoreanSearchText(message);
+  const hasReminderCue = /(알림|알려줘|알려줄|리마인드|리마인더|상기|깨워줘|예약)/.test(text);
+  const hasTimeCue = /(오늘|내일|모레|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{4}-\d{1,2}-\d{1,2}).*(오전|오후|저녁|밤|아침)?\s*\d{1,2}\s*시|(?:오전|오후|저녁|밤|아침)?\s*\d{1,2}\s*시/.test(text);
+  return hasReminderCue && hasTimeCue;
+}
+
 function answerGoogleCalendarConfigQuestion() {
   const keyReady = Boolean(GOOGLE_CLOUD_API_KEY);
   const serviceAccountReady = Boolean(GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON && GOOGLE_CALENDAR_ID);
@@ -395,7 +402,7 @@ function parseCalendarEvent(message) {
     start.setDate(start.getDate() + 1);
   }
 
-  const time = text.match(/(오전|오후|저녁|밤|아침)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/);
+  const time = text.match(/(오전|오후|저녁|밤|아침)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분(?!\s*(?:전|전에|전쯤)))?/);
   if (!time) return { error: '시간을 못 찾았어. 예: 내일 오후 3시에 병원 일정 추가해줘' };
 
   let hour = Number(time[2]);
@@ -407,16 +414,21 @@ function parseCalendarEvent(message) {
   const end = new Date(start);
   end.setHours(end.getHours() + 1);
 
-  const title = normalizeText(text
+  const reminderMinutes = Number(text.match(/(\d{1,3})\s*분\s*(?:전|전에|전쯤)/)?.[1] || 0);
+  let title = normalizeText(text
+    .replace(/\d{1,3}\s*분\s*(?:전|전에|전쯤)/g, ' ')
     .replace(/(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|오늘|내일|모레|오전|오후|저녁|밤|아침|\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?)/g, ' ')
-    .replace(/(구글|google|캘린더|calendar|일정|예약|스케줄|등록|추가|생성|만들어줘|만들|잡아줘|잡아|넣어줘|넣어|해줘|좀|에|으로|로)/g, ' ')
+    .replace(/(구글|google|캘린더|calendar|일정|예약|스케줄|등록|추가|생성|만들어줘|만들|잡아줘|잡아|넣어줘|넣어|해줘|좀|에|으로|로|나한테|내게|저한테|알림|알려줘|알려줄|수\s*있어|줘)/g, ' ')
+    .replace(/[?？！!,.]/g, ' ')
     .replace(/\s+/g, ' ')
-    .trim()) || '일정';
+    .trim());
+  title = title.replace(/(.+)으라고$/, '$1기').replace(/(.+)라고$/, '$1').trim() || '일정';
 
   return {
     summary: title,
     start: formatKoreaDateTime(start),
     end: formatKoreaDateTime(end),
+    reminderMinutes: reminderMinutes > 0 ? reminderMinutes : null,
   };
 }
 
@@ -429,6 +441,9 @@ async function createGoogleCalendarEvent(userId, event) {
     summary: event.summary,
     start: { dateTime: event.start, timeZone: 'Asia/Seoul' },
     end: { dateTime: event.end, timeZone: 'Asia/Seoul' },
+    reminders: event.reminderMinutes
+      ? { useDefault: false, overrides: [{ method: 'popup', minutes: event.reminderMinutes }] }
+      : { useDefault: true },
   }, {
     headers: { Authorization: `Bearer ${token.access_token}` },
     timeout: 5000,
@@ -483,7 +498,7 @@ async function answerCalendarWriteRequest(message, userId, req) {
   }
 
   return {
-    answer: `구글 캘린더에 추가했어.\n${event.summary}\n${event.start.replace('T', ' ').replace(':00+09:00', '')}`,
+    answer: `구글 캘린더에 추가했어.\n${event.summary}\n${event.start.replace('T', ' ').replace(':00+09:00', '')}${event.reminderMinutes ? `\n${event.reminderMinutes}분 전 알림도 같이 설정했어.` : ''}`,
     quickReplies: [],
     plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_event_created' },
     results: [result.event],
@@ -780,7 +795,7 @@ async function answerChat(message, userId) {
 
 async function buildAnswer(message, userId, req) {
   if (isNaverConfigQuestion(message)) return answerNaverConfigQuestion(message);
-  if (isCalendarWriteRequest(message)) return answerCalendarWriteRequest(message, userId, req);
+  if (isCalendarWriteRequest(message) || isReminderWriteRequest(message)) return answerCalendarWriteRequest(message, userId, req);
   if (isGoogleCalendarConfigQuestion(message)) return answerGoogleCalendarConfigQuestion();
   if (isWeatherQuestion(message)) {
     try {
