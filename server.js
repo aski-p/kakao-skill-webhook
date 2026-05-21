@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21j-calendar-rossi-red-skin';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21k-calendar-rossi-face-icon';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -68,7 +68,7 @@ const CALENDAR_FONT_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'Noto
 const ZHUANG_FANGYI_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi.png'));
 const ZHUANG_FANGYI_FULL_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi-full.png'));
 const ZHUANG_FANGYI_FACE_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi-face.png'));
-const ROSSI_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'rossi.webp'));
+const ROSSI_FACE_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'rossi-face.webp'));
 const CALENDAR_THEME = {
   background: '#F7F1F2',
   panel: '#FFF9FA',
@@ -420,18 +420,14 @@ async function renderCalendarCardVectorSvg(card) {
 
 async function renderCalendarCardPng(card) {
   const composites = [];
-  const isRossiPortrait = card.mode === 'detail' && ROSSI_IMAGE_BUFFER;
+  const isRossiPortrait = card.mode === 'detail' && ROSSI_FACE_IMAGE_BUFFER;
   const portraitBuffer = card.mode === 'detail'
-    ? (ROSSI_IMAGE_BUFFER || ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER)
+    ? (ROSSI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER)
     : (ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER);
   if (portraitBuffer) {
     const portraitSize = isRossiPortrait ? 136 : 112;
     const portraitMask = Buffer.from(`<svg width="${portraitSize}" height="${portraitSize}" viewBox="0 0 ${portraitSize} ${portraitSize}"><rect width="${portraitSize}" height="${portraitSize}" rx="30" fill="#fff"/></svg>`);
-    let portrait = sharp(portraitBuffer);
-    if (isRossiPortrait) {
-      portrait = portrait.extract({ left: 382, top: 110, width: 260, height: 260 });
-    }
-    const character = await portrait
+    const character = await sharp(portraitBuffer)
       .resize(portraitSize, portraitSize, { fit: 'cover', position: isRossiPortrait ? 'north' : 'center' })
       .composite([{ input: portraitMask, blend: 'dest-in' }])
       .png()
