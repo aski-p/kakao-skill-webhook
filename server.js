@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ah-calendar-token-fallback';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ai-fast-kakao-replies';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -20,7 +20,7 @@ const CLAUDE_FALLBACK_MODELS = ['claude-3-5-haiku-20241022', 'claude-3-haiku-202
 const CLAUDE_PLANNER_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_PLANNER_TIMEOUT_MS || 1800), 1000);
 const CLAUDE_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_TIMEOUT_MS || 4400), 4400);
 const KAKAO_MAX_RESPONSE_LENGTH = Number(process.env.KAKAO_MAX_RESPONSE_LENGTH || 1000);
-const KAKAO_HANDLER_TIMEOUT_MS = Math.min(Math.max(Number(process.env.KAKAO_HANDLER_TIMEOUT_MS || 3600), 2200), 4200);
+const KAKAO_HANDLER_TIMEOUT_MS = Math.min(Math.max(Number(process.env.KAKAO_HANDLER_TIMEOUT_MS || 2400), 1800), 3000);
 const GOOGLE_TOKEN_STORE_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_TOKEN_STORE_TIMEOUT_MS || 800), 300), 1500);
 const GOOGLE_CALENDAR_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_TIMEOUT_MS || 1800), 800), 2500);
 const GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS || 1800), 900), 2400);
@@ -2058,8 +2058,22 @@ function fallbackChatAnswer(message) {
   const text = normalizeKoreanSearchText(message);
   const modelAnswer = answerClaudeModelQuestion(text);
   if (modelAnswer) return modelAnswer;
+  const mealAnswer = answerCasualMealChoice(text);
+  if (mealAnswer) return mealAnswer;
   if (/^(안녕|안녕하세요|하이|ㅎㅇ)/.test(text)) return '안녕. 뭐 도와줄까?';
   return 'Claude 응답이 잠깐 지연됐어. 방금 질문 그대로 한 번만 다시 보내줘.';
+}
+
+function answerCasualMealChoice(message) {
+  const text = normalizeKoreanSearchText(message);
+  if (!isCasualMealChoiceRequest(text)) return null;
+
+  const meal = text.match(MEAL_WORD_PATTERN)?.[0] || '식사';
+  if (/야식/.test(meal)) return '야식이면 부담 적게 가자. 컵라면보다 김밥/우동/죽 쪽이 낫고, 든든하게 먹고 싶으면 치킨보다 국밥이나 덮밥 추천.';
+  if (/아침|브런치/.test(meal)) return '아침이면 속 편한 걸로 가자. 계란 들어간 토스트, 죽, 샌드위치, 김밥 중에 고르면 무난해.';
+  if (/점심|런치/.test(meal)) return '점심이면 빨리 먹고 만족도 높은 걸로 가자. 제육덮밥, 돈까스, 국밥, 쌀국수 중에 하나 추천.';
+  if (/저녁|디너/.test(meal)) return '저녁이면 오늘은 국밥, 제육덮밥, 돈까스, 쌀국수 중에 고르면 실패 확률 낮아. 속 편하게 가려면 쌀국수.';
+  return '오늘은 국밥, 제육덮밥, 돈까스, 쌀국수 중에 하나 가자. 속 편한 쪽이면 쌀국수 추천.';
 }
 
 function answerClaudeModelQuestion(message) {
@@ -2117,8 +2131,10 @@ async function buildAnswer(message, userId, req) {
       searchQuery: '',
       sort: 'sim',
       confidence: 0.9,
-      source: isCasualMealChoiceRequest(message) ? 'claude_first_meal_chat' : 'claude_first_chat',
+      source: isCasualMealChoiceRequest(message) ? 'local_meal_chat' : 'claude_first_chat',
     };
+    const mealAnswer = answerCasualMealChoice(message);
+    if (mealAnswer) return { answer: mealAnswer, quickReplies: [], plan, results: [] };
     try {
       const answer = await answerChat(message, userId);
       return { answer, quickReplies: [], plan, results: [] };
