@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ai-fast-kakao-replies';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21aj-weekly-mavran-card';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -83,6 +83,7 @@ const ZHUANG_FANGYI_FULL_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET
 const ZHUANG_FANGYI_FACE_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi-face.png'));
 const ZHUANG_FANGYI_FRONT_FACE_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi-front-face.png'));
 const ROSSI_FACE_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'rossi-face.webp'));
+const MAVRAN_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'mavran.svg'));
 const ROSSI_CALENDAR_THEME = {
   background: '#F7F1F2',
   panel: '#FFF9FA',
@@ -118,6 +119,24 @@ const ZHUANG_FANGYI_CALENDAR_THEME = {
   shadow: 'rgba(8, 83, 83, 0.18)',
   portraitBg: '#F1FFFC',
   portraitShadow: 'rgba(0, 132, 132, 0.28)',
+};
+const MAVRAN_CALENDAR_THEME = {
+  background: '#F4ECE6',
+  panel: '#FFF9F4',
+  shellBorder: '#E8CFC1',
+  hero: '#2A0D0B',
+  heroBorder: '#703019',
+  accent: '#E64A2E',
+  accentSoft: '#FFE2D4',
+  labelBg: '#4D1712',
+  labelText: '#FFD6C5',
+  heroMuted: '#F4B49F',
+  text: '#21120F',
+  muted: '#7A574C',
+  rowAccent: ['#E64A2E', '#9F1D17', '#F59E0B', '#5B1B14'],
+  shadow: 'rgba(109, 36, 20, 0.20)',
+  portraitBg: '#FFF0E8',
+  portraitShadow: 'rgba(122, 24, 14, 0.30)',
 };
 
 function loadAssetDataUri(filePath, mimeType) {
@@ -496,7 +515,7 @@ function formatCalendarCardTitle(rangeLabel) {
 }
 
 function getCalendarCardTheme(card) {
-  return card.mode === 'detail' ? ROSSI_CALENDAR_THEME : ZHUANG_FANGYI_CALENDAR_THEME;
+  return card.mode === 'detail' ? ROSSI_CALENDAR_THEME : MAVRAN_CALENDAR_THEME;
 }
 
 function renderCalendarCardSvg(card) {
@@ -661,7 +680,7 @@ async function renderCalendarCardPng(card) {
   const isRossiPortrait = card.mode === 'detail' && ROSSI_FACE_IMAGE_BUFFER;
   const portraitBuffer = card.mode === 'detail'
     ? (ROSSI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER)
-    : (ZHUANG_FANGYI_FRONT_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER);
+    : (MAVRAN_IMAGE_BUFFER || ZHUANG_FANGYI_FRONT_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER);
   if (portraitBuffer) {
     const portraitSize = 136;
     const portraitMask = Buffer.from(`<svg width="${portraitSize}" height="${portraitSize}" viewBox="0 0 ${portraitSize} ${portraitSize}"><rect width="${portraitSize}" height="${portraitSize}" rx="30" fill="#fff"/></svg>`);
@@ -1706,11 +1725,18 @@ async function answerCalendarReadRequest(message, userId, req) {
       };
     }
     if (isWeeklySummary) {
+      const emptyWeeklyEvents = formatWeeklyCalendarCardEvents(range, []);
       return {
         answer: formatWeeklyCalendarSummaryAnswer(range, []),
         quickReplies: [],
         plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_weekly_empty' },
         results: [],
+        calendarCard: {
+          label: cardTitle,
+          mode: 'summary',
+          summaryText: '주간 시간표',
+          events: emptyWeeklyEvents,
+        },
       };
     }
     return {
@@ -1747,7 +1773,6 @@ async function answerCalendarReadRequest(message, userId, req) {
       summaryText,
       events: cardEvents,
     },
-    ...(isWeeklySummary ? { calendarCard: null } : {}),
   };
 }
 
