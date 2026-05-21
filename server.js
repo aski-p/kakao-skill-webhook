@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21q-google-token-store-rest';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21r-google-token-store-healthcheck';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1896,31 +1896,36 @@ async function buildAnswer(message, userId, req) {
 }
 
 app.get('/', (req, res) => res.type('html').send(`<h1>카카오 스킬 웹훅 서버</h1><p>상태: 정상 실행 중</p><p>라우터: ${ROUTER_VERSION}</p><p>현재 한국 시간: ${getKoreanDateTime()}</p>`));
-app.get('/health', (req, res) => res.json({
-  ok: true,
-  service: 'kakao-skill-webhook',
-  routerVersion: ROUTER_VERSION,
-  koreaTime: getKoreanDateTime(),
-  env: {
-    claudeApiKey: Boolean(CLAUDE_API_KEY),
-    claudeModel: CLAUDE_MODEL,
-    claudeFallbackModels: CLAUDE_FALLBACK_MODELS,
-    claudeTimeoutMs: CLAUDE_TIMEOUT_MS,
-    naverApi: Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET),
-    googleCloudApiKey: Boolean(GOOGLE_CLOUD_API_KEY),
-    googleCalendarWritable: Boolean(GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON && GOOGLE_CALENDAR_ID),
-    googleCalendarOAuth: hasGoogleOAuthConfig(),
-    googleCalendarReadable: hasGoogleOAuthConfig(),
-    googleCalendarAllowedUsers: KAKAO_CALENDAR_ALLOWED_USER_IDS.length,
-    googleTokenStoreSupabase: Boolean(getTokenStoreSupabase()),
-    googleTokenStoreBucket: GOOGLE_TOKEN_STORE_BUCKET,
-    plannerTimeoutMs: CLAUDE_PLANNER_TIMEOUT_MS,
-    naverTimeoutMs: NAVER_SEARCH_TIMEOUT_MS,
-    port: PORT,
-  },
-  googleTokenStore: lastGoogleTokenStoreStatus,
-  claude: lastClaudeStatus,
-}));
+app.get('/health', async (req, res) => {
+  if (req.query.googleTokenStoreCheck === '1') {
+    await loadGoogleTokensAsync();
+  }
+  return res.json({
+    ok: true,
+    service: 'kakao-skill-webhook',
+    routerVersion: ROUTER_VERSION,
+    koreaTime: getKoreanDateTime(),
+    env: {
+      claudeApiKey: Boolean(CLAUDE_API_KEY),
+      claudeModel: CLAUDE_MODEL,
+      claudeFallbackModels: CLAUDE_FALLBACK_MODELS,
+      claudeTimeoutMs: CLAUDE_TIMEOUT_MS,
+      naverApi: Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET),
+      googleCloudApiKey: Boolean(GOOGLE_CLOUD_API_KEY),
+      googleCalendarWritable: Boolean(GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON && GOOGLE_CALENDAR_ID),
+      googleCalendarOAuth: hasGoogleOAuthConfig(),
+      googleCalendarReadable: hasGoogleOAuthConfig(),
+      googleCalendarAllowedUsers: KAKAO_CALENDAR_ALLOWED_USER_IDS.length,
+      googleTokenStoreSupabase: Boolean(getTokenStoreSupabase()),
+      googleTokenStoreBucket: GOOGLE_TOKEN_STORE_BUCKET,
+      plannerTimeoutMs: CLAUDE_PLANNER_TIMEOUT_MS,
+      naverTimeoutMs: NAVER_SEARCH_TIMEOUT_MS,
+      port: PORT,
+    },
+    googleTokenStore: lastGoogleTokenStoreStatus,
+    claude: lastClaudeStatus,
+  });
+});
 app.get('/test', (req, res) => res.json(kakaoTextResponse('테스트 성공! 카카오 스킬 응답 형식 정상이야.')));
 app.get('/routes', (req, res) => res.json({ ok: true, routerVersion: ROUTER_VERSION, routes: ['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search', 'weather_lookup', 'google_calendar_oauth', 'google_calendar_create_event', 'google_calendar_list_events', 'calendar_card_image'] }));
 
