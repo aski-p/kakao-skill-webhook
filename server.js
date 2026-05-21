@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21an-calendar-character-rules';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ao-month-calendar-cue';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1115,11 +1115,11 @@ function isCalendarUpdateRequest(message) {
 
 function isCalendarReadRequest(message) {
   const text = normalizeKoreanSearchText(message);
-  const hasCalendarCue = /(구글\s*)?(캘린더|calendar|일정|스케줄|예약)/.test(text);
+  const hasCalendarCue = /(구글\s*)?(캘린더|calendar|달력|일정|스케줄|예약)/.test(text);
   const hasDateCue = /(오늘|내일|낼|모레|이번\s*주|이번주|다음\s*주|다음주|내주|다\s*다음\s*주|다다음주|다음\s*다음\s*주|차\s*주|저번\s*주|저번주|지난\s*주|지난주|이전\s*주|이전주|(월|화|수|목|금|토|일)\s*요일|주간|일주일|한\s*달|한달|월간|달력|이번\s*달|이번달|다음\s*달|다음달|내달|이전\s*달|이전달|지난\s*달|지난달|저번\s*달|저번달|\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*일)/.test(text);
   const hasReadCue = /(알려|말해|보여|조회|확인|읽어|뭐\s*있|뭐가\s*있|있어|있나|있니|리스트|목록)/.test(text);
   const calendarDateRead = hasCalendarCue && (hasReadCue || hasDateCue);
-  const dateScheduleRead = hasDateCue && hasReadCue && /(일정|스케줄|예약)/.test(text);
+  const dateScheduleRead = hasDateCue && hasReadCue && /(달력|일정|스케줄|예약)/.test(text);
   return (calendarDateRead || dateScheduleRead) && !isCalendarWriteRequest(text) && !isGoogleCalendarConfigQuestion(text);
 }
 
