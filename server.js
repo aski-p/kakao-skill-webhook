@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ae-weekly-calendar-summary';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21af-weekly-calendar-fast-text';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -21,6 +21,7 @@ const CLAUDE_PLANNER_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_PLANNER_TIM
 const CLAUDE_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_TIMEOUT_MS || 4400), 4400);
 const KAKAO_MAX_RESPONSE_LENGTH = Number(process.env.KAKAO_MAX_RESPONSE_LENGTH || 1000);
 const GOOGLE_CALENDAR_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_TIMEOUT_MS || 3200), 1500), 4200);
+const GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS || 3400), 1800), 3800);
 
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
@@ -172,8 +173,8 @@ function saveGoogleTokens(tokens) {
 }
 
 function getTokenStoreSupabase() {
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.supabase_url;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.supabase_service_role_key;
+  const supabaseUrl = normalizeSupabaseUrl(process.env.SUPABASE_URL || process.env.supabase_url, supabaseKey);
   if (!supabaseUrl || !supabaseKey) return null;
   if (!tokenStoreSupabase) {
     tokenStoreSupabase = {
@@ -185,6 +186,30 @@ function getTokenStoreSupabase() {
     };
   }
   return tokenStoreSupabase;
+}
+
+function getSupabaseProjectRefFromJwt(token) {
+  try {
+    const payload = JSON.parse(Buffer.from(String(token || '').split('.')[1] || '', 'base64url').toString('utf8'));
+    return normalizeText(payload.ref);
+  } catch {
+    return '';
+  }
+}
+
+function normalizeSupabaseUrl(configuredUrl, serviceRoleKey) {
+  const projectRef = getSupabaseProjectRefFromJwt(serviceRoleKey);
+  const normalizedUrl = normalizeText(configuredUrl).replace(/\/+$/, '');
+  if (!projectRef) return normalizedUrl;
+  if (!normalizedUrl) return `https://${projectRef}.supabase.co`;
+  try {
+    const host = new URL(normalizedUrl).host;
+    if (host === `${projectRef}.supabase.co`) return normalizedUrl;
+    console.error('[google-calendar] Supabase URL/project ref mismatch; using service key project ref.');
+    return `https://${projectRef}.supabase.co`;
+  } catch {
+    return `https://${projectRef}.supabase.co`;
+  }
 }
 
 async function ensureTokenStoreBucket(supabase) {
@@ -1022,6 +1047,19 @@ async function refreshGoogleAccessToken(userId, token) {
   return refreshed;
 }
 
+async function getGoogleAccessTokenForUser(userId) {
+  const storedToken = await getStoredGoogleToken(userId);
+  if (!storedToken) return null;
+  return refreshGoogleAccessToken(userId, storedToken);
+}
+
+function withTimeout(promise, timeoutMs, timeoutValue) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve(timeoutValue), timeoutMs)),
+  ]);
+}
+
 function formatKoreaDateTime(date) {
   const pad = (value) => String(value).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00+09:00`;
@@ -1407,10 +1445,9 @@ async function answerCalendarUpdateRequest(message, userId, req) {
   };
 }
 
-async function listGoogleCalendarEvents(userId, range) {
-  const storedToken = await getStoredGoogleToken(userId);
-  if (!storedToken) return { needsAuth: true };
-  const token = await refreshGoogleAccessToken(userId, storedToken);
+async function listGoogleCalendarEvents(userId, range, tokenOverride = null) {
+  const token = tokenOverride || await getGoogleAccessTokenForUser(userId);
+  if (!token) return { needsAuth: true };
   const params = new URLSearchParams({
     timeMin: range.timeMin,
     timeMax: range.timeMax,
@@ -1426,19 +1463,16 @@ async function listGoogleCalendarEvents(userId, range) {
   return { events: (response.data?.items || []).filter((event) => isCalendarItemInRange(event, range)) };
 }
 
-async function listGoogleTasks(userId, range) {
-  const storedToken = await getStoredGoogleToken(userId);
-  if (!storedToken) return { needsAuth: true };
-  const token = await refreshGoogleAccessToken(userId, storedToken);
+async function listGoogleTasks(userId, range, tokenOverride = null) {
+  const token = tokenOverride || await getGoogleAccessTokenForUser(userId);
+  if (!token) return { needsAuth: true };
   const headers = { Authorization: `Bearer ${token.access_token}` };
   const taskListsResponse = await axios.get('https://tasks.googleapis.com/tasks/v1/users/@me/lists', {
     headers,
     timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
   });
   const taskLists = taskListsResponse.data?.items || [];
-  const tasks = [];
-
-  for (const taskList of taskLists) {
+  const taskResults = await Promise.allSettled(taskLists.map((taskList) => {
     const params = new URLSearchParams({
       dueMin: `${range.startDate || range.timeMin.slice(0, 10)}T00:00:00.000Z`,
       dueMax: `${range.endDate || range.timeMax.slice(0, 10)}T00:00:00.000Z`,
@@ -1447,13 +1481,17 @@ async function listGoogleTasks(userId, range) {
       showHidden: 'true',
       maxResults: '100',
     });
-    const response = await axios.get(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(taskList.id)}/tasks?${params.toString()}`, {
+    return axios.get(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(taskList.id)}/tasks?${params.toString()}`, {
       headers,
       timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
     });
-    tasks.push(...(response.data?.items || []).filter((task) => task.due));
-  }
+  }));
 
+  const tasks = taskResults.flatMap((result) => (
+    result.status === 'fulfilled'
+      ? (result.value.data?.items || []).filter((task) => task.due)
+      : []
+  ));
   return { tasks: tasks.filter((task) => isCalendarItemInRange(task, range)) };
 }
 
@@ -1485,14 +1523,28 @@ function classifyGoogleTasksError(error) {
 }
 
 async function listGoogleCalendarItems(userId, range) {
-  const eventsResult = await listGoogleCalendarEvents(userId, range);
+  const token = await getGoogleAccessTokenForUser(userId);
+  if (!token) return { needsAuth: true };
+  const [eventsSettled, tasksSettled] = await Promise.allSettled([
+    withTimeout(listGoogleCalendarEvents(userId, range, token), GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS, { timedOut: true, events: [] }),
+    withTimeout(listGoogleTasks(userId, range, token), GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS, { timedOut: true, tasks: [] }),
+  ]);
+
+  const eventsResult = eventsSettled.status === 'fulfilled' ? eventsSettled.value : { events: [], calendarFailed: true };
   if (eventsResult.needsAuth) return eventsResult;
 
-  try {
-    const tasksResult = await listGoogleTasks(userId, range);
+  if (tasksSettled.status === 'fulfilled') {
+    const tasksResult = tasksSettled.value;
     if (tasksResult.needsAuth) return tasksResult;
+    if (tasksResult.timedOut) {
+      console.error('[google-tasks] list timed out:', { timeoutMs: GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS });
+      return { events: sortCalendarItems([...(eventsResult.events || [])]), tasksFailed: true };
+    }
     return { events: sortCalendarItems([...(eventsResult.events || []), ...(tasksResult.tasks || [])]) };
-  } catch (error) {
+  }
+
+  try {
+    const error = tasksSettled.reason;
     const tasksErrorType = classifyGoogleTasksError(error);
     if (tasksErrorType) {
       const storedToken = await getStoredGoogleToken(userId);
@@ -1509,6 +1561,9 @@ async function listGoogleCalendarItems(userId, range) {
       };
     }
     console.error('[google-tasks] list failed:', { message: error.message, code: error.code, status: error.response?.status });
+    return { events: eventsResult.events || [], tasksFailed: true };
+  } catch (error) {
+    console.error('[google-tasks] error handling failed:', error.message);
     return { events: eventsResult.events || [], tasksFailed: true };
   }
 }
@@ -1642,7 +1697,6 @@ async function answerCalendarReadRequest(message, userId, req) {
         quickReplies: [],
         plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_weekly_empty' },
         results: [],
-        calendarCard: { label: cardTitle, mode: 'summary', summaryText: '7일 / 0개 일정', events: formatWeeklyCalendarCardEvents(range, []) },
       };
     }
     return {
@@ -1679,6 +1733,7 @@ async function answerCalendarReadRequest(message, userId, req) {
       summaryText,
       events: cardEvents,
     },
+    ...(isWeeklySummary ? { calendarCard: null } : {}),
   };
 }
 
