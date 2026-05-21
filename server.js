@@ -316,9 +316,12 @@ function createCalendarCard(card) {
   return id;
 }
 
-function formatGoogleCalendarCardEvent(event) {
+function formatGoogleCalendarCardEvent(event, options = {}) {
+  const { includeDate = false } = options;
+  const datePrefix = includeDate ? formatCalendarDateShort(getGoogleCalendarEventDate(event)) : '';
   if (event.kind === 'tasks#task') {
-    return { time: event.status === 'completed' ? '완료' : '할 일', title: normalizeText(event.title || '제목 없음') };
+    const taskStatus = event.status === 'completed' ? '완료' : '할 일';
+    return { time: datePrefix ? `${datePrefix} ${taskStatus}` : taskStatus, title: normalizeText(event.title || '제목 없음') };
   }
   const startValue = event.start?.dateTime || event.start?.date;
   const endValue = event.end?.dateTime || event.end?.date;
@@ -336,6 +339,7 @@ function formatGoogleCalendarCardEvent(event) {
     timeText = timeFormatter.format(new Date(startValue));
     if (endValue) timeText += `-${timeFormatter.format(new Date(endValue))}`;
   }
+  if (datePrefix) timeText = `${datePrefix} ${timeText}`;
   return { time: timeText, title: normalizeText(event.summary || '제목 없음') };
 }
 
@@ -519,11 +523,13 @@ async function renderCalendarCardVectorSvg(card) {
     ? events.map((event, index) => {
       const y = 398 + index * rowHeight;
       const accent = theme.rowAccent[index % theme.rowAccent.length];
-      const titleMax = mode === 'summary' ? 26 : 18;
+      const timeWidth = mode === 'summary' ? 220 : 172;
+      const titleWidth = mode === 'summary' ? 340 : 360;
+      const titleMax = mode === 'summary' ? 22 : 18;
       return h('div', { style: { position: 'absolute', left: 56, top: y, width: 688, height: 76, borderRadius: 24, backgroundColor: '#FFFFFF', border: '1px solid #E9EDF3', display: 'flex', alignItems: 'center', boxShadow: '0 18px 36px rgba(26, 32, 44, 0.08)' } },
         h('div', { style: { marginLeft: 18, width: 12, height: 46, borderRadius: 8, backgroundColor: accent } }),
-        h('div', { style: { marginLeft: 22, width: mode === 'summary' ? 142 : 172, color: '#687386', fontSize: mode === 'summary' ? 21 : 23, fontWeight: 900 } }, event.time),
-        h('div', { style: { width: mode === 'summary' ? 420 : 360, color: '#161A22', fontSize: mode === 'summary' ? 27 : 30, fontWeight: 900, lineHeight: 1.08 } }, truncateForCard(event.title, titleMax)),
+        h('div', { style: { marginLeft: 22, width: timeWidth, color: '#687386', fontSize: mode === 'summary' ? 20 : 23, fontWeight: 900 } }, event.time),
+        h('div', { style: { width: titleWidth, color: '#161A22', fontSize: mode === 'summary' ? 26 : 30, fontWeight: 900, lineHeight: 1.08 } }, truncateForCard(event.title, titleMax)),
         h('div', { style: { marginLeft: 'auto', marginRight: 22, width: 42, height: 42, borderRadius: 21, backgroundColor: theme.accentSoft, color: accent, fontSize: 22, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, `${index + 1}`),
       );
     })
@@ -1500,13 +1506,12 @@ async function answerCalendarReadRequest(message, userId, req) {
   }
 
   const cardTitle = formatCalendarCardTitle(range.label);
+  const includeDateInCardRows = Number(range?.days || 0) > 1;
+  const cardEvents = result.events.map((event) => formatGoogleCalendarCardEvent(event, { includeDate: includeDateInCardRows }));
   const groupedEvents = groupGoogleCalendarEventsByDate(result.events);
-  const cardEvents = detailMode
-    ? result.events.map(formatGoogleCalendarCardEvent)
-    : groupedEvents.map(formatGoogleCalendarCardSummary);
-  const summaryText = detailMode
-    ? `${result.events.length}개 일정`
-    : `${groupedEvents.length}일 / ${result.events.length}개 일정`;
+  const summaryText = Number(range?.days || 0) > 1
+    ? `${groupedEvents.length}일 / ${result.events.length}개 일정`
+    : `${result.events.length}개 일정`;
   return {
     answer: detailMode
       ? formatGoogleCalendarDetailAnswer(cardTitle, result.events)
