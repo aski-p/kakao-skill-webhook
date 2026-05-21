@@ -11,7 +11,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21n-persistent-google-tokens';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21o-google-tasks-error-classification';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1253,10 +1253,23 @@ function sortCalendarItems(items) {
   });
 }
 
-function isGoogleInsufficientScopeError(error) {
+function getGoogleApiErrorText(error) {
+  return JSON.stringify(error.response?.data || {});
+}
+
+function classifyGoogleTasksError(error) {
   const status = error.response?.status;
-  const data = JSON.stringify(error.response?.data || {});
-  return status === 403 && /insufficient|scope|permission/i.test(data);
+  const data = getGoogleApiErrorText(error);
+  if (status === 401) return 'auth_expired';
+  if (status !== 403) return '';
+  if (/accessNotConfigured|SERVICE_DISABLED|has not been used|not been used|disabled|enable it|API has not/i.test(data)) {
+    return 'api_disabled';
+  }
+  if (/ACCESS_TOKEN_SCOPE_INSUFFICIENT|insufficient authentication scopes|insufficientPermissions|insufficient|scope/i.test(data)) {
+    return 'insufficient_scope';
+  }
+  if (/permission|forbidden|PERMISSION_DENIED/i.test(data)) return 'permission_denied';
+  return '';
 }
 
 async function listGoogleCalendarItems(userId, range) {
@@ -1268,11 +1281,17 @@ async function listGoogleCalendarItems(userId, range) {
     if (tasksResult.needsAuth) return tasksResult;
     return { events: sortCalendarItems([...(eventsResult.events || []), ...(tasksResult.tasks || [])]) };
   } catch (error) {
-    if (isGoogleInsufficientScopeError(error)) {
+    const tasksErrorType = classifyGoogleTasksError(error);
+    if (tasksErrorType) {
       const storedToken = await getStoredGoogleToken(userId);
+      console.error('[google-tasks] auth/config failed:', {
+        type: tasksErrorType,
+        status: error.response?.status,
+        message: String(error.response?.data?.error?.message || error.message || '').slice(0, 240),
+      });
       return {
         events: eventsResult.events || [],
-        needsTasksReconnect: true,
+        tasksAuthIssue: tasksErrorType,
         tasksScopeGranted: hasGoogleTasksScope(storedToken),
         tasksScopeCheckedAt: storedToken?.connected_at || null,
       };
@@ -1360,24 +1379,42 @@ async function answerCalendarReadRequest(message, userId, req) {
 
   if (!result.events.length) {
     const cardTitle = formatCalendarCardTitle(range.label);
-    if (result.needsTasksReconnect) {
+    if (result.tasksAuthIssue) {
       const authUrl = buildGoogleConnectUrl(userId, req);
-      const reconnectedAt = result.tasksScopeCheckedAt ? Date.parse(result.tasksScopeCheckedAt) : 0;
-      const wasRecentlyReconnected = Number.isFinite(reconnectedAt) && reconnectedAt > Date.now() - 10 * 60 * 1000;
-      if (wasRecentlyReconnected || result.tasksScopeGranted === false) {
+      if (result.tasksAuthIssue === 'api_disabled') {
         return {
-          answer: `방금 구글 연결은 저장됐는데, Google Tasks 권한이 실제 토큰에 붙지 않았어. 그래서 Calendar 앱의 파란 체크 할 일은 아직 못 읽고, ${cardTitle}의 일반 캘린더 일정은 비어 있어.\nGoogle Cloud OAuth 동의 화면에 Tasks scope가 허용돼 있는지 서버 쪽에서 다시 확인할게.`,
+          answer: `구글 연결은 저장됐는데, 서버의 Google Cloud 프로젝트에서 Google Tasks API가 아직 활성화되지 않은 상태야. 그래서 Calendar 앱의 파란 체크 할 일을 못 읽고, ${cardTitle}의 일반 캘린더 일정은 비어 있어.\nTasks API를 켠 뒤 다시 같은 문장으로 물어봐줘.`,
           quickReplies: [],
-          plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_tasks_scope_not_granted' },
+          plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_tasks_api_disabled' },
           results: [],
-          calendarCard: { label: cardTitle, mode: detailMode ? 'detail' : 'summary', summaryText: 'Tasks 권한 필요', events: [] },
+          calendarCard: { label: cardTitle, mode: detailMode ? 'detail' : 'summary', summaryText: 'Tasks API 필요', events: [] },
+        };
+      }
+      if (result.tasksAuthIssue === 'insufficient_scope') {
+        const reconnectedAt = result.tasksScopeCheckedAt ? Date.parse(result.tasksScopeCheckedAt) : 0;
+        const wasRecentlyReconnected = Number.isFinite(reconnectedAt) && reconnectedAt > Date.now() - 10 * 60 * 1000;
+        if (wasRecentlyReconnected || result.tasksScopeGranted === false) {
+          return {
+            answer: `구글 연결은 저장됐는데, Google Tasks 권한이 실제 토큰에 포함되지 않았어. 그래서 Calendar 앱의 파란 체크 할 일을 아직 못 읽고, ${cardTitle}의 일반 캘린더 일정은 비어 있어.\nOAuth 동의 화면의 테스트 사용자/Tasks scope 설정을 다시 확인해야 해.`,
+            quickReplies: [],
+            plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_tasks_scope_not_granted' },
+            results: [],
+            calendarCard: { label: cardTitle, mode: detailMode ? 'detail' : 'summary', summaryText: 'Tasks 권한 필요', events: [] },
+          };
+        }
+        return {
+          answer: `Google Calendar 앱에 보이는 체크 표시 할 일까지 읽으려면 Google Tasks 권한이 추가로 필요해. 아래 링크로 한 번만 다시 연결한 뒤 같은 문장으로 물어봐줘.\n${authUrl}`,
+          quickReplies: [{ label: '구글 재연결', action: 'webLink', webLinkUrl: authUrl }],
+          plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_tasks_reconnect_required' },
+          results: [],
         };
       }
       return {
-        answer: `Google Calendar 앱에 보이는 체크 표시 할 일까지 읽으려면 Google Tasks 권한이 추가로 필요해. 아래 링크로 한 번만 다시 연결한 뒤 같은 문장으로 물어봐줘.\n${authUrl}`,
-        quickReplies: [{ label: '구글 재연결', action: 'webLink', webLinkUrl: authUrl }],
-        plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_tasks_reconnect_required' },
+        answer: `구글 연결은 저장됐는데 Google Tasks 쪽 권한/설정이 막혀서 체크 표시 할 일을 못 읽었어. ${cardTitle}의 일반 캘린더 일정은 비어 있어.\n서버 로그에 정확한 원인을 남겨뒀으니 설정 확인 후 다시 처리할게.`,
+        quickReplies: [],
+        plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.9, source: 'calendar_tasks_permission_blocked' },
         results: [],
+        calendarCard: { label: cardTitle, mode: detailMode ? 'detail' : 'summary', summaryText: 'Tasks 설정 확인 필요', events: [] },
       };
     }
     return {
