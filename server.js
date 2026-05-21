@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21g-calendar-grouped-rossi-card';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21h-calendar-read-routing-detail-image';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -236,8 +236,7 @@ function isCalendarDetailRequest(message, range) {
   const text = normalizeKoreanSearchText(message);
   const isSingleDay = Number(range?.days || 0) === 1;
   if (!isSingleDay) return false;
-  if (/(상세|자세히|전체|모든|전부)/.test(text)) return true;
-  return /(\d{1,2}\s*일|오늘|내일|낼|모레|\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일)/.test(text);
+  return /(상세|자세히|전체|모든|전부)/.test(text);
 }
 
 function formatCalendarCardTitle(rangeLabel) {
@@ -405,7 +404,9 @@ async function renderCalendarCardVectorSvg(card) {
 
 async function renderCalendarCardPng(card) {
   const composites = [];
-  const portraitBuffer = ROSSI_IMAGE_BUFFER || ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER;
+  const portraitBuffer = card.mode === 'detail'
+    ? (ROSSI_IMAGE_BUFFER || ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER)
+    : (ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER);
   if (portraitBuffer) {
     const portraitSize = 112;
     const portraitMask = Buffer.from(`<svg width="${portraitSize}" height="${portraitSize}" viewBox="0 0 ${portraitSize} ${portraitSize}"><rect width="${portraitSize}" height="${portraitSize}" rx="30" fill="#fff"/></svg>`);
@@ -669,7 +670,7 @@ function isGoogleCalendarConfigQuestion(message) {
 function isCalendarWriteRequest(message) {
   const text = normalizeKoreanSearchText(message);
   const hasCalendarCue = /(캘린더|calendar|일정|예약|스케줄)/.test(text);
-  const hasWriteCue = /(등록|추가|생성|만들|잡아|예약해|넣어|수정|변경|삭제|지워|알림|해줘)/.test(text);
+  const hasWriteCue = /(등록|추가|생성|만들|잡아|예약해|넣어|수정|변경|삭제|지워)/.test(text);
   return hasCalendarCue && hasWriteCue;
 }
 
@@ -1157,7 +1158,7 @@ async function answerCalendarReadRequest(message, userId, req) {
       quickReplies: [],
       plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_empty' },
       results: [],
-      calendarCard: { label: cardTitle, events: [] },
+      calendarCard: { label: cardTitle, mode: 'summary', summaryText: '일정 없음', events: [] },
     };
   }
 
@@ -1550,8 +1551,8 @@ async function answerChat(message, userId) {
 async function buildAnswer(message, userId, req) {
   if (isNaverConfigQuestion(message)) return answerNaverConfigQuestion(message);
   if (isCalendarUpdateRequest(message)) return answerCalendarUpdateRequest(message, userId, req);
-  if (isCalendarWriteRequest(message) || isReminderWriteRequest(message)) return answerCalendarWriteRequest(message, userId, req);
   if (isCalendarReadRequest(message)) return answerCalendarReadRequest(message, userId, req);
+  if (isCalendarWriteRequest(message) || isReminderWriteRequest(message)) return answerCalendarWriteRequest(message, userId, req);
   if (isGoogleCalendarConfigQuestion(message)) return answerGoogleCalendarConfigQuestion();
   if (isWeatherQuestion(message)) {
     try {
