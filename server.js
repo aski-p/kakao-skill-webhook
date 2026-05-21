@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21k-calendar-rossi-face-icon';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21l-calendar-tasks-rossi-detail';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -34,7 +34,10 @@ const GOOGLE_OAUTH_CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
 const GOOGLE_OAUTH_REDIRECT_URI = process.env.GOOGLE_OAUTH_REDIRECT_URI;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
 const GOOGLE_TOKEN_STORE_PATH = process.env.GOOGLE_TOKEN_STORE_PATH || path.join(__dirname, 'data', 'google-calendar-tokens.json');
-const GOOGLE_CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
+const GOOGLE_CALENDAR_SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/tasks.readonly',
+];
 const KAKAO_CALENDAR_ALLOWED_USER_IDS = String(process.env.KAKAO_CALENDAR_ALLOWED_USER_IDS || '')
   .split(',')
   .map((item) => item.trim())
@@ -180,6 +183,9 @@ function createCalendarCard(card) {
 }
 
 function formatGoogleCalendarCardEvent(event) {
+  if (event.kind === 'tasks#task') {
+    return { time: event.status === 'completed' ? '완료' : '할 일', title: normalizeText(event.title || '제목 없음') };
+  }
   const startValue = event.start?.dateTime || event.start?.date;
   const endValue = event.end?.dateTime || event.end?.date;
   const isAllDay = Boolean(event.start?.date);
@@ -200,6 +206,7 @@ function formatGoogleCalendarCardEvent(event) {
 }
 
 function getGoogleCalendarEventDate(event) {
+  if (event.kind === 'tasks#task') return getGoogleTaskDate(event);
   const startValue = event.start?.dateTime || event.start?.date;
   if (!startValue) return '';
   if (event.start?.date) return event.start.date;
@@ -210,6 +217,17 @@ function getGoogleCalendarEventDate(event) {
     day: '2-digit',
   });
   return formatter.format(new Date(startValue));
+}
+
+function getGoogleTaskDate(task) {
+  if (!task?.due) return '';
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(new Date(task.due));
 }
 
 function formatCalendarDateShort(dateText) {
@@ -1111,7 +1129,73 @@ async function listGoogleCalendarEvents(userId, range) {
   return { events: response.data?.items || [] };
 }
 
+async function listGoogleTasks(userId, range) {
+  const storedToken = getStoredGoogleToken(userId);
+  if (!storedToken) return { needsAuth: true };
+  const token = await refreshGoogleAccessToken(userId, storedToken);
+  const headers = { Authorization: `Bearer ${token.access_token}` };
+  const taskListsResponse = await axios.get('https://tasks.googleapis.com/tasks/v1/users/@me/lists', {
+    headers,
+    timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
+  });
+  const taskLists = taskListsResponse.data?.items || [];
+  const tasks = [];
+
+  for (const taskList of taskLists) {
+    const params = new URLSearchParams({
+      dueMin: new Date(range.timeMin).toISOString(),
+      dueMax: new Date(range.timeMax).toISOString(),
+      showCompleted: 'true',
+      showDeleted: 'false',
+      showHidden: 'false',
+      maxResults: '100',
+    });
+    const response = await axios.get(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(taskList.id)}/tasks?${params.toString()}`, {
+      headers,
+      timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
+    });
+    tasks.push(...(response.data?.items || []).filter((task) => task.due));
+  }
+
+  return { tasks };
+}
+
+function sortCalendarItems(items) {
+  return [...(items || [])].sort((a, b) => {
+    const aValue = a.kind === 'tasks#task' ? a.due : (a.start?.dateTime || a.start?.date || '');
+    const bValue = b.kind === 'tasks#task' ? b.due : (b.start?.dateTime || b.start?.date || '');
+    return String(aValue).localeCompare(String(bValue));
+  });
+}
+
+function isGoogleInsufficientScopeError(error) {
+  const status = error.response?.status;
+  const data = JSON.stringify(error.response?.data || {});
+  return status === 403 && /insufficient|scope|permission/i.test(data);
+}
+
+async function listGoogleCalendarItems(userId, range) {
+  const eventsResult = await listGoogleCalendarEvents(userId, range);
+  if (eventsResult.needsAuth) return eventsResult;
+
+  try {
+    const tasksResult = await listGoogleTasks(userId, range);
+    if (tasksResult.needsAuth) return tasksResult;
+    return { events: sortCalendarItems([...(eventsResult.events || []), ...(tasksResult.tasks || [])]) };
+  } catch (error) {
+    if (isGoogleInsufficientScopeError(error)) {
+      return { events: eventsResult.events || [], needsTasksReconnect: true };
+    }
+    console.error('[google-tasks] list failed:', { message: error.message, code: error.code, status: error.response?.status });
+    return { events: eventsResult.events || [], tasksFailed: true };
+  }
+}
+
 function formatGoogleCalendarEvent(event, index) {
+  if (event.kind === 'tasks#task') {
+    const statusText = event.status === 'completed' ? '완료' : '할 일';
+    return `${index + 1}. ${statusText} ${normalizeText(event.title || '제목 없음')}`;
+  }
   const startValue = event.start?.dateTime || event.start?.date;
   const endValue = event.end?.dateTime || event.end?.date;
   const isAllDay = Boolean(event.start?.date);
@@ -1160,9 +1244,10 @@ async function answerCalendarReadRequest(message, userId, req) {
   }
 
   const range = parseCalendarQueryRange(message);
+  const detailMode = isCalendarDetailRequest(message, range);
   let result;
   try {
-    result = await listGoogleCalendarEvents(userId, range);
+    result = await listGoogleCalendarItems(userId, range);
   } catch (error) {
     console.error('[google-calendar] list failed:', { message: error.message, code: error.code, status: error.response?.status });
     return {
@@ -1184,17 +1269,25 @@ async function answerCalendarReadRequest(message, userId, req) {
 
   if (!result.events.length) {
     const cardTitle = formatCalendarCardTitle(range.label);
+    if (result.needsTasksReconnect) {
+      const authUrl = buildGoogleConnectUrl(userId, req);
+      return {
+        answer: `Google Calendar 앱에 보이는 체크 표시 할 일까지 읽으려면 Google Tasks 권한이 추가로 필요해. 아래 링크로 한 번만 다시 연결한 뒤 같은 문장으로 물어봐줘.\n${authUrl}`,
+        quickReplies: [{ label: '구글 재연결', action: 'webLink', webLinkUrl: authUrl }],
+        plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_tasks_reconnect_required' },
+        results: [],
+      };
+    }
     return {
       answer: `비서님이 확인했는데 ${cardTitle}은 비어 있어.`,
       quickReplies: [],
       plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_empty' },
       results: [],
-      calendarCard: { label: cardTitle, mode: 'summary', summaryText: '일정 없음', events: [] },
+      calendarCard: { label: cardTitle, mode: detailMode ? 'detail' : 'summary', summaryText: '일정 없음', events: [] },
     };
   }
 
   const cardTitle = formatCalendarCardTitle(range.label);
-  const detailMode = isCalendarDetailRequest(message, range);
   const groupedEvents = groupGoogleCalendarEventsByDate(result.events);
   const cardEvents = detailMode
     ? result.events.map(formatGoogleCalendarCardEvent)
