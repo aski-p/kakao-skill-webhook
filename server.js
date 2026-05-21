@@ -10,14 +10,14 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21aa-calendar-detail-time-suffix';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ac-claude-chat-demotion';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CONFIGURED_CLAUDE_MODEL = String(process.env.CLAUDE_MODEL || '').trim();
 const CLAUDE_MODEL = CONFIGURED_CLAUDE_MODEL || 'claude-haiku-4-5-20251001';
 const CLAUDE_FALLBACK_MODELS = ['claude-3-5-haiku-20241022', 'claude-3-haiku-20240307'];
-const CLAUDE_PLANNER_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_PLANNER_TIMEOUT_MS || 900), 700);
+const CLAUDE_PLANNER_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_PLANNER_TIMEOUT_MS || 1800), 1000);
 const CLAUDE_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_TIMEOUT_MS || 4400), 4400);
 const KAKAO_MAX_RESPONSE_LENGTH = Number(process.env.KAKAO_MAX_RESPONSE_LENGTH || 1000);
 const GOOGLE_CALENDAR_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_TIMEOUT_MS || 3200), 1500), 4200);
@@ -799,6 +799,21 @@ function normalizePlan(plan, fallback) {
   };
 }
 
+function demoteOverbroadLocalPlan(plan, message) {
+  if (plan.intent !== 'local_search') return plan;
+  const combined = normalizeKoreanSearchText(`${message} ${plan.searchQuery || ''}`);
+  const hasLocation = LOCAL_LOCATION_PATTERN.test(combined);
+  const hasExplicitSearchCue = /(근처|주변|가까운|동네|어디|찾아|검색|예약|지도|주소|위치)/.test(normalizeKoreanSearchText(message));
+  if (hasLocation || hasExplicitSearchCue) return plan;
+  return {
+    ...plan,
+    intent: 'chat',
+    searchQuery: '',
+    source: `${plan.source || 'planner'}_demoted_no_location`,
+    confidence: Math.min(plan.confidence || 0.75, 0.7),
+  };
+}
+
 async function planTurn(message, userId) {
   const fallback = fallbackPlan(message);
   if (!CLAUDE_API_KEY) return fallback;
@@ -812,6 +827,7 @@ async function planTurn(message, userId) {
     '날씨, 기온, 비, 우산, 미세먼지 같은 실시간 날씨 질문은 weather_lookup을 골라.',
     'weather_lookup의 searchQuery는 지역명만 짧게 넣어. 지역이 없으면 서울로 둬.',
     '지역 맛집, 주변 가게, 업종 추천, 장소 검색이면 local_search를 골라.',
+    '위치 없이 "뭐먹지", "저녁 추천", "야식 뭐 먹을까"처럼 메뉴 판단을 묻는 일상 질문은 local_search가 아니라 chat이야.',
     'local_search의 searchQuery는 네이버 지역검색에 바로 넣을 짧은 한국어 검색어로 만들어. 지역명과 조건을 포함해.',
     'local_search는 많이 찾는 순서가 필요하므로 sort는 comment로 둬.',
     '최신 정보, 사실 확인은 web_lookup이나 news_search를 골라.',
@@ -830,10 +846,10 @@ async function planTurn(message, userId) {
       headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_API_KEY, 'anthropic-version': '2023-06-01' },
       timeout: CLAUDE_PLANNER_TIMEOUT_MS,
     });
-    return normalizePlan(extractJsonObject(response.data?.content?.[0]?.text || ''), fallback);
+    return demoteOverbroadLocalPlan(normalizePlan(extractJsonObject(response.data?.content?.[0]?.text || ''), fallback), message);
   } catch (error) {
     console.error('[planner] fallback:', { message: error.message, code: error.code, status: error.response?.status });
-    return fallback;
+    return demoteOverbroadLocalPlan(fallback, message);
   }
 }
 
@@ -1749,7 +1765,7 @@ function formatWeatherAnswer(city, weather, timeframe = 'today') {
   ].filter(Boolean).join('\n');
 }
 
-async function answerWeather(message) {
+async function answerWeather(message, routePlan = null) {
   const city = extractWeatherLocation(message);
   const timeframe = detectWeatherTimeframe(message);
   const weather = await naverWeatherCrawler.getWeatherInfo(city);
@@ -1761,7 +1777,7 @@ async function answerWeather(message) {
       action: 'webLink',
       webLinkUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(`${city} ${linkQueryTime}날씨`)}`,
     }],
-    plan: { intent: 'weather_lookup', searchQuery: city, sort: 'sim', confidence: 0.9, source: 'deterministic', timeframe },
+    plan: { ...(routePlan || {}), intent: 'weather_lookup', searchQuery: city, sort: routePlan?.sort || 'sim', confidence: routePlan?.confidence || 0.9, source: routePlan?.source || 'weather_handler', timeframe },
     results: weather.temperature && weather.temperature !== '정보 없음' ? [weather] : [],
   };
 }
@@ -1879,15 +1895,7 @@ function fallbackChatAnswer(message) {
   const modelAnswer = answerClaudeModelQuestion(text);
   if (modelAnswer) return modelAnswer;
   if (/^(안녕|안녕하세요|하이|ㅎㅇ)/.test(text)) return '안녕. 뭐 도와줄까?';
-  if (/(cmd|명령어|바로가기|아이콘|윈도|윈도우|windows)/i.test(text)) {
-    return '응, 가능해. Windows 바로가기의 대상에 `cmd /k "명령어"`를 넣으면 실행 후 명령 결과가 남고, `cmd /c "명령어"`는 실행 후 창이 닫혀. 예: `cmd /k "cd /d C:\\work && npm start"`처럼 쓰면 바로가기 실행 시 자동으로 입력/실행돼.';
-  }
-  if (/(배고파|뭐\s*먹|먹을\s*거|먹을거|점심|저녁|야식)/.test(text)) {
-    if (/점심/.test(text)) return '점심이면 너무 무겁지 않게 국밥, 돈까스, 제육, 쌀국수, 샐러드볼 중에서 고르면 좋아.';
-    if (/저녁|야식/.test(text)) return '지금 먹기엔 치킨, 분식, 국밥, 마라탕, 덮밥 쪽이 무난해. 위치를 같이 보내주면 근처 기준으로 찾아볼게.';
-    return '먹을 거면 한식, 면, 덮밥, 분식 중에 지금 당기는 쪽으로 가는 게 좋아. 위치까지 주면 주변 맛집으로 바로 좁혀볼게.';
-  }
-  return '응, 바로 답해줄게. 검색이 필요한 내용이면 지역명이나 핵심 키워드를 같이 보내줘.';
+  return 'Claude 응답이 잠깐 지연됐어. 방금 질문 그대로 한 번만 다시 보내줘.';
 }
 
 function answerClaudeModelQuestion(message) {
@@ -1938,20 +1946,6 @@ async function buildAnswer(message, userId, req) {
   if (isCalendarReadRequest(message)) return answerCalendarReadRequest(message, userId, req);
   if (isCalendarWriteRequest(message) || isReminderWriteRequest(message)) return answerCalendarWriteRequest(message, userId, req);
   if (isGoogleCalendarConfigQuestion(message)) return answerGoogleCalendarConfigQuestion();
-  if (isWeatherQuestion(message)) {
-    try {
-      return await answerWeather(message);
-    } catch (error) {
-      console.error('[weather] failed:', { message: error.message, code: error.code, status: error.response?.status });
-      const city = extractWeatherLocation(message);
-      return {
-        answer: `${city} 날씨를 확인하려고 했는데 지금은 정보를 못 가져왔어. 잠시 후 다시 물어봐줘.`,
-        quickReplies: [],
-        plan: { intent: 'weather_lookup', searchQuery: city, sort: 'sim', confidence: 0.8, source: 'deterministic_error' },
-        results: [],
-      };
-    }
-  }
 
   if (shouldAnswerWithClaudeFirst(message)) {
     const plan = { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.9, source: 'claude_first_chat' };
@@ -1966,7 +1960,20 @@ async function buildAnswer(message, userId, req) {
   }
 
   const plan = await planTurn(message, userId);
-  if (plan.intent === 'weather_lookup') return answerWeather(plan.searchQuery || message);
+  if (plan.intent === 'weather_lookup') {
+    try {
+      return await answerWeather(plan.searchQuery || message, plan);
+    } catch (error) {
+      console.error('[weather] failed:', { message: error.message, code: error.code, status: error.response?.status });
+      const city = extractWeatherLocation(plan.searchQuery || message);
+      return {
+        answer: `${city} 날씨를 확인하려고 했는데 지금은 정보를 못 가져왔어. 잠시 후 다시 물어봐줘.`,
+        quickReplies: [],
+        plan: { ...plan, intent: 'weather_lookup', searchQuery: city, source: `${plan.source || 'unknown'}_weather_error` },
+        results: [],
+      };
+    }
+  }
   if (plan.intent !== 'chat') {
     try {
       const search = await searchNaverWithRetries(plan);
