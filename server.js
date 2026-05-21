@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ar-month-card-vector-font';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21as-month-card-readable';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -525,10 +525,10 @@ function getMonthlyCalendarCardDays(range, groupedEvents) {
       date: dateText,
       day: date.getUTCDate(),
       inMonth: date.getUTCMonth() === month - 1,
-      events: events.slice(0, 3).map((event) => ({
-        title: truncateForCard(getGoogleCalendarItemTitle(event), 12),
+      events: events.slice(0, 2).map((event) => ({
+        title: truncateForCard(getGoogleCalendarItemTitle(event), 8),
       })),
-      extraCount: Math.max(events.length - 3, 0),
+      extraCount: Math.max(events.length - 2, 0),
     });
   }
   return days;
@@ -862,7 +862,7 @@ async function renderMonthlyCalendarCardVectorSvg(card) {
         style: {
           position: 'absolute',
           left: 12,
-          top: 78,
+          top: 74,
           color: theme.muted,
           fontSize: 11,
           fontWeight: 900,
