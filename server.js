@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21f-calendar-date-range';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21g-calendar-grouped-rossi-card';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -67,6 +67,7 @@ const CALENDAR_FONT_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'Noto
 const ZHUANG_FANGYI_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi.png'));
 const ZHUANG_FANGYI_FULL_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi-full.png'));
 const ZHUANG_FANGYI_FACE_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi-face.png'));
+const ROSSI_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'rossi.webp'));
 
 function loadAssetDataUri(filePath, mimeType) {
   try {
@@ -182,6 +183,63 @@ function formatGoogleCalendarCardEvent(event) {
   return { time: timeText, title: normalizeText(event.summary || '제목 없음') };
 }
 
+function getGoogleCalendarEventDate(event) {
+  const startValue = event.start?.dateTime || event.start?.date;
+  if (!startValue) return '';
+  if (event.start?.date) return event.start.date;
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(new Date(startValue));
+}
+
+function formatCalendarDateShort(dateText) {
+  if (!dateText) return '날짜미정';
+  const date = new Date(`${dateText}T00:00:00+09:00`);
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+  }).format(date);
+}
+
+function groupGoogleCalendarEventsByDate(events) {
+  const grouped = new Map();
+  for (const event of events || []) {
+    const date = getGoogleCalendarEventDate(event) || 'unknown';
+    if (!grouped.has(date)) grouped.set(date, []);
+    grouped.get(date).push(event);
+  }
+  return [...grouped.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, dayEvents]) => ({ date, events: dayEvents }));
+}
+
+function formatGoogleCalendarCardSummary(group) {
+  const first = formatGoogleCalendarCardEvent(group.events[0]);
+  const extraCount = Math.max(group.events.length - 1, 0);
+  return {
+    date: group.date,
+    time: formatCalendarDateShort(group.date),
+    title: extraCount > 0
+      ? `${first.title} 외 ${extraCount}개 일정`
+      : first.title,
+    count: group.events.length,
+  };
+}
+
+function isCalendarDetailRequest(message, range) {
+  const text = normalizeKoreanSearchText(message);
+  const isSingleDay = Number(range?.days || 0) === 1;
+  if (!isSingleDay) return false;
+  if (/(상세|자세히|전체|모든|전부)/.test(text)) return true;
+  return /(\d{1,2}\s*일|오늘|내일|낼|모레|\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일)/.test(text);
+}
+
 function formatCalendarCardTitle(rangeLabel) {
   const label = normalizeText(rangeLabel || '오늘');
   if (label === '오늘') return '오늘의 일정';
@@ -279,19 +337,21 @@ function h(type, props, ...children) {
 
 async function renderCalendarCardVectorSvg(card) {
   const { default: satori } = await import('satori');
-  const events = (card.events || []).slice(0, 12);
+  const events = card.events || [];
   const rowHeight = 92;
   const baseHeight = 424;
   const height = Math.max(760, baseHeight + Math.max(events.length, 1) * rowHeight);
   const timestamp = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'full' }).format(new Date());
+  const mode = card.mode || 'detail';
   const rows = events.length
     ? events.map((event, index) => {
       const y = 398 + index * rowHeight;
       const accent = ['#00C2A8', '#7C5CFF', '#FFB545', '#FF6B8A'][index % 4];
+      const titleMax = mode === 'summary' ? 26 : 18;
       return h('div', { style: { position: 'absolute', left: 56, top: y, width: 688, height: 76, borderRadius: 24, backgroundColor: '#FFFFFF', border: '1px solid #E9EDF3', display: 'flex', alignItems: 'center', boxShadow: '0 18px 36px rgba(26, 32, 44, 0.08)' } },
         h('div', { style: { marginLeft: 18, width: 12, height: 46, borderRadius: 8, backgroundColor: accent } }),
-        h('div', { style: { marginLeft: 22, width: 172, color: '#687386', fontSize: 23, fontWeight: 900 } }, event.time),
-        h('div', { style: { width: 360, color: '#161A22', fontSize: 30, fontWeight: 900, lineHeight: 1.08 } }, truncateForCard(event.title, 18)),
+        h('div', { style: { marginLeft: 22, width: mode === 'summary' ? 142 : 172, color: '#687386', fontSize: mode === 'summary' ? 21 : 23, fontWeight: 900 } }, event.time),
+        h('div', { style: { width: mode === 'summary' ? 420 : 360, color: '#161A22', fontSize: mode === 'summary' ? 27 : 30, fontWeight: 900, lineHeight: 1.08 } }, truncateForCard(event.title, titleMax)),
         h('div', { style: { marginLeft: 'auto', marginRight: 22, width: 42, height: 42, borderRadius: 21, backgroundColor: '#F3F6FA', color: accent, fontSize: 22, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, `${index + 1}`),
       );
     })
@@ -320,15 +380,15 @@ async function renderCalendarCardVectorSvg(card) {
       h('div', { style: { position: 'absolute', left: 64, top: 64, width: 672, height: 212, borderRadius: 30, backgroundColor: '#111827', display: 'flex', overflow: 'hidden' } }),
       h('div', { style: { position: 'absolute', left: 64, top: 64, width: 18, height: 212, backgroundColor: '#00C2A8' } }),
       h('div', { style: { position: 'absolute', left: 104, top: 94, width: 174, height: 40, borderRadius: 20, backgroundColor: '#273142', color: '#B8FFF4', fontSize: 19, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, 'GOOGLE CALENDAR'),
-      h('div', { style: { position: 'absolute', left: 104, top: 154, width: 360, color: '#FFFFFF', fontSize: 54, fontWeight: 900, lineHeight: 1.04 } }, card.label || '오늘의 일정'),
-      h('div', { style: { position: 'absolute', left: 104, top: 224, width: 400, color: '#C7D2E2', fontSize: 21, fontWeight: 700 } }, timestamp),
+      h('div', { style: { position: 'absolute', left: 104, top: 148, width: 438, color: '#FFFFFF', fontSize: 45, fontWeight: 900, lineHeight: 1.08 } }, card.label || '오늘의 일정'),
+      h('div', { style: { position: 'absolute', left: 104, top: 232, width: 400, color: '#C7D2E2', fontSize: 21, fontWeight: 700 } }, timestamp),
       h('div', { style: { position: 'absolute', left: 594, top: 92, width: 112, height: 112, borderRadius: 34, backgroundColor: '#FFFFFF', border: '4px solid #273142', display: 'flex', boxShadow: '0 18px 42px rgba(0, 0, 0, 0.22)' } }),
       h('div', { style: { position: 'absolute', left: 620, top: 224, width: 62, height: 8, borderRadius: 4, backgroundColor: '#00C2A8' } }),
 
       h('div', { style: { position: 'absolute', left: 56, top: 304, width: 688, height: 62, borderRadius: 24, backgroundColor: '#FFFFFF', border: '1px solid #E9EDF3', display: 'flex', alignItems: 'center', boxShadow: '0 14px 32px rgba(26, 32, 44, 0.07)' } },
         h('div', { style: { marginLeft: 24, width: 13, height: 13, borderRadius: 7, backgroundColor: '#00C2A8' } }),
-        h('div', { style: { marginLeft: 12, color: '#161A22', fontSize: 25, fontWeight: 900 } }, events.length ? `${events.length}개 일정` : '일정 없음'),
-        h('div', { style: { marginLeft: 'auto', marginRight: 24, color: '#687386', fontSize: 20, fontWeight: 800 } }, 'Calendar brief'),
+        h('div', { style: { marginLeft: 12, color: '#161A22', fontSize: 25, fontWeight: 900 } }, card.summaryText || (events.length ? `${events.length}개 일정` : '일정 없음')),
+        h('div', { style: { marginLeft: 'auto', marginRight: 24, color: '#687386', fontSize: 20, fontWeight: 800 } }, mode === 'summary' ? 'Daily brief' : 'Calendar detail'),
       ),
       rows,
     ),
@@ -345,10 +405,11 @@ async function renderCalendarCardVectorSvg(card) {
 
 async function renderCalendarCardPng(card) {
   const composites = [];
-  if (ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER) {
+  const portraitBuffer = ROSSI_IMAGE_BUFFER || ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER;
+  if (portraitBuffer) {
     const portraitSize = 112;
     const portraitMask = Buffer.from(`<svg width="${portraitSize}" height="${portraitSize}" viewBox="0 0 ${portraitSize} ${portraitSize}"><rect width="${portraitSize}" height="${portraitSize}" rx="30" fill="#fff"/></svg>`);
-    const character = await sharp(ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER)
+    const character = await sharp(portraitBuffer)
       .resize(portraitSize, portraitSize, { fit: 'cover', position: 'center' })
       .composite([{ input: portraitMask, blend: 'dest-in' }])
       .png()
@@ -787,6 +848,7 @@ function parseCalendarQueryRange(message) {
   const end = days === null ? addMonths(start, 1) : addDays(start, days);
   return {
     label,
+    days: days === null ? Math.ceil((end - start) / (24 * 60 * 60 * 1000)) : days,
     timeMin: formatKoreaDateTime(start),
     timeMax: formatKoreaDateTime(end),
   };
@@ -1018,7 +1080,7 @@ async function listGoogleCalendarEvents(userId, range) {
     timeMax: range.timeMax,
     singleEvents: 'true',
     orderBy: 'startTime',
-    maxResults: '30',
+    maxResults: '80',
     timeZone: 'Asia/Seoul',
   });
   const response = await axios.get(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
@@ -1100,14 +1162,26 @@ async function answerCalendarReadRequest(message, userId, req) {
   }
 
   const cardTitle = formatCalendarCardTitle(range.label);
+  const detailMode = isCalendarDetailRequest(message, range);
+  const groupedEvents = groupGoogleCalendarEventsByDate(result.events);
+  const cardEvents = detailMode
+    ? result.events.map(formatGoogleCalendarCardEvent)
+    : groupedEvents.map(formatGoogleCalendarCardSummary);
+  const summaryText = detailMode
+    ? `${result.events.length}개 일정`
+    : `${groupedEvents.length}일 / ${result.events.length}개 일정`;
   return {
-    answer: `비서님이 ${cardTitle}을 이미지로 정리했어.`,
+    answer: detailMode
+      ? `비서님이 ${cardTitle} 상세 스케줄을 이미지로 정리했어.`
+      : `비서님이 ${cardTitle}을 날짜별 요약 카드로 정리했어.`,
     quickReplies: [],
     plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_listed' },
     results: result.events,
     calendarCard: {
       label: cardTitle,
-      events: result.events.map(formatGoogleCalendarCardEvent),
+      mode: detailMode ? 'detail' : 'summary',
+      summaryText,
+      events: cardEvents,
     },
   };
 }
