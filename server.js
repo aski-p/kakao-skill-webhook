@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21r-google-token-store-healthcheck';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21s-google-tasks-api-enable-link';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -572,6 +572,17 @@ async function renderCalendarCardPng(card) {
 
 function getGoogleRedirectUri(req) {
   return GOOGLE_OAUTH_REDIRECT_URI || `${getPublicBaseUrl(req)}/auth/google/callback`;
+}
+
+function getGoogleCloudProjectNumberFromOAuthClientId() {
+  const match = String(GOOGLE_OAUTH_CLIENT_ID || '').match(/^(\d+)-/);
+  return match ? match[1] : '';
+}
+
+function getGoogleTasksApiEnableUrl() {
+  const projectNumber = getGoogleCloudProjectNumberFromOAuthClientId();
+  const params = projectNumber ? `?project=${encodeURIComponent(projectNumber)}` : '';
+  return `https://console.cloud.google.com/apis/library/tasks.googleapis.com${params}`;
 }
 
 function encodeOAuthState(userId) {
@@ -1411,9 +1422,10 @@ async function answerCalendarReadRequest(message, userId, req) {
     if (result.tasksAuthIssue) {
       const authUrl = buildGoogleConnectUrl(userId, req);
       if (result.tasksAuthIssue === 'api_disabled') {
+        const tasksApiEnableUrl = getGoogleTasksApiEnableUrl();
         return {
-          answer: `구글 연결은 저장됐는데, 서버의 Google Cloud 프로젝트에서 Google Tasks API가 아직 활성화되지 않은 상태야. 그래서 Calendar 앱의 파란 체크 할 일을 못 읽고, ${cardTitle}의 일반 캘린더 일정은 비어 있어.\nTasks API를 켠 뒤 다시 같은 문장으로 물어봐줘.`,
-          quickReplies: [],
+          answer: `구글 연결은 저장됐는데, 서버의 Google Cloud 프로젝트에서 Google Tasks API가 꺼져 있어. 이건 사용자 토큰 문제가 아니라 프로젝트 설정이라 Google Cloud 프로젝트 소유자 권한으로 한 번 켜야 해.\n아래 링크에서 Tasks API를 사용 설정한 뒤 다시 같은 문장으로 물어봐줘.\n${tasksApiEnableUrl}`,
+          quickReplies: [{ label: 'Tasks API 켜기', action: 'webLink', webLinkUrl: tasksApiEnableUrl }],
           plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_tasks_api_disabled' },
           results: [],
           calendarCard: { label: cardTitle, mode: detailMode ? 'detail' : 'summary', summaryText: 'Tasks API 필요', events: [] },
