@@ -6,11 +6,12 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
+const { createClient } = require('@supabase/supabase-js');
 const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21m-google-tasks-oauth-loop';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21n-persistent-google-tokens';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -34,6 +35,8 @@ const GOOGLE_OAUTH_CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
 const GOOGLE_OAUTH_REDIRECT_URI = process.env.GOOGLE_OAUTH_REDIRECT_URI;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
 const GOOGLE_TOKEN_STORE_PATH = process.env.GOOGLE_TOKEN_STORE_PATH || path.join(__dirname, 'data', 'google-calendar-tokens.json');
+const GOOGLE_TOKEN_STORE_BUCKET = process.env.GOOGLE_TOKEN_STORE_BUCKET || 'app-state';
+const GOOGLE_TOKEN_STORE_OBJECT = process.env.GOOGLE_TOKEN_STORE_OBJECT || 'google-calendar-tokens.json';
 const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/tasks.readonly',
@@ -45,6 +48,8 @@ const KAKAO_CALENDAR_ALLOWED_USER_IDS = String(process.env.KAKAO_CALENDAR_ALLOWE
   .filter(Boolean);
 const MEAL_WORD_PATTERN = /점심|저녁|아침|브런치|런치|디너|야식/;
 const naverWeatherCrawler = new NaverWeatherCrawler();
+let tokenStoreSupabase = null;
+let tokenStoreBucketReady = false;
 
 const NAVER_URLS = {
   web_lookup: 'https://openapi.naver.com/v1/search/webkr.json',
@@ -142,6 +147,75 @@ function loadGoogleTokens() {
 function saveGoogleTokens(tokens) {
   fs.mkdirSync(path.dirname(GOOGLE_TOKEN_STORE_PATH), { recursive: true });
   fs.writeFileSync(GOOGLE_TOKEN_STORE_PATH, JSON.stringify(tokens, null, 2));
+}
+
+function getTokenStoreSupabase() {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.supabase_url;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.supabase_service_role_key;
+  if (!supabaseUrl || !supabaseKey) return null;
+  if (!tokenStoreSupabase) {
+    tokenStoreSupabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  }
+  return tokenStoreSupabase;
+}
+
+async function ensureTokenStoreBucket(supabase) {
+  if (tokenStoreBucketReady) return true;
+  const { error } = await supabase.storage.createBucket(GOOGLE_TOKEN_STORE_BUCKET, {
+    public: false,
+    allowedMimeTypes: ['application/json'],
+  });
+  if (error && !/already exists|Duplicate/i.test(error.message || '')) {
+    console.error('[google-calendar] token bucket create failed:', error.message);
+  }
+  tokenStoreBucketReady = true;
+  return true;
+}
+
+async function loadGoogleTokensAsync() {
+  const supabase = getTokenStoreSupabase();
+  if (!supabase) return loadGoogleTokens();
+
+  try {
+    const { data, error } = await supabase.storage
+      .from(GOOGLE_TOKEN_STORE_BUCKET)
+      .download(GOOGLE_TOKEN_STORE_OBJECT);
+    if (error) {
+      if (!/not found|does not exist|No such/i.test(error.message || '')) {
+        console.error('[google-calendar] token storage load failed:', error.message);
+      }
+      return loadGoogleTokens();
+    }
+    return JSON.parse(await data.text());
+  } catch (error) {
+    console.error('[google-calendar] token storage parse failed:', error.message);
+    return loadGoogleTokens();
+  }
+}
+
+async function saveGoogleTokensAsync(tokens) {
+  const supabase = getTokenStoreSupabase();
+  if (!supabase) {
+    saveGoogleTokens(tokens);
+    return;
+  }
+
+  try {
+    await ensureTokenStoreBucket(supabase);
+    const { error } = await supabase.storage
+      .from(GOOGLE_TOKEN_STORE_BUCKET)
+      .upload(
+        GOOGLE_TOKEN_STORE_OBJECT,
+        Buffer.from(JSON.stringify(tokens, null, 2)),
+        { contentType: 'application/json', upsert: true }
+      );
+    if (error) throw error;
+  } catch (error) {
+    console.error('[google-calendar] token storage save failed:', error.message);
+    saveGoogleTokens(tokens);
+  }
 }
 
 function normalizeOAuthScopes(scopeText) {
@@ -766,8 +840,8 @@ function answerGoogleCalendarConfigQuestion() {
   };
 }
 
-function getStoredGoogleToken(userId) {
-  return loadGoogleTokens()[userId];
+async function getStoredGoogleToken(userId) {
+  return (await loadGoogleTokensAsync())[userId];
 }
 
 async function exchangeGoogleCodeForToken(code, redirectUri) {
@@ -799,9 +873,9 @@ async function refreshGoogleAccessToken(userId, token) {
     refresh_token: response.data.refresh_token || token.refresh_token,
     expires_at: Date.now() + Number(response.data.expires_in || 3600) * 1000,
   };
-  const tokens = loadGoogleTokens();
+  const tokens = await loadGoogleTokensAsync();
   tokens[userId] = refreshed;
-  saveGoogleTokens(tokens);
+  await saveGoogleTokensAsync(tokens);
   return refreshed;
 }
 
@@ -1016,7 +1090,7 @@ function scoreCalendarEventMatch(event, titleQuery) {
 }
 
 async function patchGoogleCalendarEventTime(userId, eventId, update) {
-  const storedToken = getStoredGoogleToken(userId);
+  const storedToken = await getStoredGoogleToken(userId);
   if (!storedToken) return { needsAuth: true };
   const token = await refreshGoogleAccessToken(userId, storedToken);
 
@@ -1064,7 +1138,7 @@ async function answerCalendarUpdateRequest(message, userId, req) {
     };
   }
 
-  if (!getStoredGoogleToken(userId)) {
+  if (!(await getStoredGoogleToken(userId))) {
     const authUrl = buildGoogleConnectUrl(userId, req);
     return {
       answer: `구글 캘린더 연결이 필요해. Safari/Chrome에서 열어 연결한 뒤 다시 일정 수정을 말해줘.\n${authUrl}`,
@@ -1122,7 +1196,7 @@ async function answerCalendarUpdateRequest(message, userId, req) {
 }
 
 async function listGoogleCalendarEvents(userId, range) {
-  const storedToken = getStoredGoogleToken(userId);
+  const storedToken = await getStoredGoogleToken(userId);
   if (!storedToken) return { needsAuth: true };
   const token = await refreshGoogleAccessToken(userId, storedToken);
   const params = new URLSearchParams({
@@ -1141,7 +1215,7 @@ async function listGoogleCalendarEvents(userId, range) {
 }
 
 async function listGoogleTasks(userId, range) {
-  const storedToken = getStoredGoogleToken(userId);
+  const storedToken = await getStoredGoogleToken(userId);
   if (!storedToken) return { needsAuth: true };
   const token = await refreshGoogleAccessToken(userId, storedToken);
   const headers = { Authorization: `Bearer ${token.access_token}` };
@@ -1195,7 +1269,7 @@ async function listGoogleCalendarItems(userId, range) {
     return { events: sortCalendarItems([...(eventsResult.events || []), ...(tasksResult.tasks || [])]) };
   } catch (error) {
     if (isGoogleInsufficientScopeError(error)) {
-      const storedToken = getStoredGoogleToken(userId);
+      const storedToken = await getStoredGoogleToken(userId);
       return {
         events: eventsResult.events || [],
         needsTasksReconnect: true,
@@ -1250,7 +1324,7 @@ async function answerCalendarReadRequest(message, userId, req) {
     };
   }
 
-  if (!getStoredGoogleToken(userId)) {
+  if (!(await getStoredGoogleToken(userId))) {
     const authUrl = buildGoogleConnectUrl(userId, req);
     return {
       answer: `본인 구글 캘린더 일정을 읽으려면 먼저 구글 동의가 필요해.\n카카오톡 안에서 열면 Google이 막을 수 있으니, 아래 링크를 Safari/Chrome 같은 외부 브라우저에서 열어줘.\n연결 후 다시 “내일 일정 알려줘”처럼 물어봐줘.\n${authUrl}`,
@@ -1340,7 +1414,7 @@ async function answerCalendarReadRequest(message, userId, req) {
 }
 
 async function createGoogleCalendarEvent(userId, event) {
-  const storedToken = getStoredGoogleToken(userId);
+  const storedToken = await getStoredGoogleToken(userId);
   if (!storedToken) return { needsAuth: true };
   const token = await refreshGoogleAccessToken(userId, storedToken);
 
@@ -1373,7 +1447,7 @@ async function answerCalendarWriteRequest(message, userId, req) {
     };
   }
 
-  if (!getStoredGoogleToken(userId)) {
+  if (!(await getStoredGoogleToken(userId))) {
     const authUrl = buildGoogleConnectUrl(userId, req);
     return {
       answer: `본인 구글 캘린더에 일정을 넣으려면 먼저 구글 동의가 필요해.\n카카오톡 안에서 열면 Google이 막을 수 있으니, 아래 링크를 Safari/Chrome 같은 외부 브라우저에서 열어줘.\n연결 후 다시 일정 추가를 말해줘.\n${authUrl}`,
@@ -1792,7 +1866,7 @@ app.get('/auth/google/callback', async (req, res) => {
     if (!userId || !req.query.code) return res.status(400).type('text/plain').send('OAuth state/code가 올바르지 않습니다.');
     if (!isCalendarUserAllowed(userId)) return res.status(403).type('text/plain').send('이 카카오 사용자는 Google Calendar 연결이 허용되지 않았습니다.');
     const token = await exchangeGoogleCodeForToken(req.query.code, getGoogleRedirectUri(req));
-    const tokens = loadGoogleTokens();
+    const tokens = await loadGoogleTokensAsync();
     const grantedScope = token.scope || tokens[userId]?.scope || '';
     tokens[userId] = {
       ...token,
@@ -1801,7 +1875,7 @@ app.get('/auth/google/callback', async (req, res) => {
       expires_at: Date.now() + Number(token.expires_in || 3600) * 1000,
       connected_at: new Date().toISOString(),
     };
-    saveGoogleTokens(tokens);
+    await saveGoogleTokensAsync(tokens);
     if (grantedScope && !hasGoogleTasksScope(tokens[userId])) {
       return res.type('html').send('<h1>Google Calendar connected</h1><p>캘린더 연결은 완료됐지만 Google Tasks 권한은 토큰에 포함되지 않았습니다. 카카오톡으로 돌아가서 다시 물어보면 캘린더 일정만 먼저 확인할 수 있습니다.</p>');
     }
