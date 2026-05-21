@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const {
   parseCalendarQueryRange,
+  parseCalendarEvent,
   isCalendarItemInRange,
   formatGoogleCalendarEvent,
   groupGoogleCalendarEventsByDate,
@@ -20,6 +21,26 @@ assert.equal(nextWeekRange.label, '다음 주');
 assert.equal(nextWeekRange.days, 7);
 assert.equal(nextWeekRange.startDate, '2026-05-25');
 assert.equal(nextWeekRange.endDate, '2026-06-01');
+
+const nextMondayRange = parseCalendarQueryRange('다음주 월요일 일정 알려줘');
+assert.equal(nextMondayRange.days, 1);
+assert.equal(nextMondayRange.startDate, '2026-05-25');
+assert.equal(nextMondayRange.endDate, '2026-05-26');
+
+const previousFridayRange = parseCalendarQueryRange('저번주 금요일 일정 알려줘');
+assert.equal(previousFridayRange.days, 1);
+assert.equal(previousFridayRange.startDate, '2026-05-15');
+assert.equal(previousFridayRange.endDate, '2026-05-16');
+
+const weekAfterNextRange = parseCalendarQueryRange('다다음주 일정 알려줘');
+assert.equal(weekAfterNextRange.label, '다다음 주');
+assert.equal(weekAfterNextRange.startDate, '2026-06-01');
+assert.equal(weekAfterNextRange.endDate, '2026-06-08');
+
+const event = parseCalendarEvent('다음주 월요일 오전 11시 우체국 보험 접수 일정 등록 해줘');
+assert.equal(event.summary, '우체국 보험 접수');
+assert.equal(event.start, '2026-05-25T11:00:00+09:00');
+assert.equal(event.end, '2026-05-25T12:00:00+09:00');
 
 assert.equal(
   isCalendarItemInRange({ start: { date: '2026-05-11' }, end: { date: '2026-05-12' }, summary: '전날 종일 일정' }, range),

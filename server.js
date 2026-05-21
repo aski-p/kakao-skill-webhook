@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21al-mive-pink-calendar-cards';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21am-relative-weekday-calendar';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -993,7 +993,7 @@ function isCalendarUpdateRequest(message) {
 function isCalendarReadRequest(message) {
   const text = normalizeKoreanSearchText(message);
   const hasCalendarCue = /(구글\s*)?(캘린더|calendar|일정|스케줄|예약)/.test(text);
-  const hasDateCue = /(오늘|내일|낼|모레|이번\s*주|이번주|다음\s*주|다음주|내주|주간|일주일|이번\s*달|이번달|다음\s*달|다음달|내달|이전\s*달|이전달|지난\s*달|지난달|저번\s*달|저번달|\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*일)/.test(text);
+  const hasDateCue = /(오늘|내일|낼|모레|이번\s*주|이번주|다음\s*주|다음주|내주|다\s*다음\s*주|다다음주|다음\s*다음\s*주|차\s*주|저번\s*주|저번주|지난\s*주|지난주|이전\s*주|이전주|(월|화|수|목|금|토|일)\s*요일|주간|일주일|이번\s*달|이번달|다음\s*달|다음달|내달|이전\s*달|이전달|지난\s*달|지난달|저번\s*달|저번달|\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*일)/.test(text);
   const hasReadCue = /(알려|말해|보여|조회|확인|읽어|뭐\s*있|뭐가\s*있|있어|있나|있니|리스트|목록)/.test(text);
   const calendarDateRead = hasCalendarCue && (hasReadCue || hasDateCue);
   const dateScheduleRead = hasDateCue && hasReadCue && /(일정|스케줄|예약)/.test(text);
@@ -1143,6 +1143,27 @@ function getWeekStart(date, offsetWeeks = 0) {
   return next;
 }
 
+function parseRelativeWeekOffset(text) {
+  if (/다\s*다음\s*주|다다음주|다음\s*다음\s*주|차\s*주/.test(text)) return 2;
+  if (/다음\s*주|다음주|내주/.test(text)) return 1;
+  if (/저번\s*주|저번주|지난\s*주|지난주|이전\s*주|이전주/.test(text)) return -1;
+  if (/이번\s*주|이번주|주간|일주일/.test(text)) return 0;
+  return null;
+}
+
+function parseKoreanWeekday(text) {
+  const match = text.match(/(월|화|수|목|금|토|일)\s*요일/);
+  if (!match) return null;
+  return { 월: 0, 화: 1, 수: 2, 목: 3, 금: 4, 토: 5, 일: 6 }[match[1]];
+}
+
+function resolveRelativeWeekdayDate(text) {
+  const weekOffset = parseRelativeWeekOffset(text);
+  const weekday = parseKoreanWeekday(text);
+  if (weekOffset === null || weekday === null) return null;
+  return addDays(getWeekStart(getKoreaDayStart(0), weekOffset), weekday);
+}
+
 function parseKoreaDateStart(dateText) {
   if (!dateText) return null;
   return new Date(`${dateText}T00:00:00+09:00`);
@@ -1212,10 +1233,16 @@ function parseCalendarQueryRange(message) {
     : /이전\s*달|이전달|지난\s*달|지난달|저번\s*달|저번달/.test(text)
       ? -1
       : 0;
-  if (/다음\s*주|다음주|내주/.test(text)) {
-    start = getWeekStart(getKoreaDayStart(0), 1);
+  const relativeWeekdayDate = resolveRelativeWeekdayDate(text);
+  const weekOffset = parseRelativeWeekOffset(text);
+  if (relativeWeekdayDate) {
+    start = relativeWeekdayDate;
+    days = 1;
+    label = formatKoreaDateLabel(start);
+  } else if (weekOffset !== null) {
+    start = getWeekStart(getKoreaDayStart(0), weekOffset);
     days = 7;
-    label = '다음 주';
+    label = weekOffset === 2 ? '다다음 주' : weekOffset === 1 ? '다음 주' : weekOffset === -1 ? '지난 주' : '이번 주';
   } else if (/이번\s*주|이번주|주간|일주일/.test(text)) {
     start = getWeekStart(getKoreaDayStart(0), 0);
     days = 7;
@@ -1266,10 +1293,13 @@ function parseCalendarEvent(message) {
 
   const monthDay = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
   const isoDate = text.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const relativeWeekdayDate = resolveRelativeWeekdayDate(text);
   if (isoDate) {
     start.setFullYear(Number(isoDate[1]), Number(isoDate[2]) - 1, Number(isoDate[3]));
   } else if (monthDay) {
     start.setMonth(Number(monthDay[1]) - 1, Number(monthDay[2]));
+  } else if (relativeWeekdayDate) {
+    start.setFullYear(relativeWeekdayDate.getFullYear(), relativeWeekdayDate.getMonth(), relativeWeekdayDate.getDate());
   } else if (/모레/.test(text)) {
     start.setDate(start.getDate() + 2);
   } else if (/내일/.test(text)) {
@@ -1291,7 +1321,7 @@ function parseCalendarEvent(message) {
   const reminderMinutes = Number(text.match(/(\d{1,3})\s*분\s*(?:전|전에|전쯤)/)?.[1] || 0);
   let title = normalizeText(text
     .replace(/\d{1,3}\s*분\s*(?:전|전에|전쯤)/g, ' ')
-    .replace(/(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|오늘|내일|모레|오전|오후|저녁|밤|아침|\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?)/g, ' ')
+    .replace(/(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|오늘|내일|모레|이번\s*주|이번주|다음\s*주|다음주|내주|다\s*다음\s*주|다다음주|다음\s*다음\s*주|차\s*주|저번\s*주|저번주|지난\s*주|지난주|이전\s*주|이전주|(월|화|수|목|금|토|일)\s*요일|오전|오후|저녁|밤|아침|\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?)/g, ' ')
     .replace(/(구글|google|캘린더|calendar|일정|예약|스케줄|등록|추가|생성|만들어줘|만들|잡아줘|잡아|넣어줘|넣어|해줘|좀|에|으로|로|나한테|내게|저한테|알림|알려줘|알려줄|수\s*있어|줘)/g, ' ')
     .replace(/[?？！!,.]/g, ' ')
     .replace(/\s+/g, ' ')
@@ -2352,6 +2382,7 @@ module.exports = {
   renderCalendarCardPng,
   renderCalendarCardSvg,
   parseCalendarQueryRange,
+  parseCalendarEvent,
   isCalendarItemInRange,
   formatGoogleCalendarEvent,
   groupGoogleCalendarEventsByDate,
