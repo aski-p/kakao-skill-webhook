@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21h-calendar-read-routing-detail-image';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21i-calendar-stability-date-routing';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -20,6 +20,7 @@ const CLAUDE_FALLBACK_MODELS = ['claude-3-5-haiku-20241022', 'claude-3-haiku-202
 const CLAUDE_PLANNER_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_PLANNER_TIMEOUT_MS || 900), 700);
 const CLAUDE_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_TIMEOUT_MS || 4400), 4400);
 const KAKAO_MAX_RESPONSE_LENGTH = Number(process.env.KAKAO_MAX_RESPONSE_LENGTH || 1000);
+const GOOGLE_CALENDAR_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_TIMEOUT_MS || 3200), 1500), 4200);
 
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
@@ -494,10 +495,10 @@ function isCalendarUserAllowed(userId) {
 
 function answerCalendarUserNotAllowed(userId) {
   const reason = KAKAO_CALENDAR_ALLOWED_USER_IDS.length
-    ? '이 카카오 사용자는 캘린더 수정 허용목록에 없어.'
-    : '캘린더 수정 허용목록이 아직 비어 있어.';
+    ? '이 카카오 사용자는 캘린더 허용목록에 없어.'
+    : '캘린더 허용목록이 아직 비어 있어.';
   return {
-    answer: `${reason}\n개인 캘린더 보호를 위해 구글 연결/일정 등록은 허용된 카카오 사용자만 가능해.\n관리자는 Railway 변수 KAKAO_CALENDAR_ALLOWED_USER_IDS에 이 사용자 ID를 추가해야 해: ${userId}`,
+    answer: `${reason}\n개인 캘린더 보호를 위해 구글 연결/일정 조회/등록/수정은 허용된 카카오 사용자만 가능해.\n관리자는 Railway 변수 KAKAO_CALENDAR_ALLOWED_USER_IDS에 이 사용자 ID를 추가해야 해: ${userId}`,
     quickReplies: [],
     plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_user_not_allowed' },
     results: [],
@@ -686,8 +687,11 @@ function isCalendarUpdateRequest(message) {
 function isCalendarReadRequest(message) {
   const text = normalizeKoreanSearchText(message);
   const hasCalendarCue = /(구글\s*)?(캘린더|calendar|일정|스케줄|예약)/.test(text);
+  const hasDateCue = /(오늘|내일|낼|모레|이번\s*주|이번주|주간|일주일|이번\s*달|이번달|다음\s*달|다음달|내달|이전\s*달|이전달|지난\s*달|지난달|저번\s*달|저번달|\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*일)/.test(text);
   const hasReadCue = /(알려|말해|보여|조회|확인|읽어|뭐\s*있|뭐가\s*있|있어|있나|있니|리스트|목록)/.test(text);
-  return hasCalendarCue && hasReadCue && !isCalendarWriteRequest(text) && !isGoogleCalendarConfigQuestion(text);
+  const calendarDateRead = hasCalendarCue && (hasReadCue || hasDateCue);
+  const dateScheduleRead = hasDateCue && hasReadCue && /(일정|스케줄|예약)/.test(text);
+  return (calendarDateRead || dateScheduleRead) && !isCalendarWriteRequest(text) && !isGoogleCalendarConfigQuestion(text);
 }
 
 function isReminderWriteRequest(message) {
@@ -976,7 +980,7 @@ async function patchGoogleCalendarEventTime(userId, eventId, update) {
     end: { dateTime: update.end, timeZone: 'Asia/Seoul' },
   }, {
     headers: { Authorization: `Bearer ${token.access_token}` },
-    timeout: 5000,
+    timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
   });
 
   return { event: response.data };
@@ -1086,7 +1090,7 @@ async function listGoogleCalendarEvents(userId, range) {
   });
   const response = await axios.get(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
     headers: { Authorization: `Bearer ${token.access_token}` },
-    timeout: 5000,
+    timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
   });
   return { events: response.data?.items || [] };
 }
@@ -1140,7 +1144,18 @@ async function answerCalendarReadRequest(message, userId, req) {
   }
 
   const range = parseCalendarQueryRange(message);
-  const result = await listGoogleCalendarEvents(userId, range);
+  let result;
+  try {
+    result = await listGoogleCalendarEvents(userId, range);
+  } catch (error) {
+    console.error('[google-calendar] list failed:', { message: error.message, code: error.code, status: error.response?.status });
+    return {
+      answer: `${formatCalendarCardTitle(range.label)}을 확인하려고 했는데 구글 캘린더 응답이 늦거나 실패했어. 잠깐 뒤에 같은 문장으로 다시 보내줘.`,
+      quickReplies: [],
+      plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.85, source: 'calendar_list_failed' },
+      results: [],
+    };
+  }
   if (result.needsAuth) {
     const authUrl = buildGoogleConnectUrl(userId, req);
     return {
@@ -1201,7 +1216,7 @@ async function createGoogleCalendarEvent(userId, event) {
       : { useDefault: true },
   }, {
     headers: { Authorization: `Bearer ${token.access_token}` },
-    timeout: 5000,
+    timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
   });
 
   return { event: response.data };
