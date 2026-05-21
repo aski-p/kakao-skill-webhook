@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21b-calendar-face-card';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21c-calendar-update-event';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -611,6 +611,13 @@ function isCalendarWriteRequest(message) {
   return hasCalendarCue && hasWriteCue;
 }
 
+function isCalendarUpdateRequest(message) {
+  const text = normalizeKoreanSearchText(message);
+  const hasCalendarCue = /(캘린더|calendar|일정|예약|스케줄)/.test(text);
+  const hasUpdateCue = /(수정|변경|바꿔|옮겨|미뤄|당겨)/.test(text);
+  return hasCalendarCue && hasUpdateCue;
+}
+
 function isCalendarReadRequest(message) {
   const text = normalizeKoreanSearchText(message);
   const hasCalendarCue = /(구글\s*)?(캘린더|calendar|일정|스케줄|예약)/.test(text);
@@ -794,6 +801,175 @@ function parseCalendarEvent(message) {
     start: formatKoreaDateTime(start),
     end: formatKoreaDateTime(end),
     reminderMinutes: reminderMinutes > 0 ? reminderMinutes : null,
+  };
+}
+
+function parseKoreanTimeExpression(match, fallbackMeridiem = '') {
+  if (!match) return null;
+  const meridiem = match[1] || fallbackMeridiem || '';
+  const rawHour = Number(match[2]);
+  let hour = rawHour;
+  const minute = Number(match[3] || 0);
+  if (/(오후|저녁|밤)/.test(meridiem) && hour < 12) hour += 12;
+  if (/오전/.test(meridiem) && hour === 12) hour = 0;
+  return { hour, minute, meridiem, rawHour };
+}
+
+function applyKoreanTime(date, time) {
+  const next = new Date(date);
+  next.setHours(time.hour, time.minute, 0, 0);
+  return next;
+}
+
+function parseCalendarUpdate(message) {
+  const text = normalizeKoreanSearchText(message);
+  const range = parseCalendarQueryRange(text);
+  const startOfDay = new Date(`${range.timeMin.slice(0, 10)}T00:00:00`);
+
+  const timePattern = /(오전|오후|저녁|밤|아침)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/g;
+  const timeMatches = [...text.matchAll(timePattern)];
+  if (!timeMatches.length) {
+    return { error: '바꿀 시간을 못 찾았어. 예: 내일 교육 오후 1시부터 6시로 수정해줘' };
+  }
+
+  const startTime = parseKoreanTimeExpression(timeMatches[0]);
+  const explicitEndTime = timeMatches.length >= 2 ? parseKoreanTimeExpression(timeMatches[1], startTime?.meridiem) : null;
+  const start = applyKoreanTime(startOfDay, startTime);
+  const end = explicitEndTime ? applyKoreanTime(startOfDay, explicitEndTime) : new Date(start.getTime() + 60 * 60 * 1000);
+  if (end <= start) end.setDate(end.getDate() + 1);
+
+  let titleQuery = normalizeText(text
+    .replace(/\d{4}-\d{1,2}-\d{1,2}/g, ' ')
+    .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일/g, ' ')
+    .replace(/오늘|내일|낼|모레|이번\s*주|이번주|주간|일주일/g, ' ')
+    .replace(timePattern, ' ')
+    .replace(/부터|에서|까지|으로|로|에|을|를|은|는|이|가/g, ' ')
+    .replace(/구글|google|캘린더|calendar|일정|예약|스케줄|수정|변경|바꿔|옮겨|미뤄|당겨|해줘|좀|줘/g, ' ')
+    .replace(/[?？！!,.]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim());
+
+  return {
+    range,
+    titleQuery,
+    start: formatKoreaDateTime(start),
+    end: formatKoreaDateTime(end),
+  };
+}
+
+function scoreCalendarEventMatch(event, titleQuery) {
+  const summary = normalizeText(event.summary || '');
+  if (!titleQuery) return 1;
+  if (summary === titleQuery) return 100;
+  if (summary.includes(titleQuery)) return 80;
+  if (titleQuery.includes(summary)) return 70;
+  const tokens = titleQuery.split(/\s+/).filter(Boolean);
+  return tokens.reduce((score, token) => score + (summary.includes(token) ? 10 : 0), 0);
+}
+
+async function patchGoogleCalendarEventTime(userId, eventId, update) {
+  const storedToken = getStoredGoogleToken(userId);
+  if (!storedToken) return { needsAuth: true };
+  const token = await refreshGoogleAccessToken(userId, storedToken);
+
+  const response = await axios.patch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`, {
+    start: { dateTime: update.start, timeZone: 'Asia/Seoul' },
+    end: { dateTime: update.end, timeZone: 'Asia/Seoul' },
+  }, {
+    headers: { Authorization: `Bearer ${token.access_token}` },
+    timeout: 5000,
+  });
+
+  return { event: response.data };
+}
+
+async function updateGoogleCalendarEvent(userId, update) {
+  const listed = await listGoogleCalendarEvents(userId, update.range);
+  if (listed.needsAuth) return { needsAuth: true };
+
+  const ranked = (listed.events || [])
+    .map((event) => ({ event, score: scoreCalendarEventMatch(event, update.titleQuery) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (!ranked.length) return { notFound: true, events: listed.events || [] };
+  const topScore = ranked[0].score;
+  const tied = ranked.filter((item) => item.score === topScore);
+  if (tied.length > 1 && update.titleQuery) return { ambiguous: true, events: tied.map((item) => item.event) };
+
+  const patched = await patchGoogleCalendarEventTime(userId, ranked[0].event.id, update);
+  if (patched.needsAuth) return patched;
+  return { event: patched.event };
+}
+
+async function answerCalendarUpdateRequest(message, userId, req) {
+  if (!isCalendarUserAllowed(userId)) {
+    return answerCalendarUserNotAllowed(userId);
+  }
+
+  if (!hasGoogleOAuthConfig()) {
+    return {
+      answer: '각자 본인 구글 캘린더를 수정하려면 Google OAuth 클라이언트 ID/Secret이 먼저 필요해.',
+      quickReplies: [],
+      plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_oauth_missing' },
+      results: [],
+    };
+  }
+
+  if (!getStoredGoogleToken(userId)) {
+    const authUrl = buildGoogleConnectUrl(userId, req);
+    return {
+      answer: `구글 캘린더 연결이 필요해. Safari/Chrome에서 열어 연결한 뒤 다시 일정 수정을 말해줘.\n${authUrl}`,
+      quickReplies: [{ label: '구글 연결', action: 'webLink', webLinkUrl: authUrl }],
+      plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_auth_required' },
+      results: [],
+    };
+  }
+
+  const update = parseCalendarUpdate(message);
+  if (update.error) {
+    return {
+      answer: update.error,
+      quickReplies: [],
+      plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.8, source: 'calendar_update_parse_failed' },
+      results: [],
+    };
+  }
+
+  const result = await updateGoogleCalendarEvent(userId, update);
+  if (result.needsAuth) {
+    const authUrl = buildGoogleConnectUrl(userId, req);
+    return {
+      answer: `구글 캘린더 연결이 필요해. Safari/Chrome에서 열어줘.\n${authUrl}`,
+      quickReplies: [{ label: '구글 연결', action: 'webLink', webLinkUrl: authUrl }],
+      plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.9, source: 'calendar_auth_required' },
+      results: [],
+    };
+  }
+  if (result.notFound) {
+    return {
+      answer: `${formatCalendarCardTitle(update.range.label)}에서 ${update.titleQuery ? `"${update.titleQuery}" ` : ''}일정을 못 찾았어. 일정 이름을 조금 더 정확히 말해줘.`,
+      quickReplies: [],
+      plan: { intent: 'chat', searchQuery: update.titleQuery, sort: 'sim', confidence: 0.85, source: 'calendar_update_not_found' },
+      results: result.events || [],
+    };
+  }
+  if (result.ambiguous) {
+    return {
+      answer: `비슷한 일정이 여러 개라 하나를 못 고르겠어. 일정 이름이나 현재 시간을 같이 말해줘.`,
+      quickReplies: [],
+      plan: { intent: 'chat', searchQuery: update.titleQuery, sort: 'sim', confidence: 0.85, source: 'calendar_update_ambiguous' },
+      results: result.events || [],
+    };
+  }
+
+  const updatedEvent = result.event;
+  const updatedLine = formatGoogleCalendarEvent(updatedEvent, 0).replace(/^1\.\s*/, '');
+  return {
+    answer: `수정 완료했어.\n${updatedLine}\n확인해봐!`,
+    quickReplies: [],
+    plan: { intent: 'chat', searchQuery: update.titleQuery, sort: 'sim', confidence: 0.95, source: 'calendar_event_updated' },
+    results: [updatedEvent],
   };
 }
 
@@ -1263,6 +1439,7 @@ async function answerChat(message, userId) {
 
 async function buildAnswer(message, userId, req) {
   if (isNaverConfigQuestion(message)) return answerNaverConfigQuestion(message);
+  if (isCalendarUpdateRequest(message)) return answerCalendarUpdateRequest(message, userId, req);
   if (isCalendarWriteRequest(message) || isReminderWriteRequest(message)) return answerCalendarWriteRequest(message, userId, req);
   if (isCalendarReadRequest(message)) return answerCalendarReadRequest(message, userId, req);
   if (isGoogleCalendarConfigQuestion(message)) return answerGoogleCalendarConfigQuestion();
