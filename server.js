@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21aj-weekly-mavran-card';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ak-calendar-timeout-tune';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -20,7 +20,7 @@ const CLAUDE_FALLBACK_MODELS = ['claude-3-5-haiku-20241022', 'claude-3-haiku-202
 const CLAUDE_PLANNER_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_PLANNER_TIMEOUT_MS || 1800), 1000);
 const CLAUDE_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_TIMEOUT_MS || 4400), 4400);
 const KAKAO_MAX_RESPONSE_LENGTH = Number(process.env.KAKAO_MAX_RESPONSE_LENGTH || 1000);
-const KAKAO_HANDLER_TIMEOUT_MS = Math.min(Math.max(Number(process.env.KAKAO_HANDLER_TIMEOUT_MS || 2400), 1800), 3000);
+const KAKAO_HANDLER_TIMEOUT_MS = Math.min(Math.max(Number(process.env.KAKAO_HANDLER_TIMEOUT_MS || 4200), 2500), 4800);
 const GOOGLE_TOKEN_STORE_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_TOKEN_STORE_TIMEOUT_MS || 800), 300), 1500);
 const GOOGLE_CALENDAR_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_TIMEOUT_MS || 1800), 800), 2500);
 const GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS || 1800), 900), 2400);
@@ -2229,6 +2229,8 @@ app.get('/health', async (req, res) => {
       googleCalendarAllowAll: KAKAO_CALENDAR_ALLOW_ALL,
       googleTokenStoreSupabase: Boolean(getTokenStoreSupabase()),
       googleTokenStoreBucket: GOOGLE_TOKEN_STORE_BUCKET,
+      kakaoHandlerTimeoutMs: KAKAO_HANDLER_TIMEOUT_MS,
+      googleCalendarCombinedTimeoutMs: GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS,
       plannerTimeoutMs: CLAUDE_PLANNER_TIMEOUT_MS,
       naverTimeoutMs: NAVER_SEARCH_TIMEOUT_MS,
       port: PORT,
