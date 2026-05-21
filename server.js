@@ -980,6 +980,39 @@ function addMonths(date, months) {
   return next;
 }
 
+function parseKoreaDateStart(dateText) {
+  if (!dateText) return null;
+  return new Date(`${dateText}T00:00:00+09:00`);
+}
+
+function getCalendarItemRange(item) {
+  if (item?.kind === 'tasks#task') {
+    const taskDate = parseKoreaDateStart(getGoogleTaskDate(item));
+    return taskDate ? { start: taskDate, end: addDays(taskDate, 1), pointInDay: true } : null;
+  }
+
+  if (item?.start?.date) {
+    const start = parseKoreaDateStart(item.start.date);
+    const end = parseKoreaDateStart(item.end?.date) || (start ? addDays(start, 1) : null);
+    return start && end ? { start, end } : null;
+  }
+
+  const startValue = item?.start?.dateTime || item?.start?.date;
+  const endValue = item?.end?.dateTime || item?.end?.date;
+  const start = startValue ? new Date(startValue) : null;
+  const end = endValue ? new Date(endValue) : (start ? new Date(start.getTime() + 60 * 60 * 1000) : null);
+  return start && end ? { start, end } : null;
+}
+
+function isCalendarItemInRange(item, range) {
+  const rangeStart = new Date(range.timeMin);
+  const rangeEnd = new Date(range.timeMax);
+  const itemRange = getCalendarItemRange(item);
+  if (!itemRange || Number.isNaN(itemRange.start.getTime()) || Number.isNaN(itemRange.end.getTime())) return true;
+  if (itemRange.pointInDay) return itemRange.start >= rangeStart && itemRange.start < rangeEnd;
+  return itemRange.start < rangeEnd && itemRange.end > rangeStart;
+}
+
 function getKoreaMonthStart(offsetMonths = 0) {
   const date = getKoreaDayStart(0);
   date.setDate(1);
@@ -1284,7 +1317,7 @@ async function listGoogleCalendarEvents(userId, range) {
     headers: { Authorization: `Bearer ${token.access_token}` },
     timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
   });
-  return { events: response.data?.items || [] };
+  return { events: (response.data?.items || []).filter((event) => isCalendarItemInRange(event, range)) };
 }
 
 async function listGoogleTasks(userId, range) {
@@ -1315,7 +1348,7 @@ async function listGoogleTasks(userId, range) {
     tasks.push(...(response.data?.items || []).filter((task) => task.due));
   }
 
-  return { tasks };
+  return { tasks: tasks.filter((task) => isCalendarItemInRange(task, range)) };
 }
 
 function sortCalendarItems(items) {
