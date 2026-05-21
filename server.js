@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21au-day-only-event';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21av-month-ellipsis';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -355,6 +355,20 @@ function truncateForCard(value, max = 34) {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
+function truncateForMonthCard(value, maxUnits = 15) {
+  const text = normalizeText(value);
+  let output = '';
+  let units = 0;
+  const unitLimit = Math.max(maxUnits - 3, 1);
+  for (const char of text) {
+    const charUnits = /[ -~]/.test(char) ? 1 : 2;
+    if (units + charUnits > unitLimit) break;
+    output += char;
+    units += charUnits;
+  }
+  return output.length < text.length ? `${output.trimEnd()}...` : text;
+}
+
 function cleanupCalendarCardCache() {
   const cutoff = Date.now() - 10 * 60 * 1000;
   for (const [id, card] of calendarCardCache.entries()) {
@@ -526,7 +540,7 @@ function getMonthlyCalendarCardDays(range, groupedEvents) {
       day: date.getUTCDate(),
       inMonth: date.getUTCMonth() === month - 1,
       events: events.slice(0, 3).map((event) => ({
-        title: truncateForCard(getGoogleCalendarItemTitle(event), 12),
+        title: truncateForMonthCard(getGoogleCalendarItemTitle(event)),
       })),
       extraCount: Math.max(events.length - 3, 0),
     });
@@ -759,8 +773,9 @@ function renderMonthlyCalendarCardSvg(card) {
     const y = top + row * cellHeight;
     const eventNodes = day.events.map((event, eventIndex) => {
       const eventY = y + 46 + eventIndex * 23;
+      const eventTitle = truncateForMonthCard(event.title);
       return `<rect x="${x + 10}" y="${eventY}" width="${cellWidth - 26}" height="19" rx="9" fill="${theme.accentSoft}"/>
-        <text x="${x + 17}" y="${eventY + 14}" fill="${theme.text}" font-size="13" font-weight="900">${escapeXml(event.title)}</text>`;
+        <text x="${x + 17}" y="${eventY + 14}" fill="${theme.text}" font-size="12" font-weight="900">${escapeXml(eventTitle)}</text>`;
     }).join('');
     const extraNode = day.extraCount > 0 ? `<text x="${x + 14}" y="${y + 114}" fill="${theme.muted}" font-size="13" font-weight="900">+${day.extraCount}</text>` : '';
     return `<g>
@@ -839,6 +854,7 @@ async function renderMonthlyCalendarCardVectorSvg(card) {
     const y = top + row * cellHeight;
     const eventNodes = day.events.map((event, eventIndex) => {
       const eventY = 46 + eventIndex * 23;
+      const eventTitle = truncateForMonthCard(event.title);
       return h('div', {
         style: {
           position: 'absolute',
@@ -849,13 +865,15 @@ async function renderMonthlyCalendarCardVectorSvg(card) {
           borderRadius: 9,
           backgroundColor: theme.accentSoft,
           color: theme.text,
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: 900,
           paddingLeft: 7,
           alignItems: 'center',
           overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          textOverflow: 'clip',
         },
-      }, event.title);
+      }, eventTitle);
     });
     const extraNode = day.extraCount > 0
       ? h('div', {
@@ -2708,4 +2726,5 @@ module.exports = {
   groupGoogleCalendarEventsByDate,
   formatWeeklyCalendarSummaryAnswer,
   formatWeeklyCalendarCardEvents,
+  truncateForMonthCard,
 };

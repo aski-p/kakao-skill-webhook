@@ -7,6 +7,7 @@ const {
   groupGoogleCalendarEventsByDate,
   formatWeeklyCalendarSummaryAnswer,
   formatWeeklyCalendarCardEvents,
+  truncateForMonthCard,
 } = require('./server');
 
 const range = parseCalendarQueryRange('12일 일정 알려줘');
@@ -53,6 +54,9 @@ assert.equal(dayOnlyEvent.summary, '신생아특례대출');
 assert.equal(dayOnlyEvent.startDate, '2026-05-27');
 assert.equal(dayOnlyEvent.endDate, '2026-05-28');
 assert.equal(dayOnlyEvent.allDay, true);
+
+assert.equal(truncateForMonthCard('건강검진 신경외과 예약'), '건강검진 신...');
+assert.equal(truncateForMonthCard('우체국 보험 전화'), '우체국 보험...');
 
 assert.equal(
   isCalendarItemInRange({ start: { date: '2026-05-11' }, end: { date: '2026-05-12' }, summary: '전날 종일 일정' }, range),
