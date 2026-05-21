@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21e-modern-calendar-card';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21f-calendar-date-range';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -192,7 +192,7 @@ function formatCalendarCardTitle(rangeLabel) {
 }
 
 function renderCalendarCardSvg(card) {
-  const events = (card.events || []).slice(0, 7);
+  const events = (card.events || []).slice(0, 12);
   const rowHeight = 82;
   const baseHeight = 500;
   const height = Math.max(820, baseHeight + Math.max(events.length, 1) * rowHeight);
@@ -279,7 +279,7 @@ function h(type, props, ...children) {
 
 async function renderCalendarCardVectorSvg(card) {
   const { default: satori } = await import('satori');
-  const events = (card.events || []).slice(0, 7);
+  const events = (card.events || []).slice(0, 12);
   const rowHeight = 92;
   const baseHeight = 424;
   const height = Math.max(760, baseHeight + Math.max(events.length, 1) * rowHeight);
@@ -716,6 +716,19 @@ function addDays(date, days) {
   return next;
 }
 
+function addMonths(date, months) {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
+function getKoreaMonthStart(offsetMonths = 0) {
+  const date = getKoreaDayStart(0);
+  date.setDate(1);
+  date.setMonth(date.getMonth() + offsetMonths);
+  return date;
+}
+
 function formatKoreaDateLabel(date) {
   const formatter = new Intl.DateTimeFormat('ko-KR', {
     timeZone: 'Asia/Seoul',
@@ -734,6 +747,13 @@ function parseCalendarQueryRange(message) {
 
   const isoDate = text.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
   const monthDay = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  const monthOnly = text.match(/(\d{1,2})\s*월(?!\s*\d{1,2}\s*일)/);
+  const dayOnly = text.match(/(?<!월\s*)(\d{1,2})\s*일/);
+  const monthOffset = /다음\s*달|다음달|내달/.test(text)
+    ? 1
+    : /이전\s*달|이전달|지난\s*달|지난달|저번\s*달|저번달/.test(text)
+      ? -1
+      : 0;
   if (/이번\s*주|이번주|주간|일주일/.test(text)) {
     days = 7;
     label = '이번 주';
@@ -749,9 +769,22 @@ function parseCalendarQueryRange(message) {
   } else if (monthDay) {
     start.setMonth(Number(monthDay[1]) - 1, Number(monthDay[2]));
     label = formatKoreaDateLabel(start);
+  } else if (dayOnly) {
+    start = getKoreaMonthStart(monthOffset);
+    start.setDate(Number(dayOnly[1]));
+    label = formatKoreaDateLabel(start);
+  } else if (monthOnly) {
+    start = getKoreaMonthStart(0);
+    start.setMonth(Number(monthOnly[1]) - 1);
+    days = null;
+    label = `${Number(monthOnly[1])}월`;
+  } else if (/다음\s*달|다음달|내달|이번\s*달|이번달|이전\s*달|이전달|지난\s*달|지난달|저번\s*달|저번달/.test(text)) {
+    start = getKoreaMonthStart(monthOffset);
+    days = null;
+    label = monthOffset === 1 ? '다음 달' : monthOffset === -1 ? '지난 달' : '이번 달';
   }
 
-  const end = addDays(start, days);
+  const end = days === null ? addMonths(start, 1) : addDays(start, days);
   return {
     label,
     timeMin: formatKoreaDateTime(start),
@@ -985,7 +1018,7 @@ async function listGoogleCalendarEvents(userId, range) {
     timeMax: range.timeMax,
     singleEvents: 'true',
     orderBy: 'startTime',
-    maxResults: '10',
+    maxResults: '30',
     timeZone: 'Asia/Seoul',
   });
   const response = await axios.get(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
