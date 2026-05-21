@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21s-google-tasks-api-enable-link';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21t-calendar-detail-full-list';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -395,7 +395,7 @@ function formatCalendarCardTitle(rangeLabel) {
 }
 
 function renderCalendarCardSvg(card) {
-  const events = (card.events || []).slice(0, 12);
+  const events = card.events || [];
   const rowHeight = 82;
   const baseHeight = 500;
   const height = Math.max(820, baseHeight + Math.max(events.length, 1) * rowHeight);
@@ -1369,6 +1369,11 @@ function formatGoogleCalendarEvent(event, index) {
   return `${index + 1}. ${timeText} ${normalizeText(event.summary || '제목 없음')}`;
 }
 
+function formatGoogleCalendarDetailAnswer(cardTitle, events) {
+  const lines = (events || []).map(formatGoogleCalendarEvent);
+  return [`${cardTitle} 상세 일정 ${lines.length}개`, ...lines].join('\n');
+}
+
 async function answerCalendarReadRequest(message, userId, req) {
   if (!isCalendarUserAllowed(userId)) {
     return answerCalendarUserNotAllowed(userId);
@@ -1477,7 +1482,7 @@ async function answerCalendarReadRequest(message, userId, req) {
     : `${groupedEvents.length}일 / ${result.events.length}개 일정`;
   return {
     answer: detailMode
-      ? `비서님이 ${cardTitle} 상세 스케줄을 이미지로 정리했어.`
+      ? formatGoogleCalendarDetailAnswer(cardTitle, result.events)
       : `비서님이 ${cardTitle}을 날짜별 요약 카드로 정리했어.`,
     quickReplies: [],
     plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_listed' },
