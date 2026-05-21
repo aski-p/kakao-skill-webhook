@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21a-calendar-figma-style-card';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21b-calendar-face-card';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -66,6 +66,7 @@ const CALENDAR_FONT_DATA_URI = loadAssetDataUri(path.join(CALENDAR_ASSET_DIR, 'N
 const CALENDAR_FONT_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'NotoSansKR-Bold.ttf'));
 const ZHUANG_FANGYI_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi.png'));
 const ZHUANG_FANGYI_FULL_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi-full.png'));
+const ZHUANG_FANGYI_FACE_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi-face.png'));
 
 function loadAssetDataUri(filePath, mimeType) {
   try {
@@ -325,7 +326,9 @@ async function renderCalendarCardVectorSvg(card) {
       h('div', { style: { position: 'absolute', left: 58, top: 438, color: '#69778c', fontSize: 19, fontWeight: 900 } }, getKoreanDateTime()),
       h('div', { style: { position: 'absolute', right: 58, top: 438, color: '#11a99b', fontSize: 18, fontWeight: 900 } }, 'CALENDAR BRIEF'),
       h('div', { style: { position: 'absolute', left: 58, top: 458, width: 684, height: 1, backgroundColor: '#dbe7e6' } }),
-      h('div', { style: { position: 'absolute', left: 646, top: 76, width: 62, height: 62, borderRadius: 22, backgroundColor: '#f5c400', alignItems: 'center', justifyContent: 'center', color: '#102431', fontSize: 30, fontWeight: 900 } }, '!'),
+      h('div', { style: { position: 'absolute', left: 424, top: 70, width: 292, height: 292, borderRadius: 34, backgroundColor: '#e8fbf7', border: '1px solid #c9e8e3', display: 'flex', boxShadow: '0 18px 46px rgba(17, 169, 155, 0.16)' } }),
+      h('div', { style: { position: 'absolute', left: 438, top: 84, width: 264, height: 264, borderRadius: 28, border: '4px solid #ffffff', display: 'flex', boxShadow: '0 12px 30px rgba(16, 37, 55, 0.18)' } }),
+      h('div', { style: { position: 'absolute', left: 656, top: 82, width: 48, height: 48, borderRadius: 17, backgroundColor: '#f5c400', alignItems: 'center', justifyContent: 'center', color: '#102431', fontSize: 24, fontWeight: 900 } }, '!'),
       rows,
     ),
     {
@@ -341,12 +344,15 @@ async function renderCalendarCardVectorSvg(card) {
 
 async function renderCalendarCardPng(card) {
   const composites = [];
-  if (ZHUANG_FANGYI_FULL_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER) {
-    const character = await sharp(ZHUANG_FANGYI_FULL_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER)
-      .resize(360, 330, { fit: 'contain', position: 'center', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+  if (ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER) {
+    const portraitSize = 264;
+    const portraitMask = Buffer.from(`<svg width="${portraitSize}" height="${portraitSize}" viewBox="0 0 ${portraitSize} ${portraitSize}"><rect width="${portraitSize}" height="${portraitSize}" rx="28" fill="#fff"/></svg>`);
+    const character = await sharp(ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER)
+      .resize(portraitSize, portraitSize, { fit: 'cover', position: 'center' })
+      .composite([{ input: portraitMask, blend: 'dest-in' }])
       .png()
       .toBuffer();
-    composites.push({ input: character, left: 380, top: 88 });
+    composites.push({ input: character, left: 438, top: 84 });
   }
   const baseSvg = CALENDAR_FONT_BUFFER
     ? await renderCalendarCardVectorSvg(card)
