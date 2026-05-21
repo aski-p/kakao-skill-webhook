@@ -228,6 +228,10 @@ async function loadGoogleTokensAsync() {
   } catch (error) {
     const status = error.response?.status;
     const message = error.response?.data?.message || error.response?.data?.error || error.message;
+    if (status === 404) {
+      lastGoogleTokenStoreStatus = { mode: 'supabase', ok: true, message: 'empty', at: new Date().toISOString() };
+      return {};
+    }
     if (status !== 404) {
       console.error('[google-calendar] token storage load failed:', message);
     }
