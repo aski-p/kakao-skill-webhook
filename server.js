@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21aq-month-card-font-fix';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ar-month-card-vector-font';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -802,6 +802,136 @@ function renderMonthlyCalendarCardSvg(card) {
 </svg>`;
 }
 
+async function renderMonthlyCalendarCardVectorSvg(card) {
+  const { default: satori } = await import('satori');
+  const theme = getCalendarCardTheme(card);
+  const timestamp = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'full' }).format(new Date());
+  const days = card.monthDays || [];
+  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+  const cellWidth = 104;
+  const cellHeight = 94;
+  const left = 36;
+  const top = 296;
+  const rows = Math.max(5, Math.ceil(days.length / 7));
+  const width = 800;
+  const height = 350 + rows * cellHeight;
+  const weekdayNodes = weekdays.map((day, index) => {
+    const color = index === 0 ? '#E34A6F' : index === 6 ? '#2870C8' : theme.muted;
+    return h('div', {
+      style: {
+        position: 'absolute',
+        left: left + index * cellWidth,
+        top: 250,
+        width: cellWidth - 8,
+        height: 28,
+        color,
+        fontSize: 20,
+        fontWeight: 900,
+        alignItems: 'center',
+        justifyContent: 'center',
+      },
+    }, day);
+  });
+  const dayNodes = days.map((day, index) => {
+    const col = index % 7;
+    const row = Math.floor(index / 7);
+    const x = left + col * cellWidth;
+    const y = top + row * cellHeight;
+    const eventNodes = day.events.map((event, eventIndex) => {
+      const eventY = 42 + eventIndex * 18;
+      return h('div', {
+        style: {
+          position: 'absolute',
+          left: 9,
+          top: eventY,
+          width: cellWidth - 26,
+          height: 15,
+          borderRadius: 7,
+          backgroundColor: theme.accentSoft,
+          color: theme.text,
+          fontSize: 11,
+          fontWeight: 900,
+          paddingLeft: 6,
+          alignItems: 'center',
+          overflow: 'hidden',
+        },
+      }, event.title);
+    });
+    const extraNode = day.extraCount > 0
+      ? h('div', {
+        style: {
+          position: 'absolute',
+          left: 12,
+          top: 78,
+          color: theme.muted,
+          fontSize: 11,
+          fontWeight: 900,
+        },
+      }, `+${day.extraCount}`)
+      : null;
+    return h('div', {
+      style: {
+        position: 'absolute',
+        left: x,
+        top: y,
+        width: cellWidth - 8,
+        height: cellHeight - 8,
+        borderRadius: 15,
+        backgroundColor: day.inMonth ? '#FFFFFF' : '#F2F4F7',
+        border: '1px solid #E4E8EF',
+        display: 'flex',
+      },
+    },
+      h('div', {
+        style: {
+          position: 'absolute',
+          left: 14,
+          top: 10,
+          color: day.inMonth ? theme.text : '#A1A8B3',
+          fontSize: 18,
+          fontWeight: 900,
+        },
+      }, String(day.day)),
+      eventNodes,
+      extraNode,
+    );
+  });
+
+  return satori(
+    h('div', {
+      style: {
+        width,
+        height,
+        position: 'relative',
+        backgroundColor: theme.background,
+        color: theme.text,
+        fontFamily: 'Noto Sans KR',
+        display: 'flex',
+      },
+    },
+      h('div', { style: { position: 'absolute', left: 28, top: 28, width: 744, height: height - 56, borderRadius: 32, backgroundColor: theme.panel, border: `1px solid ${theme.shellBorder}`, display: 'flex', boxShadow: `0 20px 48px ${theme.shadow}` } }),
+      h('div', { style: { position: 'absolute', left: 48, top: 48, width: 704, height: 178, borderRadius: 26, backgroundColor: theme.hero, border: `1px solid ${theme.heroBorder}`, display: 'flex', overflow: 'hidden' } }),
+      h('div', { style: { position: 'absolute', left: 48, top: 48, width: 16, height: 178, backgroundColor: theme.accent } }),
+      h('div', { style: { position: 'absolute', left: 88, top: 74, width: 164, height: 36, borderRadius: 18, backgroundColor: theme.labelBg, color: theme.labelText, fontSize: 18, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, 'GOOGLE CALENDAR'),
+      h('div', { style: { position: 'absolute', left: 88, top: 136, width: 470, color: '#FFFFFF', fontSize: 45, fontWeight: 900, lineHeight: 1.08 } }, card.label || '월간 일정'),
+      h('div', { style: { position: 'absolute', left: 90, top: 188, width: 440, color: theme.heroMuted, fontSize: 20, fontWeight: 700 } }, timestamp),
+      h('div', { style: { position: 'absolute', left: 606, top: 68, width: 132, height: 132, borderRadius: 38, backgroundColor: theme.portraitBg, border: `5px solid ${theme.labelBg}`, display: 'flex' } }),
+      h('div', { style: { position: 'absolute', left: 640, top: 207, width: 62, height: 8, borderRadius: 4, backgroundColor: theme.accent } }),
+      weekdayNodes,
+      dayNodes,
+      h('div', { style: { position: 'absolute', left: 52, top: height - 58, width: 680, color: theme.muted, fontSize: 19, fontWeight: 900 } }, card.summaryText || '월간 일정표'),
+    ),
+    {
+      width,
+      height,
+      fonts: [
+        { name: 'Noto Sans KR', data: CALENDAR_FONT_BUFFER, weight: 700, style: 'normal' },
+        { name: 'Noto Sans KR', data: CALENDAR_FONT_BUFFER, weight: 900, style: 'normal' },
+      ],
+    },
+  );
+}
+
 async function renderCalendarCardPng(card) {
   const composites = [];
   const isMonthMode = card.mode === 'month';
@@ -817,7 +947,9 @@ async function renderCalendarCardPng(card) {
     composites.push({ input: character, left: isMonthMode ? 606 : 578, top: isMonthMode ? 68 : 82 });
   }
   const baseSvg = card.mode === 'month'
-    ? renderMonthlyCalendarCardSvg(card)
+    ? CALENDAR_FONT_BUFFER
+      ? await renderMonthlyCalendarCardVectorSvg(card)
+      : renderMonthlyCalendarCardSvg(card)
     : CALENDAR_FONT_BUFFER
       ? await renderCalendarCardVectorSvg(card)
       : renderCalendarCardSvg(card);
