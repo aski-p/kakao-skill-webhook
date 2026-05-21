@@ -11,7 +11,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21o-google-tasks-error-classification';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21p-google-token-store-diagnostics';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -50,6 +50,7 @@ const MEAL_WORD_PATTERN = /점심|저녁|아침|브런치|런치|디너|야식/;
 const naverWeatherCrawler = new NaverWeatherCrawler();
 let tokenStoreSupabase = null;
 let tokenStoreBucketReady = false;
+let lastGoogleTokenStoreStatus = { mode: 'unknown', ok: null, message: null, at: null };
 
 const NAVER_URLS = {
   web_lookup: 'https://openapi.naver.com/v1/search/webkr.json',
@@ -176,7 +177,10 @@ async function ensureTokenStoreBucket(supabase) {
 
 async function loadGoogleTokensAsync() {
   const supabase = getTokenStoreSupabase();
-  if (!supabase) return loadGoogleTokens();
+  if (!supabase) {
+    lastGoogleTokenStoreStatus = { mode: 'file', ok: true, message: 'supabase_not_configured', at: new Date().toISOString() };
+    return loadGoogleTokens();
+  }
 
   try {
     const { data, error } = await supabase.storage
@@ -186,11 +190,14 @@ async function loadGoogleTokensAsync() {
       if (!/not found|does not exist|No such/i.test(error.message || '')) {
         console.error('[google-calendar] token storage load failed:', error.message);
       }
+      lastGoogleTokenStoreStatus = { mode: 'supabase', ok: false, message: error.message || 'download_failed', at: new Date().toISOString() };
       return loadGoogleTokens();
     }
+    lastGoogleTokenStoreStatus = { mode: 'supabase', ok: true, message: 'downloaded', at: new Date().toISOString() };
     return JSON.parse(await data.text());
   } catch (error) {
     console.error('[google-calendar] token storage parse failed:', error.message);
+    lastGoogleTokenStoreStatus = { mode: 'supabase', ok: false, message: error.message || 'parse_failed', at: new Date().toISOString() };
     return loadGoogleTokens();
   }
 }
@@ -199,7 +206,8 @@ async function saveGoogleTokensAsync(tokens) {
   const supabase = getTokenStoreSupabase();
   if (!supabase) {
     saveGoogleTokens(tokens);
-    return;
+    lastGoogleTokenStoreStatus = { mode: 'file', ok: true, message: 'supabase_not_configured', at: new Date().toISOString() };
+    return false;
   }
 
   try {
@@ -212,9 +220,13 @@ async function saveGoogleTokensAsync(tokens) {
         { contentType: 'application/json', upsert: true }
       );
     if (error) throw error;
+    lastGoogleTokenStoreStatus = { mode: 'supabase', ok: true, message: 'uploaded', at: new Date().toISOString() };
+    return true;
   } catch (error) {
     console.error('[google-calendar] token storage save failed:', error.message);
     saveGoogleTokens(tokens);
+    lastGoogleTokenStoreStatus = { mode: 'file', ok: false, message: error.message || 'upload_failed', at: new Date().toISOString() };
+    return false;
   }
 }
 
@@ -1867,7 +1879,31 @@ async function buildAnswer(message, userId, req) {
 }
 
 app.get('/', (req, res) => res.type('html').send(`<h1>카카오 스킬 웹훅 서버</h1><p>상태: 정상 실행 중</p><p>라우터: ${ROUTER_VERSION}</p><p>현재 한국 시간: ${getKoreanDateTime()}</p>`));
-app.get('/health', (req, res) => res.json({ ok: true, service: 'kakao-skill-webhook', routerVersion: ROUTER_VERSION, koreaTime: getKoreanDateTime(), env: { claudeApiKey: Boolean(CLAUDE_API_KEY), claudeModel: CLAUDE_MODEL, claudeFallbackModels: CLAUDE_FALLBACK_MODELS, claudeTimeoutMs: CLAUDE_TIMEOUT_MS, naverApi: Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET), googleCloudApiKey: Boolean(GOOGLE_CLOUD_API_KEY), googleCalendarWritable: Boolean(GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON && GOOGLE_CALENDAR_ID), googleCalendarOAuth: hasGoogleOAuthConfig(), googleCalendarReadable: hasGoogleOAuthConfig(), googleCalendarAllowedUsers: KAKAO_CALENDAR_ALLOWED_USER_IDS.length, plannerTimeoutMs: CLAUDE_PLANNER_TIMEOUT_MS, naverTimeoutMs: NAVER_SEARCH_TIMEOUT_MS, port: PORT }, claude: lastClaudeStatus }));
+app.get('/health', (req, res) => res.json({
+  ok: true,
+  service: 'kakao-skill-webhook',
+  routerVersion: ROUTER_VERSION,
+  koreaTime: getKoreanDateTime(),
+  env: {
+    claudeApiKey: Boolean(CLAUDE_API_KEY),
+    claudeModel: CLAUDE_MODEL,
+    claudeFallbackModels: CLAUDE_FALLBACK_MODELS,
+    claudeTimeoutMs: CLAUDE_TIMEOUT_MS,
+    naverApi: Boolean(NAVER_CLIENT_ID && NAVER_CLIENT_SECRET),
+    googleCloudApiKey: Boolean(GOOGLE_CLOUD_API_KEY),
+    googleCalendarWritable: Boolean(GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON && GOOGLE_CALENDAR_ID),
+    googleCalendarOAuth: hasGoogleOAuthConfig(),
+    googleCalendarReadable: hasGoogleOAuthConfig(),
+    googleCalendarAllowedUsers: KAKAO_CALENDAR_ALLOWED_USER_IDS.length,
+    googleTokenStoreSupabase: Boolean(getTokenStoreSupabase()),
+    googleTokenStoreBucket: GOOGLE_TOKEN_STORE_BUCKET,
+    plannerTimeoutMs: CLAUDE_PLANNER_TIMEOUT_MS,
+    naverTimeoutMs: NAVER_SEARCH_TIMEOUT_MS,
+    port: PORT,
+  },
+  googleTokenStore: lastGoogleTokenStoreStatus,
+  claude: lastClaudeStatus,
+}));
 app.get('/test', (req, res) => res.json(kakaoTextResponse('테스트 성공! 카카오 스킬 응답 형식 정상이야.')));
 app.get('/routes', (req, res) => res.json({ ok: true, routerVersion: ROUTER_VERSION, routes: ['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search', 'weather_lookup', 'google_calendar_oauth', 'google_calendar_create_event', 'google_calendar_list_events', 'calendar_card_image'] }));
 
@@ -1912,9 +1948,12 @@ app.get('/auth/google/callback', async (req, res) => {
       expires_at: Date.now() + Number(token.expires_in || 3600) * 1000,
       connected_at: new Date().toISOString(),
     };
-    await saveGoogleTokensAsync(tokens);
+    const tokenPersisted = await saveGoogleTokensAsync(tokens);
     if (grantedScope && !hasGoogleTasksScope(tokens[userId])) {
       return res.type('html').send('<h1>Google Calendar connected</h1><p>캘린더 연결은 완료됐지만 Google Tasks 권한은 토큰에 포함되지 않았습니다. 카카오톡으로 돌아가서 다시 물어보면 캘린더 일정만 먼저 확인할 수 있습니다.</p>');
+    }
+    if (!tokenPersisted) {
+      return res.type('html').send('<h1>Google Calendar connected</h1><p>연결은 완료됐지만 서버의 영속 토큰 저장소 설정이 아직 완전하지 않습니다. 카카오톡으로 돌아가서 다시 물어봐 주세요.</p>');
     }
     return res.type('html').send('<h1>Google Calendar connected</h1><p>카카오톡으로 돌아가서 일정 조회나 등록을 다시 요청해 주세요.</p>');
   } catch (error) {
