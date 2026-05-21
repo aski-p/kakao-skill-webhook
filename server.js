@@ -48,6 +48,7 @@ const KAKAO_CALENDAR_ALLOWED_USER_IDS = String(process.env.KAKAO_CALENDAR_ALLOWE
   .split(',')
   .map((item) => item.trim())
   .filter(Boolean);
+const KAKAO_CALENDAR_ALLOW_ALL = String(process.env.KAKAO_CALENDAR_ALLOW_ALL || 'true').toLowerCase() !== 'false';
 const MEAL_WORD_PATTERN = /점심|저녁|아침|브런치|런치|디너|야식/;
 const naverWeatherCrawler = new NaverWeatherCrawler();
 let tokenStoreSupabase = null;
@@ -755,6 +756,7 @@ function renderExternalBrowserInstructions(connectUrl) {
 }
 
 function isCalendarUserAllowed(userId) {
+  if (KAKAO_CALENDAR_ALLOW_ALL) return true;
   return KAKAO_CALENDAR_ALLOWED_USER_IDS.includes(String(userId || ''));
 }
 
@@ -2173,6 +2175,7 @@ app.get('/health', async (req, res) => {
       googleCalendarOAuth: hasGoogleOAuthConfig(),
       googleCalendarReadable: hasGoogleOAuthConfig(),
       googleCalendarAllowedUsers: KAKAO_CALENDAR_ALLOWED_USER_IDS.length,
+      googleCalendarAllowAll: KAKAO_CALENDAR_ALLOW_ALL,
       googleTokenStoreSupabase: Boolean(getTokenStoreSupabase()),
       googleTokenStoreBucket: GOOGLE_TOKEN_STORE_BUCKET,
       plannerTimeoutMs: CLAUDE_PLANNER_TIMEOUT_MS,
