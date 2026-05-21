@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21y-calendar-bare-day-current-month';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21z-calendar-task-date-only';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -353,7 +353,7 @@ function getGoogleCalendarEventDate(event) {
 
 function getGoogleTaskDate(task) {
   if (!task?.due) return '';
-  return formatKoreaDateOnlyFromValue(task.due);
+  return String(task.due).slice(0, 10);
 }
 
 function formatCalendarDateShort(dateText) {
@@ -1344,11 +1344,11 @@ async function listGoogleTasks(userId, range) {
 
   for (const taskList of taskLists) {
     const params = new URLSearchParams({
-      dueMin: new Date(range.timeMin).toISOString(),
-      dueMax: new Date(range.timeMax).toISOString(),
+      dueMin: `${range.startDate || range.timeMin.slice(0, 10)}T00:00:00.000Z`,
+      dueMax: `${range.endDate || range.timeMax.slice(0, 10)}T00:00:00.000Z`,
       showCompleted: 'true',
       showDeleted: 'false',
-      showHidden: 'false',
+      showHidden: 'true',
       maxResults: '100',
     });
     const response = await axios.get(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(taskList.id)}/tasks?${params.toString()}`, {

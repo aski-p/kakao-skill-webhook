@@ -21,6 +21,10 @@ assert.equal(
   false,
 );
 assert.equal(
+  isCalendarItemInRange({ kind: 'tasks#task', due: '2026-05-11T15:00:00.000Z', title: '전날 늦은 할 일' }, range),
+  false,
+);
+assert.equal(
   isCalendarItemInRange({ kind: 'tasks#task', due: '2026-05-12T00:00:00.000Z', title: '당일 할 일' }, range),
   true,
 );
