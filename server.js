@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21l-calendar-tasks-rossi-detail';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21m-google-tasks-oauth-loop';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -38,6 +38,7 @@ const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/tasks.readonly',
 ];
+const GOOGLE_TASKS_SCOPE = 'https://www.googleapis.com/auth/tasks.readonly';
 const KAKAO_CALENDAR_ALLOWED_USER_IDS = String(process.env.KAKAO_CALENDAR_ALLOWED_USER_IDS || '')
   .split(',')
   .map((item) => item.trim())
@@ -141,6 +142,14 @@ function loadGoogleTokens() {
 function saveGoogleTokens(tokens) {
   fs.mkdirSync(path.dirname(GOOGLE_TOKEN_STORE_PATH), { recursive: true });
   fs.writeFileSync(GOOGLE_TOKEN_STORE_PATH, JSON.stringify(tokens, null, 2));
+}
+
+function normalizeOAuthScopes(scopeText) {
+  return new Set(String(scopeText || '').split(/\s+/).filter(Boolean));
+}
+
+function hasGoogleTasksScope(token) {
+  return normalizeOAuthScopes(token?.scope).has(GOOGLE_TASKS_SCOPE);
 }
 
 function hasGoogleOAuthConfig() {
@@ -481,6 +490,7 @@ function buildGoogleAuthUrl(userId, req) {
     response_type: 'code',
     scope: GOOGLE_CALENDAR_SCOPES.join(' '),
     access_type: 'offline',
+    include_granted_scopes: 'true',
     prompt: 'consent',
     state: encodeOAuthState(userId),
   });
@@ -785,6 +795,7 @@ async function refreshGoogleAccessToken(userId, token) {
   const refreshed = {
     ...token,
     ...response.data,
+    scope: response.data.scope || token.scope,
     refresh_token: response.data.refresh_token || token.refresh_token,
     expires_at: Date.now() + Number(response.data.expires_in || 3600) * 1000,
   };
@@ -1184,7 +1195,13 @@ async function listGoogleCalendarItems(userId, range) {
     return { events: sortCalendarItems([...(eventsResult.events || []), ...(tasksResult.tasks || [])]) };
   } catch (error) {
     if (isGoogleInsufficientScopeError(error)) {
-      return { events: eventsResult.events || [], needsTasksReconnect: true };
+      const storedToken = getStoredGoogleToken(userId);
+      return {
+        events: eventsResult.events || [],
+        needsTasksReconnect: true,
+        tasksScopeGranted: hasGoogleTasksScope(storedToken),
+        tasksScopeCheckedAt: storedToken?.connected_at || null,
+      };
     }
     console.error('[google-tasks] list failed:', { message: error.message, code: error.code, status: error.response?.status });
     return { events: eventsResult.events || [], tasksFailed: true };
@@ -1271,6 +1288,17 @@ async function answerCalendarReadRequest(message, userId, req) {
     const cardTitle = formatCalendarCardTitle(range.label);
     if (result.needsTasksReconnect) {
       const authUrl = buildGoogleConnectUrl(userId, req);
+      const reconnectedAt = result.tasksScopeCheckedAt ? Date.parse(result.tasksScopeCheckedAt) : 0;
+      const wasRecentlyReconnected = Number.isFinite(reconnectedAt) && reconnectedAt > Date.now() - 10 * 60 * 1000;
+      if (wasRecentlyReconnected || result.tasksScopeGranted === false) {
+        return {
+          answer: `방금 구글 연결은 저장됐는데, Google Tasks 권한이 실제 토큰에 붙지 않았어. 그래서 Calendar 앱의 파란 체크 할 일은 아직 못 읽고, ${cardTitle}의 일반 캘린더 일정은 비어 있어.\nGoogle Cloud OAuth 동의 화면에 Tasks scope가 허용돼 있는지 서버 쪽에서 다시 확인할게.`,
+          quickReplies: [],
+          plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_tasks_scope_not_granted' },
+          results: [],
+          calendarCard: { label: cardTitle, mode: detailMode ? 'detail' : 'summary', summaryText: 'Tasks 권한 필요', events: [] },
+        };
+      }
       return {
         answer: `Google Calendar 앱에 보이는 체크 표시 할 일까지 읽으려면 Google Tasks 권한이 추가로 필요해. 아래 링크로 한 번만 다시 연결한 뒤 같은 문장으로 물어봐줘.\n${authUrl}`,
         quickReplies: [{ label: '구글 재연결', action: 'webLink', webLinkUrl: authUrl }],
@@ -1765,13 +1793,18 @@ app.get('/auth/google/callback', async (req, res) => {
     if (!isCalendarUserAllowed(userId)) return res.status(403).type('text/plain').send('이 카카오 사용자는 Google Calendar 연결이 허용되지 않았습니다.');
     const token = await exchangeGoogleCodeForToken(req.query.code, getGoogleRedirectUri(req));
     const tokens = loadGoogleTokens();
+    const grantedScope = token.scope || tokens[userId]?.scope || '';
     tokens[userId] = {
       ...token,
+      scope: grantedScope,
       refresh_token: token.refresh_token || tokens[userId]?.refresh_token,
       expires_at: Date.now() + Number(token.expires_in || 3600) * 1000,
       connected_at: new Date().toISOString(),
     };
     saveGoogleTokens(tokens);
+    if (grantedScope && !hasGoogleTasksScope(tokens[userId])) {
+      return res.type('html').send('<h1>Google Calendar connected</h1><p>캘린더 연결은 완료됐지만 Google Tasks 권한은 토큰에 포함되지 않았습니다. 카카오톡으로 돌아가서 다시 물어보면 캘린더 일정만 먼저 확인할 수 있습니다.</p>');
+    }
     return res.type('html').send('<h1>Google Calendar connected</h1><p>카카오톡으로 돌아가서 일정 조회나 등록을 다시 요청해 주세요.</p>');
   } catch (error) {
     console.error('[google-calendar] oauth callback failed:', { message: error.message, status: error.response?.status });
