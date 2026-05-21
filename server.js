@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21v-calendar-full-card-range-filter';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21w-calendar-bare-day-next-month';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1063,6 +1063,10 @@ function parseCalendarQueryRange(message) {
   } else if (dayOnly) {
     start = getKoreaMonthStart(monthOffset);
     start.setDate(Number(dayOnly[1]));
+    if (monthOffset === 0 && start < getKoreaDayStart(0)) {
+      start = getKoreaMonthStart(1);
+      start.setDate(Number(dayOnly[1]));
+    }
     label = formatKoreaDateLabel(start);
   } else if (monthOnly) {
     start = getKoreaMonthStart(0);
@@ -2105,4 +2109,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, renderCalendarCardPng, renderCalendarCardSvg };
+module.exports = { app, renderCalendarCardPng, renderCalendarCardSvg, parseCalendarQueryRange, isCalendarItemInRange };
