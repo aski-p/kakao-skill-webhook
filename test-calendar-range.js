@@ -46,6 +46,13 @@ const event = parseCalendarEvent('다음주 월요일 오전 11시 우체국 보
 assert.equal(event.summary, '우체국 보험 접수');
 assert.equal(event.start, '2026-05-25T11:00:00+09:00');
 assert.equal(event.end, '2026-05-25T12:00:00+09:00');
+assert.equal(event.allDay, false);
+
+const dayOnlyEvent = parseCalendarEvent('27일 신생아특례대출 일정 등록해줘');
+assert.equal(dayOnlyEvent.summary, '신생아특례대출');
+assert.equal(dayOnlyEvent.startDate, '2026-05-27');
+assert.equal(dayOnlyEvent.endDate, '2026-05-28');
+assert.equal(dayOnlyEvent.allDay, true);
 
 assert.equal(
   isCalendarItemInRange({ start: { date: '2026-05-11' }, end: { date: '2026-05-12' }, summary: '전날 종일 일정' }, range),

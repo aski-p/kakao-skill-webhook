@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21at-large-month-card';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21au-day-only-event';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1556,35 +1556,56 @@ function parseCalendarEvent(message) {
 
   const monthDay = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
   const isoDate = text.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const dayOnly = text.match(/(?<!월\s*)(\d{1,2})\s*일/);
   const relativeWeekdayDate = resolveRelativeWeekdayDate(text);
+  let hasExplicitDate = false;
   if (isoDate) {
     start.setFullYear(Number(isoDate[1]), Number(isoDate[2]) - 1, Number(isoDate[3]));
+    hasExplicitDate = true;
   } else if (monthDay) {
     start.setMonth(Number(monthDay[1]) - 1, Number(monthDay[2]));
+    hasExplicitDate = true;
   } else if (relativeWeekdayDate) {
     start.setFullYear(relativeWeekdayDate.getFullYear(), relativeWeekdayDate.getMonth(), relativeWeekdayDate.getDate());
+    hasExplicitDate = true;
+  } else if (dayOnly) {
+    start.setDate(Number(dayOnly[1]));
+    hasExplicitDate = true;
   } else if (/모레/.test(text)) {
     start.setDate(start.getDate() + 2);
+    hasExplicitDate = true;
   } else if (/내일/.test(text)) {
     start.setDate(start.getDate() + 1);
+    hasExplicitDate = true;
+  } else if (/오늘/.test(text)) {
+    hasExplicitDate = true;
   }
 
   const time = text.match(/(오전|오후|저녁|밤|아침)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분(?!\s*(?:전|전에|전쯤)))?/);
-  if (!time) return { error: '시간을 못 찾았어. 예: 내일 오후 3시에 병원 일정 추가해줘' };
+  const allDay = !time && hasExplicitDate;
+  if (!time && !allDay) return { error: '시간을 못 찾았어. 예: 내일 오후 3시에 병원 일정 추가해줘' };
 
-  let hour = Number(time[2]);
-  const minute = Number(time[3] || 0);
-  if (/(오후|저녁|밤)/.test(time[1] || '') && hour < 12) hour += 12;
-  if (/오전/.test(time[1] || '') && hour === 12) hour = 0;
-  start.setHours(hour, minute, 0, 0);
+  if (time) {
+    let hour = Number(time[2]);
+    const minute = Number(time[3] || 0);
+    if (/(오후|저녁|밤)/.test(time[1] || '') && hour < 12) hour += 12;
+    if (/오전/.test(time[1] || '') && hour === 12) hour = 0;
+    start.setHours(hour, minute, 0, 0);
+  } else {
+    start.setHours(0, 0, 0, 0);
+  }
 
   const end = new Date(start);
-  end.setHours(end.getHours() + 1);
+  if (allDay) {
+    end.setDate(end.getDate() + 1);
+  } else {
+    end.setHours(end.getHours() + 1);
+  }
 
   const reminderMinutes = Number(text.match(/(\d{1,3})\s*분\s*(?:전|전에|전쯤)/)?.[1] || 0);
   let title = normalizeText(text
     .replace(/\d{1,3}\s*분\s*(?:전|전에|전쯤)/g, ' ')
-    .replace(/(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|오늘|내일|모레|이번\s*주|이번주|다음\s*주|다음주|내주|다\s*다음\s*주|다다음주|다음\s*다음\s*주|차\s*주|저번\s*주|저번주|지난\s*주|지난주|이전\s*주|이전주|(월|화|수|목|금|토|일)\s*요일|오전|오후|저녁|밤|아침|\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?)/g, ' ')
+    .replace(/(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|(?<!월\s*)\d{1,2}\s*일|오늘|내일|모레|이번\s*주|이번주|다음\s*주|다음주|내주|다\s*다음\s*주|다다음주|다음\s*다음\s*주|차\s*주|저번\s*주|저번주|지난\s*주|지난주|이전\s*주|이전주|(월|화|수|목|금|토|일)\s*요일|오전|오후|저녁|밤|아침|\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?)/g, ' ')
     .replace(/(구글|google|캘린더|calendar|일정|예약|스케줄|등록|추가|생성|만들어줘|만들|잡아줘|잡아|넣어줘|넣어|해줘|좀|에|으로|로|나한테|내게|저한테|알림|알려줘|알려줄|수\s*있어|줘)/g, ' ')
     .replace(/[?？！!,.]/g, ' ')
     .replace(/\s+/g, ' ')
@@ -1595,6 +1616,9 @@ function parseCalendarEvent(message) {
     summary: title,
     start: formatKoreaDateTime(start),
     end: formatKoreaDateTime(end),
+    startDate: formatKoreaDateOnly(start),
+    endDate: formatKoreaDateOnly(end),
+    allDay,
     reminderMinutes: reminderMinutes > 0 ? reminderMinutes : null,
   };
 }
@@ -2096,10 +2120,18 @@ async function createGoogleCalendarEvent(userId, event) {
   if (!storedToken) return { needsAuth: true };
   const token = await refreshGoogleAccessToken(userId, storedToken);
 
+  const eventTime = event.allDay
+    ? {
+      start: { date: event.startDate },
+      end: { date: event.endDate },
+    }
+    : {
+      start: { dateTime: event.start, timeZone: 'Asia/Seoul' },
+      end: { dateTime: event.end, timeZone: 'Asia/Seoul' },
+    };
   const response = await axios.post('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
     summary: event.summary,
-    start: { dateTime: event.start, timeZone: 'Asia/Seoul' },
-    end: { dateTime: event.end, timeZone: 'Asia/Seoul' },
+    ...eventTime,
     reminders: event.reminderMinutes
       ? { useDefault: false, overrides: [{ method: 'popup', minutes: event.reminderMinutes }] }
       : { useDefault: true },
@@ -2157,7 +2189,7 @@ async function answerCalendarWriteRequest(message, userId, req) {
   }
 
   return {
-    answer: `구글 캘린더에 추가했어.\n${event.summary}\n${event.start.replace('T', ' ').replace(':00+09:00', '')}${event.reminderMinutes ? `\n${event.reminderMinutes}분 전 알림도 같이 설정했어.` : ''}`,
+    answer: `구글 캘린더에 추가했어.\n${event.summary}\n${event.allDay ? `${event.startDate} 종일` : event.start.replace('T', ' ').replace(':00+09:00', '')}${event.reminderMinutes ? `\n${event.reminderMinutes}분 전 알림도 같이 설정했어.` : ''}`,
     quickReplies: [],
     plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_event_created' },
     results: [result.event],
