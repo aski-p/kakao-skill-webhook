@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21as-month-card-readable';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21at-large-month-card';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -525,10 +525,10 @@ function getMonthlyCalendarCardDays(range, groupedEvents) {
       date: dateText,
       day: date.getUTCDate(),
       inMonth: date.getUTCMonth() === month - 1,
-      events: events.slice(0, 2).map((event) => ({
-        title: truncateForCard(getGoogleCalendarItemTitle(event), 8),
+      events: events.slice(0, 3).map((event) => ({
+        title: truncateForCard(getGoogleCalendarItemTitle(event), 12),
       })),
-      extraCount: Math.max(events.length - 2, 0),
+      extraCount: Math.max(events.length - 3, 0),
     });
   }
   return days;
@@ -741,16 +741,16 @@ function renderMonthlyCalendarCardSvg(card) {
   const timestamp = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'full' }).format(new Date());
   const days = card.monthDays || [];
   const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-  const cellWidth = 104;
-  const cellHeight = 94;
-  const left = 36;
-  const top = 296;
+  const cellWidth = 126;
+  const cellHeight = 122;
+  const left = 58;
+  const top = 330;
   const rows = Math.max(5, Math.ceil(days.length / 7));
-  const width = 800;
-  const height = 350 + rows * cellHeight;
+  const width = 1000;
+  const height = 396 + rows * cellHeight;
   const weekdayNodes = weekdays.map((day, index) => {
     const color = index === 0 ? '#E34A6F' : index === 6 ? '#2870C8' : theme.muted;
-    return `<text x="${left + index * cellWidth + cellWidth / 2}" y="274" text-anchor="middle" fill="${color}" font-size="20" font-weight="900">${day}</text>`;
+    return `<text x="${left + index * cellWidth + cellWidth / 2}" y="305" text-anchor="middle" fill="${color}" font-size="24" font-weight="900">${day}</text>`;
   }).join('');
   const dayNodes = days.map((day, index) => {
     const col = index % 7;
@@ -758,14 +758,14 @@ function renderMonthlyCalendarCardSvg(card) {
     const x = left + col * cellWidth;
     const y = top + row * cellHeight;
     const eventNodes = day.events.map((event, eventIndex) => {
-      const eventY = y + 42 + eventIndex * 18;
-      return `<rect x="${x + 9}" y="${eventY}" width="${cellWidth - 26}" height="15" rx="7" fill="${theme.accentSoft}"/>
-        <text x="${x + 15}" y="${eventY + 12}" fill="${theme.text}" font-size="11" font-weight="900">${escapeXml(event.title)}</text>`;
+      const eventY = y + 46 + eventIndex * 23;
+      return `<rect x="${x + 10}" y="${eventY}" width="${cellWidth - 26}" height="19" rx="9" fill="${theme.accentSoft}"/>
+        <text x="${x + 17}" y="${eventY + 14}" fill="${theme.text}" font-size="13" font-weight="900">${escapeXml(event.title)}</text>`;
     }).join('');
-    const extraNode = day.extraCount > 0 ? `<text x="${x + 12}" y="${y + 91}" fill="${theme.muted}" font-size="11" font-weight="900">+${day.extraCount}</text>` : '';
+    const extraNode = day.extraCount > 0 ? `<text x="${x + 14}" y="${y + 114}" fill="${theme.muted}" font-size="13" font-weight="900">+${day.extraCount}</text>` : '';
     return `<g>
-      <rect x="${x}" y="${y}" width="${cellWidth - 8}" height="${cellHeight - 8}" rx="15" fill="${day.inMonth ? '#FFFFFF' : '#F2F4F7'}" stroke="#E4E8EF"/>
-      <text x="${x + 14}" y="${y + 28}" fill="${day.inMonth ? theme.text : '#A1A8B3'}" font-size="18" font-weight="900">${day.day}</text>
+      <rect x="${x}" y="${y}" width="${cellWidth - 10}" height="${cellHeight - 10}" rx="17" fill="${day.inMonth ? '#FFFFFF' : '#F2F4F7'}" stroke="#E4E8EF"/>
+      <text x="${x + 16}" y="${y + 32}" fill="${day.inMonth ? theme.text : '#A1A8B3'}" font-size="22" font-weight="900">${day.day}</text>
       ${eventNodes}
       ${extraNode}
     </g>`;
@@ -787,15 +787,15 @@ function renderMonthlyCalendarCardSvg(card) {
     </filter>
   </defs>
   <rect width="${width}" height="${height}" fill="${theme.background}"/>
-  <rect x="28" y="28" width="744" height="${height - 56}" rx="32" fill="${theme.panel}" stroke="${theme.shellBorder}" filter="url(#shadow)"/>
-  <rect x="48" y="48" width="704" height="178" rx="26" fill="${theme.hero}" stroke="${theme.heroBorder}"/>
-  <rect x="48" y="48" width="16" height="178" fill="${theme.accent}"/>
-  <rect x="88" y="74" width="164" height="36" rx="18" fill="${theme.labelBg}"/>
-  <text x="104" y="98" fill="${theme.labelText}" font-size="18" font-weight="900">GOOGLE CALENDAR</text>
-  <text x="88" y="160" fill="#FFFFFF" font-size="45" font-weight="900">${escapeXml(card.label || '월간 일정')}</text>
-  <text x="90" y="203" fill="${theme.heroMuted}" font-size="20" font-weight="700">${escapeXml(timestamp)}</text>
-  <rect x="606" y="68" width="132" height="132" rx="38" fill="${theme.portraitBg}" stroke="${theme.labelBg}" stroke-width="5"/>
-  <rect x="640" y="207" width="62" height="8" rx="4" fill="${theme.accent}"/>
+  <rect x="34" y="34" width="932" height="${height - 68}" rx="36" fill="${theme.panel}" stroke="${theme.shellBorder}" filter="url(#shadow)"/>
+  <rect x="58" y="58" width="884" height="204" rx="28" fill="${theme.hero}" stroke="${theme.heroBorder}"/>
+  <rect x="58" y="58" width="18" height="204" fill="${theme.accent}"/>
+  <rect x="108" y="88" width="190" height="40" rx="20" fill="${theme.labelBg}"/>
+  <text x="126" y="115" fill="${theme.labelText}" font-size="20" font-weight="900">GOOGLE CALENDAR</text>
+  <text x="108" y="184" fill="#FFFFFF" font-size="54" font-weight="900">${escapeXml(card.label || '월간 일정')}</text>
+  <text x="110" y="232" fill="${theme.heroMuted}" font-size="23" font-weight="700">${escapeXml(timestamp)}</text>
+  <rect x="768" y="80" width="158" height="158" rx="44" fill="${theme.portraitBg}" stroke="${theme.labelBg}" stroke-width="6"/>
+  <rect x="808" y="248" width="78" height="10" rx="5" fill="${theme.accent}"/>
   ${weekdayNodes}
   ${dayNodes}
   <text x="52" y="${height - 34}" fill="${theme.muted}" font-size="19" font-weight="900">${escapeXml(card.summaryText || '월간 일정표')}</text>
@@ -808,24 +808,24 @@ async function renderMonthlyCalendarCardVectorSvg(card) {
   const timestamp = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'full' }).format(new Date());
   const days = card.monthDays || [];
   const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-  const cellWidth = 104;
-  const cellHeight = 94;
-  const left = 36;
-  const top = 296;
+  const cellWidth = 126;
+  const cellHeight = 122;
+  const left = 58;
+  const top = 330;
   const rows = Math.max(5, Math.ceil(days.length / 7));
-  const width = 800;
-  const height = 350 + rows * cellHeight;
+  const width = 1000;
+  const height = 396 + rows * cellHeight;
   const weekdayNodes = weekdays.map((day, index) => {
     const color = index === 0 ? '#E34A6F' : index === 6 ? '#2870C8' : theme.muted;
     return h('div', {
       style: {
         position: 'absolute',
         left: left + index * cellWidth,
-        top: 250,
-        width: cellWidth - 8,
-        height: 28,
+        top: 276,
+        width: cellWidth - 10,
+        height: 34,
         color,
-        fontSize: 20,
+        fontSize: 24,
         fontWeight: 900,
         alignItems: 'center',
         justifyContent: 'center',
@@ -838,20 +838,20 @@ async function renderMonthlyCalendarCardVectorSvg(card) {
     const x = left + col * cellWidth;
     const y = top + row * cellHeight;
     const eventNodes = day.events.map((event, eventIndex) => {
-      const eventY = 42 + eventIndex * 18;
+      const eventY = 46 + eventIndex * 23;
       return h('div', {
         style: {
           position: 'absolute',
-          left: 9,
+          left: 10,
           top: eventY,
           width: cellWidth - 26,
-          height: 15,
-          borderRadius: 7,
+          height: 19,
+          borderRadius: 9,
           backgroundColor: theme.accentSoft,
           color: theme.text,
-          fontSize: 11,
+          fontSize: 13,
           fontWeight: 900,
-          paddingLeft: 6,
+          paddingLeft: 7,
           alignItems: 'center',
           overflow: 'hidden',
         },
@@ -861,10 +861,10 @@ async function renderMonthlyCalendarCardVectorSvg(card) {
       ? h('div', {
         style: {
           position: 'absolute',
-          left: 12,
-          top: 74,
+          left: 14,
+          top: 93,
           color: theme.muted,
-          fontSize: 11,
+          fontSize: 13,
           fontWeight: 900,
         },
       }, `+${day.extraCount}`)
@@ -874,9 +874,9 @@ async function renderMonthlyCalendarCardVectorSvg(card) {
         position: 'absolute',
         left: x,
         top: y,
-        width: cellWidth - 8,
-        height: cellHeight - 8,
-        borderRadius: 15,
+        width: cellWidth - 10,
+        height: cellHeight - 10,
+        borderRadius: 17,
         backgroundColor: day.inMonth ? '#FFFFFF' : '#F2F4F7',
         border: '1px solid #E4E8EF',
         display: 'flex',
@@ -885,10 +885,10 @@ async function renderMonthlyCalendarCardVectorSvg(card) {
       h('div', {
         style: {
           position: 'absolute',
-          left: 14,
-          top: 10,
+          left: 16,
+          top: 11,
           color: day.inMonth ? theme.text : '#A1A8B3',
-          fontSize: 18,
+          fontSize: 22,
           fontWeight: 900,
         },
       }, String(day.day)),
@@ -909,14 +909,14 @@ async function renderMonthlyCalendarCardVectorSvg(card) {
         display: 'flex',
       },
     },
-      h('div', { style: { position: 'absolute', left: 28, top: 28, width: 744, height: height - 56, borderRadius: 32, backgroundColor: theme.panel, border: `1px solid ${theme.shellBorder}`, display: 'flex', boxShadow: `0 20px 48px ${theme.shadow}` } }),
-      h('div', { style: { position: 'absolute', left: 48, top: 48, width: 704, height: 178, borderRadius: 26, backgroundColor: theme.hero, border: `1px solid ${theme.heroBorder}`, display: 'flex', overflow: 'hidden' } }),
-      h('div', { style: { position: 'absolute', left: 48, top: 48, width: 16, height: 178, backgroundColor: theme.accent } }),
-      h('div', { style: { position: 'absolute', left: 88, top: 74, width: 164, height: 36, borderRadius: 18, backgroundColor: theme.labelBg, color: theme.labelText, fontSize: 18, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, 'GOOGLE CALENDAR'),
-      h('div', { style: { position: 'absolute', left: 88, top: 136, width: 470, color: '#FFFFFF', fontSize: 45, fontWeight: 900, lineHeight: 1.08 } }, card.label || '월간 일정'),
-      h('div', { style: { position: 'absolute', left: 90, top: 188, width: 440, color: theme.heroMuted, fontSize: 20, fontWeight: 700 } }, timestamp),
-      h('div', { style: { position: 'absolute', left: 606, top: 68, width: 132, height: 132, borderRadius: 38, backgroundColor: theme.portraitBg, border: `5px solid ${theme.labelBg}`, display: 'flex' } }),
-      h('div', { style: { position: 'absolute', left: 640, top: 207, width: 62, height: 8, borderRadius: 4, backgroundColor: theme.accent } }),
+      h('div', { style: { position: 'absolute', left: 34, top: 34, width: 932, height: height - 68, borderRadius: 36, backgroundColor: theme.panel, border: `1px solid ${theme.shellBorder}`, display: 'flex', boxShadow: `0 20px 48px ${theme.shadow}` } }),
+      h('div', { style: { position: 'absolute', left: 58, top: 58, width: 884, height: 204, borderRadius: 28, backgroundColor: theme.hero, border: `1px solid ${theme.heroBorder}`, display: 'flex', overflow: 'hidden' } }),
+      h('div', { style: { position: 'absolute', left: 58, top: 58, width: 18, height: 204, backgroundColor: theme.accent } }),
+      h('div', { style: { position: 'absolute', left: 108, top: 88, width: 190, height: 40, borderRadius: 20, backgroundColor: theme.labelBg, color: theme.labelText, fontSize: 20, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, 'GOOGLE CALENDAR'),
+      h('div', { style: { position: 'absolute', left: 108, top: 150, width: 580, color: '#FFFFFF', fontSize: 54, fontWeight: 900, lineHeight: 1.08 } }, card.label || '월간 일정'),
+      h('div', { style: { position: 'absolute', left: 110, top: 210, width: 560, color: theme.heroMuted, fontSize: 23, fontWeight: 700 } }, timestamp),
+      h('div', { style: { position: 'absolute', left: 768, top: 80, width: 158, height: 158, borderRadius: 44, backgroundColor: theme.portraitBg, border: `6px solid ${theme.labelBg}`, display: 'flex' } }),
+      h('div', { style: { position: 'absolute', left: 808, top: 248, width: 78, height: 10, borderRadius: 5, backgroundColor: theme.accent } }),
       weekdayNodes,
       dayNodes,
       h('div', { style: { position: 'absolute', left: 52, top: height - 58, width: 680, color: theme.muted, fontSize: 19, fontWeight: 900 } }, card.summaryText || '월간 일정표'),
@@ -937,14 +937,14 @@ async function renderCalendarCardPng(card) {
   const isMonthMode = card.mode === 'month';
   const portraitBuffer = getCalendarCardPortraitBuffer(card);
   if (portraitBuffer) {
-    const portraitSize = isMonthMode ? 132 : 136;
+    const portraitSize = isMonthMode ? 158 : 136;
     const portraitMask = Buffer.from(`<svg width="${portraitSize}" height="${portraitSize}" viewBox="0 0 ${portraitSize} ${portraitSize}"><rect width="${portraitSize}" height="${portraitSize}" rx="30" fill="#fff"/></svg>`);
     const character = await sharp(portraitBuffer)
       .resize(portraitSize, portraitSize, { fit: 'cover', position: 'center' })
       .composite([{ input: portraitMask, blend: 'dest-in' }])
       .png()
       .toBuffer();
-    composites.push({ input: character, left: isMonthMode ? 606 : 578, top: isMonthMode ? 68 : 82 });
+    composites.push({ input: character, left: isMonthMode ? 768 : 578, top: isMonthMode ? 80 : 82 });
   }
   const baseSvg = card.mode === 'month'
     ? CALENDAR_FONT_BUFFER
