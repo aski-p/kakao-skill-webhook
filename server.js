@@ -6,12 +6,11 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
-const { createClient } = require('@supabase/supabase-js');
 const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21p-google-token-store-diagnostics';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21q-google-token-store-rest';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -155,21 +154,36 @@ function getTokenStoreSupabase() {
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.supabase_service_role_key;
   if (!supabaseUrl || !supabaseKey) return null;
   if (!tokenStoreSupabase) {
-    tokenStoreSupabase = createClient(supabaseUrl, supabaseKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    tokenStoreSupabase = {
+      url: String(supabaseUrl).replace(/\/+$/, ''),
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+      },
+    };
   }
   return tokenStoreSupabase;
 }
 
 async function ensureTokenStoreBucket(supabase) {
   if (tokenStoreBucketReady) return true;
-  const { error } = await supabase.storage.createBucket(GOOGLE_TOKEN_STORE_BUCKET, {
-    public: false,
-    allowedMimeTypes: ['application/json'],
-  });
-  if (error && !/already exists|Duplicate/i.test(error.message || '')) {
-    console.error('[google-calendar] token bucket create failed:', error.message);
+  try {
+    await axios.post(
+      `${supabase.url}/storage/v1/bucket`,
+      {
+        id: GOOGLE_TOKEN_STORE_BUCKET,
+        name: GOOGLE_TOKEN_STORE_BUCKET,
+        public: false,
+        allowed_mime_types: ['application/json'],
+      },
+      { headers: supabase.headers, timeout: 2500 }
+    );
+  } catch (error) {
+    const status = error.response?.status;
+    const message = error.response?.data?.message || error.response?.data?.error || error.message;
+    if (status !== 400 && status !== 409 && !/already exists|Duplicate/i.test(String(message || ''))) {
+      console.error('[google-calendar] token bucket create failed:', message);
+    }
   }
   tokenStoreBucketReady = true;
   return true;
@@ -183,21 +197,19 @@ async function loadGoogleTokensAsync() {
   }
 
   try {
-    const { data, error } = await supabase.storage
-      .from(GOOGLE_TOKEN_STORE_BUCKET)
-      .download(GOOGLE_TOKEN_STORE_OBJECT);
-    if (error) {
-      if (!/not found|does not exist|No such/i.test(error.message || '')) {
-        console.error('[google-calendar] token storage load failed:', error.message);
-      }
-      lastGoogleTokenStoreStatus = { mode: 'supabase', ok: false, message: error.message || 'download_failed', at: new Date().toISOString() };
-      return loadGoogleTokens();
-    }
+    const { data } = await axios.get(
+      `${supabase.url}/storage/v1/object/${encodeURIComponent(GOOGLE_TOKEN_STORE_BUCKET)}/${encodeURIComponent(GOOGLE_TOKEN_STORE_OBJECT)}`,
+      { headers: supabase.headers, timeout: 2500, responseType: 'json' }
+    );
     lastGoogleTokenStoreStatus = { mode: 'supabase', ok: true, message: 'downloaded', at: new Date().toISOString() };
-    return JSON.parse(await data.text());
+    return data || {};
   } catch (error) {
-    console.error('[google-calendar] token storage parse failed:', error.message);
-    lastGoogleTokenStoreStatus = { mode: 'supabase', ok: false, message: error.message || 'parse_failed', at: new Date().toISOString() };
+    const status = error.response?.status;
+    const message = error.response?.data?.message || error.response?.data?.error || error.message;
+    if (status !== 404) {
+      console.error('[google-calendar] token storage load failed:', message);
+    }
+    lastGoogleTokenStoreStatus = { mode: 'supabase', ok: false, message: message || 'download_failed', at: new Date().toISOString() };
     return loadGoogleTokens();
   }
 }
@@ -212,20 +224,25 @@ async function saveGoogleTokensAsync(tokens) {
 
   try {
     await ensureTokenStoreBucket(supabase);
-    const { error } = await supabase.storage
-      .from(GOOGLE_TOKEN_STORE_BUCKET)
-      .upload(
-        GOOGLE_TOKEN_STORE_OBJECT,
-        Buffer.from(JSON.stringify(tokens, null, 2)),
-        { contentType: 'application/json', upsert: true }
-      );
-    if (error) throw error;
+    await axios.post(
+      `${supabase.url}/storage/v1/object/${encodeURIComponent(GOOGLE_TOKEN_STORE_BUCKET)}/${encodeURIComponent(GOOGLE_TOKEN_STORE_OBJECT)}`,
+      JSON.stringify(tokens, null, 2),
+      {
+        headers: {
+          ...supabase.headers,
+          'content-type': 'application/json',
+          'x-upsert': 'true',
+        },
+        timeout: 2500,
+      }
+    );
     lastGoogleTokenStoreStatus = { mode: 'supabase', ok: true, message: 'uploaded', at: new Date().toISOString() };
     return true;
   } catch (error) {
-    console.error('[google-calendar] token storage save failed:', error.message);
+    const message = error.response?.data?.message || error.response?.data?.error || error.message;
+    console.error('[google-calendar] token storage save failed:', message);
     saveGoogleTokens(tokens);
-    lastGoogleTokenStoreStatus = { mode: 'file', ok: false, message: error.message || 'upload_failed', at: new Date().toISOString() };
+    lastGoogleTokenStoreStatus = { mode: 'file', ok: false, message: message || 'upload_failed', at: new Date().toISOString() };
     return false;
   }
 }
