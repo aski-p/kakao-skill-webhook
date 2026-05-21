@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21af-weekly-calendar-fast-text';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ag-kakao-hard-timeout';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -20,8 +20,10 @@ const CLAUDE_FALLBACK_MODELS = ['claude-3-5-haiku-20241022', 'claude-3-haiku-202
 const CLAUDE_PLANNER_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_PLANNER_TIMEOUT_MS || 1800), 1000);
 const CLAUDE_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_TIMEOUT_MS || 4400), 4400);
 const KAKAO_MAX_RESPONSE_LENGTH = Number(process.env.KAKAO_MAX_RESPONSE_LENGTH || 1000);
-const GOOGLE_CALENDAR_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_TIMEOUT_MS || 3200), 1500), 4200);
-const GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS || 3400), 1800), 3800);
+const KAKAO_HANDLER_TIMEOUT_MS = Math.min(Math.max(Number(process.env.KAKAO_HANDLER_TIMEOUT_MS || 3600), 2200), 4200);
+const GOOGLE_TOKEN_STORE_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_TOKEN_STORE_TIMEOUT_MS || 800), 300), 1500);
+const GOOGLE_CALENDAR_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_TIMEOUT_MS || 1800), 800), 2500);
+const GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS || 1800), 900), 2400);
 
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
@@ -246,7 +248,7 @@ async function loadGoogleTokensAsync() {
   try {
     const { data } = await axios.get(
       `${supabase.url}/storage/v1/object/${encodeURIComponent(GOOGLE_TOKEN_STORE_BUCKET)}/${encodeURIComponent(GOOGLE_TOKEN_STORE_OBJECT)}`,
-      { headers: supabase.headers, timeout: 2500, responseType: 'json' }
+      { headers: supabase.headers, timeout: GOOGLE_TOKEN_STORE_TIMEOUT_MS, responseType: 'json' }
     );
     lastGoogleTokenStoreStatus = { mode: 'supabase', ok: true, message: 'downloaded', at: new Date().toISOString() };
     return data || {};
@@ -284,7 +286,7 @@ async function saveGoogleTokensAsync(tokens) {
           'content-type': 'application/json',
           'x-upsert': 'true',
         },
-        timeout: 2500,
+        timeout: GOOGLE_TOKEN_STORE_TIMEOUT_MS,
       }
     );
     lastGoogleTokenStoreStatus = { mode: 'supabase', ok: true, message: 'uploaded', at: new Date().toISOString() };
@@ -2247,7 +2249,20 @@ async function handleKakaoSkill(req, res) {
 
   try {
     remember(userId, 'user', message);
-    const { answer, quickReplies, plan, results, calendarCard } = await buildAnswer(message, userId, req);
+    const timeoutAnswer = {
+      answer: isCalendarReadRequest(message)
+        ? '구글 일정 확인이 늦어지고 있어. 잠시 후 같은 문장으로 다시 보내줘.'
+        : '응답이 늦어지고 있어. 방금 질문 그대로 한 번만 다시 보내줘.',
+      quickReplies: [],
+      plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.5, source: 'kakao_handler_timeout' },
+      results: [],
+      calendarCard: null,
+    };
+    const { answer, quickReplies, plan, results, calendarCard } = await withTimeout(
+      buildAnswer(message, userId, req),
+      KAKAO_HANDLER_TIMEOUT_MS,
+      timeoutAnswer,
+    );
     remember(userId, 'assistant', answer);
     console.log(`[kakao] ${Date.now() - startedAt}ms intent=${plan.intent} source=${plan.source} results=${results.length} query=${plan.searchQuery || ''}`);
     if (calendarCard) {
