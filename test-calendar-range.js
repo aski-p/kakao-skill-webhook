@@ -1,5 +1,12 @@
 const assert = require('node:assert/strict');
-const { parseCalendarQueryRange, isCalendarItemInRange, formatGoogleCalendarEvent } = require('./server');
+const {
+  parseCalendarQueryRange,
+  isCalendarItemInRange,
+  formatGoogleCalendarEvent,
+  groupGoogleCalendarEventsByDate,
+  formatWeeklyCalendarSummaryAnswer,
+  formatWeeklyCalendarCardEvents,
+} = require('./server');
 
 const range = parseCalendarQueryRange('12일 일정 알려줘');
 
@@ -7,6 +14,12 @@ assert.equal(range.startDate, '2026-05-12');
 assert.equal(range.endDate, '2026-05-13');
 assert.equal(range.timeMin, '2026-05-12T00:00:00+09:00');
 assert.equal(range.timeMax, '2026-05-13T00:00:00+09:00');
+
+const nextWeekRange = parseCalendarQueryRange('다음주 일정 알려줘');
+assert.equal(nextWeekRange.label, '다음 주');
+assert.equal(nextWeekRange.days, 7);
+assert.equal(nextWeekRange.startDate, '2026-05-25');
+assert.equal(nextWeekRange.endDate, '2026-06-01');
 
 assert.equal(
   isCalendarItemInRange({ start: { date: '2026-05-11' }, end: { date: '2026-05-12' }, summary: '전날 종일 일정' }, range),
@@ -41,5 +54,31 @@ assert.equal(
   formatGoogleCalendarEvent({ start: { dateTime: '2026-05-12T09:00:00+09:00' }, end: { dateTime: '2026-05-12T10:00:00+09:00' }, summary: '병원' }, 2),
   '3. 병원 (09:00-10:00)',
 );
+
+const weeklyItems = [
+  { kind: 'tasks#task', due: '2026-05-25T00:00:00.000Z', title: '티비 설치' },
+  { kind: 'tasks#task', due: '2026-05-25T00:00:00.000Z', title: 'KT 전화' },
+  { start: { date: '2026-05-26' }, end: { date: '2026-05-27' }, summary: '공부' },
+  { start: { dateTime: '2026-05-26T14:00:00+09:00' }, end: { dateTime: '2026-05-26T15:00:00+09:00' }, summary: '병원' },
+  { kind: 'tasks#task', due: '2026-05-26T00:00:00.000Z', title: '서류 정리' },
+];
+const weeklyGroups = groupGoogleCalendarEventsByDate(weeklyItems);
+assert.equal(
+  formatWeeklyCalendarSummaryAnswer(nextWeekRange, weeklyGroups),
+  [
+    '다음 주 시간표',
+    '월요일은 티비 설치 외 1건',
+    '화요일은 공부 외 2건',
+    '수요일은 일정 없음',
+    '목요일은 일정 없음',
+    '금요일은 일정 없음',
+    '토요일은 일정 없음',
+    '일요일은 일정 없음',
+  ].join('\n'),
+);
+assert.deepEqual(formatWeeklyCalendarCardEvents(nextWeekRange, weeklyGroups).slice(0, 2), [
+  { time: '5. 25. (월)', title: '티비 설치 외 1건' },
+  { time: '5. 26. (화)', title: '공부 외 2건' },
+]);
 
 console.log('calendar range tests passed');

@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ad-fast-meal-chat';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ae-weekly-calendar-summary';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -371,6 +371,15 @@ function formatCalendarDateShort(dateText) {
   }).format(date);
 }
 
+function formatCalendarWeekdayName(dateText) {
+  if (!dateText) return '날짜미정';
+  const date = new Date(`${dateText}T00:00:00+09:00`);
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    weekday: 'long',
+  }).format(date);
+}
+
 function groupGoogleCalendarEventsByDate(events) {
   const grouped = new Map();
   for (const event of events || []) {
@@ -381,6 +390,10 @@ function groupGoogleCalendarEventsByDate(events) {
   return [...grouped.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, dayEvents]) => ({ date, events: dayEvents }));
+}
+
+function getGoogleCalendarItemTitle(event) {
+  return normalizeText(event?.kind === 'tasks#task' ? event.title : event.summary) || '제목 없음';
 }
 
 function formatGoogleCalendarCardSummary(group) {
@@ -394,6 +407,48 @@ function formatGoogleCalendarCardSummary(group) {
       : first.title,
     count: group.events.length,
   };
+}
+
+function enumerateDateRange(startDateText, days) {
+  const parts = String(startDateText || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!parts || !Number.isFinite(Number(days)) || days <= 0) return [];
+  const start = new Date(Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3])));
+  const pad = (value) => String(value).padStart(2, '0');
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(start);
+    date.setUTCDate(date.getUTCDate() + index);
+    return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+  });
+}
+
+function formatWeeklyCalendarSummaryAnswer(range, groupedEvents) {
+  const byDate = new Map(groupedEvents.map((group) => [group.date, group.events]));
+  const dates = enumerateDateRange(range.startDate, Number(range.days || 7)).slice(0, 7);
+  const lines = dates.map((dateText) => {
+    const weekday = formatCalendarWeekdayName(dateText);
+    const events = byDate.get(dateText) || [];
+    if (!events.length) return `${weekday}은 일정 없음`;
+    const firstTitle = getGoogleCalendarItemTitle(events[0]);
+    const extraCount = Math.max(events.length - 1, 0);
+    return `${weekday}은 ${firstTitle}${extraCount > 0 ? ` 외 ${extraCount}건` : ''}`;
+  });
+  return [`${range.label} 시간표`, ...lines].join('\n');
+}
+
+function formatWeeklyCalendarCardEvents(range, groupedEvents) {
+  const byDate = new Map(groupedEvents.map((group) => [group.date, group.events]));
+  return enumerateDateRange(range.startDate, Number(range.days || 7)).slice(0, 7).map((dateText) => {
+    const events = byDate.get(dateText) || [];
+    if (!events.length) {
+      return { time: formatCalendarDateShort(dateText), title: '일정 없음' };
+    }
+    const firstTitle = getGoogleCalendarItemTitle(events[0]);
+    const extraCount = Math.max(events.length - 1, 0);
+    return {
+      time: formatCalendarDateShort(dateText),
+      title: extraCount > 0 ? `${firstTitle} 외 ${extraCount}건` : firstTitle,
+    };
+  });
 }
 
 function isCalendarDetailRequest(message, range) {
@@ -893,7 +948,7 @@ function isCalendarUpdateRequest(message) {
 function isCalendarReadRequest(message) {
   const text = normalizeKoreanSearchText(message);
   const hasCalendarCue = /(구글\s*)?(캘린더|calendar|일정|스케줄|예약)/.test(text);
-  const hasDateCue = /(오늘|내일|낼|모레|이번\s*주|이번주|주간|일주일|이번\s*달|이번달|다음\s*달|다음달|내달|이전\s*달|이전달|지난\s*달|지난달|저번\s*달|저번달|\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*일)/.test(text);
+  const hasDateCue = /(오늘|내일|낼|모레|이번\s*주|이번주|다음\s*주|다음주|내주|주간|일주일|이번\s*달|이번달|다음\s*달|다음달|내달|이전\s*달|이전달|지난\s*달|지난달|저번\s*달|저번달|\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*일)/.test(text);
   const hasReadCue = /(알려|말해|보여|조회|확인|읽어|뭐\s*있|뭐가\s*있|있어|있나|있니|리스트|목록)/.test(text);
   const calendarDateRead = hasCalendarCue && (hasReadCue || hasDateCue);
   const dateScheduleRead = hasDateCue && hasReadCue && /(일정|스케줄|예약)/.test(text);
@@ -1011,6 +1066,15 @@ function addMonths(date, months) {
   return next;
 }
 
+function getWeekStart(date, offsetWeeks = 0) {
+  const next = new Date(date);
+  const day = next.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  next.setDate(next.getDate() + diffToMonday + offsetWeeks * 7);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
 function parseKoreaDateStart(dateText) {
   if (!dateText) return null;
   return new Date(`${dateText}T00:00:00+09:00`);
@@ -1080,7 +1144,12 @@ function parseCalendarQueryRange(message) {
     : /이전\s*달|이전달|지난\s*달|지난달|저번\s*달|저번달/.test(text)
       ? -1
       : 0;
-  if (/이번\s*주|이번주|주간|일주일/.test(text)) {
+  if (/다음\s*주|다음주|내주/.test(text)) {
+    start = getWeekStart(getKoreaDayStart(0), 1);
+    days = 7;
+    label = '다음 주';
+  } else if (/이번\s*주|이번주|주간|일주일/.test(text)) {
+    start = getWeekStart(getKoreaDayStart(0), 0);
     days = 7;
     label = '이번 주';
   } else if (/모레/.test(text)) {
@@ -1527,6 +1596,7 @@ async function answerCalendarReadRequest(message, userId, req) {
 
   if (!result.events.length) {
     const cardTitle = formatCalendarCardTitle(range.label);
+    const isWeeklySummary = Number(range?.days || 0) === 7 && !detailMode;
     if (result.tasksAuthIssue) {
       const authUrl = buildGoogleConnectUrl(userId, req);
       if (result.tasksAuthIssue === 'api_disabled') {
@@ -1566,6 +1636,15 @@ async function answerCalendarReadRequest(message, userId, req) {
         calendarCard: { label: cardTitle, mode: detailMode ? 'detail' : 'summary', summaryText: 'Tasks 설정 확인 필요', events: [] },
       };
     }
+    if (isWeeklySummary) {
+      return {
+        answer: formatWeeklyCalendarSummaryAnswer(range, []),
+        quickReplies: [],
+        plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_weekly_empty' },
+        results: [],
+        calendarCard: { label: cardTitle, mode: 'summary', summaryText: '7일 / 0개 일정', events: formatWeeklyCalendarCardEvents(range, []) },
+      };
+    }
     return {
       answer: `비서님이 확인했는데 ${cardTitle}은 비어 있어.`,
       quickReplies: [],
@@ -1577,15 +1656,20 @@ async function answerCalendarReadRequest(message, userId, req) {
 
   const cardTitle = formatCalendarCardTitle(range.label);
   const includeDateInCardRows = Number(range?.days || 0) > 1;
-  const cardEvents = result.events.map((event) => formatGoogleCalendarCardEvent(event, { includeDate: includeDateInCardRows }));
   const groupedEvents = groupGoogleCalendarEventsByDate(result.events);
+  const isWeeklySummary = Number(range?.days || 0) === 7 && !detailMode;
+  const cardEvents = isWeeklySummary
+    ? formatWeeklyCalendarCardEvents(range, groupedEvents)
+    : result.events.map((event) => formatGoogleCalendarCardEvent(event, { includeDate: includeDateInCardRows }));
   const summaryText = Number(range?.days || 0) > 1
     ? `${groupedEvents.length}일 / ${result.events.length}개 일정`
     : `${result.events.length}개 일정`;
   return {
     answer: detailMode
       ? formatGoogleCalendarDetailAnswer(cardTitle, result.events)
-      : `비서님이 ${cardTitle}을 날짜별 요약 카드로 정리했어.`,
+      : isWeeklySummary
+        ? formatWeeklyCalendarSummaryAnswer(range, groupedEvents)
+        : `비서님이 ${cardTitle}을 날짜별 요약 카드로 정리했어.`,
     quickReplies: [],
     plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_listed' },
     results: result.events,
@@ -2139,4 +2223,14 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, renderCalendarCardPng, renderCalendarCardSvg, parseCalendarQueryRange, isCalendarItemInRange, formatGoogleCalendarEvent };
+module.exports = {
+  app,
+  renderCalendarCardPng,
+  renderCalendarCardSvg,
+  parseCalendarQueryRange,
+  isCalendarItemInRange,
+  formatGoogleCalendarEvent,
+  groupGoogleCalendarEventsByDate,
+  formatWeeklyCalendarSummaryAnswer,
+  formatWeeklyCalendarCardEvents,
+};
