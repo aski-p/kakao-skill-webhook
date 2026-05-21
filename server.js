@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21i-calendar-stability-date-routing';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21j-calendar-rossi-red-skin';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -69,6 +69,21 @@ const ZHUANG_FANGYI_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR,
 const ZHUANG_FANGYI_FULL_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi-full.png'));
 const ZHUANG_FANGYI_FACE_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi-face.png'));
 const ROSSI_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'rossi.webp'));
+const CALENDAR_THEME = {
+  background: '#F7F1F2',
+  panel: '#FFF9FA',
+  shellBorder: '#F0D6DA',
+  hero: '#2A0E14',
+  heroBorder: '#5B1B25',
+  accent: '#E31B3F',
+  accentSoft: '#FFE3E8',
+  labelBg: '#4A1722',
+  labelText: '#FFD6DE',
+  heroMuted: '#F2C4CD',
+  text: '#241014',
+  muted: '#7A5360',
+  rowAccent: ['#E31B3F', '#B91C1C', '#F43F5E', '#7F1D1D'],
+};
 
 function loadAssetDataUri(filePath, mimeType) {
   try {
@@ -346,13 +361,13 @@ async function renderCalendarCardVectorSvg(card) {
   const rows = events.length
     ? events.map((event, index) => {
       const y = 398 + index * rowHeight;
-      const accent = ['#00C2A8', '#7C5CFF', '#FFB545', '#FF6B8A'][index % 4];
+      const accent = CALENDAR_THEME.rowAccent[index % CALENDAR_THEME.rowAccent.length];
       const titleMax = mode === 'summary' ? 26 : 18;
       return h('div', { style: { position: 'absolute', left: 56, top: y, width: 688, height: 76, borderRadius: 24, backgroundColor: '#FFFFFF', border: '1px solid #E9EDF3', display: 'flex', alignItems: 'center', boxShadow: '0 18px 36px rgba(26, 32, 44, 0.08)' } },
         h('div', { style: { marginLeft: 18, width: 12, height: 46, borderRadius: 8, backgroundColor: accent } }),
         h('div', { style: { marginLeft: 22, width: mode === 'summary' ? 142 : 172, color: '#687386', fontSize: mode === 'summary' ? 21 : 23, fontWeight: 900 } }, event.time),
         h('div', { style: { width: mode === 'summary' ? 420 : 360, color: '#161A22', fontSize: mode === 'summary' ? 27 : 30, fontWeight: 900, lineHeight: 1.08 } }, truncateForCard(event.title, titleMax)),
-        h('div', { style: { marginLeft: 'auto', marginRight: 22, width: 42, height: 42, borderRadius: 21, backgroundColor: '#F3F6FA', color: accent, fontSize: 22, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, `${index + 1}`),
+        h('div', { style: { marginLeft: 'auto', marginRight: 22, width: 42, height: 42, borderRadius: 21, backgroundColor: CALENDAR_THEME.accentSoft, color: accent, fontSize: 22, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, `${index + 1}`),
       );
     })
     : [
@@ -368,27 +383,27 @@ async function renderCalendarCardVectorSvg(card) {
         width: 800,
         height,
         position: 'relative',
-        backgroundColor: '#F1F4F8',
-        color: '#161A22',
+        backgroundColor: CALENDAR_THEME.background,
+        color: CALENDAR_THEME.text,
         fontFamily: 'Noto Sans KR',
         display: 'flex',
       },
     },
-      h('div', { style: { position: 'absolute', inset: 0, backgroundColor: '#F1F4F8' } }),
-      h('div', { style: { position: 'absolute', left: 0, top: 0, width: 800, height: 248, backgroundColor: '#111827' } }),
-      h('div', { style: { position: 'absolute', left: 42, top: 42, width: 716, height: height - 84, borderRadius: 36, backgroundColor: '#FBFCFE', border: '1px solid #E3E8F0', display: 'flex', boxShadow: '0 28px 70px rgba(17, 24, 39, 0.18)' } }),
-      h('div', { style: { position: 'absolute', left: 64, top: 64, width: 672, height: 212, borderRadius: 30, backgroundColor: '#111827', display: 'flex', overflow: 'hidden' } }),
-      h('div', { style: { position: 'absolute', left: 64, top: 64, width: 18, height: 212, backgroundColor: '#00C2A8' } }),
-      h('div', { style: { position: 'absolute', left: 104, top: 94, width: 174, height: 40, borderRadius: 20, backgroundColor: '#273142', color: '#B8FFF4', fontSize: 19, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, 'GOOGLE CALENDAR'),
+      h('div', { style: { position: 'absolute', inset: 0, backgroundColor: CALENDAR_THEME.background } }),
+      h('div', { style: { position: 'absolute', left: 0, top: 0, width: 800, height: 248, backgroundColor: CALENDAR_THEME.hero } }),
+      h('div', { style: { position: 'absolute', left: 42, top: 42, width: 716, height: height - 84, borderRadius: 36, backgroundColor: CALENDAR_THEME.panel, border: `1px solid ${CALENDAR_THEME.shellBorder}`, display: 'flex', boxShadow: '0 28px 70px rgba(127, 29, 29, 0.18)' } }),
+      h('div', { style: { position: 'absolute', left: 64, top: 64, width: 672, height: 212, borderRadius: 30, backgroundColor: CALENDAR_THEME.hero, border: `1px solid ${CALENDAR_THEME.heroBorder}`, display: 'flex', overflow: 'hidden' } }),
+      h('div', { style: { position: 'absolute', left: 64, top: 64, width: 18, height: 212, backgroundColor: CALENDAR_THEME.accent } }),
+      h('div', { style: { position: 'absolute', left: 104, top: 94, width: 174, height: 40, borderRadius: 20, backgroundColor: CALENDAR_THEME.labelBg, color: CALENDAR_THEME.labelText, fontSize: 19, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, 'GOOGLE CALENDAR'),
       h('div', { style: { position: 'absolute', left: 104, top: 148, width: 438, color: '#FFFFFF', fontSize: 45, fontWeight: 900, lineHeight: 1.08 } }, card.label || '오늘의 일정'),
-      h('div', { style: { position: 'absolute', left: 104, top: 232, width: 400, color: '#C7D2E2', fontSize: 21, fontWeight: 700 } }, timestamp),
-      h('div', { style: { position: 'absolute', left: 594, top: 92, width: 112, height: 112, borderRadius: 34, backgroundColor: '#FFFFFF', border: '4px solid #273142', display: 'flex', boxShadow: '0 18px 42px rgba(0, 0, 0, 0.22)' } }),
-      h('div', { style: { position: 'absolute', left: 620, top: 224, width: 62, height: 8, borderRadius: 4, backgroundColor: '#00C2A8' } }),
+      h('div', { style: { position: 'absolute', left: 104, top: 232, width: 400, color: CALENDAR_THEME.heroMuted, fontSize: 21, fontWeight: 700 } }, timestamp),
+      h('div', { style: { position: 'absolute', left: 578, top: 82, width: 136, height: 136, borderRadius: 38, backgroundColor: '#FFF5F7', border: `5px solid ${CALENDAR_THEME.labelBg}`, display: 'flex', boxShadow: '0 18px 42px rgba(127, 29, 29, 0.32)' } }),
+      h('div', { style: { position: 'absolute', left: 616, top: 232, width: 62, height: 8, borderRadius: 4, backgroundColor: CALENDAR_THEME.accent } }),
 
       h('div', { style: { position: 'absolute', left: 56, top: 304, width: 688, height: 62, borderRadius: 24, backgroundColor: '#FFFFFF', border: '1px solid #E9EDF3', display: 'flex', alignItems: 'center', boxShadow: '0 14px 32px rgba(26, 32, 44, 0.07)' } },
-        h('div', { style: { marginLeft: 24, width: 13, height: 13, borderRadius: 7, backgroundColor: '#00C2A8' } }),
-        h('div', { style: { marginLeft: 12, color: '#161A22', fontSize: 25, fontWeight: 900 } }, card.summaryText || (events.length ? `${events.length}개 일정` : '일정 없음')),
-        h('div', { style: { marginLeft: 'auto', marginRight: 24, color: '#687386', fontSize: 20, fontWeight: 800 } }, mode === 'summary' ? 'Daily brief' : 'Calendar detail'),
+        h('div', { style: { marginLeft: 24, width: 13, height: 13, borderRadius: 7, backgroundColor: CALENDAR_THEME.accent } }),
+        h('div', { style: { marginLeft: 12, color: CALENDAR_THEME.text, fontSize: 25, fontWeight: 900 } }, card.summaryText || (events.length ? `${events.length}개 일정` : '일정 없음')),
+        h('div', { style: { marginLeft: 'auto', marginRight: 24, color: CALENDAR_THEME.muted, fontSize: 20, fontWeight: 800 } }, mode === 'summary' ? 'Daily brief' : 'Calendar detail'),
       ),
       rows,
     ),
@@ -405,18 +420,23 @@ async function renderCalendarCardVectorSvg(card) {
 
 async function renderCalendarCardPng(card) {
   const composites = [];
+  const isRossiPortrait = card.mode === 'detail' && ROSSI_IMAGE_BUFFER;
   const portraitBuffer = card.mode === 'detail'
     ? (ROSSI_IMAGE_BUFFER || ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER)
     : (ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER);
   if (portraitBuffer) {
-    const portraitSize = 112;
+    const portraitSize = isRossiPortrait ? 136 : 112;
     const portraitMask = Buffer.from(`<svg width="${portraitSize}" height="${portraitSize}" viewBox="0 0 ${portraitSize} ${portraitSize}"><rect width="${portraitSize}" height="${portraitSize}" rx="30" fill="#fff"/></svg>`);
-    const character = await sharp(portraitBuffer)
-      .resize(portraitSize, portraitSize, { fit: 'cover', position: 'center' })
+    let portrait = sharp(portraitBuffer);
+    if (isRossiPortrait) {
+      portrait = portrait.extract({ left: 382, top: 110, width: 260, height: 260 });
+    }
+    const character = await portrait
+      .resize(portraitSize, portraitSize, { fit: 'cover', position: isRossiPortrait ? 'north' : 'center' })
       .composite([{ input: portraitMask, blend: 'dest-in' }])
       .png()
       .toBuffer();
-    composites.push({ input: character, left: 594, top: 92 });
+    composites.push({ input: character, left: isRossiPortrait ? 578 : 594, top: isRossiPortrait ? 82 : 92 });
   }
   const baseSvg = CALENDAR_FONT_BUFFER
     ? await renderCalendarCardVectorSvg(card)
