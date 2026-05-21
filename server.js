@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ac-claude-chat-demotion';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ad-fast-meal-chat';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -778,6 +778,13 @@ function shouldAnswerWithClaudeFirst(message) {
   const localCue = LOCAL_LOCATION_PATTERN.test(text) && /(근처|주변|가까운|맛집|식당|매장|가게|업체|장소|시설|센터|예약|어디|추천)/.test(text);
   const howToCue = /(어떻게|어케|방법|가능|할\s*수\s*있|되나|되냐|만들|설정|실행|명령어|cmd|윈도|윈도우|windows|바로가기|아이콘)/i.test(text);
   return howToCue && !explicitLookupCue && !commerceCue && !localCue && !WEATHER_WORD_PATTERN.test(text);
+}
+
+function isCasualMealChoiceRequest(message) {
+  const text = normalizeKoreanSearchText(message);
+  const explicitLookupCue = /(근처|주변|가까운|맛집|식당|매장|가게|주소|위치|지도|예약|찾아|검색|네이버|구글|웹에서|인터넷에서)/.test(text);
+  const asksMealChoice = /(뭐\s*먹지|뭐\s*먹을까|뭐\s*먹어|메뉴\s*추천|먹을\s*(거|것)\s*추천|식사\s*추천)/.test(text);
+  return asksMealChoice && MEAL_WORD_PATTERN.test(text) && !explicitLookupCue;
 }
 
 function extractJsonObject(text) {
@@ -1947,8 +1954,14 @@ async function buildAnswer(message, userId, req) {
   if (isCalendarWriteRequest(message) || isReminderWriteRequest(message)) return answerCalendarWriteRequest(message, userId, req);
   if (isGoogleCalendarConfigQuestion(message)) return answerGoogleCalendarConfigQuestion();
 
-  if (shouldAnswerWithClaudeFirst(message)) {
-    const plan = { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.9, source: 'claude_first_chat' };
+  if (shouldAnswerWithClaudeFirst(message) || isCasualMealChoiceRequest(message)) {
+    const plan = {
+      intent: 'chat',
+      searchQuery: '',
+      sort: 'sim',
+      confidence: 0.9,
+      source: isCasualMealChoiceRequest(message) ? 'claude_first_meal_chat' : 'claude_first_chat',
+    };
     try {
       const answer = await answerChat(message, userId);
       return { answer, quickReplies: [], plan, results: [] };
