@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ap-fast-month-card';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21aq-month-card-font-fix';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -76,8 +76,10 @@ const getUserId = (body) => body?.userRequest?.user?.id || body?.userRequest?.us
 const LOCAL_LOCATION_PATTERN = /[가-힣A-Za-z0-9]+(?:구|동|역|로|길|시|군|읍|면|리|가)/;
 const WEATHER_WORD_PATTERN = /날씨|기온|온도|비\s*와|비와|비\s*올|비올|우산|미세먼지|초미세먼지|습도|바람/;
 const CALENDAR_ASSET_DIR = path.join(__dirname, 'assets', 'calendar');
-const CALENDAR_FONT_DATA_URI = loadAssetDataUri(path.join(CALENDAR_ASSET_DIR, 'NotoSansKR-Bold.ttf'), 'font/truetype');
-const CALENDAR_FONT_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'NotoSansKR-Bold.ttf'));
+const CALENDAR_FONT_PATH = path.join(CALENDAR_ASSET_DIR, 'NotoSansKR-Bold.ttf');
+const CALENDAR_FONT_FILE_URI = `file://${CALENDAR_FONT_PATH}`;
+const CALENDAR_FONT_DATA_URI = loadAssetDataUri(CALENDAR_FONT_PATH, 'font/truetype');
+const CALENDAR_FONT_BUFFER = loadAssetBuffer(CALENDAR_FONT_PATH);
 const ZHUANG_FANGYI_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi.png'));
 const ZHUANG_FANGYI_FULL_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi-full.png'));
 const ZHUANG_FANGYI_FACE_IMAGE_BUFFER = loadAssetBuffer(path.join(CALENDAR_ASSET_DIR, 'zhuang-fangyi-face.png'));
@@ -607,7 +609,7 @@ function renderCalendarCardSvg(card) {
     <style>
       @font-face {
         font-family: 'CalendarNotoKR';
-        src: url('${CALENDAR_FONT_DATA_URI}') format('truetype');
+        src: url('${CALENDAR_FONT_FILE_URI}') format('truetype');
         font-weight: 400 900;
       }
       text { font-family: 'CalendarNotoKR', 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; }
@@ -775,7 +777,7 @@ function renderMonthlyCalendarCardSvg(card) {
     <style>
       @font-face {
         font-family: 'CalendarNotoKR';
-        src: url('${CALENDAR_FONT_DATA_URI}') format('truetype');
+        src: url('${CALENDAR_FONT_FILE_URI}') format('truetype');
         font-weight: 400 900;
       }
       text { font-family: 'CalendarNotoKR', 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; }
