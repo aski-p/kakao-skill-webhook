@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21w-calendar-bare-day-next-month';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21x-calendar-date-boundary-filter';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -348,24 +348,12 @@ function getGoogleCalendarEventDate(event) {
   const startValue = event.start?.dateTime || event.start?.date;
   if (!startValue) return '';
   if (event.start?.date) return event.start.date;
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  return formatter.format(new Date(startValue));
+  return formatKoreaDateOnlyFromValue(startValue);
 }
 
 function getGoogleTaskDate(task) {
   if (!task?.due) return '';
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  return formatter.format(new Date(task.due));
+  return formatKoreaDateOnlyFromValue(task.due);
 }
 
 function formatCalendarDateShort(dateText) {
@@ -957,6 +945,22 @@ function formatKoreaDateTime(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00+09:00`;
 }
 
+function formatKoreaDateOnly(date) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function formatKoreaDateOnlyFromValue(value) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(value));
+  const getPart = (type) => parts.find((part) => part.type === type)?.value || '';
+  return `${getPart('year')}-${getPart('month')}-${getPart('day')}`;
+}
+
 function getKoreaNowDate() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
 }
@@ -987,14 +991,15 @@ function parseKoreaDateStart(dateText) {
 
 function getCalendarItemRange(item) {
   if (item?.kind === 'tasks#task') {
-    const taskDate = parseKoreaDateStart(getGoogleTaskDate(item));
-    return taskDate ? { start: taskDate, end: addDays(taskDate, 1), pointInDay: true } : null;
+    const taskDateText = getGoogleTaskDate(item);
+    const taskDate = parseKoreaDateStart(taskDateText);
+    return taskDate ? { start: taskDate, end: addDays(taskDate, 1), pointInDay: true, startDate: taskDateText, endDate: formatKoreaDateOnlyFromValue(addDays(taskDate, 1)) } : null;
   }
 
   if (item?.start?.date) {
     const start = parseKoreaDateStart(item.start.date);
     const end = parseKoreaDateStart(item.end?.date) || (start ? addDays(start, 1) : null);
-    return start && end ? { start, end } : null;
+    return start && end ? { start, end, startDate: item.start.date, endDate: item.end?.date || formatKoreaDateOnly(addDays(start, 1)) } : null;
   }
 
   const startValue = item?.start?.dateTime || item?.start?.date;
@@ -1009,7 +1014,10 @@ function isCalendarItemInRange(item, range) {
   const rangeEnd = new Date(range.timeMax);
   const itemRange = getCalendarItemRange(item);
   if (!itemRange || Number.isNaN(itemRange.start.getTime()) || Number.isNaN(itemRange.end.getTime())) return true;
-  if (itemRange.pointInDay) return itemRange.start >= rangeStart && itemRange.start < rangeEnd;
+  const rangeStartDate = range.startDate || range.timeMin?.slice(0, 10) || formatKoreaDateOnly(rangeStart);
+  const rangeEndDate = range.endDate || range.timeMax?.slice(0, 10) || formatKoreaDateOnly(rangeEnd);
+  if (itemRange.pointInDay && itemRange.startDate) return itemRange.startDate >= rangeStartDate && itemRange.startDate < rangeEndDate;
+  if (item?.start?.date && itemRange.startDate && itemRange.endDate) return itemRange.startDate < rangeEndDate && itemRange.endDate > rangeStartDate;
   return itemRange.start < rangeEnd && itemRange.end > rangeStart;
 }
 
@@ -1083,6 +1091,8 @@ function parseCalendarQueryRange(message) {
   return {
     label,
     days: days === null ? Math.ceil((end - start) / (24 * 60 * 60 * 1000)) : days,
+    startDate: formatKoreaDateOnly(start),
+    endDate: formatKoreaDateOnly(end),
     timeMin: formatKoreaDateTime(start),
     timeMax: formatKoreaDateTime(end),
   };
