@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21c-calendar-update-event';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21d-calendar-update-without-cue';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -615,7 +615,9 @@ function isCalendarUpdateRequest(message) {
   const text = normalizeKoreanSearchText(message);
   const hasCalendarCue = /(캘린더|calendar|일정|예약|스케줄)/.test(text);
   const hasUpdateCue = /(수정|변경|바꿔|옮겨|미뤄|당겨)/.test(text);
-  return hasCalendarCue && hasUpdateCue;
+  const hasDateCue = /(오늘|내일|낼|모레|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{4}-\d{1,2}-\d{1,2})/.test(text);
+  const hasTimeCue = /(오전|오후|저녁|밤|아침)?\s*\d{1,2}\s*시/.test(text);
+  return hasUpdateCue && (hasCalendarCue || (hasDateCue && hasTimeCue));
 }
 
 function isCalendarReadRequest(message) {
