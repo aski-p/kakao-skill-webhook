@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21z-calendar-task-date-only';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21aa-calendar-detail-time-suffix';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1420,7 +1420,7 @@ async function listGoogleCalendarItems(userId, range) {
 function formatGoogleCalendarEvent(event, index) {
   if (event.kind === 'tasks#task') {
     const statusText = event.status === 'completed' ? '완료' : '할 일';
-    return `${index + 1}. ${statusText} ${normalizeText(event.title || '제목 없음')}`;
+    return `${index + 1}. ${normalizeText(event.title || '제목 없음')} (${statusText})`;
   }
   const startValue = event.start?.dateTime || event.start?.date;
   const endValue = event.end?.dateTime || event.end?.date;
@@ -1442,7 +1442,7 @@ function formatGoogleCalendarEvent(event, index) {
       timeText += `-${timeFormatter.format(end)}`;
     }
   }
-  return `${index + 1}. ${timeText} ${normalizeText(event.summary || '제목 없음')}`;
+  return `${index + 1}. ${normalizeText(event.summary || '제목 없음')} (${timeText})`;
 }
 
 function formatGoogleCalendarDetailAnswer(cardTitle, events) {
@@ -2115,4 +2115,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, renderCalendarCardPng, renderCalendarCardSvg, parseCalendarQueryRange, isCalendarItemInRange };
+module.exports = { app, renderCalendarCardPng, renderCalendarCardSvg, parseCalendarQueryRange, isCalendarItemInRange, formatGoogleCalendarEvent };

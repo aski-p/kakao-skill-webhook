@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { parseCalendarQueryRange, isCalendarItemInRange } = require('./server');
+const { parseCalendarQueryRange, isCalendarItemInRange, formatGoogleCalendarEvent } = require('./server');
 
 const range = parseCalendarQueryRange('12일 일정 알려줘');
 
@@ -27,6 +27,19 @@ assert.equal(
 assert.equal(
   isCalendarItemInRange({ kind: 'tasks#task', due: '2026-05-12T00:00:00.000Z', title: '당일 할 일' }, range),
   true,
+);
+
+assert.equal(
+  formatGoogleCalendarEvent({ kind: 'tasks#task', due: '2026-05-12T00:00:00.000Z', title: 'KT 전화' }, 0),
+  '1. KT 전화 (할 일)',
+);
+assert.equal(
+  formatGoogleCalendarEvent({ start: { date: '2026-05-12' }, end: { date: '2026-05-13' }, summary: '티비설치' }, 1),
+  '2. 티비설치 (종일)',
+);
+assert.equal(
+  formatGoogleCalendarEvent({ start: { dateTime: '2026-05-12T09:00:00+09:00' }, end: { dateTime: '2026-05-12T10:00:00+09:00' }, summary: '병원' }, 2),
+  '3. 병원 (09:00-10:00)',
 );
 
 console.log('calendar range tests passed');
