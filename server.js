@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ao-month-calendar-cue';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21ap-fast-month-card';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -666,7 +666,6 @@ function h(type, props, ...children) {
 async function renderCalendarCardVectorSvg(card) {
   const { default: satori } = await import('satori');
   const events = card.events || [];
-  if (card.mode === 'month') return renderMonthlyCalendarCardVectorSvg(satori, card);
   const rowHeight = 92;
   const baseHeight = 424;
   const height = Math.max(760, baseHeight + Math.max(events.length, 1) * rowHeight);
@@ -735,66 +734,70 @@ async function renderCalendarCardVectorSvg(card) {
   );
 }
 
-function renderMonthlyCalendarCardVectorSvg(satori, card) {
+function renderMonthlyCalendarCardSvg(card) {
   const theme = getCalendarCardTheme(card);
   const timestamp = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'full' }).format(new Date());
   const days = card.monthDays || [];
   const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-  const cellWidth = 130;
-  const cellHeight = 114;
-  const left = 45;
-  const top = 342;
+  const cellWidth = 104;
+  const cellHeight = 94;
+  const left = 36;
+  const top = 296;
   const rows = Math.max(5, Math.ceil(days.length / 7));
-  const height = 420 + rows * cellHeight;
+  const width = 800;
+  const height = 350 + rows * cellHeight;
+  const weekdayNodes = weekdays.map((day, index) => {
+    const color = index === 0 ? '#E34A6F' : index === 6 ? '#2870C8' : theme.muted;
+    return `<text x="${left + index * cellWidth + cellWidth / 2}" y="274" text-anchor="middle" fill="${color}" font-size="20" font-weight="900">${day}</text>`;
+  }).join('');
+  const dayNodes = days.map((day, index) => {
+    const col = index % 7;
+    const row = Math.floor(index / 7);
+    const x = left + col * cellWidth;
+    const y = top + row * cellHeight;
+    const eventNodes = day.events.map((event, eventIndex) => {
+      const eventY = y + 42 + eventIndex * 18;
+      return `<rect x="${x + 9}" y="${eventY}" width="${cellWidth - 26}" height="15" rx="7" fill="${theme.accentSoft}"/>
+        <text x="${x + 15}" y="${eventY + 12}" fill="${theme.text}" font-size="11" font-weight="900">${escapeXml(event.title)}</text>`;
+    }).join('');
+    const extraNode = day.extraCount > 0 ? `<text x="${x + 12}" y="${y + 91}" fill="${theme.muted}" font-size="11" font-weight="900">+${day.extraCount}</text>` : '';
+    return `<g>
+      <rect x="${x}" y="${y}" width="${cellWidth - 8}" height="${cellHeight - 8}" rx="15" fill="${day.inMonth ? '#FFFFFF' : '#F2F4F7'}" stroke="#E4E8EF"/>
+      <text x="${x + 14}" y="${y + 28}" fill="${day.inMonth ? theme.text : '#A1A8B3'}" font-size="18" font-weight="900">${day.day}</text>
+      ${eventNodes}
+      ${extraNode}
+    </g>`;
+  }).join('');
 
-  return satori(
-    h('div', {
-      style: {
-        width: 1000,
-        height,
-        position: 'relative',
-        backgroundColor: theme.background,
-        color: theme.text,
-        fontFamily: 'Noto Sans KR',
-        display: 'flex',
-      },
-    },
-      h('div', { style: { position: 'absolute', inset: 0, backgroundColor: theme.background } }),
-      h('div', { style: { position: 'absolute', left: 36, top: 36, width: 928, height: height - 72, borderRadius: 38, backgroundColor: theme.panel, border: `1px solid ${theme.shellBorder}`, display: 'flex', boxShadow: `0 30px 78px ${theme.shadow}` } }),
-      h('div', { style: { position: 'absolute', left: 58, top: 58, width: 884, height: 214, borderRadius: 30, backgroundColor: theme.hero, border: `1px solid ${theme.heroBorder}`, display: 'flex', overflow: 'hidden' } }),
-      h('div', { style: { position: 'absolute', left: 58, top: 58, width: 18, height: 214, backgroundColor: theme.accent } }),
-      h('div', { style: { position: 'absolute', left: 100, top: 90, width: 182, height: 40, borderRadius: 20, backgroundColor: theme.labelBg, color: theme.labelText, fontSize: 19, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, 'GOOGLE CALENDAR'),
-      h('div', { style: { position: 'absolute', left: 100, top: 148, width: 610, color: '#FFFFFF', fontSize: 52, fontWeight: 900, lineHeight: 1.04 } }, card.label || '월간 일정'),
-      h('div', { style: { position: 'absolute', left: 102, top: 226, width: 520, color: theme.heroMuted, fontSize: 22, fontWeight: 700 } }, timestamp),
-      h('div', { style: { position: 'absolute', left: 760, top: 78, width: 150, height: 150, borderRadius: 42, backgroundColor: theme.portraitBg, border: `5px solid ${theme.labelBg}`, display: 'flex', boxShadow: `0 18px 42px ${theme.portraitShadow}` } }),
-      h('div', { style: { position: 'absolute', left: 804, top: 240, width: 62, height: 8, borderRadius: 4, backgroundColor: theme.accent } }),
-      h('div', { style: { position: 'absolute', left: 58, top: 294, width: 884, height: 36, display: 'flex' } },
-        weekdays.map((day, index) => h('div', { style: { width: cellWidth, marginLeft: index === 0 ? 0 : 0, color: index === 0 ? '#E34A6F' : index === 6 ? '#2870C8' : theme.muted, fontSize: 22, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, day)),
-      ),
-      days.map((day, index) => {
-        const col = index % 7;
-        const row = Math.floor(index / 7);
-        const x = left + col * cellWidth;
-        const y = top + row * cellHeight;
-        return h('div', { style: { position: 'absolute', left: x, top: y, width: cellWidth - 6, height: cellHeight - 8, borderRadius: 18, backgroundColor: day.inMonth ? '#FFFFFF' : '#F2F4F7', border: '1px solid #E4E8EF', display: 'flex', flexDirection: 'column', boxShadow: day.events.length ? '0 12px 24px rgba(26, 32, 44, 0.08)' : 'none', overflow: 'hidden' } },
-          h('div', { style: { marginTop: 10, marginLeft: 12, width: 30, height: 30, borderRadius: 15, backgroundColor: day.events.length ? theme.accentSoft : 'transparent', color: day.inMonth ? theme.text : '#A1A8B3', fontSize: 19, fontWeight: 900, alignItems: 'center', justifyContent: 'center' } }, `${day.day}`),
-          h('div', { style: { marginTop: 4, marginLeft: 10, marginRight: 10, display: 'flex', flexDirection: 'column' } },
-            day.events.map((event) => h('div', { style: { height: 20, marginTop: 3, borderRadius: 9, paddingLeft: 8, paddingRight: 6, backgroundColor: theme.accentSoft, color: theme.text, fontSize: 13, fontWeight: 900, lineHeight: 1.45, overflow: 'hidden' } }, event.title)),
-            day.extraCount > 0 ? h('div', { style: { marginTop: 4, color: theme.muted, fontSize: 13, fontWeight: 900 } }, `+${day.extraCount}`) : null,
-          ),
-        );
-      }),
-      h('div', { style: { position: 'absolute', left: 66, top: height - 58, color: theme.muted, fontSize: 20, fontWeight: 800 } }, card.summaryText || '월간 일정표'),
-    ),
-    {
-      width: 1000,
-      height,
-      fonts: [
-        { name: 'Noto Sans KR', data: CALENDAR_FONT_BUFFER, weight: 700, style: 'normal' },
-        { name: 'Noto Sans KR', data: CALENDAR_FONT_BUFFER, weight: 900, style: 'normal' },
-      ],
-    },
-  );
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <defs>
+    <style>
+      @font-face {
+        font-family: 'CalendarNotoKR';
+        src: url('${CALENDAR_FONT_DATA_URI}') format('truetype');
+        font-weight: 400 900;
+      }
+      text { font-family: 'CalendarNotoKR', 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; }
+    </style>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="20" stdDeviation="24" flood-color="${theme.shadow}" flood-opacity="1"/>
+    </filter>
+  </defs>
+  <rect width="${width}" height="${height}" fill="${theme.background}"/>
+  <rect x="28" y="28" width="744" height="${height - 56}" rx="32" fill="${theme.panel}" stroke="${theme.shellBorder}" filter="url(#shadow)"/>
+  <rect x="48" y="48" width="704" height="178" rx="26" fill="${theme.hero}" stroke="${theme.heroBorder}"/>
+  <rect x="48" y="48" width="16" height="178" fill="${theme.accent}"/>
+  <rect x="88" y="74" width="164" height="36" rx="18" fill="${theme.labelBg}"/>
+  <text x="104" y="98" fill="${theme.labelText}" font-size="18" font-weight="900">GOOGLE CALENDAR</text>
+  <text x="88" y="160" fill="#FFFFFF" font-size="45" font-weight="900">${escapeXml(card.label || '월간 일정')}</text>
+  <text x="90" y="203" fill="${theme.heroMuted}" font-size="20" font-weight="700">${escapeXml(timestamp)}</text>
+  <rect x="606" y="68" width="132" height="132" rx="38" fill="${theme.portraitBg}" stroke="${theme.labelBg}" stroke-width="5"/>
+  <rect x="640" y="207" width="62" height="8" rx="4" fill="${theme.accent}"/>
+  ${weekdayNodes}
+  ${dayNodes}
+  <text x="52" y="${height - 34}" fill="${theme.muted}" font-size="19" font-weight="900">${escapeXml(card.summaryText || '월간 일정표')}</text>
+</svg>`;
 }
 
 async function renderCalendarCardPng(card) {
@@ -802,18 +805,20 @@ async function renderCalendarCardPng(card) {
   const isMonthMode = card.mode === 'month';
   const portraitBuffer = getCalendarCardPortraitBuffer(card);
   if (portraitBuffer) {
-    const portraitSize = isMonthMode ? 150 : 136;
+    const portraitSize = isMonthMode ? 132 : 136;
     const portraitMask = Buffer.from(`<svg width="${portraitSize}" height="${portraitSize}" viewBox="0 0 ${portraitSize} ${portraitSize}"><rect width="${portraitSize}" height="${portraitSize}" rx="30" fill="#fff"/></svg>`);
     const character = await sharp(portraitBuffer)
       .resize(portraitSize, portraitSize, { fit: 'cover', position: 'center' })
       .composite([{ input: portraitMask, blend: 'dest-in' }])
       .png()
       .toBuffer();
-    composites.push({ input: character, left: isMonthMode ? 760 : 578, top: isMonthMode ? 78 : 82 });
+    composites.push({ input: character, left: isMonthMode ? 606 : 578, top: isMonthMode ? 68 : 82 });
   }
-  const baseSvg = CALENDAR_FONT_BUFFER
-    ? await renderCalendarCardVectorSvg(card)
-    : renderCalendarCardSvg(card);
+  const baseSvg = card.mode === 'month'
+    ? renderMonthlyCalendarCardSvg(card)
+    : CALENDAR_FONT_BUFFER
+      ? await renderCalendarCardVectorSvg(card)
+      : renderCalendarCardSvg(card);
   return sharp(Buffer.from(baseSvg)).composite(composites).png().toBuffer();
 }
 
