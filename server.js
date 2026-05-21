@@ -1013,7 +1013,17 @@ function answerGoogleCalendarConfigQuestion() {
 }
 
 async function getStoredGoogleToken(userId) {
-  return (await loadGoogleTokensAsync())[userId];
+  const tokens = await loadGoogleTokensAsync();
+  const exactToken = tokens[userId];
+  if (exactToken) return exactToken;
+
+  if (KAKAO_CALENDAR_ALLOW_ALL) {
+    const tokenEntries = Object.entries(tokens).filter(([, token]) => token?.refresh_token || token?.access_token);
+    if (tokens.default) return tokens.default;
+    if (tokenEntries.length === 1) return tokenEntries[0][1];
+  }
+
+  return null;
 }
 
 async function exchangeGoogleCodeForToken(code, redirectUri) {
@@ -2230,6 +2240,7 @@ app.get('/auth/google/callback', async (req, res) => {
       expires_at: Date.now() + Number(token.expires_in || 3600) * 1000,
       connected_at: new Date().toISOString(),
     };
+    if (KAKAO_CALENDAR_ALLOW_ALL) tokens.default = tokens[userId];
     const tokenPersisted = await saveGoogleTokensAsync(tokens);
     if (grantedScope && !hasGoogleTasksScope(tokens[userId])) {
       return res.type('html').send('<h1>Google Calendar connected</h1><p>캘린더 연결은 완료됐지만 Google Tasks 권한은 토큰에 포함되지 않았습니다. 카카오톡으로 돌아가서 다시 물어보면 캘린더 일정만 먼저 확인할 수 있습니다.</p>');
