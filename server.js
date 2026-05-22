@@ -1329,8 +1329,41 @@ async function exchangeGoogleCodeForToken(code, redirectUri) {
     client_secret: GOOGLE_OAUTH_CLIENT_SECRET,
     redirect_uri: redirectUri,
     grant_type: 'authorization_code',
-  }), { timeout: 5000 });
+  }), { timeout: 10000 });
   return response.data;
+}
+
+function getGoogleOAuthFailureDetails(error) {
+  const data = error.response?.data;
+  const googleError = data?.error || '';
+  const googleDescription = data?.error_description || data?.error_description_raw || '';
+  const status = error.response?.status;
+  const message = googleDescription || googleError || error.message || 'unknown_error';
+  return { status, googleError, googleDescription, message };
+}
+
+function renderGoogleOAuthFailurePage(details) {
+  const reason = escapeXml(details.message);
+  return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Google Calendar 연결 실패</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 28px; line-height: 1.55; color: #111; background: #fff; }
+    main { max-width: 560px; margin: 0 auto; }
+    code { display: block; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border-radius: 8px; background: #f3f4f6; color: #111827; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Google Calendar 연결에 실패했습니다.</h1>
+    <p>새 연결 링크로 다시 시도해 주세요. 같은 화면이 반복되면 아래 오류 문구를 알려주세요.</p>
+    <code>${reason}</code>
+  </main>
+</body>
+</html>`;
 }
 
 async function refreshGoogleAccessToken(userId, token) {
@@ -2685,9 +2718,11 @@ app.get('/auth/google', (req, res) => {
 });
 
 app.get('/auth/google/callback', async (req, res) => {
+  let callbackUserId = '';
   try {
     if (!hasGoogleOAuthConfig()) return res.status(503).type('text/plain').send('Google OAuth 설정이 아직 없습니다.');
     const { userId, redirectUri } = decodeOAuthState(req.query.state);
+    callbackUserId = userId;
     if (!userId || !req.query.code) return res.status(400).type('text/plain').send('OAuth state/code가 올바르지 않습니다.');
     if (!isCalendarUserAllowed(userId)) return res.status(403).type('text/plain').send('이 카카오 사용자는 Google Calendar 연결이 허용되지 않았습니다.');
     const token = await exchangeGoogleCodeForToken(req.query.code, redirectUri || getGoogleRedirectUri(req));
@@ -2707,8 +2742,20 @@ app.get('/auth/google/callback', async (req, res) => {
     }
     return res.type('html').send('<h1>Google Calendar connected</h1><p>카카오톡으로 돌아가서 일정 조회나 등록을 다시 요청해 주세요.</p>');
   } catch (error) {
-    console.error('[google-calendar] oauth callback failed:', { message: error.message, status: error.response?.status });
-    return res.status(500).type('text/plain').send('Google Calendar 연결에 실패했습니다. 다시 시도해 주세요.');
+    const details = getGoogleOAuthFailureDetails(error);
+    console.error('[google-calendar] oauth callback failed:', {
+      message: error.message,
+      status: details.status,
+      googleError: details.googleError,
+      googleDescription: details.googleDescription,
+    });
+    if (callbackUserId && details.googleError === 'invalid_grant') {
+      const storedToken = await getStoredGoogleToken(callbackUserId);
+      if (storedToken?.refresh_token || storedToken?.access_token) {
+        return res.type('html').send('<h1>Google Calendar connected</h1><p>이미 연결이 저장되어 있습니다. 카카오톡으로 돌아가서 일정 조회나 등록을 다시 요청해 주세요.</p>');
+      }
+    }
+    return res.status(500).type('html').send(renderGoogleOAuthFailurePage(details));
   }
 });
 
