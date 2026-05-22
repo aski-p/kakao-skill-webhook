@@ -41,7 +41,6 @@ const GOOGLE_TOKEN_STORE_BUCKET = process.env.GOOGLE_TOKEN_STORE_BUCKET || 'app-
 const GOOGLE_TOKEN_STORE_OBJECT = process.env.GOOGLE_TOKEN_STORE_OBJECT || 'google-calendar-tokens.json';
 const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
-  'https://www.googleapis.com/auth/tasks.readonly',
 ];
 const GOOGLE_TASKS_SCOPE = 'https://www.googleapis.com/auth/tasks.readonly';
 const KAKAO_CALENDAR_ALLOWED_USER_IDS = String(process.env.KAKAO_CALENDAR_ALLOWED_USER_IDS || '')
@@ -1891,6 +1890,19 @@ function classifyGoogleTasksError(error) {
 async function listGoogleCalendarItems(userId, range) {
   const token = await getGoogleAccessTokenForUser(userId);
   if (!token) return { needsAuth: true };
+  if (!hasGoogleTasksScope(token)) {
+    const eventsResult = await withTimeout(
+      listGoogleCalendarEvents(userId, range, token),
+      GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS,
+      { timedOut: true, events: [] },
+    );
+    if (eventsResult.needsAuth) return eventsResult;
+    if (eventsResult.timedOut) {
+      console.error('[google-calendar] list timed out:', { timeoutMs: GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS });
+      return { events: [], calendarFailed: true };
+    }
+    return { events: sortCalendarItems(eventsResult.events || []) };
+  }
   const [eventsSettled, tasksSettled] = await Promise.allSettled([
     withTimeout(listGoogleCalendarEvents(userId, range, token), GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS, { timedOut: true, events: [] }),
     withTimeout(listGoogleTasks(userId, range, token), GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS, { timedOut: true, tasks: [] }),
@@ -2690,9 +2702,6 @@ app.get('/auth/google/callback', async (req, res) => {
     };
     if (KAKAO_CALENDAR_ALLOW_ALL) tokens.default = tokens[userId];
     const tokenPersisted = await saveGoogleTokensAsync(tokens);
-    if (grantedScope && !hasGoogleTasksScope(tokens[userId])) {
-      return res.type('html').send('<h1>Google Calendar connected</h1><p>캘린더 연결은 완료됐지만 Google Tasks 권한은 토큰에 포함되지 않았습니다. 카카오톡으로 돌아가서 다시 물어보면 캘린더 일정만 먼저 확인할 수 있습니다.</p>');
-    }
     if (!tokenPersisted) {
       return res.type('html').send('<h1>Google Calendar connected</h1><p>연결은 완료됐지만 서버의 영속 토큰 저장소 설정이 아직 완전하지 않습니다. 카카오톡으로 돌아가서 다시 물어봐 주세요.</p>');
     }
