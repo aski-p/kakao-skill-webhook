@@ -10,13 +10,13 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22f-claude-retry';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22g-current-claude-fallback';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CONFIGURED_CLAUDE_MODEL = String(process.env.CLAUDE_MODEL || '').trim();
 const CLAUDE_MODEL = CONFIGURED_CLAUDE_MODEL || 'claude-haiku-4-5-20251001';
-const CLAUDE_FALLBACK_MODELS = ['claude-3-5-haiku-20241022', 'claude-3-haiku-20240307'];
+const CLAUDE_FALLBACK_MODELS = ['claude-sonnet-4-6'];
 const CLAUDE_PLANNER_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_PLANNER_TIMEOUT_MS || 1800), 1000);
 const CLAUDE_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_TIMEOUT_MS || 4400), 4400);
 const KAKAO_MAX_RESPONSE_LENGTH = Number(process.env.KAKAO_MAX_RESPONSE_LENGTH || 1000);
