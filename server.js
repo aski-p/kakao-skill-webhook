@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22a-calendar-write-priority';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22b-calendar-typo-guide';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1252,6 +1252,22 @@ function isNaverConfigQuestion(message) {
 function isGoogleCalendarConfigQuestion(message) {
   const text = normalizeKoreanSearchText(message);
   return /(구글|google).*(캘린더|calendar).*(api|API|키|key|cloud|클라우드|연동|설정|넣|등록|확인|왜\s*안|안\s*돼|안돼)|((캘린더|calendar).*(구글|google).*(api|API|키|key|cloud|클라우드|연동|설정|왜\s*안|안\s*돼|안돼))/.test(text);
+}
+
+function isMalformedCalendarCommand(message) {
+  const text = normalizeKoreanSearchText(message);
+  const hasCalendarContext = /(캘린더|calendar|달력|일정|예약|스케줄|오늘|내일|낼|모레|이번\s*주|다음\s*주|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*시)/.test(text);
+  const hasCommandTypo = /(알려주|보여주|말해주|조회해|확인해|읽어주|등록해|추가해|생성해|예약해|넣어주|수정해|변경해|삭제해|지워줘)[0-9A-Za-z]/.test(text);
+  return hasCalendarContext && hasCommandTypo;
+}
+
+function answerMalformedCalendarCommand() {
+  return {
+    answer: '오타가 있는 것 같아. 일정 조회나 등록을 정확히 다시 입력해줘.\n예: 내일 일정 알려줘\n예: 내일 오후 1시 10분 병원 일정 등록',
+    quickReplies: [],
+    plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_command_typo' },
+    results: [],
+  };
 }
 
 function isCalendarWriteRequest(message) {
@@ -2601,6 +2617,7 @@ async function answerChat(message, userId) {
 
 async function buildAnswer(message, userId, req) {
   if (isNaverConfigQuestion(message)) return answerNaverConfigQuestion(message);
+  if (isMalformedCalendarCommand(message)) return answerMalformedCalendarCommand();
   if (isCalendarUpdateRequest(message)) return answerCalendarUpdateRequest(message, userId, req);
   if (isCalendarWriteRequest(message) || isReminderWriteRequest(message)) return answerCalendarWriteRequest(message, userId, req);
   if (isCalendarReadRequest(message)) return answerCalendarReadRequest(message, userId, req);
@@ -2823,6 +2840,7 @@ module.exports = {
   renderCalendarCardSvg,
   parseCalendarQueryRange,
   parseCalendarEvent,
+  isMalformedCalendarCommand,
   isCalendarReadRequest,
   isCalendarWriteRequest,
   isReminderWriteRequest,
