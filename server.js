@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22i-local-meal-search';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22j-natural-local-router';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -73,6 +73,9 @@ const getKoreanDateTime = () => new Intl.DateTimeFormat('ko-KR', { timeZone: 'As
 const getUserMessage = (body) => normalizeText(body?.userRequest?.utterance || body?.utterance || body?.message || '');
 const getUserId = (body) => body?.userRequest?.user?.id || body?.userRequest?.user?.properties?.botUserKey || 'anonymous';
 const LOCAL_LOCATION_PATTERN = /(?:[가-힣A-Za-z0-9]+(?:구|동|역|로|길|시|군|읍|면|리|가)|강남|홍대|명동|신촌|이태원|성수|연남|합정|망원|여의도|종로)/;
+const LOCAL_DOMAIN_PATTERN = /맛집|음식점|식당|카페|밥집|술집|술\s*마실|고깃집|분식|한식|중식|일식|양식|치킨|피자|파스타|커피|디저트|병원|약국|미용실|네일|헬스장|체육관|구장|코트|연습장|센터|매장|가게|업체|장소|시설/;
+const LOCAL_ACTIVITY_PATTERN = /먹|마시|식사|끼니|밥|브런치|런치|디너|야식|점심|저녁|아침|회식|데이트|예약|잡|갈\s*만|가볼|놀|운동|치러|치려고|이용|사러|고치|수리|맡기/;
+const LOCAL_REQUEST_PATTERN = /근처|주변|가까운|동네|인근|어디|뭐|찾|검색|추천|유명|인기|괜찮|좋은|가능|있어|있나|있을까|알려|보여/;
 const WEATHER_WORD_PATTERN = /날씨|기온|온도|비\s*와|비와|비\s*올|비올|우산|미세먼지|초미세먼지|습도|바람/;
 const CALENDAR_ASSET_DIR = path.join(__dirname, 'assets', 'calendar');
 const CALENDAR_FONT_PATH = path.join(CALENDAR_ASSET_DIR, 'NotoSansKR-Bold.ttf');
@@ -1097,11 +1100,13 @@ function compactLocalQuery(message) {
     .replace(/(칠려고|치려고|하려고|하고\s*싶은데|하려\s*하는데|하는데|이용하려고|예약하려고|잡으려고|먹으려고|먹지|먹을\s*만한|먹을\s*거|먹을\s*것|먹거리|먹거|먹을)/g, ' ')
     .replace(/(잡을\s*수\s*있는\s*곳|잡을\s*수\s*있는|예약\s*가능한\s*곳|예약\s*가능한|예약할\s*수\s*있는\s*곳|예약할\s*수\s*있는)/g, ' ')
     .replace(/(맛집|식당|매장|가게|업체|장소|곳|집|브랜드|시설|센터)/g, ' ')
-    .replace(/(찾아줄\s*수\s*있어|찾아줘|찾아봐|알려줘|추천해줘|추천|검색해줘|검색|어디|뭐|좀|해줘|있어|있나|있니|가능|가능한)/g, ' ')
+    .replace(/(찾아줄\s*수\s*있어|찾아줘|찾아봐|알려줘|추천해줘|추천|검색해줘|검색|어디|뭐|좀|해줘|있어|있나|있니|있을까|가능|가능한)/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  if (!target) target = compactGeneralQuery(text.replace(location, ' '));
+  if (!target && !LOCAL_ACTIVITY_PATTERN.test(text) && !LOCAL_DOMAIN_PATTERN.test(text)) {
+    target = compactGeneralQuery(text.replace(location, ' '));
+  }
   if (!target && /(점심|점심밥|런치)/.test(text)) target = '점심';
   if (!target && /(저녁|저녁밥|디너)/.test(text)) target = '저녁';
   if (!target && /(아침|아침밥|브런치)/.test(text)) target = '아침';
@@ -1143,15 +1148,19 @@ function buildLocalFallbackQueries(plan) {
     .slice(0, 4);
 }
 
+function hasLocalSearchIntent(text) {
+  const normalized = normalizeKoreanSearchText(text);
+  if (!LOCAL_LOCATION_PATTERN.test(normalized)) return false;
+  if (LOCAL_DOMAIN_PATTERN.test(normalized)) return true;
+  return LOCAL_ACTIVITY_PATTERN.test(normalized) && LOCAL_REQUEST_PATTERN.test(normalized);
+}
+
 function fallbackPlan(message) {
   const text = normalizeKoreanSearchText(message);
-  const hasLocation = LOCAL_LOCATION_PATTERN.test(text);
-  const hasMealSearchCue = /(점심|저녁|아침|브런치|런치|디너|야식|밥|식사|음식|먹을\s*(거|것)|먹거리|먹거|먹으|뭐\s*먹)/.test(text);
-  const hasLocalSearchCue = /(근처|주변|가까운|동네|맛집|식당|매장|가게|업체|장소|시설|센터|코트|구장|체육관|운동장|연습장|클럽|예약|잡을\s*수|이용할\s*수|어디|찾아|검색|추천|유명한)/.test(text) || hasMealSearchCue;
   if (WEATHER_WORD_PATTERN.test(text)) return { intent: 'weather_lookup', searchQuery: extractWeatherLocation(text), sort: 'sim', confidence: 0.85, source: 'fallback' };
   if (/뉴스|기사|속보|최신\s*뉴스|최근\s*뉴스/.test(text)) return { intent: 'news_search', searchQuery: compactSearchQuery(text, 'news_search'), sort: 'date', confidence: 0.75, source: 'fallback' };
   if (/가격|최저가|시세|얼마|구매|상품|제품|쇼핑/.test(text)) return { intent: 'shopping_search', searchQuery: compactSearchQuery(text, 'shopping_search'), sort: 'sim', confidence: 0.72, source: 'fallback' };
-  if (hasLocation && hasLocalSearchCue) return { intent: 'local_search', searchQuery: compactSearchQuery(text, 'local_search'), sort: 'comment', confidence: 0.72, source: 'fallback' };
+  if (hasLocalSearchIntent(text)) return { intent: 'local_search', searchQuery: compactSearchQuery(text, 'local_search'), sort: 'comment', confidence: 0.72, source: 'fallback_semantic_local' };
   if (/검색|찾아봐|알아봐|확인|최신|최근|실시간|웹|인터넷|네이버|구글|출처/.test(text)) return { intent: 'web_lookup', searchQuery: compactSearchQuery(text, 'web_lookup'), sort: 'sim', confidence: 0.7, source: 'fallback' };
   return { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.65, source: 'fallback' };
 }
@@ -1160,7 +1169,7 @@ function shouldAnswerWithClaudeFirst(message) {
   const text = normalizeKoreanSearchText(message);
   const explicitLookupCue = /(검색|찾아봐|찾아줘|알아봐|최신|최근|실시간|뉴스|기사|속보|출처|네이버|구글|웹에서|인터넷에서)/.test(text);
   const commerceCue = /(가격|최저가|시세|얼마|구매|상품|제품|쇼핑)/.test(text);
-  const localCue = LOCAL_LOCATION_PATTERN.test(text) && /(근처|주변|가까운|맛집|식당|매장|가게|업체|장소|시설|센터|예약|어디|추천|점심|저녁|아침|브런치|런치|디너|야식|밥|식사|음식|먹을\s*(거|것)|먹거리|먹거|먹으|뭐\s*먹)/.test(text);
+  const localCue = hasLocalSearchIntent(text);
   const howToCue = /(어떻게|어케|방법|가능|할\s*수\s*있|되나|되냐|만들|설정|실행|명령어|cmd|윈도|윈도우|windows|바로가기|아이콘)/i.test(text);
   const conversationRepairCue = /(너무|간단|자세히|자연스럽|말하는|대답|답변|아냐|아니야|다시|방금|그대로|이전|처럼|왜\s*그래|이상해)/.test(text);
   const noLocationRestaurantCue = !LOCAL_LOCATION_PATTERN.test(text) && /(맛집|식당|음식점|밥집|가게|메뉴|점심|저녁|아침|야식).*(추천|골라|뭐|어디)|추천.*(맛집|식당|음식점|밥집|메뉴|점심|저녁|아침|야식)/.test(text);
@@ -2709,6 +2718,35 @@ async function buildAnswer(message, userId, req) {
     }
   }
   if (immediateFallback.intent === 'local_search') {
+    if (CLAUDE_API_KEY) {
+      const planned = await planTurn(message, userId);
+      if (planned.intent === 'chat') {
+        try {
+          const answer = await answerChat(message, userId);
+          return { answer, quickReplies: [], plan: planned, results: [] };
+        } catch (error) {
+          console.error('[planner-chat] failed:', { message: error.message, code: error.code, status: error.response?.status });
+          lastClaudeStatus = { ok: false, status: error.response?.status || null, code: error.code || null, message: String(error.response?.data?.error?.message || error.message || '').slice(0, 160), at: new Date().toISOString() };
+          return { answer: fallbackChatAnswer(message), quickReplies: [], plan: planned, results: [] };
+        }
+      }
+      if (planned.intent !== 'local_search') {
+        try {
+          const search = await searchNaverWithRetries(planned);
+          return { answer: formatSearchAnswer(search.plan, search.results), quickReplies: buildQuickReplies(search.plan, search.results), plan: search.plan, results: search.results };
+        } catch (error) {
+          console.error('[planner-search] failed:', { message: error.message, code: error.code, status: error.response?.status });
+          return { answer: formatSearchAnswer(planned, []), quickReplies: buildQuickReplies(planned, []), plan: planned, results: [] };
+        }
+      }
+      try {
+        const search = await searchNaverWithRetries(planned);
+        return { answer: formatSearchAnswer(search.plan, search.results), quickReplies: buildQuickReplies(search.plan, search.results), plan: search.plan, results: search.results };
+      } catch (error) {
+        console.error('[naver-local-planned] failed:', { message: error.message, code: error.code, status: error.response?.status });
+        return { answer: formatSearchAnswer(planned, []), quickReplies: buildQuickReplies(planned, []), plan: planned, results: [] };
+      }
+    }
     try {
       const search = await searchNaverWithRetries(immediateFallback);
       return { answer: formatSearchAnswer(search.plan, search.results), quickReplies: buildQuickReplies(search.plan, search.results), plan: search.plan, results: search.results };

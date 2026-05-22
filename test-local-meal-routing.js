@@ -10,6 +10,8 @@ const locationMealRequests = [
   ['을지로3가 점심 먹을거 추천좀', '을지로3가 점심'],
   ['강남역 저녁 먹을 것 추천해줘', '강남역 저녁'],
   ['홍대 밥 먹을 곳 알려줘', '홍대 밥'],
+  ['을지로3가에서 뭐 먹지', '을지로3가 맛집'],
+  ['성수 근처 조용한 카페 있을까', '성수 조용한 카페'],
 ];
 
 for (const [message, expectedQuery] of locationMealRequests) {
