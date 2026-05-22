@@ -12,7 +12,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22n-restaurant-full-page-keywords';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22o-broader-restaurant-crawl';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -157,7 +157,20 @@ const SEOUL_DISTRICTS = [
   '성동구', '성북구', '송파구', '양천구', '영등포구',
   '용산구', '은평구', '종로구', '중구', '중랑구',
 ];
-const RESTAURANT_CRAWL_QUERY_SUFFIXES = ['맛집', '점심 맛집', '카페'];
+const RESTAURANT_CRAWL_QUERY_SUFFIXES = [
+  '맛집',
+  '점심 맛집',
+  '저녁 맛집',
+  '한식 맛집',
+  '양식 맛집',
+  '중식 맛집',
+  '일식 맛집',
+  '고기 맛집',
+  '버거 맛집',
+  '분식 맛집',
+  '술집',
+  '카페',
+];
 const NAVER_VISITOR_REVIEW_LABELS = [
   '음식이 맛있어요',
   '재료가 신선해요',
