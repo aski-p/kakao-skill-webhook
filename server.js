@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22c-calendar-typo-normalize';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22e-natural-chat-timeout';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -20,7 +20,7 @@ const CLAUDE_FALLBACK_MODELS = ['claude-3-5-haiku-20241022', 'claude-3-haiku-202
 const CLAUDE_PLANNER_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_PLANNER_TIMEOUT_MS || 1800), 1000);
 const CLAUDE_TIMEOUT_MS = Math.max(Number(process.env.CLAUDE_TIMEOUT_MS || 4400), 4400);
 const KAKAO_MAX_RESPONSE_LENGTH = Number(process.env.KAKAO_MAX_RESPONSE_LENGTH || 1000);
-const KAKAO_HANDLER_TIMEOUT_MS = Math.min(Math.max(Number(process.env.KAKAO_HANDLER_TIMEOUT_MS || 4200), 2500), 4800);
+const KAKAO_HANDLER_TIMEOUT_MS = Math.min(Math.max(Number(process.env.KAKAO_HANDLER_TIMEOUT_MS || 4800), 2500), 4800);
 const GOOGLE_TOKEN_STORE_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_TOKEN_STORE_TIMEOUT_MS || 800), 300), 1500);
 const GOOGLE_CALENDAR_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_TIMEOUT_MS || 1800), 800), 2500);
 const GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS || 1800), 900), 2400);
@@ -1161,7 +1161,9 @@ function shouldAnswerWithClaudeFirst(message) {
   const commerceCue = /(가격|최저가|시세|얼마|구매|상품|제품|쇼핑)/.test(text);
   const localCue = LOCAL_LOCATION_PATTERN.test(text) && /(근처|주변|가까운|맛집|식당|매장|가게|업체|장소|시설|센터|예약|어디|추천)/.test(text);
   const howToCue = /(어떻게|어케|방법|가능|할\s*수\s*있|되나|되냐|만들|설정|실행|명령어|cmd|윈도|윈도우|windows|바로가기|아이콘)/i.test(text);
-  return howToCue && !explicitLookupCue && !commerceCue && !localCue && !WEATHER_WORD_PATTERN.test(text);
+  const conversationRepairCue = /(너무|간단|자세히|자연스럽|말하는|대답|답변|아냐|아니야|다시|방금|그대로|이전|처럼|왜\s*그래|이상해)/.test(text);
+  const noLocationRestaurantCue = !LOCAL_LOCATION_PATTERN.test(text) && /(맛집|식당|음식점|밥집|가게|메뉴|점심|저녁|아침|야식).*(추천|골라|뭐|어디)|추천.*(맛집|식당|음식점|밥집|메뉴|점심|저녁|아침|야식)/.test(text);
+  return (howToCue || conversationRepairCue || noLocationRestaurantCue) && !explicitLookupCue && !commerceCue && !localCue && !WEATHER_WORD_PATTERN.test(text);
 }
 
 function isCasualMealChoiceRequest(message) {
@@ -1217,8 +1219,8 @@ async function planTurn(message, userId) {
     'intent는 chat, web_lookup, news_search, local_search, shopping_search, weather_lookup 중 하나야.',
     '날씨, 기온, 비, 우산, 미세먼지 같은 실시간 날씨 질문은 weather_lookup을 골라.',
     'weather_lookup의 searchQuery는 지역명만 짧게 넣어. 지역이 없으면 서울로 둬.',
-    '지역 맛집, 주변 가게, 업종 추천, 장소 검색이면 local_search를 골라.',
-    '위치 없이 "뭐먹지", "저녁 추천", "야식 뭐 먹을까"처럼 메뉴 판단을 묻는 일상 질문은 local_search가 아니라 chat이야.',
+    '지역명/동네/역/주소처럼 위치가 있는 맛집, 주변 가게, 업종 추천, 장소 검색이면 local_search를 골라.',
+    '위치 없이 "뭐먹지", "식당 추천해줘", "저녁 추천", "야식 뭐 먹을까"처럼 메뉴 판단을 묻는 일상 질문은 local_search가 아니라 chat이야.',
     'local_search의 searchQuery는 네이버 지역검색에 바로 넣을 짧은 한국어 검색어로 만들어. 지역명과 조건을 포함해.',
     'local_search는 많이 찾는 순서가 필요하므로 sort는 comment로 둬.',
     '최신 정보, 사실 확인은 web_lookup이나 news_search를 골라.',
@@ -2580,8 +2582,22 @@ function fallbackChatAnswer(message) {
   if (modelAnswer) return modelAnswer;
   const mealAnswer = answerCasualMealChoice(text);
   if (mealAnswer) return mealAnswer;
+  const restaurantAnswer = answerNoLocationRestaurantSuggestion(text);
+  if (restaurantAnswer) return restaurantAnswer;
   if (/^(안녕|안녕하세요|하이|ㅎㅇ)/.test(text)) return '안녕. 뭐 도와줄까?';
   return 'Claude 응답이 잠깐 지연됐어. 방금 질문 그대로 한 번만 다시 보내줘.';
+}
+
+function answerNoLocationRestaurantSuggestion(message) {
+  const text = normalizeKoreanSearchText(message);
+  const hasLocation = LOCAL_LOCATION_PATTERN.test(text);
+  const asksRestaurant = /(맛집|식당|음식점|밥집|가게|메뉴|점심|저녁|아침|야식).*(추천|골라|뭐|어디)|추천.*(맛집|식당|음식점|밥집|메뉴|점심|저녁|아침|야식)/.test(text);
+  const explicitLookupCue = /(근처|주변|가까운|주소|위치|지도|예약|찾아|검색|네이버|구글|웹에서|인터넷에서)/.test(text);
+  if (!asksRestaurant || hasLocation || explicitLookupCue) return null;
+  if (/치킨/.test(text)) return '치킨이면 오늘은 후라이드보다 양념 반반이나 간장치킨 쪽 추천. 매장 고를 땐 리뷰 많은 곳보다 최근 리뷰 사진이 좋은 곳으로 가자.';
+  if (/점심|런치/.test(text)) return '점심 식당이면 빨리 나오고 실패 적은 곳으로 가자. 제육, 돈까스, 국밥, 쌀국수 중에 고르면 무난해.';
+  if (/저녁|디너/.test(text)) return '저녁 식당이면 든든하게 국밥/고기/돈까스, 가볍게는 쌀국수나 샤브 쪽이 좋아. 위치를 주면 실제 가게로 찾아줄게.';
+  return '식당이면 먼저 종류를 좁히자. 빠르게 먹을 거면 국밥/돈까스, 여유 있으면 고기나 파스타, 가볍게는 쌀국수 추천.';
 }
 
 function answerCasualMealChoice(message) {
@@ -2662,6 +2678,23 @@ async function buildAnswer(message, userId, req) {
       return { answer, quickReplies: [], plan, results: [] };
     } catch (error) {
       console.error('[claude-first-chat] failed:', { message: error.message, code: error.code, status: error.response?.status });
+      lastClaudeStatus = { ok: false, status: error.response?.status || null, code: error.code || null, message: String(error.response?.data?.error?.message || error.message || '').slice(0, 160), at: new Date().toISOString() };
+      return { answer: fallbackChatAnswer(message), quickReplies: [], plan, results: [] };
+    }
+  }
+
+  const immediateFallback = fallbackPlan(message);
+  if (immediateFallback.intent === 'chat') {
+    const plan = {
+      ...immediateFallback,
+      confidence: Math.max(immediateFallback.confidence || 0.65, 0.85),
+      source: 'direct_chat_no_router',
+    };
+    try {
+      const answer = await answerChat(message, userId);
+      return { answer, quickReplies: [], plan, results: [] };
+    } catch (error) {
+      console.error('[direct-chat] failed:', { message: error.message, code: error.code, status: error.response?.status });
       lastClaudeStatus = { ok: false, status: error.response?.status || null, code: error.code || null, message: String(error.response?.data?.error?.message || error.message || '').slice(0, 160), at: new Date().toISOString() };
       return { answer: fallbackChatAnswer(message), quickReplies: [], plan, results: [] };
     }
@@ -2817,7 +2850,7 @@ async function handleKakaoSkill(req, res) {
     const timeoutAnswer = {
       answer: isCalendarReadRequest(message)
         ? '구글 일정 확인이 늦어지고 있어. 잠시 후 같은 문장으로 다시 보내줘.'
-        : '응답이 늦어지고 있어. 방금 질문 그대로 한 번만 다시 보내줘.',
+        : fallbackChatAnswer(message),
       quickReplies: [],
       plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.5, source: 'kakao_handler_timeout' },
       results: [],
