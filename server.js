@@ -2695,9 +2695,7 @@ async function enrichNaverRestaurantMetrics(item) {
       timeout: Math.max(NAVER_SEARCH_TIMEOUT_MS, 3500),
     });
     const html = String(response.data || '');
-    const cleanTitle = stripHtml(item.title).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const titleIndex = html.search(new RegExp(cleanTitle.slice(0, 20)));
-    const metricsText = titleIndex >= 0 ? html.slice(Math.max(0, titleIndex - 4000), titleIndex + 80000) : html.slice(0, 400000);
+    const metricsText = html.slice(0, 400000);
     const rating = Number(metricsText.match(/place_blind">별점<\/span>\s*([0-9.]+)/)?.[1]);
     const reviewCount = parseCompactNumber(metricsText.match(/리뷰(?:<!-- -->|\s|&nbsp;)*([0-9,]+)/)?.[1]);
     const visitorReviewTotal = parseCompactNumber(metricsText.match(/방문자\s*리뷰(?:<!-- -->|\s|&nbsp;)*([0-9,]+)/)?.[1])
