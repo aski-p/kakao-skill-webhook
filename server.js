@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-21av-month-ellipsis';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22a-calendar-write-priority';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1257,7 +1257,11 @@ function isGoogleCalendarConfigQuestion(message) {
 function isCalendarWriteRequest(message) {
   const text = normalizeKoreanSearchText(message);
   const hasCalendarCue = /(캘린더|calendar|일정|예약|스케줄)/.test(text);
-  const hasWriteCue = /(등록|추가|생성|만들|잡아|예약해|넣어|수정|변경|삭제|지워)/.test(text);
+  const hasExplicitWriteCue = /(등록|추가|생성|만들|잡아|예약해|예약\s*해|넣어|수정|변경|삭제|지워)/.test(text);
+  const hasReadCue = /(알려|말해|보여|조회|확인|읽어|뭐\s*있|뭐가\s*있|있어|있나|있니|리스트|목록)/.test(text);
+  const hasTimeCue = /(오늘|내일|낼|모레|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{4}-\d{1,2}-\d{1,2}).*(오전|오후|저녁|밤|아침)?\s*\d{1,2}\s*시|(?:오전|오후|저녁|밤|아침)?\s*\d{1,2}\s*시/.test(text);
+  const hasBareReservationCreateCue = /예약/.test(text) && hasTimeCue && !hasReadCue;
+  const hasWriteCue = hasExplicitWriteCue || hasBareReservationCreateCue;
   return hasCalendarCue && hasWriteCue;
 }
 
@@ -1283,8 +1287,10 @@ function isCalendarReadRequest(message) {
 function isReminderWriteRequest(message) {
   const text = normalizeKoreanSearchText(message);
   const hasReminderCue = /(알림|알려줘|알려줄|리마인드|리마인더|상기|깨워줘|예약)/.test(text);
+  const hasCalendarCue = /(캘린더|calendar|일정|스케줄)/.test(text);
+  const hasReadCue = /(말해|보여|조회|확인|읽어|뭐\s*있|뭐가\s*있|있어|있나|있니|리스트|목록)/.test(text);
   const hasTimeCue = /(오늘|내일|모레|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{4}-\d{1,2}-\d{1,2}).*(오전|오후|저녁|밤|아침)?\s*\d{1,2}\s*시|(?:오전|오후|저녁|밤|아침)?\s*\d{1,2}\s*시/.test(text);
-  return hasReminderCue && hasTimeCue;
+  return hasReminderCue && hasTimeCue && !(hasCalendarCue && hasReadCue);
 }
 
 function answerGoogleCalendarConfigQuestion() {
@@ -1657,7 +1663,7 @@ function parseCalendarEvent(message) {
   let title = normalizeText(text
     .replace(/\d{1,3}\s*분\s*(?:전|전에|전쯤)/g, ' ')
     .replace(/(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|(?<!월\s*)\d{1,2}\s*일|오늘|내일|모레|이번\s*주|이번주|다음\s*주|다음주|내주|다\s*다음\s*주|다다음주|다음\s*다음\s*주|차\s*주|저번\s*주|저번주|지난\s*주|지난주|이전\s*주|이전주|(월|화|수|목|금|토|일)\s*요일|오전|오후|저녁|밤|아침|\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?)/g, ' ')
-    .replace(/(구글|google|캘린더|calendar|일정|예약|스케줄|등록|추가|생성|만들어줘|만들|잡아줘|잡아|넣어줘|넣어|해줘|좀|에|으로|로|나한테|내게|저한테|알림|알려줘|알려줄|수\s*있어|줘)/g, ' ')
+    .replace(/(구글|google|캘린더|calendar|일정|예약|스케줄|등록|추가|생성|만들어줘|만들|잡아줘|잡아|넣어줘|넣어|해줘|좀|에|으로|로|나한테|내게|저한테|알림|알려줘|알려줄|수\s*있어|지금|현재|줘)/g, ' ')
     .replace(/[?？！!,.]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim());
@@ -2596,8 +2602,8 @@ async function answerChat(message, userId) {
 async function buildAnswer(message, userId, req) {
   if (isNaverConfigQuestion(message)) return answerNaverConfigQuestion(message);
   if (isCalendarUpdateRequest(message)) return answerCalendarUpdateRequest(message, userId, req);
-  if (isCalendarReadRequest(message)) return answerCalendarReadRequest(message, userId, req);
   if (isCalendarWriteRequest(message) || isReminderWriteRequest(message)) return answerCalendarWriteRequest(message, userId, req);
+  if (isCalendarReadRequest(message)) return answerCalendarReadRequest(message, userId, req);
   if (isGoogleCalendarConfigQuestion(message)) return answerGoogleCalendarConfigQuestion();
 
   if (shouldAnswerWithClaudeFirst(message) || isCasualMealChoiceRequest(message)) {
@@ -2817,6 +2823,9 @@ module.exports = {
   renderCalendarCardSvg,
   parseCalendarQueryRange,
   parseCalendarEvent,
+  isCalendarReadRequest,
+  isCalendarWriteRequest,
+  isReminderWriteRequest,
   isCalendarItemInRange,
   formatGoogleCalendarEvent,
   groupGoogleCalendarEventsByDate,

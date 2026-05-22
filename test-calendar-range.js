@@ -2,6 +2,9 @@ const assert = require('node:assert/strict');
 const {
   parseCalendarQueryRange,
   parseCalendarEvent,
+  isCalendarReadRequest,
+  isCalendarWriteRequest,
+  isReminderWriteRequest,
   isCalendarItemInRange,
   formatGoogleCalendarEvent,
   groupGoogleCalendarEventsByDate,
@@ -48,6 +51,16 @@ assert.equal(event.summary, '우체국 보험 접수');
 assert.equal(event.start, '2026-05-25T11:00:00+09:00');
 assert.equal(event.end, '2026-05-25T12:00:00+09:00');
 assert.equal(event.allDay, false);
+
+const bareReservationEvent = parseCalendarEvent('내일 지금 1시 10분 일정 예약');
+assert.equal(bareReservationEvent.summary, '일정');
+assert.equal(bareReservationEvent.start, '2026-05-23T01:10:00+09:00');
+assert.equal(bareReservationEvent.end, '2026-05-23T02:10:00+09:00');
+assert.equal(isCalendarWriteRequest('내일 지금 1시 10분 일정 예약'), true);
+assert.equal(isCalendarReadRequest('내일 지금 1시 10분 일정 예약'), false);
+assert.equal(isReminderWriteRequest('내일 지금 1시 10분 일정 예약'), true);
+assert.equal(isCalendarWriteRequest('내일 1시 예약 있어?'), false);
+assert.equal(isCalendarReadRequest('내일 1시 예약 있어?'), true);
 
 const dayOnlyEvent = parseCalendarEvent('27일 신생아특례대출 일정 등록해줘');
 assert.equal(dayOnlyEvent.summary, '신생아특례대출');
