@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22e-natural-chat-timeout';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22f-claude-retry';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -2621,6 +2621,13 @@ function answerClaudeModelQuestion(message) {
   return `지금은 Haiku 계열인 ${CLAUDE_MODEL}로 설정돼 있어.${fallbackText}`;
 }
 
+function shouldTryNextClaudeModel(error) {
+  const status = error?.response?.status;
+  if (status === 404 || status === 429 || status === 529) return true;
+  if (status >= 500 && status < 600) return true;
+  return false;
+}
+
 async function answerChat(message, userId) {
   const modelAnswer = answerClaudeModelQuestion(message);
   if (modelAnswer) return modelAnswer;
@@ -2647,7 +2654,7 @@ async function answerChat(message, userId) {
     } catch (error) {
       lastError = error;
       lastClaudeStatus = { ok: false, status: error.response?.status || null, code: error.code || null, message: String(error.response?.data?.error?.message || error.message || '').slice(0, 160), model, at: new Date().toISOString() };
-      if (error.response?.status !== 404) break;
+      if (!shouldTryNextClaudeModel(error)) break;
     }
   }
 
