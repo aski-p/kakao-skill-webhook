@@ -2195,7 +2195,46 @@ async function answerCalendarWriteRequest(message, userId, req) {
     };
   }
 
-  const result = await createGoogleCalendarEvent(userId, event);
+  let result;
+  try {
+    result = await createGoogleCalendarEvent(userId, event);
+  } catch (error) {
+    const status = error.response?.status;
+    const errorText = getGoogleApiErrorText(error);
+    console.error('[google-calendar] create failed:', {
+      message: error.message,
+      code: error.code,
+      status,
+      data: String(errorText).slice(0, 500),
+    });
+
+    if (status === 401) {
+      const authUrl = buildGoogleConnectUrl(userId, req);
+      return {
+        answer: `구글 캘린더 연결 토큰이 만료됐거나 취소됐어. 아래 링크로 다시 연결한 뒤 같은 문장으로 보내줘.\n${authUrl}`,
+        quickReplies: [{ label: '구글 재연결', action: 'webLink', webLinkUrl: authUrl }],
+        plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.9, source: 'calendar_create_auth_expired' },
+        results: [],
+      };
+    }
+
+    if (status === 403 && /ACCESS_TOKEN_SCOPE_INSUFFICIENT|insufficient|forbidden|permission|PERMISSION_DENIED/i.test(errorText)) {
+      const authUrl = buildGoogleConnectUrl(userId, req);
+      return {
+        answer: `구글 캘린더에 일정을 추가할 권한이 부족해. 아래 링크로 다시 연결해서 Calendar 쓰기 권한을 받은 뒤 같은 문장으로 보내줘.\n${authUrl}`,
+        quickReplies: [{ label: '구글 재연결', action: 'webLink', webLinkUrl: authUrl }],
+        plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.9, source: 'calendar_create_scope_missing' },
+        results: [],
+      };
+    }
+
+    return {
+      answer: `구글 캘린더에 추가하려고 했는데 Google 응답이 실패했어.\n요청 내용은 이렇게 해석했어: ${event.summary} / ${event.allDay ? `${event.startDate} 종일` : event.start.replace('T', ' ').replace(':00+09:00', '')}\n잠깐 뒤에 다시 보내줘.`,
+      quickReplies: [],
+      plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.85, source: 'calendar_create_failed' },
+      results: [],
+    };
+  }
   if (result.needsAuth) {
     const authUrl = buildGoogleConnectUrl(userId, req);
     return {
