@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22b-calendar-typo-guide';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22c-calendar-typo-normalize';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1254,8 +1254,31 @@ function isGoogleCalendarConfigQuestion(message) {
   return /(구글|google).*(캘린더|calendar).*(api|API|키|key|cloud|클라우드|연동|설정|넣|등록|확인|왜\s*안|안\s*돼|안돼)|((캘린더|calendar).*(구글|google).*(api|API|키|key|cloud|클라우드|연동|설정|왜\s*안|안\s*돼|안돼))/.test(text);
 }
 
-function isMalformedCalendarCommand(message) {
+function normalizeCalendarCommandTypos(message) {
   const text = normalizeKoreanSearchText(message);
+  const hasCalendarContext = /(캘린더|calendar|달력|일정|예약|스케줄|오늘|내일|낼|모레|이번\s*주|다음\s*주|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*시)/.test(text);
+  if (!hasCalendarContext) return text;
+
+  return text
+    .replace(/알려주[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '알려줘')
+    .replace(/보여주[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '보여줘')
+    .replace(/말해주[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '말해줘')
+    .replace(/읽어주[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '읽어줘')
+    .replace(/넣어주[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '넣어줘')
+    .replace(/조회해[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '조회해줘')
+    .replace(/확인해[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '확인해줘')
+    .replace(/등록해[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '등록해줘')
+    .replace(/추가해[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '추가해줘')
+    .replace(/생성해[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '생성해줘')
+    .replace(/예약해[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '예약해줘')
+    .replace(/수정해[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '수정해줘')
+    .replace(/변경해[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '변경해줘')
+    .replace(/삭제해[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '삭제해줘')
+    .replace(/지워줘[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '지워줘');
+}
+
+function isMalformedCalendarCommand(message) {
+  const text = normalizeCalendarCommandTypos(message);
   const hasCalendarContext = /(캘린더|calendar|달력|일정|예약|스케줄|오늘|내일|낼|모레|이번\s*주|다음\s*주|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*시)/.test(text);
   const hasCommandTypo = /(알려주|보여주|말해주|조회해|확인해|읽어주|등록해|추가해|생성해|예약해|넣어주|수정해|변경해|삭제해|지워줘)[0-9A-Za-z]/.test(text);
   return hasCalendarContext && hasCommandTypo;
@@ -2617,11 +2640,12 @@ async function answerChat(message, userId) {
 
 async function buildAnswer(message, userId, req) {
   if (isNaverConfigQuestion(message)) return answerNaverConfigQuestion(message);
-  if (isMalformedCalendarCommand(message)) return answerMalformedCalendarCommand();
-  if (isCalendarUpdateRequest(message)) return answerCalendarUpdateRequest(message, userId, req);
-  if (isCalendarWriteRequest(message) || isReminderWriteRequest(message)) return answerCalendarWriteRequest(message, userId, req);
-  if (isCalendarReadRequest(message)) return answerCalendarReadRequest(message, userId, req);
-  if (isGoogleCalendarConfigQuestion(message)) return answerGoogleCalendarConfigQuestion();
+  const routedMessage = normalizeCalendarCommandTypos(message);
+  if (isMalformedCalendarCommand(routedMessage)) return answerMalformedCalendarCommand();
+  if (isCalendarUpdateRequest(routedMessage)) return answerCalendarUpdateRequest(routedMessage, userId, req);
+  if (isCalendarWriteRequest(routedMessage) || isReminderWriteRequest(routedMessage)) return answerCalendarWriteRequest(routedMessage, userId, req);
+  if (isCalendarReadRequest(routedMessage)) return answerCalendarReadRequest(routedMessage, userId, req);
+  if (isGoogleCalendarConfigQuestion(routedMessage)) return answerGoogleCalendarConfigQuestion();
 
   if (shouldAnswerWithClaudeFirst(message) || isCasualMealChoiceRequest(message)) {
     const plan = {
@@ -2840,6 +2864,7 @@ module.exports = {
   renderCalendarCardSvg,
   parseCalendarQueryRange,
   parseCalendarEvent,
+  normalizeCalendarCommandTypos,
   isMalformedCalendarCommand,
   isCalendarReadRequest,
   isCalendarWriteRequest,

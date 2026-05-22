@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const {
   parseCalendarQueryRange,
   parseCalendarEvent,
+  normalizeCalendarCommandTypos,
   isMalformedCalendarCommand,
   isCalendarReadRequest,
   isCalendarWriteRequest,
@@ -62,7 +63,10 @@ assert.equal(isCalendarReadRequest('내일 지금 1시 10분 일정 예약'), fa
 assert.equal(isReminderWriteRequest('내일 지금 1시 10분 일정 예약'), true);
 assert.equal(isCalendarWriteRequest('내일 1시 예약 있어?'), false);
 assert.equal(isCalendarReadRequest('내일 1시 예약 있어?'), true);
-assert.equal(isMalformedCalendarCommand('내일 일정 알려주8'), true);
+assert.equal(normalizeCalendarCommandTypos('내일 일정 알려주8'), '내일 일정 알려줘');
+assert.equal(normalizeCalendarCommandTypos('내일 일정 알려주ㅜ'), '내일 일정 알려줘');
+assert.equal(isMalformedCalendarCommand('내일 일정 알려주8'), false);
+assert.equal(isCalendarReadRequest(normalizeCalendarCommandTypos('내일 일정 알려주8')), true);
 assert.equal(isCalendarReadRequest('내일 일정 알려줘'), true);
 assert.equal(isMalformedCalendarCommand('내일 일정 알려줘'), false);
 assert.equal(isMalformedCalendarCommand('5월 23일 일정 알려줘'), false);
