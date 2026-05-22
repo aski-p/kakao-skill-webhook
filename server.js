@@ -989,8 +989,8 @@ function getGoogleTasksApiEnableUrl() {
   return `https://console.cloud.google.com/apis/library/tasks.googleapis.com${params}`;
 }
 
-function encodeOAuthState(userId) {
-  return Buffer.from(JSON.stringify({ userId })).toString('base64url');
+function encodeOAuthState(userId, redirectUri) {
+  return Buffer.from(JSON.stringify({ userId, redirectUri })).toString('base64url');
 }
 
 function decodeOAuthState(state) {
@@ -1002,15 +1002,16 @@ function decodeOAuthState(state) {
 }
 
 function buildGoogleAuthUrl(userId, req) {
+  const redirectUri = getGoogleRedirectUri(req);
   const params = new URLSearchParams({
     client_id: GOOGLE_OAUTH_CLIENT_ID,
-    redirect_uri: getGoogleRedirectUri(req),
+    redirect_uri: redirectUri,
     response_type: 'code',
     scope: GOOGLE_CALENDAR_SCOPES.join(' '),
     access_type: 'offline',
     include_granted_scopes: 'true',
     prompt: 'consent',
-    state: encodeOAuthState(userId),
+    state: encodeOAuthState(userId, redirectUri),
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
@@ -2674,10 +2675,10 @@ app.get('/auth/google', (req, res) => {
 app.get('/auth/google/callback', async (req, res) => {
   try {
     if (!hasGoogleOAuthConfig()) return res.status(503).type('text/plain').send('Google OAuth 설정이 아직 없습니다.');
-    const { userId } = decodeOAuthState(req.query.state);
+    const { userId, redirectUri } = decodeOAuthState(req.query.state);
     if (!userId || !req.query.code) return res.status(400).type('text/plain').send('OAuth state/code가 올바르지 않습니다.');
     if (!isCalendarUserAllowed(userId)) return res.status(403).type('text/plain').send('이 카카오 사용자는 Google Calendar 연결이 허용되지 않았습니다.');
-    const token = await exchangeGoogleCodeForToken(req.query.code, getGoogleRedirectUri(req));
+    const token = await exchangeGoogleCodeForToken(req.query.code, redirectUri || getGoogleRedirectUri(req));
     const tokens = await loadGoogleTokensAsync();
     const grantedScope = token.scope || tokens[userId]?.scope || '';
     tokens[userId] = {
