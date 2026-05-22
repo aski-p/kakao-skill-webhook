@@ -2697,15 +2697,15 @@ async function enrichNaverRestaurantMetrics(item) {
     const html = String(response.data || '');
     const cleanTitle = stripHtml(item.title).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const titleIndex = html.search(new RegExp(cleanTitle.slice(0, 20)));
-    const window = titleIndex >= 0 ? html.slice(Math.max(0, titleIndex - 4000), titleIndex + 12000) : html.slice(0, 300000);
-    const rating = Number(window.match(/place_blind">별점<\/span>\s*([0-9.]+)/)?.[1]);
-    const reviewCount = parseCompactNumber(window.match(/리뷰(?:<!-- -->|\s|&nbsp;)*([0-9,]+)/)?.[1]);
-    const visitorReviewTotal = parseCompactNumber(window.match(/방문자\s*리뷰(?:<!-- -->|\s|&nbsp;)*([0-9,]+)/)?.[1])
-      || parseCompactNumber(window.match(/"visitorReviewCount"\s*:\s*"?([0-9,]+)"?/)?.[1])
+    const metricsText = titleIndex >= 0 ? html.slice(Math.max(0, titleIndex - 4000), titleIndex + 80000) : html.slice(0, 400000);
+    const rating = Number(metricsText.match(/place_blind">별점<\/span>\s*([0-9.]+)/)?.[1]);
+    const reviewCount = parseCompactNumber(metricsText.match(/리뷰(?:<!-- -->|\s|&nbsp;)*([0-9,]+)/)?.[1]);
+    const visitorReviewTotal = parseCompactNumber(metricsText.match(/방문자\s*리뷰(?:<!-- -->|\s|&nbsp;)*([0-9,]+)/)?.[1])
+      || parseCompactNumber(metricsText.match(/"visitorReviewCount"\s*:\s*"?([0-9,]+)"?/)?.[1])
       || reviewCount;
-    const saveCount = parseNaverSaveCount(window.match(/"saveCount"\s*:\s*"([^"]+)"/)?.[1]);
-    const placeId = window.match(/"id"\s*:\s*"([0-9]+)"/)?.[1] || window.match(/\/restaurant\/([0-9]+)/)?.[1] || null;
-    const visitorReviewKeywords = extractVisitorReviewKeywords(window);
+    const saveCount = parseNaverSaveCount(metricsText.match(/"saveCount"\s*:\s*"([^"]+)"/)?.[1]);
+    const placeId = metricsText.match(/"id"\s*:\s*"([0-9]+)"/)?.[1] || metricsText.match(/\/(?:restaurant|place)\/([0-9]+)/)?.[1] || null;
+    const visitorReviewKeywords = extractVisitorReviewKeywords(metricsText);
     return {
       naverRating: Number.isFinite(rating) ? rating : null,
       reviewCount,
