@@ -6,11 +6,13 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
+const cron = require('node-cron');
+const { createClient } = require('@supabase/supabase-js');
 const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22j-natural-local-router';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22l-restaurant-visitor-keywords';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -29,6 +31,11 @@ const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 const NAVER_SEARCH_TIMEOUT_MS = Number(process.env.NAVER_SEARCH_TIMEOUT_MS || 1800);
 const NAVER_SEARCH_DISPLAY = Math.min(Math.max(Number(process.env.NAVER_SEARCH_DISPLAY || 5), 1), 10);
+const RESTAURANT_CRAWL_ENABLED = String(process.env.RESTAURANT_CRAWL_ENABLED || 'true').toLowerCase() !== 'false';
+const RESTAURANT_CRAWL_DELAY_MS = Math.min(Math.max(Number(process.env.RESTAURANT_CRAWL_DELAY_MS || 2200), 300), 20000);
+const RESTAURANT_STORAGE_BUCKET = process.env.RESTAURANT_STORAGE_BUCKET || 'app-state';
+const RESTAURANT_STORAGE_OBJECT = process.env.RESTAURANT_STORAGE_OBJECT || 'restaurants-cache-v1.json';
+const RESTAURANT_FOOD_REVIEW_LABEL = '음식이 맛있어요';
 const GOOGLE_CLOUD_API_KEY = process.env.GOOGLE_CLOUD_API_KEY || process.env.GOOGLE_API_KEY;
 const GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON;
 const GOOGLE_CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID;
@@ -143,6 +150,35 @@ const MIVE_CALENDAR_THEME = {
   portraitShadow: 'rgba(190, 24, 93, 0.28)',
 };
 
+const SEOUL_DISTRICTS = [
+  '강남구', '강동구', '강북구', '강서구', '관악구',
+  '광진구', '구로구', '금천구', '노원구', '도봉구',
+  '동대문구', '동작구', '마포구', '서대문구', '서초구',
+  '성동구', '성북구', '송파구', '양천구', '영등포구',
+  '용산구', '은평구', '종로구', '중구', '중랑구',
+];
+const RESTAURANT_CRAWL_QUERY_SUFFIXES = ['맛집', '점심 맛집', '카페'];
+const NAVER_VISITOR_REVIEW_LABELS = [
+  '음식이 맛있어요',
+  '재료가 신선해요',
+  '인테리어가 멋져요',
+  '친절해요',
+  '특별한 메뉴가 있어요',
+  '가성비가 좋아요',
+  '양이 많아요',
+  '매장이 청결해요',
+  '혼밥하기 좋아요',
+  '단체모임 하기 좋아요',
+  '뷰가 좋아요',
+  '커피가 맛있어요',
+  '디저트가 맛있어요',
+];
+let restaurantSupabaseClient = null;
+let restaurantCrawlJob = null;
+let restaurantCrawlRunning = false;
+let restaurantStoreStatus = { mode: 'unknown', ok: null, message: null, at: null };
+let lastRestaurantCrawlStatus = { running: false, ok: null, message: null, districtCount: 0, itemCount: 0, at: null };
+
 function loadAssetDataUri(filePath, mimeType) {
   try {
     return `data:${mimeType};base64,${fs.readFileSync(filePath).toString('base64')}`;
@@ -196,6 +232,18 @@ function loadGoogleTokens() {
 function saveGoogleTokens(tokens) {
   fs.mkdirSync(path.dirname(GOOGLE_TOKEN_STORE_PATH), { recursive: true });
   fs.writeFileSync(GOOGLE_TOKEN_STORE_PATH, JSON.stringify(tokens, null, 2));
+}
+
+function getRestaurantSupabaseClient() {
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.supabase_service_role_key;
+  const supabaseUrl = normalizeSupabaseUrl(process.env.SUPABASE_URL || process.env.supabase_url, supabaseKey);
+  if (!supabaseUrl || !supabaseKey) return null;
+  if (!restaurantSupabaseClient) {
+    restaurantSupabaseClient = createClient(supabaseUrl, supabaseKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  }
+  return restaurantSupabaseClient;
 }
 
 function getTokenStoreSupabase() {
@@ -2530,6 +2578,409 @@ async function searchNaverWithRetries(plan) {
   return { plan, results: [] };
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizePlaceKey(item) {
+  return normalizeText(`${item.title || item.name || ''}|${item.roadAddress || item.address || ''}`).toLowerCase();
+}
+
+function parseCompactNumber(value) {
+  const text = normalizeText(value);
+  if (!text) return null;
+  const number = Number(text.replace(/[,+]/g, ''));
+  return Number.isFinite(number) ? number : null;
+}
+
+function parseNaverSaveCount(value) {
+  const text = normalizeText(value).replace(/,/g, '');
+  if (!text) return null;
+  const match = text.match(/(\d+(?:\.\d+)?)(만)?\+?/);
+  if (!match) return null;
+  const base = Number(match[1]);
+  if (!Number.isFinite(base)) return null;
+  return Math.round(base * (match[2] ? 10000 : 1));
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function decodeEscapedUnicode(value) {
+  return String(value || '').replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+function maxParsedCountFromWindows(windows, label) {
+  const escapedLabel = escapeRegExp(label);
+  const patterns = [
+    new RegExp(`${escapedLabel}[^0-9]{0,240}([0-9][0-9,]*)`, 'g'),
+    new RegExp(`([0-9][0-9,]*)[^0-9]{0,180}${escapedLabel}`, 'g'),
+    new RegExp(`"label"\\s*:\\s*"${escapedLabel}"[\\s\\S]{0,260}?"count"\\s*:\\s*"?([0-9][0-9,]*)"?`, 'g'),
+    new RegExp(`"text"\\s*:\\s*"${escapedLabel}"[\\s\\S]{0,260}?"count"\\s*:\\s*"?([0-9][0-9,]*)"?`, 'g'),
+    new RegExp(`"name"\\s*:\\s*"${escapedLabel}"[\\s\\S]{0,260}?"count"\\s*:\\s*"?([0-9][0-9,]*)"?`, 'g'),
+  ];
+  let best = null;
+  for (const window of windows) {
+    for (const pattern of patterns) {
+      for (const match of window.matchAll(pattern)) {
+        const count = parseCompactNumber(match[1]);
+        if (Number.isFinite(count)) best = Math.max(best || 0, count);
+      }
+    }
+  }
+  return best;
+}
+
+function extractVisitorReviewKeywords(html) {
+  const text = decodeEscapedUnicode(html);
+  const keywords = {};
+  for (const label of NAVER_VISITOR_REVIEW_LABELS) {
+    const windows = [];
+    let index = text.indexOf(label);
+    while (index >= 0 && windows.length < 8) {
+      windows.push(text.slice(Math.max(0, index - 500), index + 900));
+      index = text.indexOf(label, index + label.length);
+    }
+    const count = maxParsedCountFromWindows(windows.length ? windows : [text.slice(0, 400000)], label);
+    if (Number.isFinite(count) && count > 0) keywords[label] = count;
+  }
+  return keywords;
+}
+
+function formatStars(rating) {
+  const score = Number(rating);
+  if (!Number.isFinite(score) || score <= 0) return '평점 확인중';
+  const full = Math.max(0, Math.min(5, Math.round(score)));
+  return `${'★'.repeat(full)}${'☆'.repeat(5 - full)} ${score.toFixed(2)}`;
+}
+
+function mapNaverLocalItemToRestaurant(item, district, query, rank, metrics = {}) {
+  const title = stripHtml(item.title);
+  return {
+    place_key: normalizePlaceKey({ ...item, title }),
+    naver_place_id: metrics.naverPlaceId || null,
+    district,
+    query,
+    title,
+    category: stripHtml(item.category),
+    road_address: stripHtml(item.roadAddress),
+    address: stripHtml(item.address),
+    telephone: stripHtml(item.telephone),
+    link: item.link || '',
+    mapx: item.mapx ? Number(item.mapx) : null,
+    mapy: item.mapy ? Number(item.mapy) : null,
+    naver_rating: metrics.naverRating ?? null,
+    review_count: metrics.reviewCount ?? null,
+    recommendation_count: metrics.recommendationCount ?? null,
+    visitor_review_total: metrics.visitorReviewTotal ?? metrics.reviewCount ?? null,
+    food_review_count: metrics.foodReviewCount ?? null,
+    visitor_review_keywords: metrics.visitorReviewKeywords || {},
+    naver_rank: rank,
+    source: 'naver',
+    crawled_at: new Date().toISOString(),
+  };
+}
+
+async function enrichNaverRestaurantMetrics(item) {
+  const query = [stripHtml(item.title), stripHtml(item.roadAddress || item.address)].filter(Boolean).join(' ');
+  if (!query) return {};
+  try {
+    const response = await axios.get('https://search.naver.com/search.naver', {
+      params: { query },
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; KakaoSkillRestaurantCrawler/1.0)',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+      },
+      timeout: Math.max(NAVER_SEARCH_TIMEOUT_MS, 3500),
+    });
+    const html = String(response.data || '');
+    const cleanTitle = stripHtml(item.title).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const titleIndex = html.search(new RegExp(cleanTitle.slice(0, 20)));
+    const window = titleIndex >= 0 ? html.slice(Math.max(0, titleIndex - 4000), titleIndex + 12000) : html.slice(0, 300000);
+    const rating = Number(window.match(/place_blind">별점<\/span>\s*([0-9.]+)/)?.[1]);
+    const reviewCount = parseCompactNumber(window.match(/리뷰(?:<!-- -->|\s|&nbsp;)*([0-9,]+)/)?.[1]);
+    const visitorReviewTotal = parseCompactNumber(window.match(/방문자\s*리뷰(?:<!-- -->|\s|&nbsp;)*([0-9,]+)/)?.[1])
+      || parseCompactNumber(window.match(/"visitorReviewCount"\s*:\s*"?([0-9,]+)"?/)?.[1])
+      || reviewCount;
+    const saveCount = parseNaverSaveCount(window.match(/"saveCount"\s*:\s*"([^"]+)"/)?.[1]);
+    const placeId = window.match(/"id"\s*:\s*"([0-9]+)"/)?.[1] || window.match(/\/restaurant\/([0-9]+)/)?.[1] || null;
+    const visitorReviewKeywords = extractVisitorReviewKeywords(window);
+    return {
+      naverRating: Number.isFinite(rating) ? rating : null,
+      reviewCount,
+      visitorReviewTotal,
+      recommendationCount: saveCount,
+      foodReviewCount: visitorReviewKeywords[RESTAURANT_FOOD_REVIEW_LABEL] || null,
+      visitorReviewKeywords,
+      naverPlaceId: placeId,
+    };
+  } catch (error) {
+    console.error('[restaurant-metrics] failed:', { title: stripHtml(item.title), message: error.message, status: error.response?.status });
+    return {};
+  }
+}
+
+async function loadRestaurantStorageCache() {
+  const supabase = getRestaurantSupabaseClient();
+  if (!supabase) {
+    restaurantStoreStatus = { mode: 'none', ok: false, message: 'supabase_not_configured', at: new Date().toISOString() };
+    return { version: 1, districts: {}, updated_at: null };
+  }
+  try {
+    const { data, error } = await supabase.storage
+      .from(RESTAURANT_STORAGE_BUCKET)
+      .download(RESTAURANT_STORAGE_OBJECT);
+    if (error) {
+      restaurantStoreStatus = { mode: 'storage', ok: true, message: error.message || 'empty', at: new Date().toISOString() };
+      return { version: 1, districts: {}, updated_at: null };
+    }
+    const cache = JSON.parse(await data.text());
+    restaurantStoreStatus = { mode: 'storage', ok: true, message: 'downloaded', at: new Date().toISOString() };
+    return cache?.districts ? cache : { version: 1, districts: {}, updated_at: null };
+  } catch (error) {
+    restaurantStoreStatus = { mode: 'storage', ok: false, message: error.message, at: new Date().toISOString() };
+    return { version: 1, districts: {}, updated_at: null };
+  }
+}
+
+async function saveRestaurantStorageCache(cache) {
+  const supabase = getRestaurantSupabaseClient();
+  if (!supabase) return false;
+  const rawSupabase = getTokenStoreSupabase();
+  if (rawSupabase) await ensureTokenStoreBucket(rawSupabase);
+  const payload = JSON.stringify(cache, null, 2);
+  const { error } = await supabase.storage
+    .from(RESTAURANT_STORAGE_BUCKET)
+    .upload(RESTAURANT_STORAGE_OBJECT, payload, {
+      contentType: 'application/json',
+      upsert: true,
+    });
+  restaurantStoreStatus = {
+    mode: 'storage',
+    ok: !error,
+    message: error?.message || 'uploaded',
+    at: new Date().toISOString(),
+  };
+  return !error;
+}
+
+async function upsertRestaurantRows(rows) {
+  if (!rows.length) return { tableRows: 0, storageRows: 0 };
+  const supabase = getRestaurantSupabaseClient();
+  let tableRows = 0;
+  if (supabase) {
+    const { error } = await supabase
+      .from('restaurants')
+      .upsert(rows, { onConflict: 'place_key' });
+    if (error) {
+      restaurantStoreStatus = { mode: 'table_fallback_storage', ok: false, message: error.message, at: new Date().toISOString() };
+      console.error('[restaurant-table] upsert failed:', error.message);
+    } else {
+      tableRows = rows.length;
+      restaurantStoreStatus = { mode: 'table', ok: true, message: 'upserted', at: new Date().toISOString() };
+    }
+  }
+
+  const cache = await loadRestaurantStorageCache();
+  cache.version = 1;
+  cache.updated_at = new Date().toISOString();
+  cache.districts = cache.districts || {};
+  for (const row of rows) {
+    const district = row.district || '기타';
+    const list = cache.districts[district] || [];
+    const next = list.filter((item) => item.place_key !== row.place_key);
+    next.push(row);
+    next.sort(compareRestaurantRank);
+    cache.districts[district] = next.slice(0, 300);
+  }
+  const storageOk = await saveRestaurantStorageCache(cache);
+  return { tableRows, storageRows: storageOk ? rows.length : 0 };
+}
+
+function compareRestaurantRank(a, b) {
+  const foodDiff = Number(b.food_review_count || 0) - Number(a.food_review_count || 0);
+  if (foodDiff !== 0) return foodDiff;
+  const ratingDiff = Number(b.naver_rating || 0) - Number(a.naver_rating || 0);
+  if (ratingDiff !== 0) return ratingDiff;
+  const reviewDiff = Number(b.visitor_review_total || b.review_count || 0) - Number(a.visitor_review_total || a.review_count || 0);
+  if (reviewDiff !== 0) return reviewDiff;
+  const recommendDiff = Number(b.recommendation_count || 0) - Number(a.recommendation_count || 0);
+  if (recommendDiff !== 0) return recommendDiff;
+  return Number(a.naver_rank || 9999) - Number(b.naver_rank || 9999);
+}
+
+function extractRestaurantDistrict(query) {
+  const text = normalizeKoreanSearchText(query);
+  const exact = SEOUL_DISTRICTS.find((district) => text.includes(district));
+  if (exact) return exact;
+  const location = text.match(LOCAL_LOCATION_PATTERN)?.[0] || '';
+  if (!location) return '';
+  if (/성수/.test(location)) return '성동구';
+  if (/홍대|합정|망원|연남/.test(location)) return '마포구';
+  if (/강남/.test(location)) return '강남구';
+  if (/노원/.test(location)) return '노원구';
+  if (/마포/.test(location)) return '마포구';
+  if (/종로/.test(location)) return '종로구';
+  if (/을지로|명동/.test(location)) return '중구';
+  return location.endsWith('구') ? location : '';
+}
+
+function getRestaurantSearchTerms(query, district) {
+  return normalizeKoreanSearchText(query)
+    .replace(district || '', ' ')
+    .replace(LOCAL_LOCATION_PATTERN, ' ')
+    .replace(/(근처|주변|가까운|동네|인근|에서|으로|로|중에|쪽|맛집|식당|밥집|추천|검색|찾아|알려|뭐|먹지|먹을|있을까|있어|좀)/g, ' ')
+    .replace(/[?？！!,.]/g, ' ')
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2);
+}
+
+function filterRestaurantRows(rows, query, district) {
+  const terms = getRestaurantSearchTerms(query, district);
+  return rows
+    .filter((row) => {
+      if (district && row.district !== district) return false;
+      if (!terms.length) return true;
+      const haystack = `${row.title || ''} ${row.category || ''} ${row.road_address || ''} ${row.address || ''} ${row.query || ''}`;
+      return terms.some((term) => haystack.includes(term));
+    })
+    .sort(compareRestaurantRank)
+    .slice(0, 10);
+}
+
+async function searchRestaurantTable(plan) {
+  const supabase = getRestaurantSupabaseClient();
+  if (!supabase) return [];
+  const district = extractRestaurantDistrict(plan.searchQuery);
+  try {
+    let query = supabase
+      .from('restaurants')
+      .select('*')
+      .order('food_review_count', { ascending: false, nullsFirst: false })
+      .order('naver_rating', { ascending: false, nullsFirst: false })
+      .order('visitor_review_total', { ascending: false, nullsFirst: false })
+      .limit(80);
+    if (district) query = query.eq('district', district);
+    const { data, error } = await query;
+    if (error) throw error;
+    restaurantStoreStatus = { mode: 'table', ok: true, message: 'queried', at: new Date().toISOString() };
+    return filterRestaurantRows(data || [], plan.searchQuery, district);
+  } catch (error) {
+    restaurantStoreStatus = { mode: 'table_fallback_storage', ok: false, message: error.message, at: new Date().toISOString() };
+    return [];
+  }
+}
+
+async function searchRestaurantStorage(plan) {
+  const district = extractRestaurantDistrict(plan.searchQuery);
+  const cache = await loadRestaurantStorageCache();
+  const rows = district
+    ? (cache.districts?.[district] || [])
+    : Object.values(cache.districts || {}).flat();
+  return filterRestaurantRows(rows, plan.searchQuery, district);
+}
+
+async function searchRestaurantDb(plan) {
+  if (plan.intent !== 'local_search') return [];
+  const rows = await searchRestaurantTable(plan);
+  if (rows.length) return rows;
+  return searchRestaurantStorage(plan);
+}
+
+function formatRestaurantDbAnswer(plan, rows) {
+  const head = `${plan.searchQuery} DB 기준 음식맛 리뷰/별점 순위:`;
+  const lines = rows.slice(0, 10).map((item, index) => {
+    const rating = formatStars(item.naver_rating);
+    const foodReviews = item.food_review_count ? `"${RESTAURANT_FOOD_REVIEW_LABEL}" ${Number(item.food_review_count).toLocaleString('ko-KR')}` : '음식맛 리뷰 확인중';
+    const reviews = item.visitor_review_total || item.review_count ? `방문자 리뷰 ${Number(item.visitor_review_total || item.review_count).toLocaleString('ko-KR')}` : '방문자 리뷰 확인중';
+    const saves = item.recommendation_count ? `추천/저장 ${Number(item.recommendation_count).toLocaleString('ko-KR')}` : '추천수 확인중';
+    const address = item.road_address || item.address || '';
+    return `${index + 1}. ${item.title}${item.category ? ` (${item.category})` : ''}\n   ${foodReviews} · ${rating} · ${reviews} · ${saves}${address ? `\n   ${address}` : ''}`;
+  });
+  return [head, ...lines].join('\n');
+}
+
+function buildRestaurantDbQuickReplies(rows) {
+  return rows.slice(0, 5).map((item, index) => ({
+    label: `${index + 1}번 보기`,
+    action: 'webLink',
+    webLinkUrl: item.link || `https://map.naver.com/p/search/${encodeURIComponent([item.title, item.road_address || item.address].filter(Boolean).join(' '))}`,
+  }));
+}
+
+async function answerLocalSearch(plan) {
+  const dbRows = await searchRestaurantDb(plan);
+  if (dbRows.length) {
+    return {
+      answer: formatRestaurantDbAnswer(plan, dbRows),
+      quickReplies: buildRestaurantDbQuickReplies(dbRows),
+      plan: { ...plan, source: `${plan.source || 'local'}_restaurant_db` },
+      results: dbRows,
+    };
+  }
+  const search = await searchNaverWithRetries(plan);
+  return {
+    answer: formatSearchAnswer(search.plan, search.results),
+    quickReplies: buildQuickReplies(search.plan, search.results),
+    plan: search.plan,
+    results: search.results,
+  };
+}
+
+async function fetchNaverLocalItems(query) {
+  if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) return [];
+  const response = await axios.get(NAVER_URLS.local_search, {
+    params: { query, display: NAVER_SEARCH_DISPLAY, sort: 'comment' },
+    headers: { 'X-Naver-Client-Id': NAVER_CLIENT_ID, 'X-Naver-Client-Secret': NAVER_CLIENT_SECRET },
+    timeout: Math.max(NAVER_SEARCH_TIMEOUT_MS, 3500),
+  });
+  return response.data?.items || [];
+}
+
+async function crawlSeoulRestaurants(options = {}) {
+  if (restaurantCrawlRunning) return { success: false, message: 'already_running' };
+  restaurantCrawlRunning = true;
+  lastRestaurantCrawlStatus = { running: true, ok: null, message: 'running', districtCount: 0, itemCount: 0, at: new Date().toISOString() };
+  const districts = options.districts || SEOUL_DISTRICTS;
+  const allRows = [];
+
+  try {
+    for (const district of districts) {
+      for (const suffix of RESTAURANT_CRAWL_QUERY_SUFFIXES) {
+        const query = `${district} ${suffix}`;
+        const items = await fetchNaverLocalItems(query);
+        for (let index = 0; index < items.length; index += 1) {
+          const metrics = await enrichNaverRestaurantMetrics(items[index]);
+          allRows.push(mapNaverLocalItemToRestaurant(items[index], district, query, index + 1, metrics));
+          if (RESTAURANT_CRAWL_DELAY_MS) await sleep(RESTAURANT_CRAWL_DELAY_MS);
+        }
+        lastRestaurantCrawlStatus = { running: true, ok: null, message: 'running', districtCount: districts.indexOf(district) + 1, itemCount: allRows.length, at: new Date().toISOString() };
+        if (RESTAURANT_CRAWL_DELAY_MS) await sleep(RESTAURANT_CRAWL_DELAY_MS);
+      }
+    }
+    const deduped = [...new Map(allRows.map((row) => [row.place_key, row])).values()];
+    const store = await upsertRestaurantRows(deduped);
+    lastRestaurantCrawlStatus = { running: false, ok: true, message: `updated table=${store.tableRows} storage=${store.storageRows}`, districtCount: districts.length, itemCount: deduped.length, at: new Date().toISOString() };
+    return { success: true, ...store, itemCount: deduped.length, districtCount: districts.length };
+  } catch (error) {
+    console.error('[restaurant-crawl] failed:', { message: error.message, status: error.response?.status });
+    lastRestaurantCrawlStatus = { running: false, ok: false, message: error.message, districtCount: lastRestaurantCrawlStatus.districtCount, itemCount: allRows.length, at: new Date().toISOString() };
+    return { success: false, error: error.message, itemCount: allRows.length };
+  } finally {
+    restaurantCrawlRunning = false;
+  }
+}
+
+function startRestaurantScheduler() {
+  if (!RESTAURANT_CRAWL_ENABLED || restaurantCrawlJob) return;
+  restaurantCrawlJob = cron.schedule('0 0 0 * * *', () => {
+    crawlSeoulRestaurants().catch((error) => console.error('[restaurant-crawl] uncaught:', error.message));
+  }, { scheduled: true, timezone: 'Asia/Seoul' });
+  console.log('[restaurant-crawl] scheduler enabled: daily 00:00 KST, crawl window target 00:00-08:00');
+}
+
 function formatWon(value) { return `${Math.round(value).toLocaleString('ko-KR')}원`; }
 
 function formatSearchAnswer(plan, results) {
@@ -2740,16 +3191,14 @@ async function buildAnswer(message, userId, req) {
         }
       }
       try {
-        const search = await searchNaverWithRetries(planned);
-        return { answer: formatSearchAnswer(search.plan, search.results), quickReplies: buildQuickReplies(search.plan, search.results), plan: search.plan, results: search.results };
+        return await answerLocalSearch(planned);
       } catch (error) {
         console.error('[naver-local-planned] failed:', { message: error.message, code: error.code, status: error.response?.status });
         return { answer: formatSearchAnswer(planned, []), quickReplies: buildQuickReplies(planned, []), plan: planned, results: [] };
       }
     }
     try {
-      const search = await searchNaverWithRetries(immediateFallback);
-      return { answer: formatSearchAnswer(search.plan, search.results), quickReplies: buildQuickReplies(search.plan, search.results), plan: search.plan, results: search.results };
+      return await answerLocalSearch(immediateFallback);
     } catch (error) {
       console.error('[naver-local-immediate] failed:', { message: error.message, code: error.code, status: error.response?.status });
       return { answer: formatSearchAnswer(immediateFallback, []), quickReplies: buildQuickReplies(immediateFallback, []), plan: immediateFallback, results: [] };
@@ -2769,6 +3218,14 @@ async function buildAnswer(message, userId, req) {
         plan: { ...plan, intent: 'weather_lookup', searchQuery: city, source: `${plan.source || 'unknown'}_weather_error` },
         results: [],
       };
+    }
+  }
+  if (plan.intent === 'local_search') {
+    try {
+      return await answerLocalSearch(plan);
+    } catch (error) {
+      console.error('[naver-local] failed:', { message: error.message, code: error.code, status: error.response?.status });
+      return { answer: formatSearchAnswer(plan, []), quickReplies: buildQuickReplies(plan, []), plan, results: [] };
     }
   }
   if (plan.intent !== 'chat') {
@@ -2815,6 +3272,9 @@ app.get('/health', async (req, res) => {
       googleCalendarAllowAll: KAKAO_CALENDAR_ALLOW_ALL,
       googleTokenStoreSupabase: Boolean(getTokenStoreSupabase()),
       googleTokenStoreBucket: GOOGLE_TOKEN_STORE_BUCKET,
+      restaurantCrawlEnabled: RESTAURANT_CRAWL_ENABLED,
+      restaurantStorageBucket: RESTAURANT_STORAGE_BUCKET,
+      restaurantStorageObject: RESTAURANT_STORAGE_OBJECT,
       kakaoHandlerTimeoutMs: KAKAO_HANDLER_TIMEOUT_MS,
       googleCalendarCombinedTimeoutMs: GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS,
       plannerTimeoutMs: CLAUDE_PLANNER_TIMEOUT_MS,
@@ -2822,11 +3282,21 @@ app.get('/health', async (req, res) => {
       port: PORT,
     },
     googleTokenStore: lastGoogleTokenStoreStatus,
+    restaurantStore: restaurantStoreStatus,
+    restaurantCrawl: lastRestaurantCrawlStatus,
     claude: lastClaudeStatus,
   });
 });
 app.get('/test', (req, res) => res.json(kakaoTextResponse('테스트 성공! 카카오 스킬 응답 형식 정상이야.')));
 app.get('/routes', (req, res) => res.json({ ok: true, routerVersion: ROUTER_VERSION, routes: ['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search', 'weather_lookup', 'google_calendar_oauth', 'google_calendar_create_event', 'google_calendar_list_events', 'calendar_card_image'] }));
+
+app.post('/admin/restaurant-crawl', async (req, res) => {
+  const districts = Array.isArray(req.body?.districts) && req.body.districts.length
+    ? req.body.districts.filter((district) => SEOUL_DISTRICTS.includes(district))
+    : undefined;
+  const result = await crawlSeoulRestaurants({ districts });
+  return res.json({ ok: result.success, ...result, status: lastRestaurantCrawlStatus, store: restaurantStoreStatus });
+});
 
 app.get('/calendar-card.png', async (req, res) => {
   cleanupCalendarCardCache();
@@ -2944,6 +3414,7 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Kakao skill webhook server listening on port ${PORT}`);
     console.log(`Router version: ${ROUTER_VERSION}`);
+    startRestaurantScheduler();
   });
 }
 
