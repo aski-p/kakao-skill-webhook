@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22p-realtime-restaurant-search';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-25p-current-media-search';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -78,6 +78,7 @@ const LOCAL_DOMAIN_PATTERN = /맛집|음식점|식당|카페|밥집|술집|술\s
 const LOCAL_ACTIVITY_PATTERN = /먹|마시|식사|끼니|밥|브런치|런치|디너|야식|점심|저녁|아침|회식|데이트|예약|잡|갈\s*만|가볼|놀|운동|치러|치려고|이용|사러|고치|수리|맡기/;
 const LOCAL_REQUEST_PATTERN = /근처|주변|가까운|동네|인근|어디|뭐|찾|검색|추천|유명|인기|괜찮|좋은|가능|있어|있나|있을까|알려|보여/;
 const WEATHER_WORD_PATTERN = /날씨|기온|온도|비\s*와|비와|비\s*올|비올|우산|미세먼지|초미세먼지|습도|바람/;
+const CURRENT_MEDIA_PATTERN = /(요즘|최근|최신|신작|새로|개봉|상영|방영|공개|출시|나온|핫한|인기|박스오피스).*(영화|드라마|애니|애니메이션|게임|음악|노래|앨범|시리즈)|(영화|드라마|애니|애니메이션|게임|음악|노래|앨범|시리즈).*(요즘|최근|최신|신작|새로|개봉|상영|방영|공개|출시|나온|핫한|인기|박스오피스)/;
 const CALENDAR_ASSET_DIR = path.join(__dirname, 'assets', 'calendar');
 const CALENDAR_FONT_PATH = path.join(CALENDAR_ASSET_DIR, 'NotoSansKR-Bold.ttf');
 const CALENDAR_FONT_FILE_URI = `file://${CALENDAR_FONT_PATH}`;
@@ -1148,6 +1149,16 @@ function compactSearchQuery(message, intent) {
   return compacted || normalizeText(message);
 }
 
+function compactCurrentMediaQuery(message) {
+  const text = compactGeneralQuery(message)
+    .replace(/(재미있는|재밌는|재밌어|볼만한|볼\s*만한|괜찮은|좋은|알려줘|추천해줘|추천|으로|로|거|것)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const media = normalizeKoreanSearchText(message).match(/영화|드라마|애니메이션|애니|게임|음악|노래|앨범|시리즈/)?.[0] || '';
+  const freshness = /개봉|상영/.test(message) ? '현재 상영 최신' : '최신';
+  return normalizeText([freshness, text, media ? '추천' : ''].filter(Boolean).join(' ')).replace(/\s+/g, ' ');
+}
+
 function buildLocalRetryQueries(query) {
   const normalized = normalizeKoreanSearchText(query);
   const location = normalized.match(LOCAL_LOCATION_PATTERN)?.[0] || '';
@@ -1190,13 +1201,14 @@ function fallbackPlan(message) {
   if (/뉴스|기사|속보|최신\s*뉴스|최근\s*뉴스/.test(text)) return { intent: 'news_search', searchQuery: compactSearchQuery(text, 'news_search'), sort: 'date', confidence: 0.75, source: 'fallback' };
   if (/가격|최저가|시세|얼마|구매|상품|제품|쇼핑/.test(text)) return { intent: 'shopping_search', searchQuery: compactSearchQuery(text, 'shopping_search'), sort: 'sim', confidence: 0.72, source: 'fallback' };
   if (hasLocalSearchIntent(text)) return { intent: 'local_search', searchQuery: compactSearchQuery(text, 'local_search'), sort: 'comment', confidence: 0.72, source: 'fallback_semantic_local' };
+  if (CURRENT_MEDIA_PATTERN.test(text)) return { intent: 'web_lookup', searchQuery: compactCurrentMediaQuery(text), sort: 'date', confidence: 0.78, source: 'fallback_current_media' };
   if (/검색|찾아봐|알아봐|확인|최신|최근|실시간|웹|인터넷|네이버|구글|출처/.test(text)) return { intent: 'web_lookup', searchQuery: compactSearchQuery(text, 'web_lookup'), sort: 'sim', confidence: 0.7, source: 'fallback' };
   return { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.65, source: 'fallback' };
 }
 
 function shouldAnswerWithClaudeFirst(message) {
   const text = normalizeKoreanSearchText(message);
-  const explicitLookupCue = /(검색|찾아봐|찾아줘|알아봐|최신|최근|실시간|뉴스|기사|속보|출처|네이버|구글|웹에서|인터넷에서)/.test(text);
+  const explicitLookupCue = /(검색|찾아봐|찾아줘|알아봐|최신|최근|실시간|뉴스|기사|속보|출처|네이버|구글|웹에서|인터넷에서)/.test(text) || CURRENT_MEDIA_PATTERN.test(text);
   const commerceCue = /(가격|최저가|시세|얼마|구매|상품|제품|쇼핑)/.test(text);
   const localCue = hasLocalSearchIntent(text);
   const howToCue = /(어떻게|어케|방법|가능|할\s*수\s*있|되나|되냐|만들|설정|실행|명령어|cmd|윈도|윈도우|windows|바로가기|아이콘)/i.test(text);
@@ -1264,6 +1276,7 @@ async function planTurn(message, userId) {
     'local_search의 searchQuery는 네이버 지역검색에 바로 넣을 짧은 한국어 검색어로 만들어. 지역명과 조건을 포함해.',
     'local_search는 많이 찾는 순서가 필요하므로 sort는 comment로 둬.',
     '최신 정보, 사실 확인은 web_lookup이나 news_search를 골라.',
+    '요즘/최근/신작/개봉/상영/방영/공개/출시/인기 같은 현재성 있는 영화, 드라마, 애니, 게임, 음악 추천도 web_lookup을 골라.',
     '가격, 상품, 구매, 시세는 shopping_search를 골라.',
     '출력 형식 예: {"intent":"local_search","searchQuery":"지역명 업종","sort":"comment","confidence":0.9}',
   ].join('\n');
@@ -3085,6 +3098,7 @@ async function answerChat(message, userId) {
           '자연스러운 반말로 짧게 답하되, 사용자가 존댓말이면 부드러운 존댓말도 괜찮아.',
           '찾아볼게처럼 미래에 도구를 실행할 척하지 마.',
           '검색/일정/날씨 결과가 필요한 말은 이미 라우터가 따로 처리하므로, 여기서는 대화 자체에 집중해.',
+          '지식 컷오프 날짜를 변명처럼 말하지 마. 최신 정보가 필요하면 라우터가 검색으로 보낸다는 전제로 답해.',
           `네 모델명은 추측하지 마. 모델을 묻는 질문에는 ${model}이라고 답해.`,
         ].join('\n'),
         messages: [...history, { role: 'user', content: message }],
