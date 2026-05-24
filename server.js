@@ -6,13 +6,11 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
-const cron = require('node-cron');
-const { createClient } = require('@supabase/supabase-js');
 const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22o-broader-restaurant-crawl';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-22p-realtime-restaurant-search';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -30,11 +28,7 @@ const GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS = Math.min(Math.max(Number(process.env
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 const NAVER_SEARCH_TIMEOUT_MS = Number(process.env.NAVER_SEARCH_TIMEOUT_MS || 1800);
-const NAVER_SEARCH_DISPLAY = Math.min(Math.max(Number(process.env.NAVER_SEARCH_DISPLAY || 5), 1), 10);
-const RESTAURANT_CRAWL_ENABLED = String(process.env.RESTAURANT_CRAWL_ENABLED || 'true').toLowerCase() !== 'false';
-const RESTAURANT_CRAWL_DELAY_MS = Math.min(Math.max(Number(process.env.RESTAURANT_CRAWL_DELAY_MS || 2200), 300), 20000);
-const RESTAURANT_STORAGE_BUCKET = process.env.RESTAURANT_STORAGE_BUCKET || 'app-state';
-const RESTAURANT_STORAGE_OBJECT = process.env.RESTAURANT_STORAGE_OBJECT || 'restaurants-cache-v1.json';
+const NAVER_SEARCH_DISPLAY = Math.min(Math.max(Number(process.env.NAVER_SEARCH_DISPLAY || 10), 1), 10);
 const RESTAURANT_FOOD_REVIEW_LABEL = '음식이 맛있어요';
 const GOOGLE_CLOUD_API_KEY = process.env.GOOGLE_CLOUD_API_KEY || process.env.GOOGLE_API_KEY;
 const GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON;
@@ -150,27 +144,6 @@ const MIVE_CALENDAR_THEME = {
   portraitShadow: 'rgba(190, 24, 93, 0.28)',
 };
 
-const SEOUL_DISTRICTS = [
-  '강남구', '강동구', '강북구', '강서구', '관악구',
-  '광진구', '구로구', '금천구', '노원구', '도봉구',
-  '동대문구', '동작구', '마포구', '서대문구', '서초구',
-  '성동구', '성북구', '송파구', '양천구', '영등포구',
-  '용산구', '은평구', '종로구', '중구', '중랑구',
-];
-const RESTAURANT_CRAWL_QUERY_SUFFIXES = [
-  '맛집',
-  '점심 맛집',
-  '저녁 맛집',
-  '한식 맛집',
-  '양식 맛집',
-  '중식 맛집',
-  '일식 맛집',
-  '고기 맛집',
-  '버거 맛집',
-  '분식 맛집',
-  '술집',
-  '카페',
-];
 const NAVER_VISITOR_REVIEW_LABELS = [
   '음식이 맛있어요',
   '재료가 신선해요',
@@ -186,11 +159,6 @@ const NAVER_VISITOR_REVIEW_LABELS = [
   '커피가 맛있어요',
   '디저트가 맛있어요',
 ];
-let restaurantSupabaseClient = null;
-let restaurantCrawlJob = null;
-let restaurantCrawlRunning = false;
-let restaurantStoreStatus = { mode: 'unknown', ok: null, message: null, at: null };
-let lastRestaurantCrawlStatus = { running: false, ok: null, message: null, districtCount: 0, itemCount: 0, at: null };
 
 function loadAssetDataUri(filePath, mimeType) {
   try {
@@ -245,18 +213,6 @@ function loadGoogleTokens() {
 function saveGoogleTokens(tokens) {
   fs.mkdirSync(path.dirname(GOOGLE_TOKEN_STORE_PATH), { recursive: true });
   fs.writeFileSync(GOOGLE_TOKEN_STORE_PATH, JSON.stringify(tokens, null, 2));
-}
-
-function getRestaurantSupabaseClient() {
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.supabase_service_role_key;
-  const supabaseUrl = normalizeSupabaseUrl(process.env.SUPABASE_URL || process.env.supabase_url, supabaseKey);
-  if (!supabaseUrl || !supabaseKey) return null;
-  if (!restaurantSupabaseClient) {
-    restaurantSupabaseClient = createClient(supabaseUrl, supabaseKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-  }
-  return restaurantSupabaseClient;
 }
 
 function getTokenStoreSupabase() {
@@ -1136,6 +1092,18 @@ function remember(userId, role, content) {
   const history = conversations.get(userId) || [];
   history.push({ role, content: normalizeText(content).slice(0, 1200) });
   conversations.set(userId, history.slice(-8));
+}
+
+function getConversationHistoryForClaude(userId, currentMessage, limit = 6) {
+  const current = normalizeText(currentMessage);
+  const history = conversations.get(userId) || [];
+  return history
+    .filter((item, index) => {
+      const isLastCurrentUserMessage = index === history.length - 1 && item.role === 'user' && item.content === current;
+      return !isLastCurrentUserMessage;
+    })
+    .slice(-limit)
+    .map((item) => ({ role: item.role, content: item.content }));
 }
 
 function compactGeneralQuery(message) {
@@ -2922,15 +2890,6 @@ function buildRestaurantDbQuickReplies(rows) {
 }
 
 async function answerLocalSearch(plan) {
-  const dbRows = await searchRestaurantDb(plan);
-  if (dbRows.length) {
-    return {
-      answer: formatRestaurantDbAnswer(plan, dbRows),
-      quickReplies: buildRestaurantDbQuickReplies(dbRows),
-      plan: { ...plan, source: `${plan.source || 'local'}_restaurant_db` },
-      results: dbRows,
-    };
-  }
   const search = await searchNaverWithRetries(plan);
   return {
     answer: formatSearchAnswer(search.plan, search.results),
@@ -3058,7 +3017,11 @@ function fallbackChatAnswer(message) {
   const restaurantAnswer = answerNoLocationRestaurantSuggestion(text);
   if (restaurantAnswer) return restaurantAnswer;
   if (/^(안녕|안녕하세요|하이|ㅎㅇ)/.test(text)) return '안녕. 뭐 도와줄까?';
-  return 'Claude 응답이 잠깐 지연됐어. 방금 질문 그대로 한 번만 다시 보내줘.';
+  if (/뭐\s*하|뭐하고|모해|머해|심심|대화/.test(text)) return '너랑 얘기하고 있지. 특별히 하는 건 없고, 궁금한 거나 그냥 잡담도 편하게 받아줄게.';
+  if (/고마워|감사|ㄱㅅ|ㄳ/.test(text)) return '응, 언제든지. 이어서 필요한 거 있으면 바로 말해줘.';
+  if (/아니|없어|괜찮|됐어/.test(text)) return '알겠어. 그럼 그냥 편하게 있어도 돼. 심심하면 아무 말이나 던져줘.';
+  if (/왜|이상|자연스럽|대화|답변|말투/.test(text)) return '맞아, 방금 흐름은 좀 끊겼어. 일반 대화는 검색으로 돌리지 말고 맥락 이어서 답하게 조정할게.';
+  return '응, 듣고 있어. 방금 말한 내용 기준으로 이어서 얘기해도 돼.';
 }
 
 function answerNoLocationRestaurantSuggestion(message) {
@@ -3105,7 +3068,7 @@ async function answerChat(message, userId) {
   const modelAnswer = answerClaudeModelQuestion(message);
   if (modelAnswer) return modelAnswer;
   if (!CLAUDE_API_KEY) return fallbackChatAnswer(message);
-  const history = (conversations.get(userId) || []).slice(-6).map((item) => ({ role: item.role, content: item.content }));
+  const history = getConversationHistoryForClaude(userId, message, 6);
   const models = [...new Set([CLAUDE_MODEL, ...CLAUDE_FALLBACK_MODELS].filter(Boolean))];
   let lastError;
 
@@ -3115,7 +3078,15 @@ async function answerChat(message, userId) {
         model,
         max_tokens: 420,
         temperature: 0.7,
-        system: ['너는 카카오톡에서 대화하는 친근한 한국어 AI 친구야.', '자연스러운 반말로 바로 답해.', '찾아볼게처럼 미래에 도구를 실행할 척하지 마.', `네 모델명은 추측하지 마. 모델을 묻는 질문에는 ${model}이라고 답해.`].join('\n'),
+        system: [
+          '너는 카카오톡에서 대화하는 친근한 한국어 AI 친구야.',
+          '최근 대화 맥락을 우선해서, 사용자의 마지막 말에 바로 이어지는 답을 해.',
+          '일반 잡담에는 기능 소개나 도움말 목록을 내지 말고 자연스럽게 받아줘.',
+          '자연스러운 반말로 짧게 답하되, 사용자가 존댓말이면 부드러운 존댓말도 괜찮아.',
+          '찾아볼게처럼 미래에 도구를 실행할 척하지 마.',
+          '검색/일정/날씨 결과가 필요한 말은 이미 라우터가 따로 처리하므로, 여기서는 대화 자체에 집중해.',
+          `네 모델명은 추측하지 마. 모델을 묻는 질문에는 ${model}이라고 답해.`,
+        ].join('\n'),
         messages: [...history, { role: 'user', content: message }],
       }, {
         headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_API_KEY, 'anthropic-version': '2023-06-01' },
@@ -3283,9 +3254,6 @@ app.get('/health', async (req, res) => {
       googleCalendarAllowAll: KAKAO_CALENDAR_ALLOW_ALL,
       googleTokenStoreSupabase: Boolean(getTokenStoreSupabase()),
       googleTokenStoreBucket: GOOGLE_TOKEN_STORE_BUCKET,
-      restaurantCrawlEnabled: RESTAURANT_CRAWL_ENABLED,
-      restaurantStorageBucket: RESTAURANT_STORAGE_BUCKET,
-      restaurantStorageObject: RESTAURANT_STORAGE_OBJECT,
       kakaoHandlerTimeoutMs: KAKAO_HANDLER_TIMEOUT_MS,
       googleCalendarCombinedTimeoutMs: GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS,
       plannerTimeoutMs: CLAUDE_PLANNER_TIMEOUT_MS,
@@ -3293,8 +3261,6 @@ app.get('/health', async (req, res) => {
       port: PORT,
     },
     googleTokenStore: lastGoogleTokenStoreStatus,
-    restaurantStore: restaurantStoreStatus,
-    restaurantCrawl: lastRestaurantCrawlStatus,
     claude: lastClaudeStatus,
   });
 });
@@ -3302,11 +3268,10 @@ app.get('/test', (req, res) => res.json(kakaoTextResponse('테스트 성공! 카
 app.get('/routes', (req, res) => res.json({ ok: true, routerVersion: ROUTER_VERSION, routes: ['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search', 'weather_lookup', 'google_calendar_oauth', 'google_calendar_create_event', 'google_calendar_list_events', 'calendar_card_image'] }));
 
 app.post('/admin/restaurant-crawl', async (req, res) => {
-  const districts = Array.isArray(req.body?.districts) && req.body.districts.length
-    ? req.body.districts.filter((district) => SEOUL_DISTRICTS.includes(district))
-    : undefined;
-  const result = await crawlSeoulRestaurants({ districts });
-  return res.json({ ok: result.success, ...result, status: lastRestaurantCrawlStatus, store: restaurantStoreStatus });
+  return res.status(410).json({
+    ok: false,
+    message: 'restaurant crawling is disabled; realtime Naver local search is used instead',
+  });
 });
 
 app.get('/calendar-card.png', async (req, res) => {
@@ -3425,7 +3390,6 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Kakao skill webhook server listening on port ${PORT}`);
     console.log(`Router version: ${ROUTER_VERSION}`);
-    startRestaurantScheduler();
   });
 }
 
