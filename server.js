@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-25q-current-media-direct-search';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-25r-current-media-news-search';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1201,7 +1201,7 @@ function fallbackPlan(message) {
   if (/뉴스|기사|속보|최신\s*뉴스|최근\s*뉴스/.test(text)) return { intent: 'news_search', searchQuery: compactSearchQuery(text, 'news_search'), sort: 'date', confidence: 0.75, source: 'fallback' };
   if (/가격|최저가|시세|얼마|구매|상품|제품|쇼핑/.test(text)) return { intent: 'shopping_search', searchQuery: compactSearchQuery(text, 'shopping_search'), sort: 'sim', confidence: 0.72, source: 'fallback' };
   if (hasLocalSearchIntent(text)) return { intent: 'local_search', searchQuery: compactSearchQuery(text, 'local_search'), sort: 'comment', confidence: 0.72, source: 'fallback_semantic_local' };
-  if (CURRENT_MEDIA_PATTERN.test(text)) return { intent: 'web_lookup', searchQuery: compactCurrentMediaQuery(text), sort: 'date', confidence: 0.78, source: 'fallback_current_media' };
+  if (CURRENT_MEDIA_PATTERN.test(text)) return { intent: 'news_search', searchQuery: compactCurrentMediaQuery(text), sort: 'date', confidence: 0.78, source: 'fallback_current_media' };
   if (/검색|찾아봐|알아봐|확인|최신|최근|실시간|웹|인터넷|네이버|구글|출처/.test(text)) return { intent: 'web_lookup', searchQuery: compactSearchQuery(text, 'web_lookup'), sort: 'sim', confidence: 0.7, source: 'fallback' };
   return { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.65, source: 'fallback' };
 }
