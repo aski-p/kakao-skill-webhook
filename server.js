@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-25p-current-media-search';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-25q-current-media-direct-search';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -3198,6 +3198,15 @@ async function buildAnswer(message, userId, req) {
     } catch (error) {
       console.error('[naver-local-immediate] failed:', { message: error.message, code: error.code, status: error.response?.status });
       return { answer: formatSearchAnswer(immediateFallback, []), quickReplies: buildQuickReplies(immediateFallback, []), plan: immediateFallback, results: [] };
+    }
+  }
+  if (immediateFallback.source === 'fallback_current_media') {
+    try {
+      const search = await searchNaverWithRetries(immediateFallback);
+      return { answer: formatSearchAnswer(search.plan, search.results), quickReplies: buildQuickReplies(search.plan, search.results), plan: search.plan, results: search.results };
+    } catch (error) {
+      console.error('[naver-current-media] failed:', { message: error.message, code: error.code, status: error.response?.status });
+      return { answer: formatSearchAnswer(immediateFallback, []), quickReplies: [], plan: immediateFallback, results: [] };
     }
   }
 
