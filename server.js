@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-25s-current-media-contextual';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-26b-planner-first-search';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -79,6 +79,8 @@ const LOCAL_ACTIVITY_PATTERN = /먹|마시|식사|끼니|밥|브런치|런치|�
 const LOCAL_REQUEST_PATTERN = /근처|주변|가까운|동네|인근|어디|뭐|찾|검색|추천|유명|인기|괜찮|좋은|가능|있어|있나|있을까|알려|보여/;
 const WEATHER_WORD_PATTERN = /날씨|기온|온도|비\s*와|비와|비\s*올|비올|우산|미세먼지|초미세먼지|습도|바람/;
 const CURRENT_MEDIA_PATTERN = /(요즘|최근|최신|신작|새로|개봉|상영|방영|공개|출시|나온|핫한|인기|박스오피스).*(영화|드라마|애니|애니메이션|게임|음악|노래|앨범|시리즈)|(영화|드라마|애니|애니메이션|게임|음악|노래|앨범|시리즈).*(요즘|최근|최신|신작|새로|개봉|상영|방영|공개|출시|나온|핫한|인기|박스오피스)/;
+const SHOPPING_PRODUCT_PATTERN = /상품|제품|물건|구매|쇼핑|가전|전자제품|기기|기계|장비|도구|용품|부품|소모품|액세서리|악세사리|그라인더|분쇄기|머신|메이커|블렌더|믹서|주전자|포트|노트북|컴퓨터|모니터|키보드|마우스|휴대폰|스마트폰|태블릿|이어폰|헤드폰|스피커|충전기|카메라|시계|가방|신발|의류|화장품|의자|책상/;
+const SHOPPING_REQUEST_PATTERN = /추천|골라|찾아|검색|알려|구매|사려|사고|살\s*만|가격|최저가|시세|비교|좋은|괜찮은|대용량|용량|성능|전력|스펙|브랜드/;
 const CALENDAR_ASSET_DIR = path.join(__dirname, 'assets', 'calendar');
 const CALENDAR_FONT_PATH = path.join(CALENDAR_ASSET_DIR, 'NotoSansKR-Bold.ttf');
 const CALENDAR_FONT_FILE_URI = `file://${CALENDAR_FONT_PATH}`;
@@ -1117,6 +1119,16 @@ function compactGeneralQuery(message) {
     .trim();
 }
 
+function compactShoppingQuery(message) {
+  return compactGeneralQuery(
+    normalizeKoreanSearchText(message)
+      .replace(/한\s*꺼번에\s*많이\s*(넣고|담고)?.*?(갈|분쇄)\s*수\s*있는\s*(것|거)?/g, '대용량')
+      .replace(/많이\s*(갈|분쇄)\s*수\s*있는\s*(것|거)?/g, '대용량')
+      .replace(/용량이\s*(큰|큰\s*것|큰\s*거)/g, '대용량')
+      .replace(/대용량\s*으로/g, '대용량')
+  );
+}
+
 function compactLocalQuery(message) {
   const text = normalizeKoreanSearchText(message).replace(/[?？！!,.]/g, ' ');
   const location = text.match(LOCAL_LOCATION_PATTERN)?.[0] || '';
@@ -1145,7 +1157,11 @@ function compactLocalQuery(message) {
 
 function compactSearchQuery(message, intent) {
   if (intent === 'weather_lookup') return extractWeatherLocation(message);
-  const compacted = intent === 'local_search' ? compactLocalQuery(message) : compactGeneralQuery(message);
+  const compacted = intent === 'local_search'
+    ? compactLocalQuery(message)
+    : intent === 'shopping_search'
+      ? compactShoppingQuery(message)
+      : compactGeneralQuery(message);
   return compacted || normalizeText(message);
 }
 
@@ -1200,31 +1216,33 @@ function buildLocalFallbackQueries(plan) {
 
 function hasLocalSearchIntent(text) {
   const normalized = normalizeKoreanSearchText(text);
+  const productCue = SHOPPING_PRODUCT_PATTERN.test(normalized);
+  const explicitPlaceCue = /(근처|주변|가까운|동네|인근|주소|위치|지도|매장|가게|업체|오프라인|어디서\s*사|어디서\s*팔)/.test(normalized);
+  if (productCue && !explicitPlaceCue) return false;
   if (!LOCAL_LOCATION_PATTERN.test(normalized)) return false;
   if (LOCAL_DOMAIN_PATTERN.test(normalized)) return true;
   return LOCAL_ACTIVITY_PATTERN.test(normalized) && LOCAL_REQUEST_PATTERN.test(normalized);
+}
+
+function hasShoppingSearchIntent(text) {
+  const normalized = normalizeKoreanSearchText(text);
+  if (hasLocalSearchIntent(normalized)) return false;
+  if (isCasualMealChoiceRequest(normalized)) return false;
+  const explicitCommerceCue = /가격|최저가|시세|구매|상품|제품|쇼핑/.test(normalized);
+  const productCue = SHOPPING_PRODUCT_PATTERN.test(normalized);
+  const requestCue = SHOPPING_REQUEST_PATTERN.test(normalized);
+  return explicitCommerceCue || (productCue && requestCue);
 }
 
 function fallbackPlan(message) {
   const text = normalizeKoreanSearchText(message);
   if (WEATHER_WORD_PATTERN.test(text)) return { intent: 'weather_lookup', searchQuery: extractWeatherLocation(text), sort: 'sim', confidence: 0.85, source: 'fallback' };
   if (/뉴스|기사|속보|최신\s*뉴스|최근\s*뉴스/.test(text)) return { intent: 'news_search', searchQuery: compactSearchQuery(text, 'news_search'), sort: 'date', confidence: 0.75, source: 'fallback' };
-  if (/가격|최저가|시세|얼마|구매|상품|제품|쇼핑/.test(text)) return { intent: 'shopping_search', searchQuery: compactSearchQuery(text, 'shopping_search'), sort: 'sim', confidence: 0.72, source: 'fallback' };
+  if (hasShoppingSearchIntent(text)) return { intent: 'shopping_search', searchQuery: compactSearchQuery(text, 'shopping_search'), sort: 'sim', confidence: 0.76, source: 'fallback_product_shopping' };
   if (hasLocalSearchIntent(text)) return { intent: 'local_search', searchQuery: compactSearchQuery(text, 'local_search'), sort: 'comment', confidence: 0.72, source: 'fallback_semantic_local' };
   if (CURRENT_MEDIA_PATTERN.test(text)) return { intent: 'web_lookup', searchQuery: compactCurrentMediaQuery(text), sort: 'sim', confidence: 0.78, source: 'fallback_current_media' };
   if (/검색|찾아봐|알아봐|확인|최신|최근|실시간|웹|인터넷|네이버|구글|출처/.test(text)) return { intent: 'web_lookup', searchQuery: compactSearchQuery(text, 'web_lookup'), sort: 'sim', confidence: 0.7, source: 'fallback' };
   return { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.65, source: 'fallback' };
-}
-
-function shouldAnswerWithClaudeFirst(message) {
-  const text = normalizeKoreanSearchText(message);
-  const explicitLookupCue = /(검색|찾아봐|찾아줘|알아봐|최신|최근|실시간|뉴스|기사|속보|출처|네이버|구글|웹에서|인터넷에서)/.test(text) || CURRENT_MEDIA_PATTERN.test(text);
-  const commerceCue = /(가격|최저가|시세|얼마|구매|상품|제품|쇼핑)/.test(text);
-  const localCue = hasLocalSearchIntent(text);
-  const howToCue = /(어떻게|어케|방법|가능|할\s*수\s*있|되나|되냐|만들|설정|실행|명령어|cmd|윈도|윈도우|windows|바로가기|아이콘)/i.test(text);
-  const conversationRepairCue = /(너무|간단|자세히|자연스럽|말하는|대답|답변|아냐|아니야|다시|방금|그대로|이전|처럼|왜\s*그래|이상해)/.test(text);
-  const noLocationRestaurantCue = !LOCAL_LOCATION_PATTERN.test(text) && /(맛집|식당|음식점|밥집|가게|메뉴|점심|저녁|아침|야식).*(추천|골라|뭐|어디)|추천.*(맛집|식당|음식점|밥집|메뉴|점심|저녁|아침|야식)/.test(text);
-  return (howToCue || conversationRepairCue || noLocationRestaurantCue) && !explicitLookupCue && !commerceCue && !localCue && !WEATHER_WORD_PATTERN.test(text);
 }
 
 function isCasualMealChoiceRequest(message) {
@@ -1241,13 +1259,14 @@ function extractJsonObject(text) {
   try { return JSON.parse(match[0]); } catch { return null; }
 }
 
-function normalizePlan(plan, fallback) {
+function normalizePlan(plan, fallback, message) {
   const intents = new Set(['chat', 'web_lookup', 'news_search', 'local_search', 'shopping_search', 'weather_lookup']);
   const intent = intents.has(plan?.intent) ? plan.intent : fallback.intent;
-  const plannedQuery = normalizeText(plan?.searchQuery || fallback.searchQuery || '');
+  const plannedQuery = normalizeText(plan?.searchQuery || '');
+  const queryBase = plan ? (plannedQuery || message || fallback.searchQuery) : fallback.searchQuery;
   return {
     intent,
-    searchQuery: compactSearchQuery(plannedQuery || fallback.searchQuery, intent),
+    searchQuery: compactSearchQuery(queryBase, intent),
     sort: ['comment', 'sim', 'date'].includes(plan?.sort) ? plan.sort : (intent === 'local_search' ? 'comment' : fallback.sort || 'sim'),
     confidence: Number(plan?.confidence || fallback.confidence || 0.75),
     source: plan ? 'claude_planner' : fallback.source,
@@ -1287,7 +1306,8 @@ async function planTurn(message, userId) {
     'local_search는 많이 찾는 순서가 필요하므로 sort는 comment로 둬.',
     '최신 정보, 사실 확인은 web_lookup이나 news_search를 골라.',
     '요즘/최근/신작/개봉/상영/방영/공개/출시/인기 같은 현재성 있는 영화, 드라마, 애니, 게임, 음악 추천도 web_lookup을 골라.',
-    '가격, 상품, 구매, 시세는 shopping_search를 골라.',
+    '가격, 상품, 구매, 시세, 실물 제품/가전/도구/장비 추천은 shopping_search를 골라.',
+    '커피 그라인더, 분쇄기, 머신처럼 음식 단어가 들어가도 실물 제품이면 local_search나 식사 chat이 아니라 shopping_search야.',
     '출력 형식 예: {"intent":"local_search","searchQuery":"지역명 업종","sort":"comment","confidence":0.9}',
   ].join('\n');
 
@@ -1302,7 +1322,7 @@ async function planTurn(message, userId) {
       headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_API_KEY, 'anthropic-version': '2023-06-01' },
       timeout: CLAUDE_PLANNER_TIMEOUT_MS,
     });
-    return demoteOverbroadLocalPlan(normalizePlan(extractJsonObject(response.data?.content?.[0]?.text || ''), fallback), message);
+    return demoteOverbroadLocalPlan(normalizePlan(extractJsonObject(response.data?.content?.[0]?.text || ''), fallback, message), message);
   } catch (error) {
     console.error('[planner] fallback:', { message: error.message, code: error.code, status: error.response?.status });
     return demoteOverbroadLocalPlan(fallback, message);
@@ -2922,6 +2942,57 @@ async function answerLocalSearch(plan) {
   };
 }
 
+async function executePlannedTurn(message, userId, plan) {
+  if (plan.intent === 'weather_lookup') {
+    try {
+      return await answerWeather(plan.searchQuery || message, plan);
+    } catch (error) {
+      console.error('[weather] failed:', { message: error.message, code: error.code, status: error.response?.status });
+      const city = extractWeatherLocation(plan.searchQuery || message);
+      return {
+        answer: `${city} 날씨를 확인하려고 했는데 지금은 정보를 못 가져왔어. 잠시 후 다시 물어봐줘.`,
+        quickReplies: [],
+        plan: { ...plan, intent: 'weather_lookup', searchQuery: city, source: `${plan.source || 'unknown'}_weather_error` },
+        results: [],
+      };
+    }
+  }
+
+  if (plan.intent === 'local_search') {
+    try {
+      return await answerLocalSearch(plan);
+    } catch (error) {
+      console.error('[naver-local] failed:', { message: error.message, code: error.code, status: error.response?.status });
+      return { answer: formatSearchAnswer(plan, []), quickReplies: buildQuickReplies(plan, []), plan, results: [] };
+    }
+  }
+
+  if (plan.intent !== 'chat') {
+    try {
+      if (CURRENT_MEDIA_PATTERN.test(message)) {
+        return await answerCurrentMediaSearch({ ...plan, originalMessage: message, source: `${plan.source || 'planner'}_current_media` });
+      }
+      const search = await searchNaverWithRetries(plan);
+      return { answer: formatSearchAnswer(search.plan, search.results), quickReplies: buildQuickReplies(search.plan, search.results), plan: search.plan, results: search.results };
+    } catch (error) {
+      console.error('[naver] failed:', { message: error.message, code: error.code, status: error.response?.status });
+      return { answer: formatSearchAnswer(plan, []), quickReplies: buildQuickReplies(plan, []), plan, results: [] };
+    }
+  }
+
+  const mealAnswer = answerCasualMealChoice(message);
+  if (mealAnswer) return { answer: mealAnswer, quickReplies: [], plan, results: [] };
+
+  try {
+    const answer = await answerChat(message, userId);
+    return { answer, quickReplies: [], plan, results: [] };
+  } catch (error) {
+    console.error('[claude-chat] failed:', { message: error.message, code: error.code, status: error.response?.status });
+    lastClaudeStatus = { ok: false, status: error.response?.status || null, code: error.code || null, message: String(error.response?.data?.error?.message || error.message || '').slice(0, 160), at: new Date().toISOString() };
+    return { answer: fallbackChatAnswer(message), quickReplies: [], plan, results: [] };
+  }
+}
+
 function formatCurrentMediaFallbackAnswer(plan, results) {
   if (!results.length) {
     return `${plan.searchQuery} 기준으로 바로 잡히는 최신 결과가 부족해. "현재 상영 영화", "넷플릭스 신작 드라마"처럼 매체나 플랫폼을 조금만 좁히면 더 정확해.`;
@@ -3214,131 +3285,8 @@ async function buildAnswer(message, userId, req) {
   if (isCalendarReadRequest(routedMessage)) return answerCalendarReadRequest(routedMessage, userId, req);
   if (isGoogleCalendarConfigQuestion(routedMessage)) return answerGoogleCalendarConfigQuestion();
 
-  if (shouldAnswerWithClaudeFirst(message) || isCasualMealChoiceRequest(message)) {
-    const plan = {
-      intent: 'chat',
-      searchQuery: '',
-      sort: 'sim',
-      confidence: 0.9,
-      source: isCasualMealChoiceRequest(message) ? 'local_meal_chat' : 'claude_first_chat',
-    };
-    const mealAnswer = answerCasualMealChoice(message);
-    if (mealAnswer) return { answer: mealAnswer, quickReplies: [], plan, results: [] };
-    try {
-      const answer = await answerChat(message, userId);
-      return { answer, quickReplies: [], plan, results: [] };
-    } catch (error) {
-      console.error('[claude-first-chat] failed:', { message: error.message, code: error.code, status: error.response?.status });
-      lastClaudeStatus = { ok: false, status: error.response?.status || null, code: error.code || null, message: String(error.response?.data?.error?.message || error.message || '').slice(0, 160), at: new Date().toISOString() };
-      return { answer: fallbackChatAnswer(message), quickReplies: [], plan, results: [] };
-    }
-  }
-
-  const immediateFallback = fallbackPlan(message);
-  if (immediateFallback.intent === 'chat') {
-    const plan = {
-      ...immediateFallback,
-      confidence: Math.max(immediateFallback.confidence || 0.65, 0.85),
-      source: 'direct_chat_no_router',
-    };
-    try {
-      const answer = await answerChat(message, userId);
-      return { answer, quickReplies: [], plan, results: [] };
-    } catch (error) {
-      console.error('[direct-chat] failed:', { message: error.message, code: error.code, status: error.response?.status });
-      lastClaudeStatus = { ok: false, status: error.response?.status || null, code: error.code || null, message: String(error.response?.data?.error?.message || error.message || '').slice(0, 160), at: new Date().toISOString() };
-      return { answer: fallbackChatAnswer(message), quickReplies: [], plan, results: [] };
-    }
-  }
-  if (immediateFallback.intent === 'local_search') {
-    if (CLAUDE_API_KEY) {
-      const planned = await planTurn(message, userId);
-      if (planned.intent === 'chat') {
-        try {
-          const answer = await answerChat(message, userId);
-          return { answer, quickReplies: [], plan: planned, results: [] };
-        } catch (error) {
-          console.error('[planner-chat] failed:', { message: error.message, code: error.code, status: error.response?.status });
-          lastClaudeStatus = { ok: false, status: error.response?.status || null, code: error.code || null, message: String(error.response?.data?.error?.message || error.message || '').slice(0, 160), at: new Date().toISOString() };
-          return { answer: fallbackChatAnswer(message), quickReplies: [], plan: planned, results: [] };
-        }
-      }
-      if (planned.intent !== 'local_search') {
-        try {
-          const search = await searchNaverWithRetries(planned);
-          return { answer: formatSearchAnswer(search.plan, search.results), quickReplies: buildQuickReplies(search.plan, search.results), plan: search.plan, results: search.results };
-        } catch (error) {
-          console.error('[planner-search] failed:', { message: error.message, code: error.code, status: error.response?.status });
-          return { answer: formatSearchAnswer(planned, []), quickReplies: buildQuickReplies(planned, []), plan: planned, results: [] };
-        }
-      }
-      try {
-        return await answerLocalSearch(planned);
-      } catch (error) {
-        console.error('[naver-local-planned] failed:', { message: error.message, code: error.code, status: error.response?.status });
-        return { answer: formatSearchAnswer(planned, []), quickReplies: buildQuickReplies(planned, []), plan: planned, results: [] };
-      }
-    }
-    try {
-      return await answerLocalSearch(immediateFallback);
-    } catch (error) {
-      console.error('[naver-local-immediate] failed:', { message: error.message, code: error.code, status: error.response?.status });
-      return { answer: formatSearchAnswer(immediateFallback, []), quickReplies: buildQuickReplies(immediateFallback, []), plan: immediateFallback, results: [] };
-    }
-  }
-  if (immediateFallback.source === 'fallback_current_media') {
-    try {
-      return await answerCurrentMediaSearch({ ...immediateFallback, originalMessage: message });
-    } catch (error) {
-      console.error('[naver-current-media] failed:', { message: error.message, code: error.code, status: error.response?.status });
-      return { answer: formatSearchAnswer(immediateFallback, []), quickReplies: [], plan: immediateFallback, results: [] };
-    }
-  }
-
   const plan = await planTurn(message, userId);
-  if (plan.intent === 'weather_lookup') {
-    try {
-      return await answerWeather(plan.searchQuery || message, plan);
-    } catch (error) {
-      console.error('[weather] failed:', { message: error.message, code: error.code, status: error.response?.status });
-      const city = extractWeatherLocation(plan.searchQuery || message);
-      return {
-        answer: `${city} 날씨를 확인하려고 했는데 지금은 정보를 못 가져왔어. 잠시 후 다시 물어봐줘.`,
-        quickReplies: [],
-        plan: { ...plan, intent: 'weather_lookup', searchQuery: city, source: `${plan.source || 'unknown'}_weather_error` },
-        results: [],
-      };
-    }
-  }
-  if (plan.intent === 'local_search') {
-    try {
-      return await answerLocalSearch(plan);
-    } catch (error) {
-      console.error('[naver-local] failed:', { message: error.message, code: error.code, status: error.response?.status });
-      return { answer: formatSearchAnswer(plan, []), quickReplies: buildQuickReplies(plan, []), plan, results: [] };
-    }
-  }
-  if (plan.intent !== 'chat') {
-    try {
-      if (CURRENT_MEDIA_PATTERN.test(message)) {
-        return await answerCurrentMediaSearch({ ...plan, originalMessage: message, source: `${plan.source || 'planner'}_current_media` });
-      }
-      const search = await searchNaverWithRetries(plan);
-      return { answer: formatSearchAnswer(search.plan, search.results), quickReplies: buildQuickReplies(search.plan, search.results), plan: search.plan, results: search.results };
-    } catch (error) {
-      console.error('[naver] failed:', { message: error.message, code: error.code, status: error.response?.status });
-      return { answer: formatSearchAnswer(plan, []), quickReplies: buildQuickReplies(plan, []), plan, results: [] };
-    }
-  }
-
-  try {
-    const answer = await answerChat(message, userId);
-    return { answer, quickReplies: [], plan, results: [] };
-  } catch (error) {
-    console.error('[claude-chat] failed:', { message: error.message, code: error.code, status: error.response?.status });
-    lastClaudeStatus = { ok: false, status: error.response?.status || null, code: error.code || null, message: String(error.response?.data?.error?.message || error.message || '').slice(0, 160), at: new Date().toISOString() };
-    return { answer: fallbackChatAnswer(message), quickReplies: [], plan, results: [] };
-  }
+  return executePlannedTurn(message, userId, plan);
 }
 
 app.get('/', (req, res) => res.type('html').send(`<h1>카카오 스킬 웹훅 서버</h1><p>상태: 정상 실행 중</p><p>라우터: ${ROUTER_VERSION}</p><p>현재 한국 시간: ${getKoreanDateTime()}</p>`));
@@ -3516,6 +3464,7 @@ module.exports = {
   isCalendarWriteRequest,
   isReminderWriteRequest,
   fallbackPlan,
+  normalizePlan,
   compactLocalQuery,
   compactCurrentMediaQuery,
   isCasualMealChoiceRequest,
