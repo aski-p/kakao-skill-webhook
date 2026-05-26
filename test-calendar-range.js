@@ -13,6 +13,7 @@ const {
   formatWeeklyCalendarSummaryAnswer,
   formatWeeklyCalendarCardEvents,
   truncateForMonthCard,
+  getCalendarCardCharacterForRange,
 } = require('./server');
 
 const range = parseCalendarQueryRange('12일 일정 알려줘');
@@ -47,6 +48,12 @@ const monthlyRange = parseCalendarQueryRange('한달 달력 보여줘');
 assert.equal(monthlyRange.label, '이번 달');
 assert.equal(monthlyRange.startDate, '2026-05-01');
 assert.equal(monthlyRange.endDate, '2026-06-01');
+
+const specificDateRange = parseCalendarQueryRange('6월 3일 일정 상세 확인해줘');
+assert.equal(getCalendarCardCharacterForRange(specificDateRange, 'detail'), 'rossi');
+assert.equal(getCalendarCardCharacterForRange(specificDateRange, 'summary'), 'mive');
+assert.equal(getCalendarCardCharacterForRange(monthlyRange, 'month'), 'zhuang');
+assert.equal(getCalendarCardCharacterForRange(nextWeekRange, 'summary'), 'mive');
 
 const event = parseCalendarEvent('다음주 월요일 오전 11시 우체국 보험 접수 일정 등록 해줘');
 assert.equal(event.summary, '우체국 보험 접수');

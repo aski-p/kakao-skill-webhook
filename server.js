@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-26d-local-cuisine-preserve';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-26e-calendar-card-theme-rules';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -608,12 +608,13 @@ function getCalendarCardPortraitBuffer(card) {
   return MIVE_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_FRONT_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_FACE_IMAGE_BUFFER || ZHUANG_FANGYI_IMAGE_BUFFER || ZHUANG_FANGYI_FULL_IMAGE_BUFFER;
 }
 
-function getCalendarCardCharacterForRange(range) {
+function getCalendarCardCharacterForRange(range, mode = 'summary') {
   const label = normalizeText(range?.label || '');
-  if (/이번 달|다음 달|지난 달|\d+월/.test(label) || Number(range?.days || 0) > 7) return 'zhuang';
+  if (mode === 'detail') return 'rossi';
+  if (mode === 'month' || /이번 달|다음 달|지난 달/.test(label) || Number(range?.days || 0) > 7) return 'zhuang';
   if ([1, 2, -1].includes(Number(range?.relativeWeekOffset))) return 'mive';
   if (/다다음 주|다음 주|지난 주/.test(label)) return 'mive';
-  return 'rossi';
+  return 'mive';
 }
 
 function renderCalendarCardSvg(card) {
@@ -2260,7 +2261,8 @@ async function answerCalendarReadRequest(message, userId, req) {
     const cardTitle = formatCalendarCardTitle(range.label);
     const isWeeklySummary = Number(range?.days || 0) === 7 && !detailMode;
     const isMonthlySummary = Number(range?.days || 0) > 7 && !detailMode;
-    const character = getCalendarCardCharacterForRange(range);
+    const cardMode = isMonthlySummary ? 'month' : detailMode ? 'detail' : 'summary';
+    const character = getCalendarCardCharacterForRange(range, cardMode);
     if (result.tasksAuthIssue) {
       const authUrl = buildGoogleConnectUrl(userId, req);
       if (result.tasksAuthIssue === 'api_disabled') {
@@ -2270,7 +2272,7 @@ async function answerCalendarReadRequest(message, userId, req) {
           quickReplies: [{ label: 'Tasks API 켜기', action: 'webLink', webLinkUrl: tasksApiEnableUrl }],
           plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_tasks_api_disabled' },
           results: [],
-          calendarCard: { label: cardTitle, mode: detailMode ? 'detail' : 'summary', character, summaryText: 'Tasks API 필요', events: [] },
+          calendarCard: { label: cardTitle, mode: cardMode, character, summaryText: 'Tasks API 필요', events: [] },
         };
       }
       if (result.tasksAuthIssue === 'insufficient_scope') {
@@ -2282,7 +2284,7 @@ async function answerCalendarReadRequest(message, userId, req) {
             quickReplies: [],
             plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_tasks_scope_not_granted' },
             results: [],
-            calendarCard: { label: cardTitle, mode: detailMode ? 'detail' : 'summary', character, summaryText: 'Tasks 권한 필요', events: [] },
+            calendarCard: { label: cardTitle, mode: cardMode, character, summaryText: 'Tasks 권한 필요', events: [] },
           };
         }
         return {
@@ -2297,7 +2299,7 @@ async function answerCalendarReadRequest(message, userId, req) {
         quickReplies: [],
         plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.9, source: 'calendar_tasks_permission_blocked' },
         results: [],
-        calendarCard: { label: cardTitle, mode: detailMode ? 'detail' : 'summary', character, summaryText: 'Tasks 설정 확인 필요', events: [] },
+        calendarCard: { label: cardTitle, mode: cardMode, character, summaryText: 'Tasks 설정 확인 필요', events: [] },
       };
     }
     if (isMonthlySummary) {
@@ -2337,7 +2339,7 @@ async function answerCalendarReadRequest(message, userId, req) {
       quickReplies: [],
       plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_events_empty' },
       results: [],
-      calendarCard: { label: cardTitle, mode: detailMode ? 'detail' : 'summary', character, summaryText: '일정 없음', events: [] },
+      calendarCard: { label: cardTitle, mode: cardMode, character, summaryText: '일정 없음', events: [] },
     };
   }
 
@@ -2346,7 +2348,8 @@ async function answerCalendarReadRequest(message, userId, req) {
   const groupedEvents = groupGoogleCalendarEventsByDate(result.events);
   const isWeeklySummary = Number(range?.days || 0) === 7 && !detailMode;
   const isMonthlySummary = Number(range?.days || 0) > 7 && !detailMode;
-  const character = getCalendarCardCharacterForRange(range);
+  const cardMode = isMonthlySummary ? 'month' : detailMode ? 'detail' : 'summary';
+  const character = getCalendarCardCharacterForRange(range, cardMode);
   const cardEvents = isWeeklySummary
     ? formatWeeklyCalendarCardEvents(range, groupedEvents)
     : result.events.map((event) => formatGoogleCalendarCardEvent(event, { includeDate: includeDateInCardRows }));
@@ -2366,7 +2369,7 @@ async function answerCalendarReadRequest(message, userId, req) {
     results: result.events,
     calendarCard: {
       label: cardTitle,
-      mode: isMonthlySummary ? 'month' : detailMode ? 'detail' : 'summary',
+      mode: cardMode,
       character,
       summaryText,
       events: cardEvents,
@@ -3522,6 +3525,7 @@ module.exports = {
   app,
   renderCalendarCardPng,
   renderCalendarCardSvg,
+  getCalendarCardCharacterForRange,
   parseCalendarQueryRange,
   parseCalendarEvent,
   parseCalendarUpdate,
