@@ -13,6 +13,7 @@ const locationMealRequests = [
   ['홍대 밥 먹을 곳 알려줘', '홍대 밥'],
   ['을지로3가에서 뭐 먹지', '을지로3가 맛집'],
   ['성수 근처 조용한 카페 있을까', '성수 조용한 카페'],
+  ['월계동 현대아파트 근처 중국집 맛집 5개 찾아줘', '월계동 현대아파트 중국집'],
 ];
 
 for (const [message, expectedQuery] of locationMealRequests) {
@@ -38,5 +39,13 @@ const plannerFirstShoppingPlan = normalizePlan(
 assert.strictEqual(plannerFirstShoppingPlan.intent, 'shopping_search');
 assert.strictEqual(plannerFirstShoppingPlan.searchQuery, '성수 커피 그라인더');
 assert.strictEqual(plannerFirstShoppingPlan.source, 'claude_planner');
+
+const localCuisinePlan = normalizePlan(
+  { intent: 'local_search', searchQuery: '월계동 맛집', sort: 'comment', confidence: 0.9 },
+  fallbackPlan('월계동 현대아파트 근처 중국집 맛집 5개 찾아줘'),
+  '월계동 현대아파트 근처 중국집 맛집 5개 찾아줘',
+);
+assert.strictEqual(localCuisinePlan.intent, 'local_search');
+assert.strictEqual(localCuisinePlan.searchQuery, '월계동 현대아파트 중국집');
 
 console.log('local meal routing tests passed');

@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-26c-calendar-title-update';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-26d-local-cuisine-preserve';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -74,7 +74,8 @@ const getKoreanDateTime = () => new Intl.DateTimeFormat('ko-KR', { timeZone: 'As
 const getUserMessage = (body) => normalizeText(body?.userRequest?.utterance || body?.utterance || body?.message || '');
 const getUserId = (body) => body?.userRequest?.user?.id || body?.userRequest?.user?.properties?.botUserKey || 'anonymous';
 const LOCAL_LOCATION_PATTERN = /(?:[가-힣A-Za-z0-9]+(?:구|동|역|로|길|시|군|읍|면|리|가)|강남|홍대|명동|신촌|이태원|성수|연남|합정|망원|여의도|종로)/;
-const LOCAL_DOMAIN_PATTERN = /맛집|음식점|식당|카페|밥집|술집|술\s*마실|고깃집|분식|한식|중식|일식|양식|치킨|피자|파스타|커피|디저트|병원|약국|미용실|네일|헬스장|체육관|구장|코트|연습장|센터|매장|가게|업체|장소|시설/;
+const LOCAL_DOMAIN_PATTERN = /맛집|음식점|식당|카페|밥집|술집|술\s*마실|고깃집|중국집|분식|한식|중식|일식|양식|치킨|피자|파스타|커피|디저트|병원|약국|미용실|네일|헬스장|체육관|구장|코트|연습장|센터|매장|가게|업체|장소|시설/;
+const LOCAL_CUISINE_TERMS = ['중국집', '중식', '짜장면', '자장면', '짬뽕', '탕수육', '마라탕', '훠궈', '한식', '일식', '초밥', '스시', '돈까스', '양식', '파스타', '피자', '치킨', '고깃집', '분식', '카페', '디저트'];
 const LOCAL_ACTIVITY_PATTERN = /먹|마시|식사|끼니|밥|브런치|런치|디너|야식|점심|저녁|아침|회식|데이트|예약|잡|갈\s*만|가볼|놀|운동|치러|치려고|이용|사러|고치|수리|맡기/;
 const LOCAL_REQUEST_PATTERN = /근처|주변|가까운|동네|인근|어디|뭐|찾|검색|추천|유명|인기|괜찮|좋은|가능|있어|있나|있을까|알려|보여/;
 const WEATHER_WORD_PATTERN = /날씨|기온|온도|비\s*와|비와|비\s*올|비올|우산|미세먼지|초미세먼지|습도|바람/;
@@ -1129,22 +1130,36 @@ function compactShoppingQuery(message) {
   );
 }
 
+function extractLocalCuisineTerms(text) {
+  const normalized = normalizeKoreanSearchText(text);
+  return LOCAL_CUISINE_TERMS.filter((term) => normalized.includes(term));
+}
+
+function localQueryPreservesCuisine(query, cuisineTerms) {
+  const normalized = normalizeKoreanSearchText(query);
+  return cuisineTerms.every((term) => normalized.includes(term));
+}
+
 function compactLocalQuery(message) {
   const text = normalizeKoreanSearchText(message).replace(/[?？！!,.]/g, ' ');
   const location = text.match(LOCAL_LOCATION_PATTERN)?.[0] || '';
   if (!location) return compactGeneralQuery(text);
+  const cuisineTerms = extractLocalCuisineTerms(text);
 
   let target = text
     .replace(location, ' ')
     .replace(/(근처|주변|가까운|동네|인근|에서|으로|로|중에|쪽|근방|인데|인대|인데요|이에요|예요|지금|오늘)/g, ' ')
-    .replace(/(\d+\s*)?(곳|개)\s*만/g, ' ')
+    .replace(/\d+\s*(곳|개)(?:\s*만)?/g, ' ')
     .replace(/(유명한|인기\s*있는|많이\s*찾는|괜찮은|좋은|맛있는|평점\s*좋은|가성비\s*좋은)/g, ' ')
     .replace(/(칠려고|치려고|하려고|하고\s*싶은데|하려\s*하는데|하는데|이용하려고|예약하려고|잡으려고|먹으려고|먹지|먹을\s*만한|먹을\s*거|먹을\s*것|먹거리|먹거|먹을)/g, ' ')
     .replace(/(잡을\s*수\s*있는\s*곳|잡을\s*수\s*있는|예약\s*가능한\s*곳|예약\s*가능한|예약할\s*수\s*있는\s*곳|예약할\s*수\s*있는)/g, ' ')
-    .replace(/(맛집|식당|매장|가게|업체|장소|곳|집|브랜드|시설|센터)/g, ' ')
+    .replace(/(맛집|식당|매장|가게|업체|장소|곳|브랜드|시설|센터)/g, ' ')
     .replace(/(찾아줄\s*수\s*있어|찾아줘|찾아봐|알려줘|추천해줘|추천|검색해줘|검색|어디|뭐|좀|해줘|있어|있나|있니|있을까|가능|가능한)/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  for (const term of cuisineTerms) {
+    if (!target.includes(term)) target = normalizeText(`${target} ${term}`).trim();
+  }
 
   if (!target && !LOCAL_ACTIVITY_PATTERN.test(text) && !LOCAL_DOMAIN_PATTERN.test(text)) {
     target = compactGeneralQuery(text.replace(location, ' '));
@@ -1264,9 +1279,16 @@ function normalizePlan(plan, fallback, message) {
   const intent = intents.has(plan?.intent) ? plan.intent : fallback.intent;
   const plannedQuery = normalizeText(plan?.searchQuery || '');
   const queryBase = plan ? (plannedQuery || message || fallback.searchQuery) : fallback.searchQuery;
+  let searchQuery = compactSearchQuery(queryBase, intent);
+  if (intent === 'local_search') {
+    const cuisineTerms = extractLocalCuisineTerms(message);
+    if (cuisineTerms.length && !localQueryPreservesCuisine(searchQuery, cuisineTerms)) {
+      searchQuery = compactLocalQuery(message);
+    }
+  }
   return {
     intent,
-    searchQuery: compactSearchQuery(queryBase, intent),
+    searchQuery,
     sort: ['comment', 'sim', 'date'].includes(plan?.sort) ? plan.sort : (intent === 'local_search' ? 'comment' : fallback.sort || 'sim'),
     confidence: Number(plan?.confidence || fallback.confidence || 0.75),
     source: plan ? 'claude_planner' : fallback.source,
