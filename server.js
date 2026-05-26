@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-25r-current-media-news-search';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-25s-current-media-contextual';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1150,12 +1150,22 @@ function compactSearchQuery(message, intent) {
 }
 
 function compactCurrentMediaQuery(message) {
+  const original = normalizeKoreanSearchText(message);
+  const year = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric' }).format(new Date()).replace(/\D/g, '');
+  const media = original.match(/영화|드라마|애니메이션|애니|게임|음악|노래|앨범|시리즈/)?.[0] || '';
+  const asksTheatricalMovie = /영화/.test(media) && /개봉|상영|박스오피스|극장|영화관/.test(original);
+  if (asksTheatricalMovie) return `${year}년 현재 상영 영화 박스오피스 추천`;
+  if (/영화/.test(media)) return `${year}년 최신 영화 추천`;
+  if (/드라마|시리즈/.test(media)) return `${year}년 최신 드라마 시리즈 추천`;
+  if (/애니/.test(media)) return `${year}년 최신 애니메이션 추천`;
+  if (/게임/.test(media)) return `${year}년 최신 게임 추천`;
+  if (/음악|노래|앨범/.test(media)) return `${year}년 최신 음악 앨범 추천`;
+
   const text = compactGeneralQuery(message)
     .replace(/(재미있는|재밌는|재밌어|볼만한|볼\s*만한|괜찮은|좋은|알려줘|추천해줘|추천|으로|로|거|것)/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  const media = normalizeKoreanSearchText(message).match(/영화|드라마|애니메이션|애니|게임|음악|노래|앨범|시리즈/)?.[0] || '';
-  const freshness = /개봉|상영/.test(message) ? '현재 상영 최신' : '최신';
+  const freshness = /개봉|상영/.test(message) ? `${year}년 현재 상영 최신` : `${year}년 최신`;
   return normalizeText([freshness, text, media ? '추천' : ''].filter(Boolean).join(' ')).replace(/\s+/g, ' ');
 }
 
@@ -1201,7 +1211,7 @@ function fallbackPlan(message) {
   if (/뉴스|기사|속보|최신\s*뉴스|최근\s*뉴스/.test(text)) return { intent: 'news_search', searchQuery: compactSearchQuery(text, 'news_search'), sort: 'date', confidence: 0.75, source: 'fallback' };
   if (/가격|최저가|시세|얼마|구매|상품|제품|쇼핑/.test(text)) return { intent: 'shopping_search', searchQuery: compactSearchQuery(text, 'shopping_search'), sort: 'sim', confidence: 0.72, source: 'fallback' };
   if (hasLocalSearchIntent(text)) return { intent: 'local_search', searchQuery: compactSearchQuery(text, 'local_search'), sort: 'comment', confidence: 0.72, source: 'fallback_semantic_local' };
-  if (CURRENT_MEDIA_PATTERN.test(text)) return { intent: 'news_search', searchQuery: compactCurrentMediaQuery(text), sort: 'date', confidence: 0.78, source: 'fallback_current_media' };
+  if (CURRENT_MEDIA_PATTERN.test(text)) return { intent: 'web_lookup', searchQuery: compactCurrentMediaQuery(text), sort: 'sim', confidence: 0.78, source: 'fallback_current_media' };
   if (/검색|찾아봐|알아봐|확인|최신|최근|실시간|웹|인터넷|네이버|구글|출처/.test(text)) return { intent: 'web_lookup', searchQuery: compactSearchQuery(text, 'web_lookup'), sort: 'sim', confidence: 0.7, source: 'fallback' };
   return { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.65, source: 'fallback' };
 }
@@ -2912,6 +2922,82 @@ async function answerLocalSearch(plan) {
   };
 }
 
+function formatCurrentMediaFallbackAnswer(plan, results) {
+  if (!results.length) {
+    return `${plan.searchQuery} 기준으로 바로 잡히는 최신 결과가 부족해. "현재 상영 영화", "넷플릭스 신작 드라마"처럼 매체나 플랫폼을 조금만 좁히면 더 정확해.`;
+  }
+  const lines = results.slice(0, 5).map((item, index) => {
+    const title = stripHtml(item.title || '').replace(/\s+/g, ' ').trim();
+    const description = stripHtml(item.description || '').replace(/\s+/g, ' ').trim();
+    return `${index + 1}. ${title}${description ? ` - ${description.slice(0, 70)}` : ''}`;
+  });
+  return [`검색 결과 기준으로는 이쪽부터 보면 좋아:`, ...lines].join('\n');
+}
+
+async function answerCurrentMediaSearch(plan) {
+  const search = await searchNaverWithRetries(plan);
+  const results = search.results || [];
+  if (!CLAUDE_API_KEY || !results.length) {
+    return {
+      answer: formatCurrentMediaFallbackAnswer(search.plan, results),
+      quickReplies: [],
+      plan: search.plan,
+      results,
+    };
+  }
+
+  const evidence = results.slice(0, 8).map((item, index) => ({
+    index: index + 1,
+    title: stripHtml(item.title || ''),
+    description: stripHtml(item.description || ''),
+    date: item.pubDate || '',
+    link: item.link || '',
+  }));
+
+  try {
+    const response = await axios.post(CLAUDE_API_URL, {
+      model: CLAUDE_MODEL,
+      max_tokens: 520,
+      temperature: 0.4,
+      system: [
+        '너는 카카오톡에서 최신 문화 콘텐츠를 추천하는 한국어 답변자야.',
+        '사용자 요청과 검색 결과만 근거로 삼아. 검색 결과에 없는 작품명은 추측해서 만들지 마.',
+        '영화 추천 요청이면 기사명, 쇼핑/광고 제목, 음식/상품 결과를 작품 추천으로 둔갑시키지 마.',
+        '결과가 섞여 있으면 실제 작품으로 보이는 항목만 골라 3~5개 추천해.',
+        '각 추천은 한 줄로 제목과 짧은 이유를 적어. 근거가 약하면 "검색 결과가 섞여 있어 정확도는 낮아"라고 말해.',
+        '답변 첫 줄에는 검색 기준 날짜가 오늘 기준임을 짧게 밝혀.',
+      ].join('\n'),
+      messages: [{
+        role: 'user',
+        content: [
+          `오늘 한국 시간: ${getKoreanDateTime()}`,
+          `사용자 요청: ${plan.originalMessage || plan.searchQuery}`,
+          `검색어: ${search.plan.searchQuery}`,
+          `검색 결과 JSON: ${JSON.stringify(evidence)}`,
+        ].join('\n'),
+      }],
+    }, {
+      headers: { 'Content-Type': 'application/json', 'x-api-key': CLAUDE_API_KEY, 'anthropic-version': '2023-06-01' },
+      timeout: CLAUDE_TIMEOUT_MS,
+    });
+    const answer = normalizeText(response.data?.content?.[0]?.text || '');
+    return {
+      answer: answer || formatCurrentMediaFallbackAnswer(search.plan, results),
+      quickReplies: [],
+      plan: search.plan,
+      results,
+    };
+  } catch (error) {
+    console.error('[current-media-claude] failed:', { message: error.message, code: error.code, status: error.response?.status });
+    return {
+      answer: formatCurrentMediaFallbackAnswer(search.plan, results),
+      quickReplies: [],
+      plan: search.plan,
+      results,
+    };
+  }
+}
+
 async function fetchNaverLocalItems(query) {
   if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) return [];
   const response = await axios.get(NAVER_URLS.local_search, {
@@ -3202,8 +3288,7 @@ async function buildAnswer(message, userId, req) {
   }
   if (immediateFallback.source === 'fallback_current_media') {
     try {
-      const search = await searchNaverWithRetries(immediateFallback);
-      return { answer: formatSearchAnswer(search.plan, search.results), quickReplies: buildQuickReplies(search.plan, search.results), plan: search.plan, results: search.results };
+      return await answerCurrentMediaSearch({ ...immediateFallback, originalMessage: message });
     } catch (error) {
       console.error('[naver-current-media] failed:', { message: error.message, code: error.code, status: error.response?.status });
       return { answer: formatSearchAnswer(immediateFallback, []), quickReplies: [], plan: immediateFallback, results: [] };
@@ -3235,6 +3320,9 @@ async function buildAnswer(message, userId, req) {
   }
   if (plan.intent !== 'chat') {
     try {
+      if (CURRENT_MEDIA_PATTERN.test(message)) {
+        return await answerCurrentMediaSearch({ ...plan, originalMessage: message, source: `${plan.source || 'planner'}_current_media` });
+      }
       const search = await searchNaverWithRetries(plan);
       return { answer: formatSearchAnswer(search.plan, search.results), quickReplies: buildQuickReplies(search.plan, search.results), plan: search.plan, results: search.results };
     } catch (error) {
@@ -3429,6 +3517,7 @@ module.exports = {
   isReminderWriteRequest,
   fallbackPlan,
   compactLocalQuery,
+  compactCurrentMediaQuery,
   isCasualMealChoiceRequest,
   isCalendarItemInRange,
   formatGoogleCalendarEvent,
