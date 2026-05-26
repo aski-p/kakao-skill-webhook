@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-26b-planner-first-search';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-26c-calendar-title-update';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1821,14 +1821,52 @@ function applyKoreanTime(date, time) {
   return next;
 }
 
+function parseCalendarTitleChange(text) {
+  const cleaned = normalizeText(text
+    .replace(/\d{4}-\d{1,2}-\d{1,2}/g, ' ')
+    .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일/g, ' ')
+    .replace(/오늘|내일|낼|모레|이번\s*주|이번주|주간|일주일/g, ' ')
+    .replace(/(오전|오후|저녁|밤|아침)?\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?/g, ' ')
+    .replace(/구글|google|캘린더|calendar|예약|스케줄/g, ' ')
+    .replace(/[?？！!,.]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim());
+
+  const patterns = [
+    /(.+?)\s+(?:일정\s*)?(.+?)(?:으?로|으로)\s*(?:수정|변경|바꿔)/,
+    /(.+?)(?:을|를)\s+(.+?)(?:으?로|으로)\s*(?:수정|변경|바꿔)/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = cleaned.match(pattern);
+    if (!match) continue;
+    const titleQuery = normalizeText(match[1].replace(/일정$/g, '').trim());
+    const summary = normalizeText(match[2].replace(/일정$/g, '').trim());
+    if (/^(부터|까지|에서|에|로|으로)$/.test(summary)) continue;
+    if (titleQuery && summary && titleQuery !== summary) {
+      return { titleQuery, summary };
+    }
+  }
+
+  return null;
+}
+
 function parseCalendarUpdate(message) {
   const text = normalizeKoreanSearchText(message);
   const range = parseCalendarQueryRange(text);
   const startOfDay = new Date(`${range.timeMin.slice(0, 10)}T00:00:00`);
+  const titleChange = parseCalendarTitleChange(text);
 
   const timePattern = /(오전|오후|저녁|밤|아침)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/g;
   const timeMatches = [...text.matchAll(timePattern)];
   if (!timeMatches.length) {
+    if (titleChange) {
+      return {
+        range,
+        titleQuery: titleChange.titleQuery,
+        summary: titleChange.summary,
+      };
+    }
     return { error: '바꿀 시간을 못 찾았어. 예: 내일 교육 오후 1시부터 6시로 수정해줘' };
   }
 
@@ -1851,7 +1889,8 @@ function parseCalendarUpdate(message) {
 
   return {
     range,
-    titleQuery,
+    titleQuery: titleChange?.titleQuery || titleQuery,
+    summary: titleChange?.summary,
     start: formatKoreaDateTime(start),
     end: formatKoreaDateTime(end),
   };
@@ -1867,15 +1906,20 @@ function scoreCalendarEventMatch(event, titleQuery) {
   return tokens.reduce((score, token) => score + (summary.includes(token) ? 10 : 0), 0);
 }
 
-async function patchGoogleCalendarEventTime(userId, eventId, update) {
+async function patchGoogleCalendarEvent(userId, eventId, update) {
   const storedToken = await getStoredGoogleToken(userId);
   if (!storedToken) return { needsAuth: true };
   const token = await refreshGoogleAccessToken(userId, storedToken);
+  const payload = {};
+  if (update.start && update.end) {
+    payload.start = { dateTime: update.start, timeZone: 'Asia/Seoul' };
+    payload.end = { dateTime: update.end, timeZone: 'Asia/Seoul' };
+  }
+  if (update.summary) {
+    payload.summary = update.summary;
+  }
 
-  const response = await axios.patch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`, {
-    start: { dateTime: update.start, timeZone: 'Asia/Seoul' },
-    end: { dateTime: update.end, timeZone: 'Asia/Seoul' },
-  }, {
+  const response = await axios.patch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`, payload, {
     headers: { Authorization: `Bearer ${token.access_token}` },
     timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
   });
@@ -1897,7 +1941,7 @@ async function updateGoogleCalendarEvent(userId, update) {
   const tied = ranked.filter((item) => item.score === topScore);
   if (tied.length > 1 && update.titleQuery) return { ambiguous: true, events: tied.map((item) => item.event) };
 
-  const patched = await patchGoogleCalendarEventTime(userId, ranked[0].event.id, update);
+  const patched = await patchGoogleCalendarEvent(userId, ranked[0].event.id, update);
   if (patched.needsAuth) return patched;
   return { event: patched.event };
 }
@@ -3458,10 +3502,12 @@ module.exports = {
   renderCalendarCardSvg,
   parseCalendarQueryRange,
   parseCalendarEvent,
+  parseCalendarUpdate,
   normalizeCalendarCommandTypos,
   isMalformedCalendarCommand,
   isCalendarReadRequest,
   isCalendarWriteRequest,
+  isCalendarUpdateRequest,
   isReminderWriteRequest,
   fallbackPlan,
   normalizePlan,
