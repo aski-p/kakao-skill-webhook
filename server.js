@@ -1475,6 +1475,20 @@ async function getStoredGoogleToken(userId) {
   return null;
 }
 
+async function getFallbackGoogleToken(userId, rejectedRefreshToken = '') {
+  if (!KAKAO_CALENDAR_ALLOW_ALL) return null;
+  const tokens = await loadGoogleTokensAsync();
+  const candidates = [];
+  if (tokens.default) candidates.push(['default', tokens.default]);
+  for (const entry of Object.entries(tokens)) {
+    if (entry[0] !== userId && entry[0] !== 'default') candidates.push(entry);
+  }
+  return candidates.find(([, token]) => (
+    (token?.refresh_token || token?.access_token)
+    && (!rejectedRefreshToken || token.refresh_token !== rejectedRefreshToken)
+  )) || null;
+}
+
 async function exchangeGoogleCodeForToken(code, redirectUri) {
   const response = await axios.post('https://oauth2.googleapis.com/token', new URLSearchParams({
     code,
@@ -1562,7 +1576,19 @@ async function refreshGoogleAccessToken(userId, token) {
 async function getGoogleAccessTokenForUser(userId) {
   const storedToken = await getStoredGoogleToken(userId);
   if (!storedToken) return null;
-  return refreshGoogleAccessToken(userId, storedToken);
+  try {
+    return await refreshGoogleAccessToken(userId, storedToken);
+  } catch (error) {
+    const fallback = await getFallbackGoogleToken(userId, storedToken.refresh_token);
+    if (!fallback) throw error;
+    console.error('[google-calendar] exact token refresh failed; using shared fallback token:', {
+      userId,
+      fallbackKey: fallback[0],
+      status: error.response?.status,
+      googleError: error.response?.data?.error,
+    });
+    return refreshGoogleAccessToken(fallback[0], fallback[1]);
+  }
 }
 
 function withTimeout(promise, timeoutMs, timeoutValue) {
@@ -2257,6 +2283,15 @@ async function answerCalendarReadRequest(message, userId, req) {
     result = await listGoogleCalendarItems(userId, range);
   } catch (error) {
     console.error('[google-calendar] list failed:', { message: error.message, code: error.code, status: error.response?.status });
+    if (isGoogleOAuthReconnectRequired(error)) {
+      const authUrl = buildGoogleConnectUrl(userId, req);
+      return {
+        answer: `구글 캘린더 연결 토큰이 만료됐거나 취소됐어. 아래 링크로 다시 연결한 뒤 같은 문장으로 보내줘.\n${authUrl}`,
+        quickReplies: [{ label: '구글 재연결', action: 'webLink', webLinkUrl: authUrl }],
+        plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.9, source: 'calendar_read_auth_expired' },
+        results: [],
+      };
+    }
     return {
       answer: `${formatCalendarCardTitle(range.label)}을 확인하려고 했는데 구글 캘린더 응답이 늦거나 실패했어. 잠깐 뒤에 같은 문장으로 다시 보내줘.`,
       quickReplies: [],
