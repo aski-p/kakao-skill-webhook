@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-26e-calendar-card-theme-rules';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-26f-bare-weekday-calendar-date';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1495,6 +1495,19 @@ function getGoogleOAuthFailureDetails(error) {
   return { status, googleError, googleDescription, message };
 }
 
+function isGoogleOAuthClientConfigError(error) {
+  const details = getGoogleOAuthFailureDetails(error);
+  return details.googleError === 'invalid_client'
+    || /OAuth client was not found|invalid_client/i.test(details.message);
+}
+
+function isGoogleOAuthReconnectRequired(error) {
+  const details = getGoogleOAuthFailureDetails(error);
+  return details.status === 401
+    || details.googleError === 'invalid_grant'
+    || /invalid_grant|Token has been expired or revoked|expired or revoked/i.test(details.message);
+}
+
 function renderGoogleOAuthFailurePage(details) {
   const reason = escapeXml(details.message);
   return `<!doctype html>
@@ -1539,6 +1552,9 @@ async function refreshGoogleAccessToken(userId, token) {
   };
   const tokens = await loadGoogleTokensAsync();
   tokens[userId] = refreshed;
+  if (KAKAO_CALENDAR_ALLOW_ALL && tokens.default?.refresh_token === token.refresh_token) {
+    tokens.default = refreshed;
+  }
   await saveGoogleTokensAsync(tokens);
   return refreshed;
 }
@@ -1624,9 +1640,10 @@ function parseKoreanWeekday(text) {
 }
 
 function resolveRelativeWeekdayDate(text) {
-  const weekOffset = parseRelativeWeekOffset(text);
   const weekday = parseKoreanWeekday(text);
-  if (weekOffset === null || weekday === null) return null;
+  if (weekday === null) return null;
+  const parsedWeekOffset = parseRelativeWeekOffset(text);
+  const weekOffset = parsedWeekOffset === null ? 0 : parsedWeekOffset;
   return addDays(getWeekStart(getKoreaDayStart(0), weekOffset), weekday);
 }
 
@@ -1848,7 +1865,7 @@ function parseCalendarTitleChange(text) {
   const cleaned = normalizeText(text
     .replace(/\d{4}-\d{1,2}-\d{1,2}/g, ' ')
     .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일/g, ' ')
-    .replace(/오늘|내일|낼|모레|이번\s*주|이번주|주간|일주일/g, ' ')
+    .replace(/오늘|내일|낼|모레|이번\s*주|이번주|다음\s*주|다음주|내주|다\s*다음\s*주|다다음주|다음\s*다음\s*주|차\s*주|저번\s*주|저번주|지난\s*주|지난주|이전\s*주|이전주|주간|일주일|(월|화|수|목|금|토|일)\s*요일/g, ' ')
     .replace(/(오전|오후|저녁|밤|아침)?\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?/g, ' ')
     .replace(/구글|google|캘린더|calendar|예약|스케줄/g, ' ')
     .replace(/[?？！!,.]/g, ' ')
@@ -1902,7 +1919,7 @@ function parseCalendarUpdate(message) {
   let titleQuery = normalizeText(text
     .replace(/\d{4}-\d{1,2}-\d{1,2}/g, ' ')
     .replace(/\d{1,2}\s*월\s*\d{1,2}\s*일/g, ' ')
-    .replace(/오늘|내일|낼|모레|이번\s*주|이번주|주간|일주일/g, ' ')
+    .replace(/오늘|내일|낼|모레|이번\s*주|이번주|다음\s*주|다음주|내주|다\s*다음\s*주|다다음주|다음\s*다음\s*주|차\s*주|저번\s*주|저번주|지난\s*주|지난주|이전\s*주|이전주|주간|일주일|(월|화|수|목|금|토|일)\s*요일/g, ' ')
     .replace(timePattern, ' ')
     .replace(/부터|에서|까지|으로|로|에|을|를|은|는|이|가/g, ' ')
     .replace(/구글|google|캘린더|calendar|일정|예약|스케줄|수정|변경|바꿔|옮겨|미뤄|당겨|해줘|좀|줘/g, ' ')
@@ -1912,8 +1929,8 @@ function parseCalendarUpdate(message) {
 
   return {
     range,
-    titleQuery: titleChange?.titleQuery || titleQuery,
-    summary: titleChange?.summary,
+    titleQuery,
+    summary: undefined,
     start: formatKoreaDateTime(start),
     end: formatKoreaDateTime(end),
   };
@@ -2453,7 +2470,16 @@ async function answerCalendarWriteRequest(message, userId, req) {
       data: String(errorText).slice(0, 500),
     });
 
-    if (status === 401) {
+    if (isGoogleOAuthClientConfigError(error)) {
+      return {
+        answer: '구글 캘린더 OAuth 클라이언트 설정이 현재 Google에서 유효하지 않다고 응답했어. 이건 사용자가 다시 보내서 해결되는 문제가 아니라 서버의 GOOGLE_OAUTH_CLIENT_ID/SECRET을 새 Google OAuth 클라이언트 값으로 교체해야 해.',
+        quickReplies: [],
+        plan: { intent: 'chat', searchQuery: '', sort: 'sim', confidence: 0.95, source: 'calendar_oauth_client_invalid' },
+        results: [],
+      };
+    }
+
+    if (isGoogleOAuthReconnectRequired(error)) {
       const authUrl = buildGoogleConnectUrl(userId, req);
       return {
         answer: `구글 캘린더 연결 토큰이 만료됐거나 취소됐어. 아래 링크로 다시 연결한 뒤 같은 문장으로 보내줘.\n${authUrl}`,

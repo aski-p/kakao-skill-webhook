@@ -1,4 +1,26 @@
 const assert = require('node:assert/strict');
+
+const RealDate = Date;
+const FIXED_NOW = new RealDate('2026-05-21T15:00:00.000Z');
+global.Date = class extends RealDate {
+  constructor(...args) {
+    if (args.length === 0) return new RealDate(FIXED_NOW);
+    return new RealDate(...args);
+  }
+
+  static now() {
+    return FIXED_NOW.getTime();
+  }
+
+  static parse(value) {
+    return RealDate.parse(value);
+  }
+
+  static UTC(...args) {
+    return RealDate.UTC(...args);
+  }
+};
+
 const {
   parseCalendarQueryRange,
   parseCalendarEvent,
