@@ -24,6 +24,7 @@ const KAKAO_HANDLER_TIMEOUT_MS = Math.min(Math.max(Number(process.env.KAKAO_HAND
 const GOOGLE_TOKEN_STORE_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_TOKEN_STORE_TIMEOUT_MS || 800), 300), 1500);
 const GOOGLE_CALENDAR_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_TIMEOUT_MS || 1800), 800), 2500);
 const GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS = Math.min(Math.max(Number(process.env.GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS || 1800), 900), 2400);
+const GOOGLE_ACCESS_TOKEN_REFRESH_MARGIN_MS = Math.min(Math.max(Number(process.env.GOOGLE_ACCESS_TOKEN_REFRESH_MARGIN_MS || 600000), 60000), 1800000);
 
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
@@ -54,6 +55,7 @@ const naverWeatherCrawler = new NaverWeatherCrawler();
 let tokenStoreSupabase = null;
 let tokenStoreBucketReady = false;
 let lastGoogleTokenStoreStatus = { mode: 'unknown', ok: null, message: null, at: null };
+const googleRefreshInflight = new Map();
 
 const NAVER_URLS = {
   web_lookup: 'https://openapi.naver.com/v1/search/webkr.json',
@@ -1546,31 +1548,54 @@ function renderGoogleOAuthFailurePage(details) {
 </html>`;
 }
 
-async function refreshGoogleAccessToken(userId, token) {
+function isGoogleAccessTokenRejected(error) {
+  const status = error.response?.status;
+  const data = JSON.stringify(error.response?.data || {});
+  return status === 401
+    || /invalid_token|Invalid Credentials|unauthorized|UNAUTHENTICATED/i.test(data);
+}
+
+async function refreshGoogleAccessToken(userId, token, options = {}) {
   if (!token?.refresh_token) return token;
-  if (token.expires_at && token.expires_at > Date.now() + 60000) return token;
-
-  const response = await axios.post('https://oauth2.googleapis.com/token', new URLSearchParams({
-    client_id: GOOGLE_OAUTH_CLIENT_ID,
-    client_secret: GOOGLE_OAUTH_CLIENT_SECRET,
-    refresh_token: token.refresh_token,
-    grant_type: 'refresh_token',
-  }), { timeout: 5000 });
-
-  const refreshed = {
-    ...token,
-    ...response.data,
-    scope: response.data.scope || token.scope,
-    refresh_token: response.data.refresh_token || token.refresh_token,
-    expires_at: Date.now() + Number(response.data.expires_in || 3600) * 1000,
-  };
-  const tokens = await loadGoogleTokensAsync();
-  tokens[userId] = refreshed;
-  if (KAKAO_CALENDAR_ALLOW_ALL && tokens.default?.refresh_token === token.refresh_token) {
-    tokens.default = refreshed;
+  const force = Boolean(options.force);
+  if (!force && token.expires_at && token.expires_at > Date.now() + GOOGLE_ACCESS_TOKEN_REFRESH_MARGIN_MS) {
+    return token;
   }
-  await saveGoogleTokensAsync(tokens);
-  return refreshed;
+
+  const refreshKey = `${userId}:${token.refresh_token}`;
+  if (googleRefreshInflight.has(refreshKey)) return googleRefreshInflight.get(refreshKey);
+
+  const refreshPromise = (async () => {
+    const response = await axios.post('https://oauth2.googleapis.com/token', new URLSearchParams({
+      client_id: GOOGLE_OAUTH_CLIENT_ID,
+      client_secret: GOOGLE_OAUTH_CLIENT_SECRET,
+      refresh_token: token.refresh_token,
+      grant_type: 'refresh_token',
+    }), { timeout: 5000 });
+
+    const refreshed = {
+      ...token,
+      ...response.data,
+      scope: response.data.scope || token.scope,
+      refresh_token: response.data.refresh_token || token.refresh_token,
+      expires_at: Date.now() + Number(response.data.expires_in || 3600) * 1000,
+      refreshed_at: new Date().toISOString(),
+    };
+    const tokens = await loadGoogleTokensAsync();
+    tokens[userId] = refreshed;
+    if (KAKAO_CALENDAR_ALLOW_ALL && tokens.default?.refresh_token === token.refresh_token) {
+      tokens.default = refreshed;
+    }
+    await saveGoogleTokensAsync(tokens);
+    return refreshed;
+  })();
+
+  googleRefreshInflight.set(refreshKey, refreshPromise);
+  try {
+    return await refreshPromise;
+  } finally {
+    googleRefreshInflight.delete(refreshKey);
+  }
 }
 
 async function getGoogleAccessTokenForUser(userId) {
@@ -1588,6 +1613,16 @@ async function getGoogleAccessTokenForUser(userId) {
       googleError: error.response?.data?.error,
     });
     return refreshGoogleAccessToken(fallback[0], fallback[1]);
+  }
+}
+
+async function withGoogleAccessTokenRetry(userId, token, requestFn) {
+  try {
+    return await requestFn(token);
+  } catch (error) {
+    if (!isGoogleAccessTokenRejected(error) || !token?.refresh_token) throw error;
+    const refreshed = await refreshGoogleAccessToken(userId, token, { force: true });
+    return requestFn(refreshed);
   }
 }
 
@@ -1985,10 +2020,10 @@ async function patchGoogleCalendarEvent(userId, eventId, update) {
     payload.summary = update.summary;
   }
 
-  const response = await axios.patch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`, payload, {
-    headers: { Authorization: `Bearer ${token.access_token}` },
+  const response = await withGoogleAccessTokenRetry(userId, token, (activeToken) => axios.patch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`, payload, {
+    headers: { Authorization: `Bearer ${activeToken.access_token}` },
     timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
-  });
+  }));
 
   return { event: response.data };
 }
@@ -2094,43 +2129,45 @@ async function listGoogleCalendarEvents(userId, range, tokenOverride = null) {
     maxResults: '80',
     timeZone: 'Asia/Seoul',
   });
-  const response = await axios.get(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${token.access_token}` },
+  const response = await withGoogleAccessTokenRetry(userId, token, (activeToken) => axios.get(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${activeToken.access_token}` },
     timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
-  });
+  }));
   return { events: (response.data?.items || []).filter((event) => isCalendarItemInRange(event, range)) };
 }
 
 async function listGoogleTasks(userId, range, tokenOverride = null) {
   const token = tokenOverride || await getGoogleAccessTokenForUser(userId);
   if (!token) return { needsAuth: true };
-  const headers = { Authorization: `Bearer ${token.access_token}` };
-  const taskListsResponse = await axios.get('https://tasks.googleapis.com/tasks/v1/users/@me/lists', {
-    headers,
-    timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
-  });
-  const taskLists = taskListsResponse.data?.items || [];
-  const taskResults = await Promise.allSettled(taskLists.map((taskList) => {
-    const params = new URLSearchParams({
-      dueMin: `${range.startDate || range.timeMin.slice(0, 10)}T00:00:00.000Z`,
-      dueMax: `${range.endDate || range.timeMax.slice(0, 10)}T00:00:00.000Z`,
-      showCompleted: 'true',
-      showDeleted: 'false',
-      showHidden: 'true',
-      maxResults: '100',
-    });
-    return axios.get(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(taskList.id)}/tasks?${params.toString()}`, {
+  return withGoogleAccessTokenRetry(userId, token, async (activeToken) => {
+    const headers = { Authorization: `Bearer ${activeToken.access_token}` };
+    const taskListsResponse = await axios.get('https://tasks.googleapis.com/tasks/v1/users/@me/lists', {
       headers,
       timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
     });
-  }));
+    const taskLists = taskListsResponse.data?.items || [];
+    const taskResults = await Promise.allSettled(taskLists.map((taskList) => {
+      const params = new URLSearchParams({
+        dueMin: `${range.startDate || range.timeMin.slice(0, 10)}T00:00:00.000Z`,
+        dueMax: `${range.endDate || range.timeMax.slice(0, 10)}T00:00:00.000Z`,
+        showCompleted: 'true',
+        showDeleted: 'false',
+        showHidden: 'true',
+        maxResults: '100',
+      });
+      return axios.get(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(taskList.id)}/tasks?${params.toString()}`, {
+        headers,
+        timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
+      });
+    }));
 
-  const tasks = taskResults.flatMap((result) => (
-    result.status === 'fulfilled'
-      ? (result.value.data?.items || []).filter((task) => task.due)
-      : []
-  ));
-  return { tasks: tasks.filter((task) => isCalendarItemInRange(task, range)) };
+    const tasks = taskResults.flatMap((result) => (
+      result.status === 'fulfilled'
+        ? (result.value.data?.items || []).filter((task) => task.due)
+        : []
+    ));
+    return { tasks: tasks.filter((task) => isCalendarItemInRange(task, range)) };
+  });
 }
 
 function sortCalendarItems(items) {
@@ -2444,16 +2481,16 @@ async function createGoogleCalendarEvent(userId, event) {
       start: { dateTime: event.start, timeZone: 'Asia/Seoul' },
       end: { dateTime: event.end, timeZone: 'Asia/Seoul' },
     };
-  const response = await axios.post('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+  const response = await withGoogleAccessTokenRetry(userId, token, (activeToken) => axios.post('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
     summary: event.summary,
     ...eventTime,
     reminders: event.reminderMinutes
       ? { useDefault: false, overrides: [{ method: 'popup', minutes: event.reminderMinutes }] }
       : { useDefault: true },
   }, {
-    headers: { Authorization: `Bearer ${token.access_token}` },
+    headers: { Authorization: `Bearer ${activeToken.access_token}` },
     timeout: GOOGLE_CALENDAR_TIMEOUT_MS,
-  });
+  }));
 
   return { event: response.data };
 }
