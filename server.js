@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-26f-bare-weekday-calendar-date';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-28-token-refresh-hardening';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -3482,6 +3482,7 @@ app.get('/health', async (req, res) => {
       googleTokenStoreBucket: GOOGLE_TOKEN_STORE_BUCKET,
       kakaoHandlerTimeoutMs: KAKAO_HANDLER_TIMEOUT_MS,
       googleCalendarCombinedTimeoutMs: GOOGLE_CALENDAR_COMBINED_TIMEOUT_MS,
+      googleAccessTokenRefreshMarginMs: GOOGLE_ACCESS_TOKEN_REFRESH_MARGIN_MS,
       plannerTimeoutMs: CLAUDE_PLANNER_TIMEOUT_MS,
       naverTimeoutMs: NAVER_SEARCH_TIMEOUT_MS,
       port: PORT,
