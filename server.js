@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-06-08-reminder-time-typo';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-06-08-reminder-time-typo-rollback';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1370,7 +1370,6 @@ function normalizeCalendarCommandTypos(message) {
   if (!hasCalendarContext) return text;
 
   return text
-    .replace(/(\d{1,2})\s*사(?=\s|$)/g, '$1시')
     .replace(/알려주[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '알려줘')
     .replace(/보여주[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '보여줘')
     .replace(/말해주[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '말해줘')
