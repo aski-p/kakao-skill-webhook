@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-05-28-token-refresh-hardening';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-06-08-reminder-time-typo';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1370,6 +1370,7 @@ function normalizeCalendarCommandTypos(message) {
   if (!hasCalendarContext) return text;
 
   return text
+    .replace(/(\d{1,2})\s*사(?=\s|$)/g, '$1시')
     .replace(/알려주[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '알려줘')
     .replace(/보여주[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '보여줘')
     .replace(/말해주[0-9A-Za-zㄱ-ㅎㅏ-ㅣ]+/g, '말해줘')
@@ -1888,7 +1889,8 @@ function parseCalendarEvent(message) {
   let title = normalizeText(text
     .replace(/\d{1,3}\s*분\s*(?:전|전에|전쯤)/g, ' ')
     .replace(/(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일|(?<!월\s*)\d{1,2}\s*일|오늘|내일|모레|이번\s*주|이번주|다음\s*주|다음주|내주|다\s*다음\s*주|다다음주|다음\s*다음\s*주|차\s*주|저번\s*주|저번주|지난\s*주|지난주|이전\s*주|이전주|(월|화|수|목|금|토|일)\s*요일|오전|오후|저녁|밤|아침|\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?)/g, ' ')
-    .replace(/(구글|google|캘린더|calendar|일정|예약|스케줄|등록|추가|생성|만들어줘|만들|잡아줘|잡아|넣어줘|넣어|해줘|좀|에|으로|로|나한테|내게|저한테|알림|알려줘|알려줄|수\s*있어|지금|현재|줘)/g, ' ')
+    .replace(/(구글|google|캘린더|calendar|일정|예약|스케줄|등록|추가|생성|만들어줘|만들|잡아줘|잡아|넣어줘|넣어|해줘|좀|알림|알려줘|알려줄|수\s*있어|지금|현재|줘)/g, ' ')
+    .replace(/(?:^|\s)(에|으로|로|나한테|내게|저한테)(?=\s|$)/g, ' ')
     .replace(/[?？！!,.]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim());

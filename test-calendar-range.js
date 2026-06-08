@@ -92,6 +92,12 @@ assert.equal(isCalendarReadRequest('내일 지금 1시 10분 일정 예약'), fa
 assert.equal(isReminderWriteRequest('내일 지금 1시 10분 일정 예약'), true);
 assert.equal(isCalendarWriteRequest('내일 1시 예약 있어?'), false);
 assert.equal(isCalendarReadRequest('내일 1시 예약 있어?'), true);
+const reminderTypoMessage = normalizeCalendarCommandTypos('오늘 저녁 8사 에어컨리모컨 거치대 찾아보기 신발장 알림 해줘');
+assert.equal(reminderTypoMessage, '오늘 저녁 8시 에어컨리모컨 거치대 찾아보기 신발장 알림 해줘');
+assert.equal(isReminderWriteRequest(reminderTypoMessage), true);
+const reminderTypoEvent = parseCalendarEvent(reminderTypoMessage);
+assert.equal(reminderTypoEvent.summary, '에어컨리모컨 거치대 찾아보기 신발장');
+assert.equal(reminderTypoEvent.start, '2026-05-22T20:00:00+09:00');
 assert.equal(normalizeCalendarCommandTypos('내일 일정 알려주8'), '내일 일정 알려줘');
 assert.equal(normalizeCalendarCommandTypos('내일 일정 알려주ㅜ'), '내일 일정 알려줘');
 assert.equal(isMalformedCalendarCommand('내일 일정 알려주8'), false);
