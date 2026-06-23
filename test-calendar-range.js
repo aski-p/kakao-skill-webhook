@@ -109,6 +109,8 @@ assert.equal(dayOnlyEvent.summary, '신생아특례대출');
 assert.equal(dayOnlyEvent.startDate, '2026-05-27');
 assert.equal(dayOnlyEvent.endDate, '2026-05-28');
 assert.equal(dayOnlyEvent.allDay, true);
+assert.equal(isReminderWriteRequest('27일 결혼식 알림 해줘'), true);
+assert.equal(isCalendarReadRequest('27일 결혼식 알림 해줘'), false);
 
 assert.equal(truncateForMonthCard('건강검진 신경외과 예약'), '건강검진 신...');
 assert.equal(truncateForMonthCard('우체국 보험 전화'), '우체국 보험...');

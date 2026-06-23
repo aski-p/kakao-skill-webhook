@@ -10,7 +10,7 @@ const NaverWeatherCrawler = require('./crawlers/naver-weather-crawler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROUTER_VERSION = 'claude-haiku-4-5-2026-06-08-reminder-time-typo-rollback';
+const ROUTER_VERSION = 'claude-haiku-4-5-2026-06-23-kakao-reminder-hotfix';
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1439,7 +1439,8 @@ function isReminderWriteRequest(message) {
   const hasCalendarCue = /(캘린더|calendar|일정|스케줄)/.test(text);
   const hasReadCue = /(말해|보여|조회|확인|읽어|뭐\s*있|뭐가\s*있|있어|있나|있니|리스트|목록)/.test(text);
   const hasTimeCue = /(오늘|내일|모레|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{4}-\d{1,2}-\d{1,2}).*(오전|오후|저녁|밤|아침)?\s*\d{1,2}\s*시|(?:오전|오후|저녁|밤|아침)?\s*\d{1,2}\s*시/.test(text);
-  return hasReminderCue && hasTimeCue && !(hasCalendarCue && hasReadCue);
+  const hasDateCue = /(오늘|내일|모레|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{4}-\d{1,2}-\d{1,2}|(?<!월\s*)\d{1,2}\s*일)/.test(text);
+  return hasReminderCue && (hasTimeCue || hasDateCue) && !(hasCalendarCue && hasReadCue);
 }
 
 function answerGoogleCalendarConfigQuestion() {
@@ -1870,9 +1871,16 @@ function parseCalendarEvent(message) {
   if (time) {
     let hour = Number(time[2]);
     const minute = Number(time[3] || 0);
-    if (/(오후|저녁|밤)/.test(time[1] || '') && hour < 12) hour += 12;
-    if (/오전/.test(time[1] || '') && hour === 12) hour = 0;
+    const meridiem = time[1] || '';
+    if (/(오후|저녁|밤)/.test(meridiem) && hour < 12) hour += 12;
+    if (/오전/.test(meridiem) && hour === 12) hour = 0;
     start.setHours(hour, minute, 0, 0);
+    if (!meridiem && !hasExplicitDate && hour <= 11 && start <= nowKst) {
+      start.setHours(start.getHours() + 12);
+    }
+    if (!hasExplicitDate && start <= nowKst) {
+      start.setDate(start.getDate() + 1);
+    }
   } else {
     start.setHours(0, 0, 0, 0);
   }
